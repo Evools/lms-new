@@ -38,7 +38,7 @@ export default async function DashboardPage() {
   return (
     <div className="w-full space-y-6">
       {/* Banner Card */}
-      <Card className="w-full rounded-md border bg-card p-5">
+      <Card className="w-full rounded-md border bg-card p-5 shadow-none">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-        <Card className="rounded-md border p-4 space-y-2">
+        <Card className="rounded-md border p-4 space-y-2 shadow-none">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-xs font-medium uppercase tracking-wider">Группы</span>
             <Users className="h-4 w-4" />
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
           <p className="text-[11px] text-muted-foreground">Активные учебные группы</p>
         </Card>
 
-        <Card className="rounded-md border p-4 space-y-2">
+        <Card className="rounded-md border p-4 space-y-2 shadow-none">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-xs font-medium uppercase tracking-wider">Преподаватели</span>
             <UserCheck className="h-4 w-4" />
@@ -77,7 +77,7 @@ export default async function DashboardPage() {
           <p className="text-[11px] text-muted-foreground">Педагогический состав</p>
         </Card>
 
-        <Card className="rounded-md border p-4 space-y-2">
+        <Card className="rounded-md border p-4 space-y-2 shadow-none">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-xs font-medium uppercase tracking-wider">Студенты</span>
             <GraduationCap className="h-4 w-4" />
@@ -86,7 +86,7 @@ export default async function DashboardPage() {
           <p className="text-[11px] text-muted-foreground">Зачисленные учащиеся</p>
         </Card>
 
-        <Card className="rounded-md border p-4 space-y-2">
+        <Card className="rounded-md border p-4 space-y-2 shadow-none">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-xs font-medium uppercase tracking-wider">Задания</span>
             <ClipboardList className="h-4 w-4" />
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
         {/* Main Workspace Column */}
         <div className="lg:col-span-2 space-y-4">
-          <Card className="rounded-md border">
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="border-b pb-3">
               <CardTitle className="text-sm font-semibold">Мои группы и предметы</CardTitle>
               <CardDescription className="text-xs">Быстрый доступ к учебным материалам и журналам</CardDescription>
@@ -128,7 +128,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-md border">
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="border-b pb-3">
               <CardTitle className="text-sm font-semibold">Последние объявления лицея</CardTitle>
               <CardDescription className="text-xs">Официальная информация для преподавателей и учащихся</CardDescription>
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
 
         {/* Side Info Column */}
         <div className="space-y-4">
-          <Card className="rounded-md border">
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="border-b pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -174,7 +174,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-md border">
+          <Card className="rounded-md border shadow-none">
             <CardHeader className="border-b pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
