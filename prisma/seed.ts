@@ -1,9 +1,12 @@
 import { PrismaClient, Role } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Seeding database...");
+  console.log("Seeding database with hashed passwords...");
+
+  const hashedPassword = await bcrypt.hash("password123", 10);
 
   // Academic Year
   const academicYear = await prisma.academicYear.upsert({
@@ -20,10 +23,10 @@ async function main() {
   // Admin
   const admin = await prisma.user.upsert({
     where: { email: "admin@lyceum.edu" },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       email: "admin@lyceum.edu",
-      password: "password123", // In production, password will be hashed
+      password: hashedPassword,
       name: "Администратор Лицея",
       role: Role.ADMIN,
     },
@@ -32,10 +35,10 @@ async function main() {
   // Teacher
   const teacher = await prisma.user.upsert({
     where: { email: "teacher@lyceum.edu" },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       email: "teacher@lyceum.edu",
-      password: "password123",
+      password: hashedPassword,
       name: "Иванов Иван Иванович",
       role: Role.TEACHER,
     },
@@ -44,10 +47,10 @@ async function main() {
   // Student (Monitor)
   const monitor = await prisma.user.upsert({
     where: { email: "starosta@lyceum.edu" },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       email: "starosta@lyceum.edu",
-      password: "password123",
+      password: hashedPassword,
       name: "Петров Алексей",
       role: Role.STUDENT,
     },
@@ -56,10 +59,10 @@ async function main() {
   // Student 2
   const student2 = await prisma.user.upsert({
     where: { email: "student2@lyceum.edu" },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       email: "student2@lyceum.edu",
-      password: "password123",
+      password: hashedPassword,
       name: "Сидорова Анна",
       role: Role.STUDENT,
     },
@@ -118,7 +121,7 @@ async function main() {
   });
 
   // Group Subject
-  const groupSubject = await prisma.groupSubject.upsert({
+  await prisma.groupSubject.upsert({
     where: {
       groupId_subjectId_teacherId: {
         groupId: group.id,
@@ -134,7 +137,7 @@ async function main() {
     },
   });
 
-  console.log("Seeding finished successfully.");
+  console.log("Seeding finished successfully with hashed passwords.");
 }
 
 main()
