@@ -12,16 +12,27 @@ import {
   Clock,
   Megaphone,
   Activity,
-  FileText,
   CheckCircle2,
   Calendar,
   ArrowUpRight,
   Plus,
-  AlertCircle,
   FileCode,
   CheckSquare,
+  TrendingUp,
+  BarChart3,
+  PieChart as PieChartIcon,
+  Bell,
+  ArrowUp,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  AdminGenderDistributionChart,
+  AdminGroupPerformanceChart,
+  TeacherOverviewChart,
+  TeacherGradeDistributionChart,
+  StudentProgressChart,
+  StudentAttendancePieChart,
+} from "./_components/dashboard-charts";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -32,9 +43,58 @@ export default async function DashboardPage() {
 
   const { name, role } = session.user;
 
+  // Format today's date in Russian
+  const todayDate = new Date().toLocaleDateString("ru-RU", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   return (
     <div className="w-full space-y-6">
-      {/* ROLE-BASED DASHBOARD CONTENT ACCORDING TO TECHNICAL SPECIFICATION */}
+      {/* Page Header in clean shadcn style */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Панель управления</h1>
+          <p className="text-sm text-muted-foreground capitalize">
+            Приветствуем, <span className="font-medium text-foreground">{name || "Пользователь"}</span> • {todayDate}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {role === "ADMIN" && (
+            <>
+              <Button size="sm" render={<Link href="/dashboard/groups" />}>
+                <Plus className="h-4 w-4 mr-1.5" /> Добавить группу
+              </Button>
+              <Button size="sm" variant="outline" render={<Link href="/dashboard/reports" />}>
+                <BarChart3 className="h-4 w-4 mr-1.5" /> Отчёты
+              </Button>
+            </>
+          )}
+          {role === "TEACHER" && (
+            <>
+              <Button size="sm" render={<Link href="/dashboard/assignments" />}>
+                <ClipboardCheck className="h-4 w-4 mr-1.5" /> На проверку (8)
+              </Button>
+              <Button size="sm" variant="outline" render={<Link href="/dashboard/attendance" />}>
+                <Calendar className="h-4 w-4 mr-1.5" /> Посещаемость
+              </Button>
+            </>
+          )}
+          {role === "STUDENT" && (
+            <>
+              <Button size="sm" render={<Link href="/dashboard/assignments" />}>
+                <CheckSquare className="h-4 w-4 mr-1.5" /> Сдать задание
+              </Button>
+              <Button size="sm" variant="outline" render={<Link href="/dashboard/lms" />}>
+                <BookOpen className="h-4 w-4 mr-1.5" /> Материалы
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* ------------------------------------------------------------- */}
       {/* 1. ADMINISTRATOR DASHBOARD VIEW */}
@@ -50,7 +110,9 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">12</div>
-                <p className="text-xs text-muted-foreground">Всего учебных групп</p>
+                <div className="flex items-center gap-1 mt-1 text-xs text-emerald-600 font-medium">
+                  <ArrowUp className="h-3 w-3" /> +2 в этом семестре
+                </div>
               </CardContent>
             </Card>
 
@@ -61,7 +123,7 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">28</div>
-                <p className="text-xs text-muted-foreground">Преподавательский состав</p>
+                <p className="text-xs text-muted-foreground mt-1">Преподавательский состав</p>
               </CardContent>
             </Card>
 
@@ -72,7 +134,7 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">340</div>
-                <p className="text-xs text-muted-foreground">Зачисленных учащихся</p>
+                <p className="text-xs text-muted-foreground mt-1">96% средняя посещаемость</p>
               </CardContent>
             </Card>
 
@@ -83,7 +145,46 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">16</div>
-                <p className="text-xs text-muted-foreground">Дисциплин в программе</p>
+                <p className="text-xs text-muted-foreground mt-1">Дисциплин в программе</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Analytics Section in clean shadcn Card wrapper */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="border shadow-none">
+              <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <PieChartIcon className="h-4 w-4 text-muted-foreground" />
+                    Гендерный состав учащихся
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Соотношение юношей и девушек в лицее
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="text-[11px]">340 учащихся</Badge>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <AdminGenderDistributionChart />
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-none">
+              <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                    Сдача домашних заданий
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Сравнение выполнения заданий по группам (%)
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="text-[11px]">По группам</Badge>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <AdminGroupPerformanceChart />
               </CardContent>
             </Card>
           </div>
@@ -93,28 +194,29 @@ export default async function DashboardPage() {
             {/* Left 2 Columns: Activity & Announcements */}
             <div className="lg:col-span-2 space-y-6">
               <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
+                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <Activity className="h-4 w-4 text-muted-foreground" />
                     Последние действия в системе
                   </CardTitle>
+                  <Badge variant="secondary" className="text-[10px]">В реальном времени</Badge>
                 </CardHeader>
                 <CardContent className="p-0 divide-y text-xs">
-                  <div className="p-3 flex items-center justify-between">
+                  <div className="p-3.5 flex items-center justify-between">
                     <div>
-                      <span className="font-medium text-foreground">Иванов И.И.</span> добавил материал «Лекция 4: CSS Grid» в группу ИС-1-25
+                      <span className="font-medium text-foreground">Иванов И.И.</span> добавил материал «Лекция 4: CSS Grid» в группу <span className="font-medium">ИС-1-25</span>
                     </div>
                     <span className="text-muted-foreground text-[11px] shrink-0 ml-2">10 мин назад</span>
                   </div>
-                  <div className="p-3 flex items-center justify-between">
+                  <div className="p-3.5 flex items-center justify-between">
                     <div>
                       <span className="font-medium text-foreground">Петров А.</span> сдал домашнее задание по Веб-программированию
                     </div>
                     <span className="text-muted-foreground text-[11px] shrink-0 ml-2">25 мин назад</span>
                   </div>
-                  <div className="p-3 flex items-center justify-between">
+                  <div className="p-3.5 flex items-center justify-between">
                     <div>
-                      <span className="font-medium text-foreground">Сидоров А.П.</span> отметила посещаемость группы ИС-2-24
+                      <span className="font-medium text-foreground">Сидоров А.П.</span> отметил посещаемость группы <span className="font-medium">ИС-2-24</span>
                     </div>
                     <span className="text-muted-foreground text-[11px] shrink-0 ml-2">1 час назад</span>
                   </div>
@@ -122,11 +224,14 @@ export default async function DashboardPage() {
               </Card>
 
               <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
+                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <Megaphone className="h-4 w-4 text-muted-foreground" />
                     Объявления лицея
                   </CardTitle>
+                  <Button variant="ghost" size="xs" render={<Link href="/dashboard/announcements" />}>
+                    Все <ArrowUpRight className="h-3 w-3 ml-1" />
+                  </Button>
                 </CardHeader>
                 <CardContent className="p-4 space-y-3">
                   <div className="p-3 border rounded-md bg-muted/20 space-y-1">
@@ -153,14 +258,14 @@ export default async function DashboardPage() {
                   <CardDescription className="text-xs">Группа ИС-1-25</CardDescription>
                 </CardHeader>
                 <CardContent className="p-3 space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex items-center justify-between p-2.5 border rounded-md bg-muted/20">
                     <div>
                       <div className="font-medium text-foreground">Петров Алексей</div>
                       <div className="text-muted-foreground text-[11px]">Староста / Старший дежурный</div>
                     </div>
                     <Badge variant="default" className="text-[10px]">Старший</Badge>
                   </div>
-                  <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex items-center justify-between p-2.5 border rounded-md">
                     <div>
                       <div className="font-medium text-foreground">Сидорова Анна</div>
                       <div className="text-muted-foreground text-[11px]">Дежурный</div>
@@ -187,8 +292,8 @@ export default async function DashboardPage() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">4</div>
-                <p className="text-xs text-muted-foreground">Пары по расписанию</p>
+                <div className="text-2xl font-bold">4 пары</div>
+                <p className="text-xs text-muted-foreground mt-1">Кабинеты 204, 308</p>
               </CardContent>
             </Card>
 
@@ -198,8 +303,8 @@ export default async function DashboardPage() {
                 <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">8</div>
-                <p className="text-xs text-muted-foreground">Выполненных домашних заданий</p>
+                <div className="text-2xl font-bold">8 работ</div>
+                <p className="text-xs text-muted-foreground mt-1">Требуют вашей оценки</p>
               </CardContent>
             </Card>
 
@@ -209,8 +314,44 @@ export default async function DashboardPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">2</div>
-                <p className="text-xs text-muted-foreground">Закрепленные учебные группы</p>
+                <div className="text-2xl font-bold">2 группы</div>
+                <p className="text-xs text-muted-foreground mt-1">ИС-1-25, ИС-2-24</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Teacher Analytics Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 border shadow-none">
+              <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                    Сдача и проверка домашних заданий
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Статистика за последние 5 недель
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="text-[11px]">За 5 недель</Badge>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <TeacherOverviewChart />
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-none">
+              <CardHeader className="border-b pb-3">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <PieChartIcon className="h-4 w-4 text-muted-foreground" />
+                  Распределение оценок
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Успеваемость по предметам
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <TeacherGradeDistributionChart />
               </CardContent>
             </Card>
           </div>
@@ -220,11 +361,12 @@ export default async function DashboardPage() {
             {/* Left 2 Columns: Classes today & Assignments to review */}
             <div className="lg:col-span-2 space-y-6">
               <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
+                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     Сегодняшние занятия
                   </CardTitle>
+                  <Badge variant="outline" className="text-[10px]">2 пары</Badge>
                 </CardHeader>
                 <CardContent className="p-0 divide-y text-xs">
                   <div className="p-4 flex items-center justify-between">
@@ -249,19 +391,20 @@ export default async function DashboardPage() {
               </Card>
 
               <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
+                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
                     Домашние задания на проверку
                   </CardTitle>
+                  <Badge variant="secondary" className="text-[10px]">8 Работ</Badge>
                 </CardHeader>
                 <CardContent className="p-0 divide-y text-xs">
-                  <div className="p-3 flex items-center justify-between">
+                  <div className="p-3.5 flex items-center justify-between">
                     <div>
-                      <div className="font-medium text-foreground">Лабораторная работа #3 (HTML/CSS)</div>
+                      <div className="font-medium text-foreground">Лабораторная работа #3 (HTML/CSS Grid)</div>
                       <div className="text-muted-foreground">Студент: Петров А. (ИС-1-25)</div>
                     </div>
-                    <Button variant="ghost" size="xs" render={<Link href="/dashboard/assignments" />}>
+                    <Button variant="outline" size="xs" render={<Link href="/dashboard/assignments" />}>
                       Проверить <ArrowUpRight className="h-3 w-3 ml-1" />
                     </Button>
                   </div>
@@ -317,7 +460,7 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">ИС-1-25</div>
-                <p className="text-xs text-muted-foreground">Специальность «Информационные системы»</p>
+                <p className="text-xs text-muted-foreground mt-1">«Информационные системы»</p>
               </CardContent>
             </Card>
 
@@ -327,8 +470,8 @@ export default async function DashboardPage() {
                 <CheckSquare className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">2</div>
-                <p className="text-xs text-muted-foreground">Активные домашние задания</p>
+                <div className="text-2xl font-bold">2 задания</div>
+                <p className="text-xs text-muted-foreground mt-1">Активные работы</p>
               </CardContent>
             </Card>
 
@@ -338,10 +481,46 @@ export default async function DashboardPage() {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <Badge variant="default" className="text-xs font-medium px-2 py-1">
+                <Badge variant="default" className="text-xs px-2 py-0.5">
                   Старший дежурный
                 </Badge>
-                <p className="text-xs text-muted-foreground mt-1.5">Отвечает за порядок в группе</p>
+                <p className="text-xs text-muted-foreground mt-1">Отвечает за порядок</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Student Analytics Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 border shadow-none">
+              <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    Академический прогресс
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Средний балл по изучаемым модулям
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary" className="text-[11px]">Средний балл 4.8</Badge>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <StudentProgressChart />
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-none">
+              <CardHeader className="border-b pb-3">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <PieChartIcon className="h-4 w-4 text-muted-foreground" />
+                  Посещаемость
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  За текущий семестр
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <StudentAttendancePieChart />
               </CardContent>
             </Card>
           </div>
@@ -351,11 +530,14 @@ export default async function DashboardPage() {
             {/* Left 2 Columns: Recent Materials & Homework */}
             <div className="lg:col-span-2 space-y-6">
               <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
+                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <FileCode className="h-4 w-4 text-muted-foreground" />
                     Последние учебные материалы
                   </CardTitle>
+                  <Button variant="ghost" size="xs" render={<Link href="/dashboard/lms" />}>
+                    Все <ArrowUpRight className="h-3 w-3 ml-1" />
+                  </Button>
                 </CardHeader>
                 <CardContent className="p-0 divide-y text-xs">
                   <div className="p-4 flex items-center justify-between">
@@ -376,11 +558,12 @@ export default async function DashboardPage() {
               </Card>
 
               <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
+                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
                     Мои домашние задания
                   </CardTitle>
+                  <Badge variant="secondary" className="text-[10px]">2 активных</Badge>
                 </CardHeader>
                 <CardContent className="p-0 divide-y text-xs">
                   <div className="p-4 flex items-center justify-between">
@@ -406,14 +589,14 @@ export default async function DashboardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2 border rounded-md bg-muted/20">
+                  <div className="flex items-center justify-between p-2.5 border rounded-md bg-muted/20">
                     <div>
-                      <div className="font-semibold text-foreground">Петров Алексей (Вы)</div>
-                      <div className="text-muted-foreground text-[11px]">Старший дежурный</div>
+                      <div className="font-medium text-foreground">Петров Алексей (Вы)</div>
+                      <div className="text-muted-foreground text-[11px]">Староста / Старший дежурный</div>
                     </div>
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   </div>
-                  <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex items-center justify-between p-2.5 border rounded-md">
                     <div>
                       <div className="font-medium text-foreground">Сидорова Анна</div>
                       <div className="text-muted-foreground text-[11px]">Дежурный</div>
@@ -425,12 +608,12 @@ export default async function DashboardPage() {
               <Card className="border shadow-none">
                 <CardHeader className="border-b pb-3">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Megaphone className="h-4 w-4 text-muted-foreground" />
+                    <Bell className="h-4 w-4 text-muted-foreground" />
                     Объявления
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 text-xs space-y-2">
-                  <div className="p-2.5 border rounded-md bg-muted/20 space-y-1">
+                  <div className="p-3 border rounded-md bg-muted/20 space-y-1">
                     <div className="font-semibold text-foreground">График консультаций перед сессией</div>
                     <p className="text-muted-foreground">
                       Консультации по веб-программированию проходят по четвергам в 14:00.

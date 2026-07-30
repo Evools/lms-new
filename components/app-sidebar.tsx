@@ -41,7 +41,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     {
       name: "Лицей LMS",
       logo: <Building2 className="h-4 w-4" />,
-      plan: "Учебный год 2025-2026",
+      plan: "2026-2027 уч. год",
     },
   ];
 
