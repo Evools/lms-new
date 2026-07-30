@@ -6,6 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +25,16 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Megaphone,
   Pin,
   Plus,
@@ -26,15 +44,9 @@ import {
   Paperclip,
   Users,
   UserCheck,
-  GraduationCap,
-  Calendar,
-  Clock,
-  MessageSquare,
-  CheckCircle2,
-  Filter,
-  Sparkles,
-  AlertCircle,
   Building2,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 export interface AnnouncementItem {
@@ -89,8 +101,8 @@ const INITIAL_ANNOUNCEMENTS: AnnouncementItem[] = [
   },
   {
     id: "ann-3",
-    title: "Обновление правил пользования цифрой библиотекой лицея",
-    body: "Внимание студентам и преподавателям! В электронную библиотеку лицея добавлены новые учебные пособия по веб-разработке, алгоритмам и базами данных SQL. Доступ открыт для всех авториазованных пользователей платформы.",
+    title: "Обновление правил пользования цифровой библиотекой лицея",
+    body: "Внимание студентам и преподавателям! В электронную библиотеку лицея добавлены новые учебные пособия по веб-разработке, алгоритмам и базами данных SQL. Доступ открыт для всех авторизованных пользователей платформы.",
     authorName: "Администрация Лицея",
     authorRole: "ADMIN",
     targetAudience: "LYCEUM",
@@ -114,6 +126,7 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
   const [searchQuery, setSearchQuery] = useState("");
   const [activeAudienceFilter, setActiveAudienceFilter] = useState<"ALL" | "LYCEUM" | "GROUP" | "TEACHERS">("ALL");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // New Announcement Form State
   const [newTitle, setNewTitle] = useState("");
@@ -126,13 +139,11 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
 
   // Filter Announcements
   const filteredAnnouncements = announcements.filter((item) => {
-    // Search query filter
     const matchesSearch =
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.body.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.authorName.toLowerCase().includes(searchQuery.toLowerCase());
 
-    // Audience tab filter
     const matchesAudience =
       activeAudienceFilter === "ALL" || item.targetAudience === activeAudienceFilter;
 
@@ -141,6 +152,13 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
 
   const pinnedAnnouncements = filteredAnnouncements.filter((a) => a.isPinned);
   const regularAnnouncements = filteredAnnouncements.filter((a) => !a.isPinned);
+
+  const confirmDeleteAnnouncement = () => {
+    if (deletingId) {
+      setAnnouncements(announcements.filter((a) => a.id !== deletingId));
+      setDeletingId(null);
+    }
+  };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,7 +210,7 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
         );
       case "TEACHERS":
         return (
-          <Badge variant="default" className="gap-1 text-[11px]">
+          <Badge variant="outline" className="border-primary/40 text-primary gap-1 text-[11px]">
             <UserCheck className="h-3 w-3" />
             Преподавателям
           </Badge>
@@ -219,7 +237,7 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
             <DialogContent className="sm:max-w-[550px]">
               <form onSubmit={handleCreateSubmit}>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
+                  <DialogTitle className="flex items-center gap-2 text-base">
                     <Megaphone className="h-5 w-5 text-primary" />
                     Новое объявление
                   </DialogTitle>
@@ -239,27 +257,29 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-foreground">Целевая аудитория</label>
-                      <select
-                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                      <Select
                         value={newAudience}
-                        onChange={(e) => setNewAudience(e.target.value as any)}
+                        onValueChange={(val) => setNewAudience(val as any)}
                       >
-                        <option value="LYCEUM">Всему лицею</option>
-                        <option value="GROUP">Студентам группы ИС-1-25</option>
-                        <option value="TEACHERS">Преподавательскому составу</option>
-                      </select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите аудиторию" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="LYCEUM">Всему лицею</SelectItem>
+                          <SelectItem value="GROUP">Студентам группы ИС-1-25</SelectItem>
+                          <SelectItem value="TEACHERS">Преподавательскому составу</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="flex items-center pt-5">
                       <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                        <Checkbox
                           checked={newPinned}
-                          onChange={(e) => setNewPinned(e.target.checked)}
+                          onCheckedChange={(checked) => setNewPinned(!!checked)}
                         />
                         <span>Закрепить как важное</span>
                       </label>
@@ -270,7 +290,7 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
                     <label className="text-xs font-medium text-foreground">Текст объявления *</label>
                     <textarea
                       rows={4}
-                      className="w-full rounded-md border border-input bg-background p-3 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                      className="w-full rounded-md border border-input bg-background p-3 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
                       placeholder="Введите текст вашего объявления..."
                       value={newBody}
                       onChange={(e) => setNewBody(e.target.value)}
@@ -299,6 +319,27 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
           </Dialog>
         )}
       </div>
+
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Удалить объявление?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы действительно хотите удалить это объявление? Это действие окончательно и его нельзя будет отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDeleteAnnouncement}>
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Search & Filter Toolbar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -352,18 +393,18 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
         {/* Pinned Announcements Section */}
         {pinnedAnnouncements.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
               <Pin className="h-3.5 w-3.5 fill-current" />
               <span>Закрепленные объявления</span>
             </div>
 
             {pinnedAnnouncements.map((item) => (
-              <Card key={item.id} className="border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/20 dark:bg-amber-950/10 shadow-none">
-                <CardHeader className="pb-3 border-b border-amber-100 dark:border-amber-900/30">
+              <Card key={item.id} className="border border-primary/30 bg-primary/5 shadow-none">
+                <CardHeader className="pb-3 border-b border-primary/20">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-9 w-9 border shrink-0">
-                        <AvatarFallback className="bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-xs font-semibold">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                           {item.authorName.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -382,15 +423,26 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
 
                     <div className="flex items-center gap-2">
                       {getAudienceBadge(item.targetAudience, item.groupName)}
-                      <Badge className="bg-amber-500 text-white gap-1 text-[10px]">
+                      <Badge className="bg-primary text-primary-foreground gap-1 text-[10px]">
                         <Pin className="h-3 w-3 fill-current" /> Важно
                       </Badge>
+                      {canCreate && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => setDeletingId(item.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                          title="Удалить объявление"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="pt-4 space-y-3 text-sm">
-                  <h3 className="font-bold text-base text-foreground leading-snug">{item.title}</h3>
+                  <h3 className="font-semibold text-base text-foreground leading-snug">{item.title}</h3>
                   <p className="text-muted-foreground text-xs leading-relaxed whitespace-pre-line">
                     {item.body}
                   </p>
@@ -449,7 +501,20 @@ export function AnnouncementsView({ userRole, userName }: AnnouncementsViewProps
                       </div>
                     </div>
 
-                    <div>{getAudienceBadge(item.targetAudience, item.groupName)}</div>
+                    <div className="flex items-center gap-2">
+                      {getAudienceBadge(item.targetAudience, item.groupName)}
+                      {canCreate && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => setDeletingId(item.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                          title="Удалить объявление"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
 
