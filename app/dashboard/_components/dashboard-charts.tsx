@@ -72,7 +72,7 @@ const adminGroupData = [
 const adminGroupConfig: ChartConfig = {
   submitted: {
     label: "% Сдачи ДЗ",
-    color: "var(--chart-2)",
+    color: "var(--chart-1)",
   },
 };
 
@@ -84,7 +84,7 @@ export function AdminGroupPerformanceChart() {
         <XAxis dataKey="group" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[0, 100]} />
         <Tooltip content={<ChartTooltipContent />} />
-        <Bar dataKey="submitted" fill="var(--chart-2)" radius={[4, 4, 0, 0]} name="% Сдачи ДЗ" />
+        <Bar dataKey="submitted" fill="var(--chart-1)" radius={[4, 4, 0, 0]} name="% Сдачи ДЗ" />
       </BarChart>
     </ChartContainer>
   );
