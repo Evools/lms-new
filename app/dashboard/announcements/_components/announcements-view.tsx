@@ -41,7 +41,6 @@ import {
   Search,
   FileText,
   Download,
-  Paperclip,
   Users,
   UserCheck,
   Building2,
@@ -51,6 +50,7 @@ import {
   Loader2,
   X,
   UploadCloud,
+  Lock,
 } from "lucide-react";
 import {
   createAnnouncementAction,
@@ -140,38 +140,6 @@ export function AnnouncementsView({
     document.body.removeChild(a);
   };
 
-  const handleSelectNewFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const selected = Array.from(e.target.files).map((file, idx) => ({
-      id: `file-new-${Date.now()}-${idx}`,
-      fileName: file.name,
-      fileSize: formatBytes(file.size),
-      fileUrl: URL.createObjectURL(file),
-      blob: file,
-    }));
-    setNewFiles((prev) => [...prev, ...selected]);
-  };
-
-  const handleRemoveNewFile = (id: string) => {
-    setNewFiles((prev) => prev.filter((f) => f.id !== id));
-  };
-
-  const handleSelectEditFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const selected = Array.from(e.target.files).map((file, idx) => ({
-      id: `file-edit-${Date.now()}-${idx}`,
-      fileName: file.name,
-      fileSize: formatBytes(file.size),
-      fileUrl: URL.createObjectURL(file),
-      blob: file,
-    }));
-    setEditFiles((prev) => [...prev, ...selected]);
-  };
-
-  const handleRemoveEditFile = (id: string) => {
-    setEditFiles((prev) => prev.filter((f) => f.id !== id));
-  };
-
   const handleStartEdit = (item: AnnouncementItem) => {
     setEditingItem(item);
     setEditTitle(item.title);
@@ -231,7 +199,6 @@ export function AnnouncementsView({
     const titleVal = newTitle.trim();
     const bodyVal = newBody.trim();
     const audienceVal = newAudience;
-    const fileUrlVal = newFiles.map((f) => f.fileName).join(", ");
 
     setNewTitle("");
     setNewBody("");
@@ -245,7 +212,6 @@ export function AnnouncementsView({
         title: titleVal,
         body: bodyVal,
         targetAudience: audienceVal,
-        fileUrl: fileUrlVal || undefined,
       });
     });
   };
@@ -283,7 +249,6 @@ export function AnnouncementsView({
         title: updatedTitle,
         body: updatedBody,
         targetAudience: updatedAudience,
-        fileUrl: updatedFiles.map((f) => f.fileName).join(", ") || undefined,
       });
     });
   };
@@ -402,47 +367,19 @@ export function AnnouncementsView({
                     />
                   </div>
 
-                  {/* Multi-File Upload Dropzone */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-foreground">Прикрепить файлы</label>
-                    <label className="border border-dashed border-input rounded-md p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-accent/40 transition-colors">
-                      <UploadCloud className="h-6 w-6 text-muted-foreground mb-1.5" />
-                      <span className="text-xs font-medium text-foreground">Выбрать файлы с компьютера</span>
-                      <span className="text-[11px] text-muted-foreground mt-0.5">PDF, DOCX, XLSX, картинки (можно несколько)</span>
-                      <input
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={handleSelectNewFiles}
-                      />
-                    </label>
-
-                    {/* Attached Files List Preview */}
-                    {newFiles.length > 0 && (
-                      <div className="space-y-1.5 pt-1">
-                        {newFiles.map((file) => (
-                          <div
-                            key={file.id}
-                            className="flex items-center justify-between p-2 border rounded-md bg-muted/30 text-xs"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <FileText className="h-4 w-4 text-primary shrink-0" />
-                              <span className="truncate font-medium">{file.fileName}</span>
-                              <span className="text-[10px] text-muted-foreground shrink-0">({file.fileSize})</span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-xs"
-                              onClick={() => handleRemoveNewFile(file.id)}
-                              className="text-muted-foreground hover:text-destructive shrink-0"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  {/* Disabled File Upload Dropzone */}
+                  <div className="space-y-1.5 opacity-65 pointer-events-none select-none">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-muted-foreground">Прикрепить файлы</label>
+                      <Badge variant="outline" className="text-[10px] gap-1 py-0 px-2 bg-muted text-muted-foreground font-normal border">
+                        <Lock className="h-3 w-3" /> Пока что недоступно
+                      </Badge>
+                    </div>
+                    <div className="border border-dashed border-input/60 rounded-md p-4 flex flex-col items-center justify-center bg-muted/20 text-center cursor-not-allowed">
+                      <UploadCloud className="h-6 w-6 text-muted-foreground/40 mb-1.5" />
+                      <span className="text-xs font-medium text-muted-foreground">Загрузка файлов временно отключена</span>
+                      <span className="text-[11px] text-muted-foreground/60 mt-0.5">Будет подключено после интеграции облачного хранилища S3</span>
+                    </div>
                   </div>
                 </div>
 
@@ -535,47 +472,19 @@ export function AnnouncementsView({
                 />
               </div>
 
-              {/* Multi-File Upload Dropzone for Editing */}
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-foreground">Прикрепленные файлы</label>
-                <label className="border border-dashed border-input rounded-md p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-accent/40 transition-colors">
-                  <UploadCloud className="h-6 w-6 text-muted-foreground mb-1.5" />
-                  <span className="text-xs font-medium text-foreground">Добавить еще файлы</span>
-                  <span className="text-[11px] text-muted-foreground mt-0.5">Выбор нескольких файлов с устройства</span>
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleSelectEditFiles}
-                  />
-                </label>
-
-                {/* File preview list in Edit mode */}
-                {editFiles.length > 0 && (
-                  <div className="space-y-1.5 pt-1">
-                    {editFiles.map((file) => (
-                      <div
-                        key={file.id}
-                        className="flex items-center justify-between p-2 border rounded-md bg-muted/30 text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="h-4 w-4 text-primary shrink-0" />
-                          <span className="truncate font-medium">{file.fileName}</span>
-                          <span className="text-[10px] text-muted-foreground shrink-0">({file.fileSize})</span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => handleRemoveEditFile(file.id)}
-                          className="text-muted-foreground hover:text-destructive shrink-0"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              {/* Disabled File Upload Dropzone for Editing */}
+              <div className="space-y-1.5 opacity-65 pointer-events-none select-none">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">Прикрепить файлы</label>
+                  <Badge variant="outline" className="text-[10px] gap-1 py-0 px-2 bg-muted text-muted-foreground font-normal border">
+                    <Lock className="h-3 w-3" /> Пока что недоступно
+                  </Badge>
+                </div>
+                <div className="border border-dashed border-input/60 rounded-md p-4 flex flex-col items-center justify-center bg-muted/20 text-center cursor-not-allowed">
+                  <UploadCloud className="h-6 w-6 text-muted-foreground/40 mb-1.5" />
+                  <span className="text-xs font-medium text-muted-foreground">Загрузка файлов временно отключена</span>
+                  <span className="text-[11px] text-muted-foreground/60 mt-0.5">Будет подключено после интеграции облачного хранилища S3</span>
+                </div>
               </div>
             </div>
 

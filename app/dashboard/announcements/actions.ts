@@ -4,6 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
+export interface FileAttachmentItemDTO {
+  id: string;
+  fileName: string;
+  fileSize: string;
+  fileUrl: string;
+}
+
 export interface AnnouncementItemDTO {
   id: string;
   title: string;
@@ -15,11 +22,7 @@ export interface AnnouncementItemDTO {
   groupName?: string;
   createdAt: string;
   isPinned?: boolean;
-  fileAttachment?: {
-    fileName: string;
-    fileSize: string;
-    fileUrl: string;
-  };
+  files?: FileAttachmentItemDTO[];
 }
 
 export async function getAnnouncementsAction(): Promise<AnnouncementItemDTO[]> {
@@ -67,12 +70,13 @@ export async function getAnnouncementsAction(): Promise<AnnouncementItemDTO[]> {
         minute: "2-digit",
       }),
       isPinned: false,
-      fileAttachment: item.fileUrl
-        ? {
-            fileName: item.fileUrl.split("/").pop() || "Документ.pdf",
+      files: item.fileUrl
+        ? item.fileUrl.split(", ").map((fileName, idx) => ({
+            id: `file-${item.id}-${idx}`,
+            fileName: fileName.trim(),
             fileSize: "1.0 MB",
-            fileUrl: item.fileUrl,
-          }
+            fileUrl: "#",
+          }))
         : undefined,
     }));
   } catch (error) {
