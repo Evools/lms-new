@@ -15,6 +15,7 @@ import {
 import {
   LayoutDashboard,
   Users,
+  UserPlus,
   BookOpen,
   CalendarCheck,
   ClipboardList,
@@ -73,6 +74,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         {
           groupLabel: "Управление обучением",
           items: [
+            {
+              title: "Зачисление студентов",
+              url: "/dashboard/students",
+              icon: <UserPlus className="h-4 w-4" />,
+            },
             {
               title: "Группы",
               url: "/dashboard/groups",
@@ -154,6 +160,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         {
           groupLabel: "Мой учебный процесс",
           items: [
+            {
+              title: "Зачисление студентов",
+              url: "/dashboard/students",
+              icon: <UserPlus className="h-4 w-4" />,
+            },
             {
               title: "Мои группы",
               url: "/dashboard/groups",
