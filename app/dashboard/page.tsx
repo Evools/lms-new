@@ -8,7 +8,6 @@ import {
   BookOpen,
   Calendar,
   Bell,
-  CheckCircle2,
   Shield,
   UserCheck,
   GraduationCap,
@@ -25,38 +24,8 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const { name, role } = session.user;
-
-  const roleConfigs = {
-    ADMIN: { label: "Администратор", icon: Shield },
-    TEACHER: { label: "Преподаватель", icon: UserCheck },
-    STUDENT: { label: "Студент", icon: GraduationCap },
-  };
-
-  const currentRole = roleConfigs[role] || roleConfigs.STUDENT;
-
   return (
     <div className="w-full space-y-6">
-      {/* Banner Card */}
-      <Card className="w-full rounded-md border bg-card p-5 shadow-none">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-              <h2 className="text-lg font-semibold tracking-tight">Панель управления лицеем</h2>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Вход выполнен под аккаунтом <span className="font-medium text-foreground">{name}</span> ({currentRole.label})
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="rounded-md text-xs">
-              Инструкция пользователя
-            </Button>
-          </div>
-        </div>
-      </Card>
-
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
         <Card className="rounded-md border p-4 space-y-2 shadow-none">

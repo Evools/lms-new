@@ -75,15 +75,15 @@ export function NavUser({
               />
             }
           >
-            <Avatar className="h-8 w-8 rounded-md">
+            <Avatar className="h-8 w-8 rounded-md shrink-0">
               {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
               <AvatarFallback className="rounded-md text-xs font-semibold">{userInitials}</AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-xs leading-tight min-w-0">
-              <span className="truncate font-semibold text-slate-100">{user.name}</span>
+            <div className="grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden">
+              <span className="truncate font-medium text-foreground">{user.name}</span>
               <span className="truncate text-[11px] text-muted-foreground">{user.email}</span>
             </div>
-            <ChevronsUpDown className="ml-auto size-4 text-muted-foreground shrink-0" />
+            <ChevronsUpDown className="ml-auto size-4 text-muted-foreground shrink-0 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-56 rounded-md"
@@ -94,12 +94,12 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2.5 px-2 py-2 text-left text-sm">
-                  <Avatar className="h-8 w-8 rounded-md">
+                  <Avatar className="h-8 w-8 rounded-md shrink-0">
                     {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
                     <AvatarFallback className="rounded-md text-xs font-semibold">{userInitials}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-xs leading-tight min-w-0">
-                    <span className="truncate font-semibold">{user.name}</span>
+                    <span className="truncate font-semibold text-foreground">{user.name}</span>
                     <span className="truncate text-[11px] text-muted-foreground">{user.email}</span>
                     <div className="mt-1">
                       <Badge variant={currentRole.variant} className="text-[10px] px-1.5 py-0 rounded-md gap-1">
