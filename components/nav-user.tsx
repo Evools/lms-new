@@ -75,9 +75,9 @@ export function NavUser({
               />
             }
           >
-            <Avatar className="h-8 w-8 rounded-md shrink-0">
+            <Avatar className="h-8 w-8 shrink-0">
               {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
-              <AvatarFallback className="rounded-md text-xs font-semibold">{userInitials}</AvatarFallback>
+              <AvatarFallback className="text-xs font-semibold">{userInitials}</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden">
               <span className="truncate font-medium text-foreground">{user.name}</span>
@@ -94,9 +94,9 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2.5 px-2 py-2 text-left text-sm">
-                  <Avatar className="h-8 w-8 rounded-md shrink-0">
+                  <Avatar className="h-8 w-8 shrink-0">
                     {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
-                    <AvatarFallback className="rounded-md text-xs font-semibold">{userInitials}</AvatarFallback>
+                    <AvatarFallback className="text-xs font-semibold">{userInitials}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-xs leading-tight min-w-0">
                     <span className="truncate font-semibold text-foreground">{user.name}</span>

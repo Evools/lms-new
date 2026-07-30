@@ -19,90 +19,104 @@ import {
 } from "@/components/ui/sidebar";
 import { ChevronRight } from "lucide-react";
 
-export function NavMain({
-  items,
-}: {
-  items: {
+export interface NavGroupItem {
+  title: string;
+  url: string;
+  icon?: React.ReactNode;
+  items?: {
     title: string;
     url: string;
-    icon?: React.ReactNode;
-    isActive?: boolean;
-    items?: {
-      title: string;
-      url: string;
-    }[];
   }[];
+}
+
+export interface NavMainSection {
+  groupLabel?: string;
+  items: NavGroupItem[];
+}
+
+export function NavMain({
+  sections,
+}: {
+  sections: NavMainSection[];
 }) {
   const pathname = usePathname();
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground px-4">
-        Платформа
-      </SidebarGroupLabel>
-      <SidebarMenu>
-        {items.map((item) => {
-          const hasSubItems = item.items && item.items.length > 0;
-          const isCurrentActive = pathname === item.url || item.items?.some((sub) => pathname === sub.url);
+    <>
+      {sections.map((section, sectionIdx) => (
+        <SidebarGroup key={section.groupLabel || sectionIdx}>
+          {section.groupLabel && (
+            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2 py-1">
+              {section.groupLabel}
+            </SidebarGroupLabel>
+          )}
+          <SidebarMenu>
+            {section.items.map((item) => {
+              const hasSubItems = item.items && item.items.length > 0;
+              const isCurrentActive =
+                pathname === item.url ||
+                item.items?.some((sub) => pathname === sub.url);
 
-          if (!hasSubItems) {
-            return (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton
-                  isActive={isCurrentActive}
-                  tooltip={item.title}
-                  className="rounded-md"
-                  render={<Link href={item.url} />}
+              if (!hasSubItems) {
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      isActive={isCurrentActive}
+                      tooltip={item.title}
+                      className="rounded-md font-medium text-xs h-8.5"
+                      render={<Link href={item.url} />}
+                    >
+                      {item.icon}
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              }
+
+              return (
+                <Collapsible
+                  key={item.title}
+                  defaultOpen={isCurrentActive}
+                  className="group/collapsible"
+                  render={<SidebarMenuItem />}
                 >
-                  {item.icon}
-                  <span>{item.title}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            );
-          }
-
-          return (
-            <Collapsible
-              key={item.title}
-              defaultOpen={isCurrentActive}
-              className="group/collapsible"
-              render={<SidebarMenuItem />}
-            >
-              <CollapsibleTrigger
-                render={
-                  <SidebarMenuButton
-                    isActive={isCurrentActive}
-                    tooltip={item.title}
-                    className="rounded-md"
-                  />
-                }
-              >
-                {item.icon}
-                <span>{item.title}</span>
-                <ChevronRight className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90 text-muted-foreground shrink-0" />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SidebarMenuSub>
-                  {item.items?.map((subItem) => {
-                    const isSubActive = pathname === subItem.url;
-                    return (
-                      <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton
-                          isActive={isSubActive}
-                          className="rounded-md"
-                          render={<Link href={subItem.url} />}
-                        >
-                          <span>{subItem.title}</span>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    );
-                  })}
-                </SidebarMenuSub>
-              </CollapsibleContent>
-            </Collapsible>
-          );
-        })}
-      </SidebarMenu>
-    </SidebarGroup>
+                  <CollapsibleTrigger
+                    render={
+                      <SidebarMenuButton
+                        isActive={isCurrentActive}
+                        tooltip={item.title}
+                        className="rounded-md font-medium text-xs h-8.5"
+                      />
+                    }
+                  >
+                    {item.icon}
+                    <span>{item.title}</span>
+                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90 text-muted-foreground shrink-0 h-3.5 w-3.5" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub className="my-1 border-l border-border/60 pl-2">
+                      {item.items?.map((subItem) => {
+                        const isSubActive = pathname === subItem.url;
+                        return (
+                          <SidebarMenuSubItem key={subItem.title}>
+                            <SidebarMenuSubButton
+                              isActive={isSubActive}
+                              className="rounded-md text-xs h-7"
+                              render={<Link href={subItem.url} />}
+                            >
+                              <span>{subItem.title}</span>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+      ))}
+    </>
   );
 }

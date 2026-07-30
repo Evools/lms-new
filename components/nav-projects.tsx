@@ -20,7 +20,7 @@ export function NavProjects({
 }) {
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground px-4">
+      <SidebarGroupLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 px-2">
         Мои группы
       </SidebarGroupLabel>
       <SidebarMenu>
