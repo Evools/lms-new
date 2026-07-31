@@ -525,26 +525,30 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
 
         {/* TAB 3: GROUP ANNOUNCEMENTS WORKSPACE */}
         {activeTab === "ANNOUNCEMENTS" && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3 bg-muted/20 p-2.5 rounded-xl border">
-              <div>
-                <h3 className="font-semibold text-xs text-foreground">Объявления и важные извещения группы</h3>
-                <p className="text-[11px] text-muted-foreground">Публикация важной информации для студентов группы {group.name}</p>
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-foreground">Лента объявлений</span>
+                {group.announcementsList.length > 0 && (
+                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                    {group.announcementsList.length}
+                  </Badge>
+                )}
               </div>
 
               {isAdminOrTeacher && (
                 <Dialog open={isAddAnnOpen} onOpenChange={setIsAddAnnOpen}>
                   <DialogTrigger render={<Button size="xs" className="h-8 text-xs gap-1.5" />}>
-                    <Plus className="h-3.5 w-3.5" /> Опубликовать объявление
+                    <Plus className="h-3.5 w-3.5" /> Новое объявление
                   </DialogTrigger>
                   <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
                     <form onSubmit={handleCreateAnnouncement} className="space-y-3">
-                      <DialogHeader className="pb-2 border-b">
+                      <DialogHeader className="pb-2 border-b gap-1">
                         <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
                           <Megaphone className="h-4 w-4 text-primary" /> Публикация объявления
                         </DialogTitle>
                         <DialogDescription className="text-xs">
-                          Оповещение для студентов группы <strong>{group.name}</strong>
+                          Для студентов группы <strong>{group.name}</strong>
                         </DialogDescription>
                       </DialogHeader>
 
@@ -555,40 +559,46 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                       )}
 
                       <div className="space-y-3 text-xs">
+                        {/* Type selector cards */}
                         <div className="space-y-1.5">
-                          <label className="font-medium text-foreground text-xs">Категория объявления</label>
+                          <label className="font-medium text-foreground text-xs">Категория</label>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={() => setIsImportant(false)}
-                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${
+                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
                                 !isImportant
-                                  ? "border-primary bg-primary/10 text-primary font-medium"
-                                  : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
+                                  ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                                  : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
                               }`}
                             >
-                              <Megaphone className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                              <div className={`mt-0.5 p-1 rounded-md shrink-0 ${!isImportant ? "bg-primary/15" : "bg-muted"}`}>
+                                <Megaphone className={`h-3.5 w-3.5 ${!isImportant ? "text-primary" : "text-muted-foreground"}`} />
+                              </div>
                               <div>
-                                <div className="text-xs font-medium">Обычное</div>
-                                <div className="text-[10px] opacity-75">Стандартное извещение</div>
+                                <div className={`text-xs font-medium ${!isImportant ? "text-primary" : "text-foreground"}`}>Обычное</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">Стандартное извещение</div>
                               </div>
                             </button>
 
                             <button
                               type="button"
                               onClick={() => setIsImportant(true)}
-                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${
+                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
                                 isImportant
-                                  ? "border-primary bg-primary/10 text-primary font-medium"
-                                  : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
+                                  ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                                  : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
                               }`}
                             >
-                              <Sparkles className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                              <div className={`mt-0.5 p-1 rounded-md shrink-0 ${isImportant ? "bg-primary/15" : "bg-muted"}`}>
+                                <Sparkles className={`h-3.5 w-3.5 ${isImportant ? "text-primary" : "text-muted-foreground"}`} />
+                              </div>
                               <div>
-                                <div className="text-xs font-medium flex items-center gap-1">
-                                  Важное <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 font-normal">Закреплено</Badge>
+                                <div className={`text-xs font-medium flex items-center gap-1.5 ${isImportant ? "text-primary" : "text-foreground"}`}>
+                                  Важное
+                                  <Badge className="bg-primary/15 text-primary border-0 text-[8px] px-1 py-0 font-medium">закреплено</Badge>
                                 </div>
-                                <div className="text-[10px] opacity-75">Всегда сверху в ленте</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">Всегда сверху в ленте</div>
                               </div>
                             </button>
                           </div>
@@ -609,16 +619,16 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                           <label className="font-medium text-foreground text-xs">Текст сообщения *</label>
                           <textarea
                             required
-                            rows={3}
-                            placeholder="Введите подробный текст..."
+                            rows={4}
+                            placeholder="Напишите подробный текст объявления..."
                             value={newAnnContent}
                             onChange={(e) => setNewAnnContent(e.target.value)}
-                            className="w-full p-2 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary"
+                            className="w-full p-2 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary resize-none"
                           />
                         </div>
                       </div>
 
-                      <DialogFooter className="gap-2 pt-2 border-t mt-2">
+                      <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
                         <Button variant="outline" size="xs" type="button" onClick={() => setIsAddAnnOpen(false)}>
                           Отмена
                         </Button>
@@ -629,6 +639,7 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                     </form>
                   </DialogContent>
                 </Dialog>
+
               )}
             </div>
 
@@ -716,78 +727,105 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
 
         {/* TAB 4: AUTOMATED DUTY SCHEDULE WORKSPACE */}
         {activeTab === "DUTY" && (
-          <Card className="border shadow-none">
-            <CardHeader className="pb-3 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary" /> График дежурств по группе
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-0.5">
-                    Автоматическое распределение студентов группы {group.name}
-                  </CardDescription>
+          <div className="space-y-3">
+            {/* Header info strip */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-medium text-foreground flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-primary" />
+                  График дежурств · <span className="text-muted-foreground">ротация по списку группы</span>
                 </div>
-                <Badge variant="secondary" className="text-[10px]">
-                  Поток: {group.name}
-                </Badge>
-              </div>
-            </CardHeader>
-
-            <CardContent className="pt-4 space-y-3 text-xs">
-              <div className="p-3 rounded-lg border bg-muted/20 flex items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="font-semibold text-foreground flex items-center gap-1.5">
-                    <UserCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Ответственные за порядок
+                {group.monitorName && (
+                  <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                    <Crown className="h-3 w-3 text-primary" />
+                    Ответственный: <strong className="text-foreground">{group.monitorName}</strong>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Староста группы: <strong className="text-foreground">{group.monitorName || "Не назначен"}</strong>
-                  </p>
-                </div>
-                <Button size="xs" variant="outline" render={<Link href={`/dashboard/duty?group=${group.id}`} />}>
-                  Полноэкранный график
-                </Button>
+                )}
+              </div>
+              <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5 shrink-0" render={<Link href={`/dashboard/duty?group=${group.id}`} />}>
+                <Clock className="h-3.5 w-3.5" /> Полный график
+              </Button>
+            </div>
+
+            {/* Weekly schedule table */}
+            <div className="rounded-xl border overflow-hidden">
+              {/* Table header */}
+              <div className="grid grid-cols-[72px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span>День</span>
+                <span>Дежурный студент</span>
+                <span>Статус</span>
               </div>
 
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-foreground flex items-center justify-between pt-2">
-                  <span>Распределение дежурных на неделю (Пн — Сб):</span>
-                  <span className="text-[11px] text-muted-foreground">Ротация по списку группы</span>
-                </div>
-
-                <div className="divide-y border rounded-xl overflow-hidden bg-card">
-                  {["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"].map((dayName, idx) => {
-                    const assignedStudent = group.studentsList[idx % Math.max(1, group.studentsList.length)];
-                    return (
-                      <div key={dayName} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-muted/20">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] w-24 justify-center">
-                            {dayName}
-                          </Badge>
-                          <span className="font-semibold text-foreground">
-                            {assignedStudent ? assignedStudent.name : "Студент не назначен"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                          <span>Старший: <strong className="text-foreground">{group.monitorName || "Не назначен"}</strong></span>
-                          <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 text-[9px]">
-                            Запланировано
-                          </Badge>
-                        </div>
+              <div className="divide-y">
+                {(["Пн", "Вт", "Ср", "Чт", "Пт", "Сб"] as const).map((dayAbbr, idx) => {
+                  const dayNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+                  const todayIdx = new Date().getDay() - 1; // 0=Пн
+                  const isToday = idx === todayIdx;
+                  const assignedStudent = group.studentsList[idx % Math.max(1, group.studentsList.length)];
+                  return (
+                    <div
+                      key={dayAbbr}
+                      className={`grid grid-cols-[72px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${
+                        isToday ? "bg-primary/5" : "hover:bg-muted/20"
+                      }`}
+                    >
+                      {/* Day */}
+                      <div className="flex flex-col">
+                        <span className={`text-xs font-medium ${isToday ? "text-primary" : "text-foreground"}`}>
+                          {dayAbbr}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">{dayNames[idx]}</span>
                       </div>
-                    );
-                  })}
 
-                  {group.studentsList.length === 0 && (
-                    <div className="p-6 text-center text-muted-foreground">
-                      Студенты для формирования графика дежурств пока не зачислены
+                      {/* Student */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        {assignedStudent ? (
+                          <>
+                            <Avatar className="h-6 w-6 border shrink-0">
+                              <AvatarFallback className={`text-[9px] font-bold ${isToday ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                                {assignedStudent.name.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className={`text-xs font-medium truncate ${isToday ? "text-primary" : "text-foreground"}`}>
+                              {assignedStudent.name}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50">Не назначен</span>
+                        )}
+                      </div>
+
+                      {/* Status */}
+                      <div className="shrink-0">
+                        {isToday ? (
+                          <Badge className="bg-primary text-primary-foreground text-[9px] px-1.5 py-0 gap-0.5 font-medium">
+                            Сегодня
+                          </Badge>
+                        ) : idx < todayIdx ? (
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground/60">
+                            Выполнено
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                            Ожидает
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
+                  );
+                })}
               </div>
-            </CardContent>
-          </Card>
+
+              {group.studentsList.length === 0 && (
+                <div className="py-10 text-center text-muted-foreground text-xs space-y-2">
+                  <Clock className="h-7 w-7 mx-auto text-muted-foreground/30" />
+                  <div>Нет студентов для формирования графика</div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
+
       </div>
 
       {/* AlertDialog for Student Removal */}
