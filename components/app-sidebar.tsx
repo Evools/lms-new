@@ -83,11 +83,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Группы",
               url: "/dashboard/groups",
               icon: <Users className="h-4 w-4" />,
-              items: [
-                { title: "Все группы", url: "/dashboard/groups" },
-                { title: "Группа ИС-1-25", url: "/dashboard/groups/is-1-25" },
-                { title: "Группа ИС-2-24", url: "/dashboard/groups/is-2-24" },
-              ],
             },
             {
               title: "LMS & Материалы",
@@ -166,13 +161,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               icon: <UserPlus className="h-4 w-4" />,
             },
             {
-              title: "Мои группы",
+              title: "Группы",
               url: "/dashboard/groups",
               icon: <Users className="h-4 w-4" />,
-              items: [
-                { title: "ИС-1-25", url: "/dashboard/groups/is-1-25" },
-                { title: "ИС-2-24", url: "/dashboard/groups/is-2-24" },
-              ],
             },
             {
               title: "LMS & Контент",
@@ -273,24 +264,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   // QUICK GROUPS BASED ON ROLE
   // -------------------------------------------------------------
   const getQuickGroups = () => {
-    if (role === "STUDENT") {
-      return [
-        {
-          name: "Группа ИС-1-25",
-          url: "/dashboard/groups/is-1-25",
-          icon: <Folder className="h-4 w-4" />,
-        },
-      ];
-    }
     return [
       {
-        name: "Группа ИС-1-25",
-        url: "/dashboard/groups/is-1-25",
-        icon: <Folder className="h-4 w-4" />,
-      },
-      {
-        name: "Группа ИС-2-24",
-        url: "/dashboard/groups/is-2-24",
+        name: "Все группы",
+        url: "/dashboard/groups",
         icon: <Folder className="h-4 w-4" />,
       },
     ];
