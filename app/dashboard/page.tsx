@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Users,
   UserCheck,
@@ -16,11 +17,15 @@ import {
   Calendar,
   ArrowUpRight,
   Plus,
-  FileCode,
   CheckSquare,
   TrendingUp,
   BarChart3,
   PieChart as PieChartIcon,
+  Crown,
+  Shield,
+  FileText,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -49,45 +54,62 @@ export default async function DashboardPage() {
     day: "numeric",
   });
 
+  const roleLabels = {
+    ADMIN: { label: "Администратор", icon: Shield, variant: "default" as const },
+    TEACHER: { label: "Преподаватель", icon: UserCheck, variant: "secondary" as const },
+    STUDENT: { label: "Студент", icon: GraduationCap, variant: "outline" as const },
+  };
+
+  const currentRoleConfig = roleLabels[role] || roleLabels.STUDENT;
+  const RoleIcon = currentRoleConfig.icon;
+
   return (
-    <div className="w-full space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+    <div className="w-full space-y-4 pb-20 text-xs">
+      {/* Page Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Панель управления</h1>
-          <p className="text-sm text-muted-foreground capitalize">
-            Приветствуем, <span className="font-medium text-foreground">{name || "Пользователь"}</span> • {todayDate}
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-bold tracking-tight text-foreground">
+              Главная панель
+            </h1>
+            <Badge variant={currentRoleConfig.variant} className="text-[10px] px-1.5 py-0 font-medium gap-1">
+              <RoleIcon className="h-3 w-3" />
+              {currentRoleConfig.label}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">
+            Приветствуем, <strong className="text-foreground">{name || "Пользователь"}</strong> · {todayDate}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {role === "ADMIN" && (
             <>
-              <Button size="sm" render={<Link href="/dashboard/announcements" />}>
-                <Plus className="h-4 w-4 mr-1.5" /> Создать объявление
+              <Button size="xs" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/announcements" />}>
+                <Plus className="h-3.5 w-3.5" /> Создать объявление
               </Button>
-              <Button size="sm" variant="outline" render={<Link href="/dashboard/reports" />}>
-                <BarChart3 className="h-4 w-4 mr-1.5" /> Отчёты
+              <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/reports" />}>
+                <BarChart3 className="h-3.5 w-3.5" /> Отчёты
               </Button>
             </>
           )}
           {role === "TEACHER" && (
             <>
-              <Button size="sm" render={<Link href="/dashboard/assignments" />}>
-                <ClipboardCheck className="h-4 w-4 mr-1.5" /> На проверку (8)
+              <Button size="xs" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/assignments" />}>
+                <ClipboardCheck className="h-3.5 w-3.5" /> Проверка ДЗ (8)
               </Button>
-              <Button size="sm" variant="outline" render={<Link href="/dashboard/attendance" />}>
-                <Calendar className="h-4 w-4 mr-1.5" /> Отметить посещаемость
+              <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/attendance" />}>
+                <Calendar className="h-3.5 w-3.5" /> Отметить пары
               </Button>
             </>
           )}
           {role === "STUDENT" && (
             <>
-              <Button size="sm" render={<Link href="/dashboard/assignments" />}>
-                <CheckSquare className="h-4 w-4 mr-1.5" /> Сдать задание
+              <Button size="xs" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/assignments" />}>
+                <CheckSquare className="h-3.5 w-3.5" /> Задания
               </Button>
-              <Button size="sm" variant="outline" render={<Link href="/dashboard/lms" />}>
-                <BookOpen className="h-4 w-4 mr-1.5" /> Материалы
+              <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/lms" />}>
+                <BookOpen className="h-3.5 w-3.5" /> Материалы
               </Button>
             </>
           )}
@@ -98,178 +120,184 @@ export default async function DashboardPage() {
       {/* 1. ADMINISTRATOR DASHBOARD VIEW */}
       {/* ------------------------------------------------------------- */}
       {role === "ADMIN" && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Core Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Группы</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">12</div>
-                <p className="text-xs text-muted-foreground mt-1">Активных групп в лицее</p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Группы</span>
+                <div className="text-lg font-bold text-foreground">12 групп</div>
+                <p className="text-[10px] text-muted-foreground">Активные потоки лицея</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Users className="h-4 w-4" />
+              </div>
+            </div>
 
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Преподаватели</CardTitle>
-                <UserCheck className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">28</div>
-                <p className="text-xs text-muted-foreground mt-1">Преподавательский состав</p>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Преподаватели</span>
+                <div className="text-lg font-bold text-foreground">28 чел.</div>
+                <p className="text-[10px] text-muted-foreground">Педагогический состав</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <UserCheck className="h-4 w-4" />
+              </div>
+            </div>
 
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Студенты</CardTitle>
-                <GraduationCap className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">340</div>
-                <p className="text-xs text-muted-foreground mt-1">Зачисленных студентов</p>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Студенты</span>
+                <div className="text-lg font-bold text-foreground">340 чел.</div>
+                <p className="text-[10px] text-muted-foreground">Зачислено в лицей</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <GraduationCap className="h-4 w-4" />
+              </div>
+            </div>
 
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Дежурство сегодня</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm font-semibold text-foreground">Группа ИС-1-25</div>
-                <p className="text-xs text-muted-foreground mt-0.5">Петров А. (Старший)</p>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5 min-w-0">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Дежурство сегодня</span>
+                <div className="text-xs font-bold text-foreground truncate">Группа ИС-1-25</div>
+                <p className="text-[10px] text-primary font-medium truncate">2–3 дежурных на смене</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
           </div>
 
           {/* Interactive Analytics Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border shadow-none">
-              <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl border bg-card p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2.5">
                 <div>
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <PieChartIcon className="h-4 w-4 text-muted-foreground" />
-                    Гендерный состав учащихся
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Соотношение юношей и девушек в лицее
-                  </CardDescription>
+                  <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <PieChartIcon className="h-3.5 w-3.5 text-primary" />
+                    Соотношение учащихся
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Гендерное распределение по лицею</p>
                 </div>
-                <Badge variant="outline" className="text-[11px]">340 учащихся</Badge>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <AdminGenderDistributionChart />
-              </CardContent>
-            </Card>
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0">340 студентов</Badge>
+              </div>
+              <AdminGenderDistributionChart />
+            </div>
 
-            <Card className="border shadow-none">
-              <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
+            <div className="rounded-xl border bg-card p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2.5">
                 <div>
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <BarChart3 className="h-3.5 w-3.5 text-primary" />
                     Сдача домашних заданий
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Сравнение выполнения заданий по группам (%)
-                  </CardDescription>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Сравнение активности по группам (%)</p>
                 </div>
-                <Badge variant="outline" className="text-[11px]">По группам</Badge>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <AdminGroupPerformanceChart />
-              </CardContent>
-            </Card>
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0">По группам</Badge>
+              </div>
+              <AdminGroupPerformanceChart />
+            </div>
           </div>
 
           {/* Admin Main Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Left 2 Columns: Announcements & System Activity */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Megaphone className="h-4 w-4 text-primary" />
-                    Последние объявления лицея
-                  </CardTitle>
-                  <Button variant="ghost" size="xs" render={<Link href="/dashboard/announcements" />}>
-                    Перейти к объявлениям <ArrowUpRight className="h-3 w-3 ml-1" />
+            <div className="lg:col-span-2 space-y-4">
+              <div className="rounded-xl border bg-card overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Megaphone className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-xs font-bold text-foreground">Последние объявления</span>
+                  </div>
+                  <Button variant="ghost" size="xs" className="h-6 text-[10px] text-primary gap-1" render={<Link href="/dashboard/announcements" />}>
+                    Все объявления <ArrowUpRight className="h-3 w-3" />
                   </Button>
-                </CardHeader>
-                <CardContent className="p-4 space-y-3">
-                  <div className="p-3.5 border rounded-md bg-muted/20 space-y-1">
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="p-3 border rounded-lg bg-primary/5 border-primary/20 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-foreground">Заседание педагогического совета</span>
-                      <Badge variant="outline" className="text-[10px]">Преподавателям</Badge>
+                      <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Sparkles className="h-3 w-3 text-primary" /> Заседание педагогического совета
+                      </span>
+                      <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0">Важное</Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Сегодня в 15:00 состоится заседание в 304 кабинете. Повестка: промежуточная аттестация.
+                    <p className="text-[11px] text-muted-foreground">
+                      Сегодня в 15:00 состоится заседание в 304 кабинете. Повестка: промежуточная аттестация студентов.
                     </p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-muted-foreground" />
-                    Последняя активность в системе
-                  </CardTitle>
-                  <Badge variant="secondary" className="text-[10px]">В реальном времени</Badge>
-                </CardHeader>
-                <CardContent className="p-0 divide-y text-xs">
-                  <div className="p-3.5 flex items-center justify-between">
-                    <div>
-                      <span className="font-medium text-foreground">Иванов И.И.</span> добавил учебный материал в группу <span className="font-medium">ИС-1-25</span>
-                    </div>
-                    <span className="text-muted-foreground text-[11px] shrink-0 ml-2">10 мин назад</span>
+              <div className="rounded-xl border bg-card overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-xs font-bold text-foreground">Активность в системе</span>
                   </div>
-                  <div className="p-3.5 flex items-center justify-between">
-                    <div>
-                      <span className="font-medium text-foreground">Петров А.</span> сдал домашнее задание по Веб-программированию
+                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Реальное время</Badge>
+                </div>
+                <div className="divide-y text-xs">
+                  <div className="p-3 flex items-center justify-between hover:bg-muted/20 transition-colors">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className="h-5 w-5 border shrink-0">
+                        <AvatarFallback className="text-[8px] font-bold bg-primary/10 text-primary">ИИ</AvatarFallback>
+                      </Avatar>
+                      <span className="text-foreground truncate">
+                        <strong>Иванов И.И.</strong> добавил учебный материал в <strong>ИС-1-25</strong>
+                      </span>
                     </div>
-                    <span className="text-muted-foreground text-[11px] shrink-0 ml-2">25 мин назад</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">10 мин назад</span>
                   </div>
-                  <div className="p-3.5 flex items-center justify-between">
-                    <div>
-                      <span className="font-medium text-foreground">Сидоров А.П.</span> отметила посещаемость группы <span className="font-medium">ИС-2-24</span>
+                  <div className="p-3 flex items-center justify-between hover:bg-muted/20 transition-colors">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className="h-5 w-5 border shrink-0">
+                        <AvatarFallback className="text-[8px] font-bold bg-primary/10 text-primary">ПА</AvatarFallback>
+                      </Avatar>
+                      <span className="text-foreground truncate">
+                        <strong>Петров А.</strong> сдал задание по Веб-программированию
+                      </span>
                     </div>
-                    <span className="text-muted-foreground text-[11px] shrink-0 ml-2">1 час назад</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">25 мин назад</span>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
 
             {/* Right Column: Duty Roster */}
-            <div className="space-y-6">
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    Сегодняшние дежурные
-                  </CardTitle>
-                  <CardDescription className="text-xs">Группа ИС-1-25</CardDescription>
-                </CardHeader>
-                <CardContent className="p-3 space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2.5 border rounded-md bg-muted/20">
-                    <div>
-                      <div className="font-medium text-foreground">Петров Алексей</div>
-                      <div className="text-muted-foreground text-[11px]">Староста / Старший дежурный</div>
-                    </div>
-                    <Badge variant="default" className="text-[10px]">Старший</Badge>
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-card overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-xs font-bold text-foreground">Дежурные сегодня</span>
                   </div>
-                  <div className="flex items-center justify-between p-2.5 border rounded-md">
-                    <div>
-                      <div className="font-medium text-foreground">Сидорова Анна</div>
-                      <div className="text-muted-foreground text-[11px]">Дежурный</div>
+                  <Button variant="ghost" size="xs" className="h-6 text-[10px] text-primary gap-1" render={<Link href="/dashboard/duty" />}>
+                    График <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="p-2.5 rounded-lg border bg-primary/5 border-primary/20 space-y-1.5">
+                    <div className="text-[10px] text-primary font-medium flex items-center justify-between">
+                      <span>Группа ИС-1-25</span>
+                      <Badge variant="outline" className="text-[8px] px-1 py-0">Сегодня</Badge>
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">Дежурный</Badge>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-5 w-5 border shrink-0">
+                          <AvatarFallback className="text-[8px] font-bold bg-primary/15 text-primary">ПА</AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs font-medium text-foreground">Петров Алексей</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-5 w-5 border shrink-0">
+                          <AvatarFallback className="text-[8px] font-bold bg-primary/15 text-primary">СА</AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs font-medium text-foreground">Сидорова Анна</span>
+                      </div>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -279,165 +307,68 @@ export default async function DashboardPage() {
       {/* 2. TEACHER DASHBOARD VIEW */}
       {/* ------------------------------------------------------------- */}
       {role === "TEACHER" && (
-        <div className="space-y-6">
-          {/* Teacher Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Занятия сегодня</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">2 пары</div>
-                <p className="text-xs text-muted-foreground mt-1">Кабинеты 204, 308</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">На проверку</CardTitle>
-                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">8 работ</div>
-                <p className="text-xs text-muted-foreground mt-1">Домашние задания студентов</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Мои группы</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">2 группы</div>
-                <p className="text-xs text-muted-foreground mt-1">ИС-1-25, ИС-2-24</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Teacher Analytics Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2 border shadow-none">
-              <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                    Сдача и проверка домашних заданий
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Статистика за последние 5 недель
-                  </CardDescription>
-                </div>
-                <Badge variant="outline" className="text-[11px]">За 5 недель</Badge>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <TeacherOverviewChart />
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-none">
-              <CardHeader className="border-b pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <PieChartIcon className="h-4 w-4 text-muted-foreground" />
-                  Успеваемость по предметам
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Распределение результатов
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <TeacherGradeDistributionChart />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Teacher Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left 2 Columns: Today's Classes & Homework to Check */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    Сегодняшние занятия
-                  </CardTitle>
-                  <Badge variant="outline" className="text-[10px]">2 пары</Badge>
-                </CardHeader>
-                <CardContent className="p-0 divide-y text-xs">
-                  <div className="p-4 flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <div className="font-semibold text-sm">1 пара — Веб-программирование</div>
-                      <div className="text-muted-foreground">Группа: ИС-1-25 | Кабинет: 204</div>
-                    </div>
-                    <Button variant="outline" size="sm" render={<Link href="/dashboard/attendance" />}>
-                      Посещаемость
-                    </Button>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <div className="font-semibold text-sm">2 пара — Базы данных</div>
-                      <div className="text-muted-foreground">Группа: ИС-2-24 | Кабинет: 308</div>
-                    </div>
-                    <Button variant="outline" size="sm" render={<Link href="/dashboard/attendance" />}>
-                      Посещаемость
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-                    Домашние задания на проверку
-                  </CardTitle>
-                  <Badge variant="secondary" className="text-[10px]">8 Работ</Badge>
-                </CardHeader>
-                <CardContent className="p-0 divide-y text-xs">
-                  <div className="p-3.5 flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-foreground">Лабораторная работа #3 (HTML/CSS Grid)</div>
-                      <div className="text-muted-foreground">Студент: Петров А. (ИС-1-25)</div>
-                    </div>
-                    <Button variant="outline" size="xs" render={<Link href="/dashboard/assignments" />}>
-                      Проверить <ArrowUpRight className="h-3 w-3 ml-1" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Занятия сегодня</span>
+                <div className="text-lg font-bold text-foreground">2 пары</div>
+                <p className="text-[10px] text-muted-foreground">Кабинеты 204, 308</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Calendar className="h-4 w-4" />
+              </div>
             </div>
 
-            {/* Right Column: Quick Actions & Announcements */}
-            <div className="space-y-6">
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-sm font-semibold">Быстрые действия</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 space-y-2">
-                  <Button variant="outline" size="sm" className="w-full justify-start text-xs" render={<Link href="/dashboard/lms" />}>
-                    <Plus className="mr-2 h-3.5 w-3.5" /> Создать тему в LMS
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full justify-start text-xs" render={<Link href="/dashboard/assignments" />}>
-                    <Plus className="mr-2 h-3.5 w-3.5" /> Добавить домашнее задание
-                  </Button>
-                </CardContent>
-              </Card>
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">На проверку</span>
+                <div className="text-lg font-bold text-foreground">8 работ</div>
+                <p className="text-[10px] text-muted-foreground">Домашние задания студентов</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <ClipboardCheck className="h-4 w-4" />
+              </div>
+            </div>
 
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Megaphone className="h-4 w-4 text-muted-foreground" />
-                    Объявления
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 space-y-2 text-xs">
-                  <div className="p-2.5 border rounded-md bg-muted/20">
-                    <div className="font-medium text-foreground">Заседание педсовета</div>
-                    <div className="text-muted-foreground text-[11px]">Сегодня в 15:00 в кабинте 304</div>
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Мои группы</span>
+                <div className="text-lg font-bold text-foreground">2 группы</div>
+                <p className="text-[10px] text-muted-foreground">ИС-1-25, ИС-2-24</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Users className="h-4 w-4" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 rounded-xl border bg-card p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2.5">
+                <div>
+                  <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                    Проверка домашних заданий
                   </div>
-                </CardContent>
-              </Card>
+                  <p className="text-[10px] text-muted-foreground">Статистика за последние 5 недель</p>
+                </div>
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0">За 5 недель</Badge>
+              </div>
+              <TeacherOverviewChart />
+            </div>
+
+            <div className="rounded-xl border bg-card p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2.5">
+                <div>
+                  <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <PieChartIcon className="h-3.5 w-3.5 text-primary" />
+                    Успеваемость
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Результаты проверок</p>
+                </div>
+              </div>
+              <TeacherGradeDistributionChart />
             </div>
           </div>
         </div>
@@ -447,177 +378,68 @@ export default async function DashboardPage() {
       {/* 3. STUDENT DASHBOARD VIEW */}
       {/* ------------------------------------------------------------- */}
       {role === "STUDENT" && (
-        <div className="space-y-6">
-          {/* Student Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Моя группа</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">ИС-1-25</div>
-                <p className="text-xs text-muted-foreground mt-1">Информационные системы</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Задания к сдаче</CardTitle>
-                <CheckSquare className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">2 задания</div>
-                <p className="text-xs text-muted-foreground mt-1">Активные работы</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-none">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Дежурство сегодня</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <Badge variant="default" className="text-xs px-2 py-0.5">
-                  Старший дежурный
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-1">Отвечает за порядок в кабинете</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Student Analytics Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2 border shadow-none">
-              <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    Академический прогресс
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Динамика активности и сдачи заданий
-                  </CardDescription>
-                </div>
-                <Badge variant="secondary" className="text-[11px]">Средний показатель 4.8</Badge>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <StudentProgressChart />
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-none">
-              <CardHeader className="border-b pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <PieChartIcon className="h-4 w-4 text-muted-foreground" />
-                  Посещаемость
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  За текущий семестр
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <StudentAttendancePieChart />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Student Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left 2 Columns: Homework & Recent LMS Materials */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-                    Мои домашние задания
-                  </CardTitle>
-                  <Badge variant="secondary" className="text-[10px]">2 активных</Badge>
-                </CardHeader>
-                <CardContent className="p-0 divide-y text-xs">
-                  <div className="p-4 flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-sm">Создание адаптивного макета на Tailwind</div>
-                      <div className="text-muted-foreground">Срок сдачи: До 5 августа 23:59</div>
-                    </div>
-                    <Button size="sm" variant="outline" render={<Link href="/dashboard/assignments" />}>
-                      Загрузить решение
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <FileCode className="h-4 w-4 text-muted-foreground" />
-                    Последние учебные материалы (LMS)
-                  </CardTitle>
-                  <Button variant="ghost" size="xs" render={<Link href="/dashboard/lms" />}>
-                    Все <ArrowUpRight className="h-3 w-3 ml-1" />
-                  </Button>
-                </CardHeader>
-                <CardContent className="p-0 divide-y text-xs">
-                  <div className="p-4 flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-sm">Лекция #4: Верстка на CSS Grid</div>
-                      <div className="text-muted-foreground">Предмет: Веб-программирование | Преподаватель: Иванов И.И.</div>
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">PDF</Badge>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-sm">Практическое руководство по SQL JOIN</div>
-                      <div className="text-muted-foreground">Предмет: Базы данных | Преподаватель: Сидоров А.П.</div>
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">Документ</Badge>
-                  </div>
-                </CardContent>
-              </Card>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Моя группа</span>
+                <div className="text-lg font-bold text-foreground">ИС-1-25</div>
+                <p className="text-[10px] text-muted-foreground">Информационные системы</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Users className="h-4 w-4" />
+              </div>
             </div>
 
-            {/* Right Column: Duty Status & Announcements */}
-            <div className="space-y-6">
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    Дежурство группы сегодня
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2.5 border rounded-md bg-muted/20">
-                    <div>
-                      <div className="font-medium text-foreground">Петров Алексей (Вы)</div>
-                      <div className="text-muted-foreground text-[11px]">Староста / Старший дежурный</div>
-                    </div>
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 border rounded-md">
-                    <div>
-                      <div className="font-medium text-foreground">Сидорова Анна</div>
-                      <div className="text-muted-foreground text-[11px]">Дежурный</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Задания</span>
+                <div className="text-lg font-bold text-foreground">2 работы</div>
+                <p className="text-[10px] text-muted-foreground">Активные к сдаче</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <CheckSquare className="h-4 w-4" />
+              </div>
+            </div>
 
-              <Card className="border shadow-none">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Megaphone className="h-4 w-4 text-muted-foreground" />
-                    Объявления
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 text-xs space-y-2">
-                  <div className="p-2.5 border rounded-md bg-muted/20 space-y-1">
-                    <div className="font-medium text-foreground">График консультаций</div>
-                    <p className="text-muted-foreground">
-                      Консультации по веб-программированию проходят по четвергам в 14:00.
-                    </p>
+            <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Дежурство сегодня</span>
+                <div className="text-xs font-bold text-foreground">Сегодня в смене</div>
+                <p className="text-[10px] text-primary font-medium">Контроль чистоты</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 rounded-xl border bg-card p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2.5">
+                <div>
+                  <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5 text-primary" />
+                    Академический прогресс
                   </div>
-                </CardContent>
-              </Card>
+                  <p className="text-[10px] text-muted-foreground">Динамика успеваемости и сдачи</p>
+                </div>
+                <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Ср. балл 4.8</Badge>
+              </div>
+              <StudentProgressChart />
+            </div>
+
+            <div className="rounded-xl border bg-card p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2.5">
+                <div>
+                  <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <PieChartIcon className="h-3.5 w-3.5 text-primary" />
+                    Посещаемость
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">За текущий семестр</p>
+                </div>
+              </div>
+              <StudentAttendancePieChart />
             </div>
           </div>
         </div>
