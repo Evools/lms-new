@@ -258,3 +258,34 @@ export async function updateStudentAction(id: string, input: Partial<CreateStude
     return { success: false, error: error.message || "Ошибка при обновлении студента" };
   }
 }
+
+export async function deleteStudentsAction(ids: string[]) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Необходима авторизация" };
+    }
+
+    const role = session.user.role || "STUDENT";
+    if (role !== "ADMIN" && role !== "TEACHER") {
+      return { success: false, error: "Недостаточно прав для удаления" };
+    }
+
+    if (!ids || ids.length === 0) {
+      return { success: false, error: "Не выбраны студенты для удаления" };
+    }
+
+    await prisma.user.deleteMany({
+      where: {
+        id: { in: ids },
+        role: "STUDENT",
+      },
+    });
+
+    revalidatePath("/dashboard/students");
+    return { success: true, count: ids.length };
+  } catch (error: any) {
+    console.error("Error deleting students from DB:", error);
+    return { success: false, error: error.message || "Ошибка при удалении из БД" };
+  }
+}

@@ -19,6 +19,15 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -55,7 +64,9 @@ import {
   X,
   BadgeCheck,
   ArrowRightLeft,
+  Trash2,
 } from "lucide-react";
+import { deleteStudentsAction } from "../actions";
 
 export interface StudentRegistryItem {
   id: string;
@@ -84,44 +95,11 @@ export function StudentsView({ userRole, initialStudents = [] }: StudentsViewPro
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("Все статусы");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("Все формы");
 
-  // Enrollment & Account Creation Form State
-  const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
-  const [enrollName, setEnrollName] = useState("");
-  const [enrollEmail, setEnrollEmail] = useState("");
-  const [enrollPhone, setEnrollPhone] = useState("");
-  const [enrollGroup, setEnrollGroup] = useState("ИС-1-25");
-  const [enrollType, setEnrollType] = useState<"Бюджет" | "Контракт">("Бюджет");
-  const [enrollPassword, setEnrollPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [mustChangePassword, setMustChangePassword] = useState(true);
-
-  // Reset Password Dialog State
-  const [resetTargetStudent, setResetTargetStudent] = useState<StudentRegistryItem | null>(null);
-  const [generatedNewPassword, setGeneratedNewPassword] = useState("");
-  const [isCopied, setIsCopied] = useState(false);
-
-  // Edit Student Dialog State
-  const [editTargetStudent, setEditTargetStudent] = useState<StudentRegistryItem | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-  const [editGroup, setEditGroup] = useState("");
-  const [editType, setEditType] = useState<"Бюджет" | "Контракт">("Бюджет");
-
-  const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
-
-  const generateRandomPassword = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
-    let pass = "Lms";
-    for (let i = 0; i < 6; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return pass;
-  };
-
-  const handleGenerateEnrollPassword = () => {
-    setEnrollPassword(generateRandomPassword());
-  };
+  // Multi-select & Bulk delete state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
+  const [deleteErrorMsg, setDeleteErrorMsg] = useState<string | null>(null);
 
   // Filter students
   const filteredStudents = students.filter((s) => {
@@ -143,55 +121,70 @@ export function StudentsView({ userRole, initialStudents = [] }: StudentsViewPro
     return matchesSearch && matchesGroup && matchesStatus && matchesType;
   });
 
-  const isAnyFilterActive =
-    searchQuery.trim() !== "" ||
-    selectedGroupFilter !== "Все группы" ||
-    selectedStatusFilter !== "Все статусы" ||
-    selectedTypeFilter !== "Все формы";
+  const isAllSelected =
+    filteredStudents.length > 0 &&
+    filteredStudents.every((s) => selectedIds.includes(s.id));
 
-  const handleResetAllFilters = () => {
-    setSearchQuery("");
-    setSelectedGroupFilter("Все группы");
-    setSelectedStatusFilter("Все статусы");
-    setSelectedTypeFilter("Все формы");
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredStudents.map((s) => s.id));
+    }
   };
 
-  const totalEnrolled = students.filter((s) => s.status === "Зачислен").length;
-  const tempPassCount = students.filter((s) => s.accountStatus === "Временный пароль").length;
+  const handleToggleSelectStudent = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
 
-  const handleEnrollSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!enrollName.trim()) return;
+  const handleConfirmBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
 
-    const finalEmail = enrollEmail.trim() || `${enrollName.toLowerCase().split(" ")[0]}@lyceum.edu`;
+    setIsDeleting(true);
+    setDeleteErrorMsg(null);
 
-    const created: StudentRegistryItem = {
-      id: `st-${Date.now()}`,
-      name: enrollName.trim(),
-      email: finalEmail,
-      phone: enrollPhone.trim() || "+996 555 00-00-00",
-      groupName: enrollGroup,
-      course: enrollGroup === "ИС-2-24" ? 2 : 1,
-      enrollmentType: enrollType,
-      enrollmentDate: new Date().toLocaleDateString("ru-RU"),
-      status: enrollGroup === "Не распределен" ? "Ожидает группы" : "Зачислен",
-      accountStatus: mustChangePassword ? "Временный пароль" : "Активен",
-      avgGrade: "4.5",
-      lastPasswordReset: new Date().toLocaleDateString("ru-RU"),
-    };
+    const res = await deleteStudentsAction(selectedIds);
+    setIsDeleting(false);
 
-    setStudents([created, ...students]);
-    setEnrollName("");
-    setEnrollEmail("");
-    setEnrollPhone("");
-    setEnrollPassword("");
-    setIsEnrollDialogOpen(false);
+    if (res.success) {
+      setStudents((prev) => prev.filter((s) => !selectedIds.includes(s.id)));
+      setSelectedIds([]);
+      setIsConfirmDeleteDialogOpen(false);
+    } else {
+      setDeleteErrorMsg(res.error || "Ошибка при удалении из базы данных");
+    }
+  };
+
+  const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
+
+  // Reset Password Dialog State
+  const [resetTargetStudent, setResetTargetStudent] = useState<StudentRegistryItem | null>(null);
+  const [generatedNewPassword, setGeneratedNewPassword] = useState("");
+  const [isCopied, setIsCopied] = useState(false);
+
+  const generateRandomPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
+    let pass = "Lms";
+    for (let i = 0; i < 6; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pass;
   };
 
   const handleOpenResetPassword = (student: StudentRegistryItem) => {
     setResetTargetStudent(student);
     setGeneratedNewPassword(generateRandomPassword());
     setIsCopied(false);
+  };
+
+  const handleCopyPassword = () => {
+    if (generatedNewPassword) {
+      navigator.clipboard.writeText(generatedNewPassword);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
   };
 
   const handleConfirmPasswordReset = () => {
@@ -210,45 +203,6 @@ export function StudentsView({ userRole, initialStudents = [] }: StudentsViewPro
     setResetTargetStudent(null);
   };
 
-  const handleCopyPassword = () => {
-    if (generatedNewPassword) {
-      navigator.clipboard.writeText(generatedNewPassword);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    }
-  };
-
-  const handleOpenEditStudent = (student: StudentRegistryItem) => {
-    setEditTargetStudent(student);
-    setEditName(student.name);
-    setEditEmail(student.email);
-    setEditPhone(student.phone);
-    setEditGroup(student.groupName);
-    setEditType(student.enrollmentType);
-  };
-
-  const handleSaveEditStudent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editTargetStudent) return;
-
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === editTargetStudent.id
-          ? {
-              ...s,
-              name: editName.trim(),
-              email: editEmail.trim(),
-              phone: editPhone.trim(),
-              groupName: editGroup,
-              enrollmentType: editType,
-              status: editGroup === "Не распределен" ? "Ожидает группы" : "Зачислен",
-            }
-          : s
-      )
-    );
-    setEditTargetStudent(null);
-  };
-
   const handleChangeStudentGroup = (studentId: string, newGroupName: string) => {
     setStudents((prev) =>
       prev.map((s) =>
@@ -262,6 +216,22 @@ export function StudentsView({ userRole, initialStudents = [] }: StudentsViewPro
       )
     );
   };
+
+  const isAnyFilterActive =
+    searchQuery.trim() !== "" ||
+    selectedGroupFilter !== "Все группы" ||
+    selectedStatusFilter !== "Все статусы" ||
+    selectedTypeFilter !== "Все формы";
+
+  const handleResetAllFilters = () => {
+    setSearchQuery("");
+    setSelectedGroupFilter("Все группы");
+    setSelectedStatusFilter("Все статусы");
+    setSelectedTypeFilter("Все формы");
+  };
+
+  const totalEnrolled = students.filter((s) => s.status === "Зачислен").length;
+  const tempPassCount = students.filter((s) => s.accountStatus === "Временный пароль").length;
 
   return (
     <div className="w-full space-y-4 text-xs">
@@ -398,14 +368,52 @@ export function StudentsView({ userRole, initialStudents = [] }: StudentsViewPro
       {/* Student Registry Table List - Compact */}
       <Card className="border shadow-none overflow-hidden">
         <CardHeader className="py-2.5 px-4 border-b">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              Приказная ведомость студентов
-            </CardTitle>
-            <Badge variant="outline" className="text-[10px]">
-              Записей: {filteredStudents.length}
-            </Badge>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              {isAdminOrTeacher && filteredStudents.length > 0 && (
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={handleToggleSelectAll}
+                  aria-label="Выбрать всех"
+                />
+              )}
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Приказная ведомость студентов
+              </CardTitle>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {selectedIds.length > 0 && (
+                <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                  <Badge variant="secondary" className="text-[11px] font-mono">
+                    Выбрано: {selectedIds.length}
+                  </Badge>
+                  <Button
+                    size="xs"
+                    variant="destructive"
+                    onClick={() => setIsConfirmDeleteDialogOpen(true)}
+                    disabled={isDeleting}
+                    className="h-7 text-xs gap-1"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {isDeleting ? "Удаление..." : `Удалить (${selectedIds.length})`}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setSelectedIds([])}
+                    className="h-7 text-[11px]"
+                  >
+                    Снять выбор
+                  </Button>
+                </div>
+              )}
+
+              <Badge variant="outline" className="text-[10px]">
+                Записей: {filteredStudents.length}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
 
@@ -417,6 +425,12 @@ export function StudentsView({ userRole, initialStudents = [] }: StudentsViewPro
                 className="p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 hover:bg-muted/20 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
+                  {isAdminOrTeacher && (
+                    <Checkbox
+                      checked={selectedIds.includes(st.id)}
+                      onCheckedChange={() => handleToggleSelectStudent(st.id)}
+                    />
+                  )}
                   <span className="text-muted-foreground w-5 text-[11px] font-semibold text-center">{idx + 1}.</span>
                   <Avatar className="h-8 w-8 border shrink-0">
                     <AvatarFallback className="bg-primary/10 text-primary font-bold text-[11px]">
@@ -582,6 +596,41 @@ export function StudentsView({ userRole, initialStudents = [] }: StudentsViewPro
           </DialogContent>
         )}
       </Dialog>
+
+      {/* Shadcn AlertDialog for Bulk Delete Confirmation */}
+      <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" /> Подтверждение удаления
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Вы действительно хотите безошибочно и навсегда удалить выбранных студентов (
+              <strong>{selectedIds.length} чел.</strong>) из системы и базы данных?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {deleteErrorMsg && (
+            <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded border border-destructive/20">
+              {deleteErrorMsg}
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting} size="sm">
+              Отмена
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirmBulkDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Удаление..." : `Удалить (${selectedIds.length})`}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
