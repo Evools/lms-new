@@ -72,22 +72,13 @@ export interface StudentRegistryItem {
   lastPasswordReset?: string;
 }
 
-const INITIAL_REGISTRY: StudentRegistryItem[] = [
-  { id: "st-101", name: "Петров Алексей Сергеевич", email: "petrov@lyceum.edu", phone: "+996 555 12-34-56", groupName: "ИС-1-25", course: 1, enrollmentType: "Бюджет", enrollmentDate: "01.09.2025", status: "Зачислен", accountStatus: "Активен", avgGrade: "4.9", lastPasswordReset: "15.01.2026" },
-  { id: "st-102", name: "Сидорова Анна Владимировна", email: "sidorova@lyceum.edu", phone: "+996 700 98-76-54", groupName: "ИС-1-25", course: 1, enrollmentType: "Контракт", enrollmentDate: "01.09.2025", status: "Зачислен", accountStatus: "Активен", avgGrade: "4.6", lastPasswordReset: "20.02.2026" },
-  { id: "st-103", name: "Иванов Дмитрий Игоревич", email: "ivanov@lyceum.edu", phone: "+996 777 45-67-89", groupName: "ИС-1-25", course: 1, enrollmentType: "Бюджет", enrollmentDate: "01.09.2025", status: "Зачислен", accountStatus: "Временный пароль", avgGrade: "4.2", lastPasswordReset: "28.07.2026" },
-  { id: "st-104", name: "Ковалева Мария Андреевна", email: "kovaleva@lyceum.edu", phone: "+996 500 11-22-33", groupName: "ИС-2-24", course: 2, enrollmentType: "Бюджет", enrollmentDate: "01.09.2024", status: "Зачислен", accountStatus: "Активен", avgGrade: "5.0", lastPasswordReset: "10.05.2026" },
-  { id: "st-105", name: "Морозов Артём Викторович", email: "morozov@lyceum.edu", phone: "+996 550 33-44-55", groupName: "ИС-2-24", course: 2, enrollmentType: "Контракт", enrollmentDate: "01.09.2024", status: "Зачислен", accountStatus: "Активен", avgGrade: "4.1" },
-  { id: "st-106", name: "Алиева Айдана Нурбековна", email: "alieva@lyceum.edu", phone: "+996 708 11-44-77", groupName: "Не распределен", course: 1, enrollmentType: "Контракт", enrollmentDate: "28.07.2026", status: "Ожидает группы", accountStatus: "Временный пароль", avgGrade: "—" },
-  { id: "st-107", name: "Султанов Тимур Русланович", email: "sultanov@lyceum.edu", phone: "+996 559 88-99-00", groupName: "Не распределен", course: 1, enrollmentType: "Бюджет", enrollmentDate: "29.07.2026", status: "Ожидает группы", accountStatus: "Временный пароль", avgGrade: "—" },
-];
-
 interface StudentsViewProps {
-  userRole: "ADMIN" | "TEACHER" | "STUDENT";
+  userRole: string;
+  initialStudents?: StudentRegistryItem[];
 }
 
-export function StudentsView({ userRole }: StudentsViewProps) {
-  const [students, setStudents] = useState<StudentRegistryItem[]>(INITIAL_REGISTRY);
+export function StudentsView({ userRole, initialStudents = [] }: StudentsViewProps) {
+  const [students, setStudents] = useState<StudentRegistryItem[]>(initialStudents);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState("Все группы");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("Все статусы");

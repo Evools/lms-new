@@ -23,6 +23,58 @@ export interface StudentDetailDTO {
   enrollmentType: "Бюджет" | "Контракт";
 }
 
+export interface StudentListItemDTO {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  groupName: string;
+  course: number;
+  enrollmentType: "Бюджет" | "Контракт";
+  enrollmentDate: string;
+  status: "Зачислен" | "Ожидает группы" | "Отчислен";
+  accountStatus: "Активен" | "Временный пароль" | "Заблокирован";
+  avgGrade: string;
+}
+
+export async function getStudentsAction(): Promise<StudentListItemDTO[]> {
+  try {
+    const list = await prisma.user.findMany({
+      where: { role: "STUDENT" },
+      orderBy: { createdAt: "desc" },
+      include: {
+        studentEnrollments: {
+          include: { group: true },
+        },
+      },
+    });
+
+    return list.map((user) => {
+      const group = user.studentEnrollments[0]?.group;
+      const groupName = group?.name || "Не распределен";
+      const courseMatch = groupName.match(/-(\d)-/);
+      const course = courseMatch ? parseInt(courseMatch[1], 10) : 1;
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || "—",
+        groupName,
+        course,
+        enrollmentType: "Бюджет",
+        enrollmentDate: user.createdAt.toLocaleDateString("ru-RU"),
+        status: groupName === "Не распределен" ? "Ожидает группы" : "Зачислен",
+        accountStatus: "Активен",
+        avgGrade: "—",
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching students list from DB:", error);
+    return [];
+  }
+}
+
 export async function createStudentAction(input: CreateStudentInput) {
   try {
     const session = await auth();
@@ -132,18 +184,10 @@ export async function getStudentByIdAction(id: string): Promise<StudentDetailDTO
     });
 
     if (!student) {
-      // Fallback for mock IDs if user testing with pre-populated demo data
-      return {
-        id,
-        name: "Петров Алексей Сергеевич",
-        email: "petrov@lyceum.edu",
-        phone: "+996 555 12-34-56",
-        groupName: "ИС-1-25",
-        enrollmentType: "Бюджет",
-      };
+      return null;
     }
 
-    const groupName = student.studentEnrollments[0]?.group.name || "ИС-1-25";
+    const groupName = student.studentEnrollments[0]?.group.name || "Не распределен";
 
     return {
       id: student.id,
@@ -155,14 +199,7 @@ export async function getStudentByIdAction(id: string): Promise<StudentDetailDTO
     };
   } catch (error) {
     console.error("Error fetching student by ID:", error);
-    return {
-      id,
-      name: "Студент Лицея",
-      email: "student@lyceum.edu",
-      phone: "+996 555 00-00-00",
-      groupName: "ИС-1-25",
-      enrollmentType: "Бюджет",
-    };
+    return null;
   }
 }
 
@@ -179,35 +216,37 @@ export async function updateStudentAction(id: string, input: Partial<CreateStude
     }
 
     const existing = await prisma.user.findUnique({ where: { id } });
-    if (existing) {
-      // Update User record in Prisma DB
-      await prisma.user.update({
-        where: { id },
-        data: {
-          name: input.name?.trim() || existing.name,
-          email: input.email?.trim().toLowerCase() || existing.email,
-          phone: input.phone !== undefined ? input.phone.trim() || null : existing.phone,
-        },
+    if (!existing) {
+      return { success: false, error: "Студент не найден в БД" };
+    }
+
+    // Update User record in Prisma DB
+    await prisma.user.update({
+      where: { id },
+      data: {
+        name: input.name?.trim() || existing.name,
+        email: input.email?.trim().toLowerCase() || existing.email,
+        phone: input.phone !== undefined ? input.phone.trim() || null : existing.phone,
+      },
+    });
+
+    if (input.groupName) {
+      await prisma.groupStudent.deleteMany({
+        where: { studentId: id },
       });
 
-      if (input.groupName) {
-        await prisma.groupStudent.deleteMany({
-          where: { studentId: id },
+      if (input.groupName !== "Не распределен") {
+        const group = await prisma.group.findFirst({
+          where: { name: input.groupName },
         });
 
-        if (input.groupName !== "Не распределен") {
-          const group = await prisma.group.findFirst({
-            where: { name: input.groupName },
+        if (group) {
+          await prisma.groupStudent.create({
+            data: {
+              groupId: group.id,
+              studentId: id,
+            },
           });
-
-          if (group) {
-            await prisma.groupStudent.create({
-              data: {
-                groupId: group.id,
-                studentId: id,
-              },
-            });
-          }
         }
       }
     }
