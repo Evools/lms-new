@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,18 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const savedMode = localStorage.getItem("groups_view_mode");
+    if (savedMode === "table" || savedMode === "grid") {
+      setViewMode(savedMode);
+    }
+  }, []);
+
+  const handleSetViewMode = (mode: "table" | "grid") => {
+    setViewMode(mode);
+    localStorage.setItem("groups_view_mode", mode);
+  };
 
   const isAdmin = userRole === "ADMIN";
 
@@ -165,7 +177,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
           <div className="flex items-center gap-0.5 p-0.5 bg-muted/60 rounded-md border shrink-0">
             <button
               type="button"
-              onClick={() => setViewMode("table")}
+              onClick={() => handleSetViewMode("table")}
               className={`p-1 rounded-sm transition-all ${
                 viewMode === "table"
                   ? "bg-background text-foreground shadow-2xs"
@@ -177,7 +189,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
             </button>
             <button
               type="button"
-              onClick={() => setViewMode("grid")}
+              onClick={() => handleSetViewMode("grid")}
               className={`p-1 rounded-sm transition-all ${
                 viewMode === "grid"
                   ? "bg-background text-foreground shadow-2xs"
