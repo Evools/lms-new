@@ -65,6 +65,8 @@ import {
   removeStudentFromGroupAction,
   setGroupLeadershipAction,
   createGroupAnnouncementAction,
+  updateGroupAnnouncementAction,
+  deleteGroupAnnouncementAction,
 } from "../../actions";
 
 interface GroupDetailsViewProps {
@@ -83,6 +85,7 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
   const [isAddAnnOpen, setIsAddAnnOpen] = useState(false);
   const [newAnnTitle, setNewAnnTitle] = useState("");
   const [newAnnContent, setNewAnnContent] = useState("");
+  const [isImportant, setIsImportant] = useState(false);
   const [annErrorMessage, setAnnErrorMessage] = useState<string | null>(null);
 
   // Student deletion modal state
@@ -125,14 +128,54 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
     if (!newAnnTitle.trim() || !newAnnContent.trim()) return;
 
     setAnnErrorMessage(null);
-    const res = await createGroupAnnouncementAction(group.id, newAnnTitle, newAnnContent);
+    const res = await createGroupAnnouncementAction(group.id, newAnnTitle, newAnnContent, isImportant);
 
     if (res.success) {
       setNewAnnTitle("");
       setNewAnnContent("");
+      setIsImportant(false);
       setIsAddAnnOpen(false);
     } else {
       setAnnErrorMessage(res.error || "Ошибка при публикации объявления");
+    }
+  };
+  const [editingAnn, setEditingAnn] = useState<GroupAnnouncementDTO | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editIsImportant, setEditIsImportant] = useState(false);
+  const [editAnnErrorMessage, setEditAnnErrorMessage] = useState<string | null>(null);
+
+  // Announcement Delete modal state
+  const [deletingAnnId, setDeletingAnnId] = useState<string | null>(null);
+
+  const handleOpenEditAnn = (ann: GroupAnnouncementDTO) => {
+    setEditingAnn(ann);
+    setEditTitle(ann.title);
+    setEditContent(ann.content);
+    setEditIsImportant(ann.isImportant);
+    setEditAnnErrorMessage(null);
+  };
+
+  const handleSaveEditAnn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAnn || !editTitle.trim() || !editContent.trim()) return;
+
+    setEditAnnErrorMessage(null);
+    const res = await updateGroupAnnouncementAction(group.id, editingAnn.id, editTitle, editContent, editIsImportant);
+
+    if (res.success) {
+      setEditingAnn(null);
+    } else {
+      setEditAnnErrorMessage(res.error || "Ошибка при обновлении объявления");
+    }
+  };
+
+  const handleConfirmDeleteAnn = async () => {
+    if (!deletingAnnId) return;
+
+    const res = await deleteGroupAnnouncementAction(group.id, deletingAnnId);
+    if (res.success) {
+      setDeletingAnnId(null);
     }
   };
 
@@ -451,26 +494,54 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                   <DialogTrigger render={<Button size="xs" className="h-8 text-xs gap-1.5" />}>
                     <Plus className="h-3.5 w-3.5" /> Опубликовать объявление
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[450px]">
-                    <form onSubmit={handleCreateAnnouncement}>
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-base">
-                          <Megaphone className="h-4.5 w-4.5 text-primary" /> Публикация объявления
+                  <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+                    <form onSubmit={handleCreateAnnouncement} className="space-y-3">
+                      <DialogHeader className="pb-2 border-b">
+                        <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+                          <Megaphone className="h-4 w-4 text-primary" /> Публикация объявления
                         </DialogTitle>
                         <DialogDescription className="text-xs">
-                          Оповещение будет доступно всем студентам группы <strong>{group.name}</strong>
+                          Оповещение для студентов группы <strong>{group.name}</strong>
                         </DialogDescription>
                       </DialogHeader>
 
                       {annErrorMessage && (
-                        <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded border border-destructive/20 mt-2">
+                        <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded-md border border-destructive/20">
                           {annErrorMessage}
                         </div>
                       )}
 
-                      <div className="space-y-3 py-3 text-xs">
-                        <div className="space-y-1.5">
-                          <label className="font-medium text-foreground">Заголовок объявления *</label>
+                      <div className="space-y-3 text-xs">
+                        <div className="space-y-1">
+                          <label className="font-medium text-foreground text-xs">Тип объявления</label>
+                          <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+                            <button
+                              type="button"
+                              onClick={() => setIsImportant(false)}
+                              className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                                !isImportant
+                                  ? "bg-background text-foreground shadow-2xs"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <Megaphone className="h-3.5 w-3.5" /> Обычное
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsImportant(true)}
+                              className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                                isImportant
+                                  ? "bg-primary text-primary-foreground shadow-2xs font-medium"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <Sparkles className="h-3.5 w-3.5 text-amber-300" /> Важное
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="font-medium text-foreground text-xs">Заголовок *</label>
                           <Input
                             required
                             placeholder="Например: Изменение расписания на вторник"
@@ -480,23 +551,23 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                           />
                         </div>
 
-                        <div className="space-y-1.5">
-                          <label className="font-medium text-foreground">Текст сообщения *</label>
+                        <div className="space-y-1">
+                          <label className="font-medium text-foreground text-xs">Текст сообщения *</label>
                           <textarea
                             required
-                            rows={4}
-                            placeholder="Введите подробную информацию..."
+                            rows={3}
+                            placeholder="Введите подробный текст..."
                             value={newAnnContent}
                             onChange={(e) => setNewAnnContent(e.target.value)}
-                            className="w-full p-2.5 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary"
+                            className="w-full p-2 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary"
                           />
                         </div>
                       </div>
 
-                      <DialogFooter>
-                        <DialogClose render={<Button variant="outline" size="xs" type="button" />}>
+                      <DialogFooter className="gap-2 pt-2 border-t mt-2">
+                        <Button variant="outline" size="xs" type="button" onClick={() => setIsAddAnnOpen(false)}>
                           Отмена
-                        </DialogClose>
+                        </Button>
                         <Button size="xs" type="submit" disabled={!newAnnTitle.trim() || !newAnnContent.trim()}>
                           <Send className="h-3.5 w-3.5 mr-1" /> Опубликовать
                         </Button>
@@ -509,26 +580,84 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
 
             <div className="space-y-3">
               {group.announcementsList.map((ann: GroupAnnouncementDTO) => (
-                <Card key={ann.id} className="border shadow-none">
-                  <CardHeader className="pb-2 border-b">
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-sm font-bold text-foreground">{ann.title}</CardTitle>
-                      <Badge variant="outline" className="text-[10px]">{ann.date}</Badge>
+                <Card
+                  key={ann.id}
+                  className={`border shadow-none transition-all overflow-hidden ${
+                    ann.isImportant
+                      ? "border-l-4 border-l-primary border-primary/30 bg-primary/5 dark:bg-primary/10"
+                      : "border-border hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <CardContent className="p-4 space-y-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar className="h-7 w-7 border shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                            {ann.authorName.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-foreground text-xs block truncate">
+                            {ann.authorName}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {ann.isImportant ? (
+                          <Badge className="bg-primary text-primary-foreground text-[9px] px-2 py-0.5 gap-1 font-medium">
+                            <Sparkles className="h-3 w-3" /> Важное
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[9px] px-2 py-0.5 font-medium">
+                            Общие
+                          </Badge>
+                        )}
+                        <span className="text-[11px] text-muted-foreground">{ann.date}</span>
+                        {isAdminOrTeacher && (
+                          <div className="flex items-center gap-0.5 ml-1">
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => handleOpenEditAnn(ann)}
+                              className="h-6 w-6 text-muted-foreground hover:text-primary"
+                              title="Редактировать объявление"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => setDeletingAnnId(ann.id)}
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              title="Удалить объявление"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <CardDescription className="text-[11px]">
-                      Автор: <strong className="text-foreground">{ann.authorName}</strong>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-3 text-xs leading-relaxed">
-                    {ann.content}
+
+                    <div className="pt-1">
+                      <h4 className="text-xs font-bold text-foreground mb-1">
+                        {ann.title}
+                      </h4>
+                      <p className="text-xs text-muted-foreground/90 leading-relaxed whitespace-pre-line">
+                        {ann.content}
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
 
               {group.announcementsList.length === 0 && (
                 <Card className="border shadow-none p-8 text-center text-muted-foreground space-y-2">
-                  <Megaphone className="h-7 w-7 mx-auto text-muted-foreground/40" />
-                  <div>Нет активных объявлений для группы {group.name}</div>
+                  <Megaphone className="h-7 w-7 mx-auto text-muted-foreground/30" />
+                  <div className="text-xs font-medium">Нет публикаций для группы {group.name}</div>
+                  <p className="text-[11px] text-muted-foreground/70 max-w-sm mx-auto">
+                    Опубликуйте первое объявление, чтобы оповестить всех студентов данной группы
+                  </p>
                 </Card>
               )}
             </div>
@@ -564,29 +693,47 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                     Староста группы: <strong className="text-foreground">{group.monitorName || "Не назначен"}</strong>
                   </p>
                 </div>
-                <Button size="xs" variant="outline" render={<Link href="/dashboard/duty" />}>
+                <Button size="xs" variant="outline" render={<Link href={`/dashboard/duty?group=${group.id}`} />}>
                   Полноэкранный график
                 </Button>
               </div>
 
-              <div className="divide-y border rounded-xl overflow-hidden">
-                {group.studentsList.map((st: GroupStudentDTO, i: number) => (
-                  <div key={st.id} className="p-3 flex items-center justify-between hover:bg-muted/20">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-muted-foreground text-[11px] font-mono w-4">#{i + 1}</span>
-                      <span className="font-semibold text-foreground">{st.name}</span>
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">
-                      {i % 2 === 0 ? "Понедельник / Среда" : "Вторник / Четверг"}
-                    </Badge>
-                  </div>
-                ))}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-foreground flex items-center justify-between pt-2">
+                  <span>Распределение дежурных на неделю (Пн — Сб):</span>
+                  <span className="text-[11px] text-muted-foreground">Ротация по списку группы</span>
+                </div>
 
-                {group.studentsList.length === 0 && (
-                  <div className="p-6 text-center text-muted-foreground">
-                    Студенты для формирования графика дежурств пока не зачислены
-                  </div>
-                )}
+                <div className="divide-y border rounded-xl overflow-hidden bg-card">
+                  {["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"].map((dayName, idx) => {
+                    const assignedStudent = group.studentsList[idx % Math.max(1, group.studentsList.length)];
+                    return (
+                      <div key={dayName} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-muted/20">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] w-24 justify-center">
+                            {dayName}
+                          </Badge>
+                          <span className="font-semibold text-foreground">
+                            {assignedStudent ? assignedStudent.name : "Студент не назначен"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                          <span>Старший: <strong className="text-foreground">{group.monitorName || "Не назначен"}</strong></span>
+                          <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 text-[9px]">
+                            Запланировано
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {group.studentsList.length === 0 && (
+                    <div className="p-6 text-center text-muted-foreground">
+                      Студенты для формирования графика дежурств пока не зачислены
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -598,26 +745,138 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
         open={targetRemoveStudentId !== null}
         onOpenChange={(open) => !open && setTargetRemoveStudentId(null)}
       >
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="h-5 w-5" /> Исключение из группы
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="text-left place-items-start gap-1">
+            <AlertDialogTitle className="flex items-center gap-2 text-sm font-bold text-destructive">
+              <Trash2 className="h-4 w-4" /> Исключение из группы
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs">
+            <AlertDialogDescription className="text-xs text-muted-foreground">
               Вы действительно хотите исключить выбранного студента из состава группы <strong>{group.name}</strong>?
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           {removeErrorMessage && (
-            <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded border border-destructive/20">
+            <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded-md border border-destructive/20">
               {removeErrorMessage}
             </div>
           )}
 
-          <AlertDialogFooter>
-            <AlertDialogCancel size="sm">Отмена</AlertDialogCancel>
-            <Button variant="destructive" size="sm" onClick={handleConfirmRemoveStudent}>
-              Исключить из группы
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <Button variant="outline" size="xs" onClick={() => setTargetRemoveStudentId(null)}>
+              Отмена
+            </Button>
+            <Button variant="destructive" size="xs" onClick={handleConfirmRemoveStudent}>
+              Исключить
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog for Editing Announcement */}
+      <Dialog open={editingAnn !== null} onOpenChange={(open) => !open && setEditingAnn(null)}>
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+          <form onSubmit={handleSaveEditAnn} className="space-y-3">
+            <DialogHeader className="pb-2 border-b">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Edit className="h-4 w-4 text-primary" /> Редактирование объявления
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Изменение содержания или типа публикации
+              </DialogDescription>
+            </DialogHeader>
+
+            {editAnnErrorMessage && (
+              <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded-md border border-destructive/20">
+                {editAnnErrorMessage}
+              </div>
+            )}
+
+            <div className="space-y-3 text-xs">
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Тип объявления</label>
+                <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setEditIsImportant(false)}
+                    className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                      !editIsImportant
+                        ? "bg-background text-foreground shadow-2xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Megaphone className="h-3.5 w-3.5" /> Обычное
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditIsImportant(true)}
+                    className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                      editIsImportant
+                        ? "bg-primary text-primary-foreground shadow-2xs font-medium"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-300" /> Важное
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Заголовок *</label>
+                <Input
+                  required
+                  placeholder="Заголовок..."
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Текст сообщения *</label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Текст сообщения..."
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full p-2 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" type="button" onClick={() => setEditingAnn(null)}>
+                Отмена
+              </Button>
+              <Button size="xs" type="submit" disabled={!editTitle.trim() || !editContent.trim()}>
+                Сохранить изменения
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog for Announcement Deletion */}
+      <AlertDialog
+        open={deletingAnnId !== null}
+        onOpenChange={(open) => !open && setDeletingAnnId(null)}
+      >
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="text-left place-items-start gap-1">
+            <AlertDialogTitle className="flex items-center gap-2 text-sm font-bold text-destructive">
+              <Trash2 className="h-4 w-4" /> Удаление объявления
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Вы действительно хотите безвозвратно удалить это объявление из базы данных?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <Button variant="outline" size="xs" onClick={() => setDeletingAnnId(null)}>
+              Отмена
+            </Button>
+            <Button variant="destructive" size="xs" onClick={handleConfirmDeleteAnn}>
+              Удалить
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

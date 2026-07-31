@@ -40,6 +40,7 @@ export interface GroupAnnouncementDTO {
   content: string;
   authorName: string;
   date: string;
+  isImportant: boolean;
 }
 
 export interface GroupDetailsDTO extends GroupDTO {
@@ -298,13 +299,18 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       orderBy: { createdAt: "desc" },
     });
 
-    const announcementsList: GroupAnnouncementDTO[] = announcements.map((a) => ({
-      id: a.id,
-      title: a.title,
-      content: a.content,
-      authorName: a.author.name,
-      date: new Date(a.createdAt).toLocaleDateString("ru-RU"),
-    }));
+    const announcementsList: GroupAnnouncementDTO[] = announcements.map((a) => {
+      const isImportant = a.title.startsWith("[ВАЖНО]");
+      const cleanTitle = a.title.replace(/^\[ВАЖНО\]\s*/, "");
+      return {
+        id: a.id,
+        title: cleanTitle,
+        content: a.content,
+        authorName: a.author.name,
+        date: new Date(a.createdAt).toLocaleDateString("ru-RU"),
+        isImportant,
+      };
+    });
 
     return {
       id: item.id,
@@ -405,17 +411,20 @@ export async function setGroupLeadershipAction(
 export async function createGroupAnnouncementAction(
   groupId: string,
   title: string,
-  content: string
+  content: string,
+  isImportant: boolean = false
 ) {
   const session = await auth();
   if (!session?.user) {
     return { success: false, error: "Требуется авторизация" };
   }
 
+  const finalTitle = isImportant ? `[ВАЖНО] ${title.trim()}` : title.trim();
+
   try {
     const announcement = await prisma.announcement.create({
       data: {
-        title: title.trim(),
+        title: finalTitle,
         content: content.trim(),
         authorId: session.user.id,
         targetGroupId: groupId,
@@ -424,9 +433,62 @@ export async function createGroupAnnouncementAction(
     });
 
     revalidatePath(`/dashboard/groups/${groupId}`);
+    revalidatePath("/dashboard/announcements");
     return { success: true, id: announcement.id };
   } catch (error: any) {
     console.error("Failed to create group announcement:", error);
     return { success: false, error: error.message || "Ошибка при публикации объявления" };
+  }
+}
+
+export async function updateGroupAnnouncementAction(
+  groupId: string,
+  announcementId: string,
+  title: string,
+  content: string,
+  isImportant: boolean = false
+) {
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: "Требуется авторизация" };
+  }
+
+  const finalTitle = isImportant ? `[ВАЖНО] ${title.trim()}` : title.trim();
+
+  try {
+    await prisma.announcement.update({
+      where: { id: announcementId },
+      data: {
+        title: finalTitle,
+        content: content.trim(),
+      },
+    });
+
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    revalidatePath("/dashboard/announcements");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update group announcement:", error);
+    return { success: false, error: error.message || "Ошибка при обновлении объявления" };
+  }
+}
+
+export async function deleteGroupAnnouncementAction(groupId: string, announcementId: string) {
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: "Требуется авторизация" };
+  }
+
+  try {
+    await prisma.announcement.delete({
+      where: { id: announcementId },
+    });
+
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    revalidatePath("/dashboard/announcements");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to delete group announcement:", error);
+    return { success: false, error: error.message || "Ошибка при удалении объявления" };
   }
 }
