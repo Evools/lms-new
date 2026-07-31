@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import {
   AlertTriangle,
   Loader2,
   ChevronRight,
+  Edit,
 } from "lucide-react";
 import { createGroupAction, deleteGroupAction, GroupDTO } from "../actions";
 
@@ -44,6 +46,7 @@ interface GroupsViewProps {
 }
 
 export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
+  const router = useRouter();
   const [groups, setGroups] = useState<GroupDTO[]>(initialGroups);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<number | "ALL">("ALL");
@@ -115,46 +118,9 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
         </div>
 
         {isAdmin && (
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger render={<Button size="sm" />}>
-              <Plus className="h-4 w-4 mr-1.5" /> Создать новую группу
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[450px]">
-              <form onSubmit={handleCreateSubmit}>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-base">
-                    <Users className="h-5 w-5 text-primary" />
-                    Новая учебная группа
-                  </DialogTitle>
-                  <DialogDescription>
-                    Введите название новой группы (например: ИС-1-25)
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4 py-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-foreground">Название группы *</label>
-                    <Input
-                      placeholder="Например: ИС-1-25"
-                      value={newGroupName}
-                      onChange={(e) => setNewGroupName(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <DialogClose render={<Button variant="outline" type="button" />}>
-                    Отмена
-                  </DialogClose>
-                  <Button type="submit" disabled={isPending}>
-                    {isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-                    Создать группу
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button size="sm" render={<Link href="/dashboard/groups/new" />}>
+            <Plus className="h-4 w-4 mr-1.5" /> Создать новую группу
+          </Button>
         )}
       </div>
 
@@ -222,7 +188,11 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
       {/* Groups Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredGroups.map((group) => (
-          <Link href={`/dashboard/groups/${group.id}`} key={group.id} className="block group">
+          <div
+            key={group.id}
+            onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+            className="block group cursor-pointer"
+          >
             <Card className="border shadow-none hover:border-primary/50 transition-all cursor-pointer h-full">
               <CardHeader className="pb-3 border-b">
                 <div className="flex items-start justify-between">
@@ -241,19 +211,33 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                   </div>
 
                   {isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDeletingGroupId(group.id);
-                      }}
-                      className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Удалить группу"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        render={<Link href={`/dashboard/groups/${group.id}/edit`} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        className="text-muted-foreground hover:text-primary"
+                        title="Редактировать группу"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeletingGroupId(group.id);
+                        }}
+                        className="text-muted-foreground hover:text-destructive"
+                        title="Удалить группу"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardHeader>
@@ -275,11 +259,15 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                 <div className="space-y-1.5 pt-2 border-t text-[11px]">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Куратор:</span>
-                    <span className="font-medium text-foreground">{group.curatorName || "Не назначен"}</span>
+                    <span className={`font-medium ${group.curatorName ? "text-foreground" : "text-muted-foreground/70"}`}>
+                      {group.curatorName || "Не назначен"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Староста:</span>
-                    <span className="font-medium text-foreground">{group.monitorName || "Не назначен"}</span>
+                    <span className={`font-medium ${group.monitorName ? "text-foreground" : "text-muted-foreground/70"}`}>
+                      {group.monitorName || "Не назначен"}
+                    </span>
                   </div>
                 </div>
 
@@ -289,7 +277,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                 </div>
               </CardContent>
             </Card>
-          </Link>
+          </div>
         ))}
       </div>
 

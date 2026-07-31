@@ -84,15 +84,29 @@ export interface StudentRegistryItem {
   lastPasswordReset?: string;
 }
 
+export interface DBGroupItem {
+  id: string;
+  name: string;
+  course: number;
+}
+
 interface StudentsViewProps {
   userRole: string;
   initialStudents?: StudentRegistryItem[];
+  dbGroups?: DBGroupItem[];
 }
 
-export function StudentsView({ userRole, initialStudents = [] }: StudentsViewProps) {
+export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: StudentsViewProps) {
   const [students, setStudents] = useState<StudentRegistryItem[]>(initialStudents);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState("Все группы");
+
+  const filterGroupNames = Array.from(
+    new Set([
+      ...dbGroups.map((g) => g.name),
+      ...students.map((s) => s.groupName).filter(Boolean),
+    ])
+  ).sort();
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("Все статусы");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("Все формы");
 
@@ -347,9 +361,11 @@ export function StudentsView({ userRole, initialStudents = [] }: StudentsViewPro
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Все группы">Все группы</SelectItem>
-              <SelectItem value="ИС-1-25">ИС-1-25</SelectItem>
-              <SelectItem value="ИС-2-24">ИС-2-24</SelectItem>
-              <SelectItem value="ПО-1-25">ПО-1-25</SelectItem>
+              {filterGroupNames.map((gName) => (
+                <SelectItem key={gName} value={gName}>
+                  {gName}
+                </SelectItem>
+              ))}
               <SelectItem value="Не распределен">Не распределены</SelectItem>
             </SelectContent>
           </Select>

@@ -44,13 +44,24 @@ import {
 } from "lucide-react";
 import { StudentDetailDTO, updateStudentAction } from "../../../actions";
 
+export interface DBGroupItem {
+  id: string;
+  name: string;
+  course: number;
+}
+
 interface StudentEditFormProps {
   student: StudentDetailDTO;
   userRole: string;
+  dbGroups?: DBGroupItem[];
 }
 
-export function StudentEditForm({ student, userRole }: StudentEditFormProps) {
+export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEditFormProps) {
   const router = useRouter();
+
+  const groupsList = dbGroups.length > 0
+    ? dbGroups.map((g) => g.name)
+    : ["ИС-1-25", "ИС-2-24", "ПО-1-25"];
 
   const [fullName, setFullName] = useState(student.name);
   const [email, setEmail] = useState(student.email);
@@ -322,9 +333,11 @@ export function StudentEditForm({ student, userRole }: StudentEditFormProps) {
                     <SelectValue placeholder="Выберите группу" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ИС-1-25">ИС-1-25</SelectItem>
-                    <SelectItem value="ИС-2-24">ИС-2-24</SelectItem>
-                    <SelectItem value="ПО-1-25">ПО-1-25</SelectItem>
+                    {groupsList.map((gName) => (
+                      <SelectItem key={gName} value={gName}>
+                        {gName}
+                      </SelectItem>
+                    ))}
                     <SelectItem value="Не распределен">Не распределен (Резерв)</SelectItem>
                   </SelectContent>
                 </Select>

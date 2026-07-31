@@ -57,8 +57,16 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+export interface DBGroupItem {
+  id: string;
+  name: string;
+  course: number;
+  specialty?: string;
+}
+
 interface StudentRegistrationFormProps {
   userRole: string;
+  dbGroups?: DBGroupItem[];
 }
 
 export interface ImportedStudentRow {
@@ -72,9 +80,13 @@ export interface ImportedStudentRow {
   statusText: string;
 }
 
-export function StudentRegistrationForm({ userRole }: StudentRegistrationFormProps) {
+export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegistrationFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const groupsList = dbGroups.length > 0
+    ? dbGroups.map((g: DBGroupItem) => g.name)
+    : ["ИС-1-25", "ИС-2-24", "ПО-1-25"];
 
   // Registration Mode: "single" (Анкета) | "excel" (Импорт из Excel)
   const [regMode, setRegMode] = useState<"single" | "excel">("single");
@@ -95,7 +107,7 @@ export function StudentRegistrationForm({ userRole }: StudentRegistrationFormPro
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
 
-  const [group, setGroup] = useState("ИС-1-25");
+  const [group, setGroup] = useState(groupsList[0] || "ИС-1-25");
   const [course, setCourse] = useState("1");
   const [enrollmentType, setEnrollmentType] = useState<"Бюджет" | "Контракт">("Бюджет");
   const [enrollmentDate, setEnrollmentDate] = useState(new Date().toISOString().split("T")[0]);
@@ -110,7 +122,7 @@ export function StudentRegistrationForm({ userRole }: StudentRegistrationFormPro
   // Excel Bulk Import State
   const [importedStudents, setImportedStudents] = useState<ImportedStudentRow[]>([]);
   const [excelFileName, setExcelFileName] = useState<string | null>(null);
-  const [defaultImportGroup, setDefaultImportGroup] = useState("ИС-1-25");
+  const [defaultImportGroup, setDefaultImportGroup] = useState(groupsList[0] || "ИС-1-25");
   const [defaultImportType, setDefaultImportType] = useState<"Бюджет" | "Контракт">("Бюджет");
 
   // Common UI State
@@ -655,9 +667,11 @@ export function StudentRegistrationForm({ userRole }: StudentRegistrationFormPro
                       <SelectValue placeholder="Выберите группу" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ИС-1-25">ИС-1-25 (Информационные системы)</SelectItem>
-                      <SelectItem value="ИС-2-24">ИС-2-24 (2 курс)</SelectItem>
-                      <SelectItem value="ПО-1-25">ПО-1-25 (Программное обеспечение)</SelectItem>
+                      {groupsList.map((gName: string) => (
+                        <SelectItem key={gName} value={gName}>
+                          {gName}
+                        </SelectItem>
+                      ))}
                       <SelectItem value="Не распределен">Ожидает группы (Не распределен)</SelectItem>
                     </SelectContent>
                   </Select>
@@ -686,10 +700,8 @@ export function StudentRegistrationForm({ userRole }: StudentRegistrationFormPro
                       <SelectValue placeholder="Выберите курс" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">1 курс / Начальный</SelectItem>
-                      <SelectItem value="2">2 курс / Продвинутый</SelectItem>
-                      <SelectItem value="3">3 курс</SelectItem>
-                      <SelectItem value="4">4 курс</SelectItem>
+                      <SelectItem value="1">1 курс</SelectItem>
+                      <SelectItem value="2">2 курс</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1047,9 +1059,11 @@ export function StudentRegistrationForm({ userRole }: StudentRegistrationFormPro
                       <SelectValue placeholder="Выберите группу" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ИС-1-25">ИС-1-25</SelectItem>
-                      <SelectItem value="ИС-2-24">ИС-2-24</SelectItem>
-                      <SelectItem value="ПО-1-25">ПО-1-25</SelectItem>
+                      {groupsList.map((gName: string) => (
+                        <SelectItem key={gName} value={gName}>
+                          {gName}
+                        </SelectItem>
+                      ))}
                       <SelectItem value="Не распределен">Не распределен (Резерв)</SelectItem>
                     </SelectContent>
                   </Select>

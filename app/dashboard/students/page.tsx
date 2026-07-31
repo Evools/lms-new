@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getStudentsAction } from "./actions";
+import { getGroupsAction } from "../groups/actions";
 import { StudentsView } from "./_components/students-view";
 
 export default async function StudentsPage() {
@@ -12,6 +13,7 @@ export default async function StudentsPage() {
 
   const role = session.user.role || "STUDENT";
   const initialStudents = await getStudentsAction();
+  const groups = await getGroupsAction();
 
-  return <StudentsView userRole={role} initialStudents={initialStudents} />;
+  return <StudentsView userRole={role} initialStudents={initialStudents} dbGroups={groups} />;
 }

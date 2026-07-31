@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getStudentByIdAction } from "../../actions";
+import { getGroupsAction } from "../../../groups/actions";
 import { StudentEditForm } from "./_components/student-edit-form";
 
 interface PageProps {
@@ -22,6 +23,7 @@ export default async function EditStudentPage({ params }: PageProps) {
   }
 
   const role = session.user.role || "STUDENT";
+  const groups = await getGroupsAction();
 
-  return <StudentEditForm student={student} userRole={role} />;
+  return <StudentEditForm student={student} userRole={role} dbGroups={groups} />;
 }

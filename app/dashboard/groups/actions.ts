@@ -10,6 +10,7 @@ export interface GroupDTO {
   course: number;
   specialty: string;
   studentCount: number;
+  curatorId?: string;
   curatorName?: string;
   monitorName?: string;
   deputyMonitorName?: string;
@@ -44,7 +45,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
     const list = await prisma.group.findMany({
       orderBy: { name: "asc" },
       include: {
-        curator: { select: { name: true } },
+        curator: { select: { id: true, name: true } },
         monitor: { select: { name: true } },
         deputyMonitor: { select: { name: true } },
         academicYear: { select: { name: true } },
@@ -57,7 +58,6 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
     }
 
     return list.map((item) => {
-      // Determine course number from group name if possible (e.g., ИС-1-25 -> 1 курс)
       const courseMatch = item.name.match(/-(\d)-/);
       const course = courseMatch ? parseInt(courseMatch[1], 10) : 1;
 
@@ -67,6 +67,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
         course,
         specialty: "Информационные системы и программирование",
         studentCount: item._count.students,
+        curatorId: item.curator?.id || undefined,
         curatorName: item.curator?.name || undefined,
         monitorName: item.monitor?.name || undefined,
         deputyMonitorName: item.deputyMonitor?.name || undefined,
@@ -80,13 +81,39 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
   }
 }
 
-export async function createGroupAction(data: { name: string }) {
+export async function getTeachersListAction() {
+  try {
+    const teachers = await prisma.user.findMany({
+      where: { role: "TEACHER" },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    });
+    return teachers;
+  } catch (error) {
+    console.error("Failed to fetch teachers list:", error);
+    return [];
+  }
+}
+
+export async function createGroupAction(data: {
+  name: string;
+  curatorId?: string;
+  academicYearName?: string;
+}) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Только администратор может создавать учебные группы");
+    return { success: false, error: "Только администратор может создавать учебные группы" };
   }
 
   try {
+    const existingGroup = await prisma.group.findFirst({
+      where: { name: data.name.trim() },
+    });
+
+    if (existingGroup) {
+      return { success: false, error: `Группа с названием "${data.name.trim()}" уже существует в базе данных` };
+    }
+
     let academicYear = await prisma.academicYear.findFirst({
       where: { isCurrent: true },
     });
@@ -94,7 +121,7 @@ export async function createGroupAction(data: { name: string }) {
     if (!academicYear) {
       academicYear = await prisma.academicYear.create({
         data: {
-          name: "2025-2026",
+          name: data.academicYearName || "2025-2026",
           isCurrent: true,
           startDate: new Date("2025-09-01"),
           endDate: new Date("2026-06-30"),
@@ -106,14 +133,57 @@ export async function createGroupAction(data: { name: string }) {
       data: {
         name: data.name.trim(),
         academicYearId: academicYear.id,
+        curatorId: data.curatorId || undefined,
       },
     });
 
     revalidatePath("/dashboard/groups");
     return { success: true, id: created.id };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to create group:", error);
-    return { success: false, error: "Ошибка при создании группы в базе данных" };
+    return { success: false, error: error.message || "Ошибка при создании группы в базе данных" };
+  }
+}
+
+export async function updateGroupAction(
+  groupId: string,
+  data: {
+    name: string;
+    curatorId?: string;
+    academicYearName?: string;
+  }
+) {
+  const session = await auth();
+  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+    return { success: false, error: "Недостаточно прав для редактирования группы" };
+  }
+
+  try {
+    const existingOther = await prisma.group.findFirst({
+      where: {
+        name: data.name.trim(),
+        NOT: { id: groupId },
+      },
+    });
+
+    if (existingOther) {
+      return { success: false, error: `Группа с названием "${data.name.trim()}" уже существует в базе данных` };
+    }
+
+    await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        name: data.name.trim(),
+        curatorId: !data.curatorId || data.curatorId === "none" ? null : data.curatorId,
+      },
+    });
+
+    revalidatePath("/dashboard/groups");
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update group:", error);
+    return { success: false, error: error.message || "Ошибка при обновлении группы в базе данных" };
   }
 }
 
@@ -150,19 +220,7 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDTO | nu
     });
 
     if (!item) {
-      // Fallback for mock/demo IDs that might not be in DB yet
-      return {
-        id: groupId,
-        name: groupId.startsWith("grp-") ? "Созданная группа" : "ИT-1-24",
-        course: 1,
-        specialty: "Информационные системы и программирование",
-        studentCount: 26,
-        curatorName: "Иванов Иван Иванович",
-        monitorName: "Петров Алексей Сергеевич",
-        deputyMonitorName: "Сидорова Анна Владимировна",
-        academicYear: "2025-2026",
-        createdAt: new Date().toLocaleDateString("ru-RU"),
-      };
+      return null;
     }
 
     const courseMatch = item.name.match(/-(\d)-/);
@@ -173,27 +231,15 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDTO | nu
       name: item.name,
       course,
       specialty: "Информационные системы и программирование",
-      studentCount: item._count.students || 26,
-      curatorName: item.curator?.name || "Иванов Иван Иванович",
-      monitorName: item.monitor?.name || "Петров Алексей Сергеевич",
-      deputyMonitorName: item.deputyMonitor?.name || "Сидорова Анна Владимировна",
+      studentCount: item._count.students,
+      curatorName: item.curator?.name || undefined,
+      monitorName: item.monitor?.name || undefined,
+      deputyMonitorName: item.deputyMonitor?.name || undefined,
       academicYear: item.academicYear.name,
       createdAt: new Date(item.createdAt).toLocaleDateString("ru-RU"),
     };
   } catch (error) {
     console.error("Failed to fetch group details:", error);
-    return {
-      id: groupId,
-      name: "Группа",
-      course: 1,
-      specialty: "Информационные системы и программирование",
-      studentCount: 26,
-      curatorName: "Иванов Иван Иванович",
-      monitorName: "Петров Алексей Сергеевич",
-      deputyMonitorName: "Сидорова Анна Владимировна",
-      academicYear: "2025-2026",
-      createdAt: new Date().toLocaleDateString("ru-RU"),
-    };
+    return null;
   }
 }
-

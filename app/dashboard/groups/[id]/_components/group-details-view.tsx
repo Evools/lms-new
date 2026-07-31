@@ -132,8 +132,8 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [activeTab, setActiveTab] = useState<"STUDENTS" | "SUBJECTS" | "DUTY" | "ANNOUNCEMENTS">("STUDENTS");
 
-  const [monitorName] = useState(group.monitorName || "Петров Алексей Сергеевич");
-  const [deputyMonitorName] = useState(group.deputyMonitorName || "Сидорова Анна Владимировна");
+  const [monitorName] = useState(group.monitorName || "Не назначен");
+  const [deputyMonitorName] = useState(group.deputyMonitorName || "Не назначен");
 
   const [selectedDutyDayIndex, setSelectedDutyDayIndex] = useState<number | null>(null);
   const [editingSeniorName, setEditingSeniorName] = useState("");
@@ -307,14 +307,26 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
           <span className="text-foreground font-semibold">{group.name}</span>
         </div>
 
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => router.push("/dashboard/groups")}
-          className="text-xs h-7"
-        >
-          <ChevronLeft className="h-3.5 w-3.5 mr-1" /> К списку групп
-        </Button>
+        <div className="flex items-center gap-2">
+          {(userRole === "ADMIN" || userRole === "TEACHER") && (
+            <Button
+              variant="outline"
+              size="xs"
+              render={<Link href={`/dashboard/groups/${group.id}/edit`} />}
+              className="text-xs h-7 gap-1"
+            >
+              <Edit className="h-3.5 w-3.5" /> Редактировать группу
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => router.push("/dashboard/groups")}
+            className="text-xs h-7"
+          >
+            <ChevronLeft className="h-3.5 w-3.5 mr-1" /> К списку групп
+          </Button>
+        </div>
       </div>
 
       {/* Compact Main Header Visual Card */}
