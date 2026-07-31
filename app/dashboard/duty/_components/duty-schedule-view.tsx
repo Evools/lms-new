@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -22,32 +30,51 @@ import {
   AlertCircle,
   UserCheck,
   UserX,
+  UserPlus,
+  RefreshCw,
   ChevronLeft,
 } from "lucide-react";
-import { DayDutyGroupDTO, generateWeeklyDutyAction, markDutyAbsentAction } from "../actions";
+import {
+  DayDutyGroupDTO,
+  generateWeeklyDutyAction,
+  addDutyStudentAction,
+  replaceDutyStudentAction,
+} from "../actions";
 
 interface DutyScheduleViewProps {
   userRole: string;
   groupsList: { id: string; name: string }[];
   weeklyDays: DayDutyGroupDTO[];
+  groupStudents: { id: string; name: string }[];
   selectedGroupId?: string;
 }
+
+type StudentPickerMode =
+  | { type: "add"; fullDate: string; dayName: string; existingIds: string[] }
+  | { type: "replace"; fullDate: string; dayName: string; absentStudentId: string; absentStudentName: string; existingIds: string[] };
 
 export function DutyScheduleView({
   userRole,
   groupsList = [],
   weeklyDays = [],
+  groupStudents = [],
   selectedGroupId,
 }: DutyScheduleViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
   const [currentGroupId, setCurrentGroupId] = useState<string>(
     selectedGroupId || (groupsList[0]?.id || "")
   );
-  const [successMsg, setSuccessMsg] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // Track locally which students are marked absent (studentId_date)
+
+  // Absent tracking: key = `studentId_date`
   const [absentSet, setAbsentSet] = useState<Set<string>>(new Set());
+
+  // Student picker dialog
+  const [pickerMode, setPickerMode] = useState<StudentPickerMode | null>(null);
+  const [pickerStudentId, setPickerStudentId] = useState<string>("");
 
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
 
@@ -62,8 +89,8 @@ export function DutyScheduleView({
     startTransition(async () => {
       const res = await generateWeeklyDutyAction(currentGroupId);
       if (res.success) {
-        setSuccessMsg(true);
-        setTimeout(() => setSuccessMsg(false), 3000);
+        setSuccessMsg("График пересчитан! 2–3 дежурных назначены на каждый день недели.");
+        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
         setErrorMsg(res.error || "Ошибка при генерации ротации");
       }
@@ -71,20 +98,102 @@ export function DutyScheduleView({
   };
 
   const handleMarkAbsent = (studentId: string, fullDate: string) => {
-    const key = `${studentId}_${fullDate}`;
-    startTransition(async () => {
-      const res = await markDutyAbsentAction(currentGroupId, studentId, fullDate);
-      if (res.success) {
-        setAbsentSet((prev) => new Set(prev).add(key));
-      }
-    });
+    // Only local state — no DB call. DB change happens on Replace.
+    setAbsentSet((prev) => new Set(prev).add(`${studentId}_${fullDate}`));
   };
 
   const isAbsent = (studentId: string, fullDate: string) =>
     absentSet.has(`${studentId}_${fullDate}`);
 
+  const openAdd = (day: DayDutyGroupDTO) => {
+    const existingIds = [
+      ...day.dutyStudents.map((s) => s.id),
+      ...(day.leaderStudent ? [day.leaderStudent.id] : []),
+    ];
+    setPickerStudentId("");
+    setPickerMode({ type: "add", fullDate: day.fullDate, dayName: day.dayName, existingIds });
+  };
+
+  const openReplace = (day: DayDutyGroupDTO, absentStudent: { id: string; name: string }) => {
+    const existingIds = [
+      ...day.dutyStudents.map((s) => s.id),
+      ...(day.leaderStudent ? [day.leaderStudent.id] : []),
+    ];
+    setPickerStudentId("");
+    setPickerMode({
+      type: "replace",
+      fullDate: day.fullDate,
+      dayName: day.dayName,
+      absentStudentId: absentStudent.id,
+      absentStudentName: absentStudent.name,
+      existingIds,
+    });
+  };
+
+  const handlePickerConfirm = () => {
+    if (!pickerMode || !pickerStudentId) return;
+    startTransition(async () => {
+      let res;
+      if (pickerMode.type === "add") {
+        res = await addDutyStudentAction(currentGroupId, pickerStudentId, pickerMode.fullDate);
+      } else {
+        res = await replaceDutyStudentAction(
+          currentGroupId,
+          pickerMode.absentStudentId,
+          pickerStudentId,
+          pickerMode.fullDate
+        );
+        if (res.success) {
+          // Remove from absent set since they're now replaced
+          setAbsentSet((prev) => {
+            const next = new Set(prev);
+            next.delete(`${pickerMode.absentStudentId}_${pickerMode.fullDate}`);
+            return next;
+          });
+        }
+      }
+      if (res.success) {
+        setSuccessMsg(
+          pickerMode.type === "add" ? "Студент добавлен в дежурство." : "Студент заменён."
+        );
+        setTimeout(() => setSuccessMsg(null), 3000);
+        setPickerMode(null);
+      } else {
+        setErrorMsg(res.error || "Ошибка");
+        setPickerMode(null);
+      }
+    });
+  };
+
   const selectedGroupObj = groupsList.find((g) => g.id === currentGroupId);
   const todayDutyDay = weeklyDays.find((d) => d.isToday);
+
+  // Build set of studentIds that already have duty this week (across all days)
+  const weekDutiedIds = new Set<string>(
+    weeklyDays.flatMap((d) =>
+      d.dutyStudents.map((s) => s.id)
+    )
+  );
+
+  // Students in picker: exclude those assigned on THIS specific day (existingIds),
+  // but show everyone else — sorted: not-dutied-this-week first, then already-dutied
+  const pickerAvailableStudents = pickerMode
+    ? groupStudents
+        .filter((s) => {
+          if (pickerMode.type === "replace") {
+            // Exclude the absent student themselves and others on this day
+            return s.id !== pickerMode.absentStudentId &&
+              !pickerMode.existingIds.filter(id => id !== pickerMode.absentStudentId).includes(s.id);
+          }
+          return !pickerMode.existingIds.includes(s.id);
+        })
+        .sort((a, b) => {
+          // Not-dutied-this-week first
+          const aDutied = weekDutiedIds.has(a.id) ? 1 : 0;
+          const bDutied = weekDutiedIds.has(b.id) ? 1 : 0;
+          return aDutied - bDutied;
+        })
+    : [];
 
   return (
     <div className="w-full space-y-4 pb-20">
@@ -105,7 +214,7 @@ export function DutyScheduleView({
               )}
             </h1>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              2–3 дежурных в день · ротация по алфавитному списку группы
+              2–3 дежурных в день · ротация по алфавитному списку
             </p>
           </div>
         </div>
@@ -142,7 +251,7 @@ export function DutyScheduleView({
       {successMsg && (
         <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 flex items-center gap-2.5 text-xs animate-in fade-in duration-200">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span><strong>График пересчитан!</strong> 2–3 дежурных назначены на каждый день недели.</span>
+          <span>{successMsg}</span>
         </div>
       )}
       {errorMsg && (
@@ -155,7 +264,7 @@ export function DutyScheduleView({
       {/* Today strip */}
       {todayDutyDay && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-primary/15 bg-primary/8">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-primary/15 bg-primary/5">
             <div className="flex items-center gap-2">
               <Badge className="bg-primary text-primary-foreground text-[9px] px-1.5 py-0 font-medium uppercase tracking-wider">
                 Сегодня
@@ -164,12 +273,25 @@ export function DutyScheduleView({
                 {todayDutyDay.dayName}, {todayDutyDay.dateStr}
               </span>
             </div>
-            {todayDutyDay.leaderStudent && (
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Crown className="h-3 w-3 text-primary" />
-                Ст. дежурный: <strong className="text-foreground ml-0.5">{todayDutyDay.leaderStudent.name}</strong>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {todayDutyDay.leaderStudent && (
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <Crown className="h-3 w-3 text-primary" />
+                  <strong className="text-foreground">{todayDutyDay.leaderStudent.name}</strong>
+                </div>
+              )}
+              {isAdminOrTeacher && (
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  className="h-6 w-6 text-muted-foreground hover:text-primary"
+                  title="Добавить дежурного"
+                  onClick={() => openAdd(todayDutyDay)}
+                >
+                  <UserPlus className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="p-3 flex flex-wrap gap-2">
@@ -180,7 +302,7 @@ export function DutyScheduleView({
                   key={st.id}
                   className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition-all ${
                     absent
-                      ? "border-muted bg-muted/50 opacity-50"
+                      ? "border-muted bg-muted/50 opacity-60"
                       : "border-primary/20 bg-background"
                   }`}
                 >
@@ -193,15 +315,27 @@ export function DutyScheduleView({
                     {st.name}
                   </span>
                   {absent ? (
-                    <Badge variant="outline" className="text-[8px] px-1 py-0 text-muted-foreground">
-                      Отсутствует
-                    </Badge>
+                    <>
+                      <Badge variant="outline" className="text-[8px] px-1 py-0 text-destructive border-destructive/30">
+                        Отсутствует
+                      </Badge>
+                      {isAdminOrTeacher && (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-5 text-[9px] px-1.5 gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                          onClick={() => openReplace(todayDutyDay, st)}
+                        >
+                          <RefreshCw className="h-2.5 w-2.5" /> Заменить
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     isAdminOrTeacher && (
                       <button
                         onClick={() => handleMarkAbsent(st.id, todayDutyDay.fullDate)}
-                        className="text-muted-foreground/50 hover:text-destructive transition-colors"
-                        title="Отметить как отсутствующего"
+                        className="text-muted-foreground/40 hover:text-destructive transition-colors"
+                        title="Отметить отсутствие"
                       >
                         <UserX className="h-3 w-3" />
                       </button>
@@ -228,18 +362,17 @@ export function DutyScheduleView({
         </div>
 
         <div className="rounded-xl border overflow-hidden">
-          {/* Table header */}
-          <div className="grid grid-cols-[100px_1fr_80px] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="grid grid-cols-[100px_1fr_90px] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
             <span>День</span>
             <span>Дежурные студенты</span>
-            <span className="text-right">Статус</span>
+            <span className="text-right">Статус / +</span>
           </div>
 
           <div className="divide-y">
             {weeklyDays.map((day) => (
               <div
                 key={day.fullDate}
-                className={`grid grid-cols-[100px_1fr_80px] items-start gap-3 px-3 py-2.5 transition-colors ${
+                className={`grid grid-cols-[100px_1fr_90px] items-start gap-3 px-3 py-2.5 transition-colors ${
                   day.isToday
                     ? "bg-primary/5"
                     : day.isSunday
@@ -264,7 +397,7 @@ export function DutyScheduleView({
                 {/* Duty students */}
                 <div className="flex flex-wrap gap-1.5 py-0.5">
                   {day.isSunday ? (
-                    <span className="text-[10px] text-muted-foreground/50 self-center">Выходной день</span>
+                    <span className="text-[10px] text-muted-foreground/50 self-center">Выходной</span>
                   ) : day.dutyStudents.length > 0 ? (
                     day.dutyStudents.map((st) => {
                       const absent = isAbsent(st.id, day.fullDate);
@@ -280,15 +413,25 @@ export function DutyScheduleView({
                           }`}
                         >
                           <Avatar className="h-4 w-4 border shrink-0">
-                            <AvatarFallback className={`text-[7px] font-bold ${absent ? "bg-muted text-muted-foreground" : day.isToday ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                            <AvatarFallback className={`text-[7px] font-bold ${
+                              absent ? "bg-muted text-muted-foreground"
+                              : day.isToday ? "bg-primary/15 text-primary"
+                              : "bg-muted text-muted-foreground"
+                            }`}>
                               {st.name.slice(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <span className={`text-[11px] ${absent ? "line-through text-muted-foreground" : day.isToday ? "text-primary font-medium" : "text-foreground"}`}>
                             {st.name}
                           </span>
-                          {absent && (
-                            <span className="text-[9px] text-muted-foreground/60">отсутствует</span>
+                          {absent && isAdminOrTeacher && (
+                            <button
+                              onClick={() => openReplace(day, st)}
+                              className="text-primary/60 hover:text-primary transition-colors"
+                              title="Заменить"
+                            >
+                              <RefreshCw className="h-2.5 w-2.5" />
+                            </button>
                           )}
                           {!absent && isAdminOrTeacher && day.isToday && (
                             <button
@@ -307,8 +450,8 @@ export function DutyScheduleView({
                   )}
                 </div>
 
-                {/* Status */}
-                <div className="flex justify-end pt-0.5">
+                {/* Status + add button */}
+                <div className="flex flex-col items-end gap-1.5 pt-0.5">
                   {day.isSunday ? (
                     <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground/50">
                       Выходной
@@ -321,6 +464,15 @@ export function DutyScheduleView({
                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
                       Ожидает
                     </Badge>
+                  )}
+                  {!day.isSunday && isAdminOrTeacher && (
+                    <button
+                      onClick={() => openAdd(day)}
+                      className="text-[9px] text-muted-foreground/50 hover:text-primary transition-colors flex items-center gap-0.5"
+                      title="Добавить дежурного вручную"
+                    >
+                      <UserPlus className="h-2.5 w-2.5" /> добавить
+                    </button>
                   )}
                 </div>
               </div>
@@ -338,6 +490,74 @@ export function DutyScheduleView({
           </div>
         </div>
       </div>
+
+      {/* Student Picker Dialog */}
+      <Dialog open={pickerMode !== null} onOpenChange={(open) => !open && setPickerMode(null)}>
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[380px]">
+          <DialogHeader className="pb-2 border-b gap-1">
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+              {pickerMode?.type === "replace" ? (
+                <><RefreshCw className="h-4 w-4 text-primary" /> Замена дежурного</>
+              ) : (
+                <><UserPlus className="h-4 w-4 text-primary" /> Добавить дежурного</>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {pickerMode?.type === "replace" ? (
+                <>Замена <strong>{pickerMode.absentStudentName}</strong> · {pickerMode.dayName}</>
+              ) : (
+                <>Ручное назначение · {pickerMode?.dayName}</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {pickerAvailableStudents.length === 0 ? (
+            <div className="py-6 text-center text-muted-foreground text-xs">
+              Все студенты группы уже назначены на этот день
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-52 overflow-y-auto">
+              {pickerAvailableStudents.map((st) => (
+                <button
+                  key={st.id}
+                  onClick={() => setPickerStudentId(st.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-all ${
+                    pickerStudentId === st.id
+                      ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                      : "border-border hover:bg-muted/30"
+                  }`}
+                >
+                  <Avatar className="h-6 w-6 border shrink-0">
+                    <AvatarFallback className={`text-[9px] font-bold ${pickerStudentId === st.id ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      {st.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className={`text-xs font-medium ${pickerStudentId === st.id ? "text-primary" : "text-foreground"}`}>
+                    {st.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-1">
+            <Button variant="outline" size="xs" onClick={() => setPickerMode(null)}>
+              Отмена
+            </Button>
+            <Button
+              size="xs"
+              disabled={!pickerStudentId || isPending}
+              onClick={handlePickerConfirm}
+            >
+              {pickerMode?.type === "replace" ? (
+                <><RefreshCw className="h-3.5 w-3.5 mr-1" /> Заменить</>
+              ) : (
+                <><UserPlus className="h-3.5 w-3.5 mr-1" /> Добавить</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

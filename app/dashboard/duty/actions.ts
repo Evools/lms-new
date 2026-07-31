@@ -38,6 +38,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
   groups: { id: string; name: string }[];
   weeklyDays: DayDutyGroupDTO[];
   allSchedules: DutyItemDTO[];
+  groupStudents: { id: string; name: string }[];
 }> {
   try {
     const groups = await prisma.group.findMany({
@@ -169,10 +170,80 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       isToday: new Date(s.date).toDateString() === now.toDateString(),
     }));
 
-    return { groups, weeklyDays, allSchedules };
+    return { groups, weeklyDays, allSchedules, groupStudents };
   } catch (error) {
     console.error("Failed to fetch duty schedule:", error);
-    return { groups: [], weeklyDays: [], allSchedules: [] };
+    return { groups: [], weeklyDays: [], allSchedules: [], groupStudents: [] };
+  }
+}
+
+/** Manually add a student to a specific duty day */
+export async function addDutyStudentAction(
+  groupId: string,
+  studentId: string,
+  dateStr: string
+) {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+  ) {
+    return { success: false, error: "Недостаточно прав" };
+  }
+  try {
+    const date = new Date(dateStr);
+    // Check not already assigned
+    const existing = await prisma.dutySchedule.findFirst({
+      where: { groupId, studentId, date },
+    });
+    if (existing) return { success: false, error: "Студент уже назначен на этот день" };
+
+    await prisma.dutySchedule.create({
+      data: { groupId, studentId, date, isLeader: false },
+    });
+    revalidatePath("/dashboard/duty");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Replace an absent student with another for a duty day */
+export async function replaceDutyStudentAction(
+  groupId: string,
+  absentStudentId: string,
+  replacementStudentId: string,
+  dateStr: string
+) {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+  ) {
+    return { success: false, error: "Недостаточно прав" };
+  }
+  try {
+    const date = new Date(dateStr);
+    const nextDay = new Date(date);
+    nextDay.setDate(date.getDate() + 1);
+
+    // Remove absent student
+    await prisma.dutySchedule.deleteMany({
+      where: { groupId, studentId: absentStudentId, date: { gte: date, lt: nextDay }, isLeader: false },
+    });
+    // Add replacement (avoid duplicate)
+    const existing = await prisma.dutySchedule.findFirst({
+      where: { groupId, studentId: replacementStudentId, date },
+    });
+    if (!existing) {
+      await prisma.dutySchedule.create({
+        data: { groupId, studentId: replacementStudentId, date, isLeader: false },
+      });
+    }
+    revalidatePath("/dashboard/duty");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }
 
@@ -212,8 +283,14 @@ export async function generateWeeklyDutyAction(groupId: string) {
     const studentIds = group.students.map((gs) => gs.student.id);
     const leaderId = group.monitor?.id || studentIds[0];
 
-    // How many duty students per day: 2 if <6 students, else 3
+    // 2 duty students per day if <6 students, 3 if ≥6
     const perDay = studentIds.length >= 6 ? 3 : 2;
+
+    // Smart no-repeat assignment:
+    // Track duty count per student; each day pick those with lowest count (prefer 0).
+    // This ensures everyone duties at most once per week when group is large enough.
+    const dutyCount: Record<string, number> = {};
+    studentIds.forEach((id) => { dutyCount[id] = 0; });
 
     const startDate = new Date(monday);
     const endDate = new Date(monday);
@@ -227,24 +304,29 @@ export async function generateWeeklyDutyAction(groupId: string) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
 
-      const startIdx = (i * perDay) % studentIds.length;
-      const dayStudentIds: string[] = [];
+      // Sort candidates: prefer students with 0 duties, then alphabetically (stable order)
+      const candidates = [...studentIds].sort((a, b) => {
+        const diff = dutyCount[a] - dutyCount[b];
+        return diff !== 0 ? diff : studentIds.indexOf(a) - studentIds.indexOf(b);
+      });
 
-      for (let k = 0; k < perDay; k++) {
-        const candidateId = studentIds[(startIdx + k) % studentIds.length];
-        if (candidateId && !dayStudentIds.includes(candidateId)) {
-          dayStudentIds.push(candidateId);
-        }
+      const dayStudentIds: string[] = [];
+      for (const id of candidates) {
+        if (dayStudentIds.length >= perDay) break;
+        dayStudentIds.push(id);
       }
 
-      // Create duty entries for 2–3 students
+      // Record duty counts
+      dayStudentIds.forEach((id) => { dutyCount[id]++; });
+
+      // Create duty entries
       for (const sid of dayStudentIds) {
         await prisma.dutySchedule.create({
           data: { groupId, studentId: sid, date: d, isLeader: false },
         });
       }
 
-      // Create leader entry if not already in duty list
+      // Create leader entry (always the monitor, not counted in perDay)
       if (leaderId && !dayStudentIds.includes(leaderId)) {
         await prisma.dutySchedule.create({
           data: { groupId, studentId: leaderId, date: d, isLeader: true },
@@ -261,28 +343,13 @@ export async function generateWeeklyDutyAction(groupId: string) {
   }
 }
 
-/** Mark a student as absent for a given duty date (removes their entry for that day) */
-export async function markDutyAbsentAction(groupId: string, studentId: string, dateStr: string) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
-    return { success: false, error: "Недостаточно прав" };
-  }
-
-  try {
-    const date = new Date(dateStr);
-    const nextDay = new Date(date);
-    nextDay.setDate(date.getDate() + 1);
-
-    await prisma.dutySchedule.deleteMany({
-      where: { groupId, studentId, date: { gte: date, lt: nextDay } },
-    });
-
-    revalidatePath("/dashboard/duty");
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+/** Mark a student as absent locally (no DB change — use replaceDutyStudentAction to swap in DB) */
+export async function markDutyAbsentAction(
+  _groupId: string,
+  _studentId: string,
+  _dateStr: string
+) {
+  // Absence is tracked in client state only.
+  // Actual DB change happens when the user picks a replacement via replaceDutyStudentAction.
+  return { success: true };
 }

@@ -17,13 +17,14 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
   const { group } = await searchParams;
   const role = session.user.role || "STUDENT";
 
-  const { groups, weeklyDays } = await getDutyScheduleAction(group);
+  const { groups, weeklyDays, groupStudents } = await getDutyScheduleAction(group);
 
   return (
     <DutyScheduleView
       userRole={role}
       groupsList={groups}
       weeklyDays={weeklyDays}
+      groupStudents={groupStudents}
       selectedGroupId={group}
     />
   );
