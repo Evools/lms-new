@@ -362,7 +362,7 @@ export function DutyScheduleView({
         </div>
 
         <div className="rounded-xl border overflow-hidden">
-          <div className="grid grid-cols-[100px_1fr_90px] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="grid grid-cols-[80px_1fr_90px] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
             <span>День</span>
             <span>Дежурные студенты</span>
             <span className="text-right">Статус / +</span>
@@ -372,7 +372,7 @@ export function DutyScheduleView({
             {weeklyDays.map((day) => (
               <div
                 key={day.fullDate}
-                className={`grid grid-cols-[100px_1fr_90px] items-start gap-3 px-3 py-2.5 transition-colors ${
+                className={`grid grid-cols-[80px_1fr_90px] items-start gap-3 px-3 py-2.5 transition-colors ${
                   day.isToday
                     ? "bg-primary/5"
                     : day.isSunday
@@ -386,12 +386,6 @@ export function DutyScheduleView({
                     {day.dayName}
                   </div>
                   <div className="text-[10px] text-muted-foreground font-mono">{day.dateStr}</div>
-                  {day.leaderStudent && !day.isSunday && (
-                    <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
-                      <Crown className="h-2.5 w-2.5 text-primary shrink-0" />
-                      <span className="truncate">{day.leaderStudent.name}</span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Duty students */}

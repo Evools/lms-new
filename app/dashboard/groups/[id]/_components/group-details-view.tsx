@@ -68,13 +68,15 @@ import {
   updateGroupAnnouncementAction,
   deleteGroupAnnouncementAction,
 } from "../../actions";
+import { DayDutyGroupDTO } from "@/app/dashboard/duty/actions";
 
 interface GroupDetailsViewProps {
   group: GroupDetailsDTO;
   userRole: string;
+  weeklyDays?: DayDutyGroupDTO[];
 }
 
-export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
+export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDetailsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -733,7 +735,7 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
               <div>
                 <div className="text-xs font-medium text-foreground flex items-center gap-2">
                   <Clock className="h-3.5 w-3.5 text-primary" />
-                  График дежурств · <span className="text-muted-foreground">ротация по списку группы</span>
+                  График дежурств · <span className="text-muted-foreground">2–3 дежурных в день</span>
                 </div>
                 {group.monitorName && (
                   <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
@@ -743,67 +745,80 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                 )}
               </div>
               <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5 shrink-0" render={<Link href={`/dashboard/duty?group=${group.id}`} />}>
-                <Clock className="h-3.5 w-3.5" /> Полный график
+                <Clock className="h-3.5 w-3.5" /> Управление дежурствами
               </Button>
             </div>
 
             {/* Weekly schedule table */}
             <div className="rounded-xl border overflow-hidden">
               {/* Table header */}
-              <div className="grid grid-cols-[72px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="grid grid-cols-[80px_1fr_80px] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                 <span>День</span>
-                <span>Дежурный студент</span>
-                <span>Статус</span>
+                <span>Дежурные студенты</span>
+                <span className="text-right">Статус</span>
               </div>
 
               <div className="divide-y">
-                {(["Пн", "Вт", "Ср", "Чт", "Пт", "Сб"] as const).map((dayAbbr, idx) => {
-                  const dayNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-                  const todayIdx = new Date().getDay() - 1; // 0=Пн
-                  const isToday = idx === todayIdx;
-                  const assignedStudent = group.studentsList[idx % Math.max(1, group.studentsList.length)];
-                  return (
+                {weeklyDays.length > 0 ? (
+                  weeklyDays.map((day) => (
                     <div
-                      key={dayAbbr}
-                      className={`grid grid-cols-[72px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${
-                        isToday ? "bg-primary/5" : "hover:bg-muted/20"
+                      key={day.fullDate}
+                      className={`grid grid-cols-[80px_1fr_80px] items-start gap-3 px-3 py-2.5 transition-colors ${
+                        day.isToday
+                          ? "bg-primary/5"
+                          : day.isSunday
+                          ? "bg-muted/20 opacity-60"
+                          : "hover:bg-muted/20"
                       }`}
                     >
                       {/* Day */}
-                      <div className="flex flex-col">
-                        <span className={`text-xs font-medium ${isToday ? "text-primary" : "text-foreground"}`}>
-                          {dayAbbr}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">{dayNames[idx]}</span>
+                      <div className="pt-0.5">
+                        <div className={`text-xs font-medium ${day.isToday ? "text-primary" : "text-foreground"}`}>
+                          {day.dayName}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">{day.dateStr}</div>
                       </div>
 
-                      {/* Student */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        {assignedStudent ? (
-                          <>
-                            <Avatar className="h-6 w-6 border shrink-0">
-                              <AvatarFallback className={`text-[9px] font-bold ${isToday ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
-                                {assignedStudent.name.slice(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className={`text-xs font-medium truncate ${isToday ? "text-primary" : "text-foreground"}`}>
-                              {assignedStudent.name}
-                            </span>
-                          </>
+                      {/* Duty Students */}
+                      <div className="flex flex-wrap gap-1.5 py-0.5">
+                        {day.isSunday ? (
+                          <span className="text-[10px] text-muted-foreground/50 self-center">Выходной день</span>
+                        ) : day.dutyStudents && day.dutyStudents.length > 0 ? (
+                          day.dutyStudents.map((st) => (
+                            <div
+                              key={st.id}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs transition-all ${
+                                day.isToday
+                                  ? "border-primary/20 bg-primary/5"
+                                  : "border-border bg-muted/20"
+                              }`}
+                            >
+                              <Avatar className="h-4 w-4 border shrink-0">
+                                <AvatarFallback className={`text-[7px] font-bold ${
+                                  day.isToday ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                                }`}>
+                                  {st.name.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className={`text-[11px] ${day.isToday ? "text-primary font-medium" : "text-foreground"}`}>
+                                {st.name}
+                              </span>
+                            </div>
+                          ))
                         ) : (
-                          <span className="text-xs text-muted-foreground/50">Не назначен</span>
+                          <span className="text-[11px] text-muted-foreground/50 self-center">Не назначены</span>
                         )}
                       </div>
 
                       {/* Status */}
-                      <div className="shrink-0">
-                        {isToday ? (
-                          <Badge className="bg-primary text-primary-foreground text-[9px] px-1.5 py-0 gap-0.5 font-medium">
-                            Сегодня
+                      <div className="flex justify-end pt-0.5">
+                        {day.isSunday ? (
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground/50">
+                            Выходной
                           </Badge>
-                        ) : idx < todayIdx ? (
-                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground/60">
-                            Выполнено
+                        ) : day.isToday ? (
+                          <Badge className="bg-primary text-primary-foreground text-[9px] px-1.5 py-0 font-medium">
+                            Сегодня
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
@@ -812,8 +827,12 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                         )}
                       </div>
                     </div>
-                  );
-                })}
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground text-xs">
+                    График дежурств не найден
+                  </div>
+                )}
               </div>
 
               {group.studentsList.length === 0 && (
