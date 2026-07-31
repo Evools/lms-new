@@ -512,30 +512,41 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                       )}
 
                       <div className="space-y-3 text-xs">
-                        <div className="space-y-1">
-                          <label className="font-medium text-foreground text-xs">Тип объявления</label>
-                          <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+                        <div className="space-y-1.5">
+                          <label className="font-medium text-foreground text-xs">Категория объявления</label>
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={() => setIsImportant(false)}
-                              className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${
                                 !isImportant
-                                  ? "bg-background text-foreground shadow-2xs"
-                                  : "text-muted-foreground hover:text-foreground"
+                                  ? "border-primary bg-primary/10 text-primary font-medium"
+                                  : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
                               }`}
                             >
-                              <Megaphone className="h-3.5 w-3.5" /> Обычное
+                              <Megaphone className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                              <div>
+                                <div className="text-xs font-medium">Обычное</div>
+                                <div className="text-[10px] opacity-75">Стандартное извещение</div>
+                              </div>
                             </button>
+
                             <button
                               type="button"
                               onClick={() => setIsImportant(true)}
-                              className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${
                                 isImportant
-                                  ? "bg-primary text-primary-foreground shadow-2xs font-medium"
-                                  : "text-muted-foreground hover:text-foreground"
+                                  ? "border-primary bg-primary/10 text-primary font-medium"
+                                  : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
                               }`}
                             >
-                              <Sparkles className="h-3.5 w-3.5 text-amber-300" /> Важное
+                              <Sparkles className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                              <div>
+                                <div className="text-xs font-medium flex items-center gap-1">
+                                  Важное <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 font-normal">Закреплено</Badge>
+                                </div>
+                                <div className="text-[10px] opacity-75">Всегда сверху в ленте</div>
+                              </div>
                             </button>
                           </div>
                         </div>
@@ -606,7 +617,7 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                       <div className="flex items-center gap-2 shrink-0">
                         {ann.isImportant ? (
                           <Badge className="bg-primary text-primary-foreground text-[9px] px-2 py-0.5 gap-1 font-medium">
-                            <Sparkles className="h-3 w-3" /> Важное
+                            <Sparkles className="h-3 w-3" /> Закреплено
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="text-[9px] px-2 py-0.5 font-medium">
@@ -792,30 +803,41 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
             )}
 
             <div className="space-y-3 text-xs">
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Тип объявления</label>
-                <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+              <div className="space-y-1.5">
+                <label className="font-medium text-foreground text-xs">Категория объявления</label>
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setEditIsImportant(false)}
-                    className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                    className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${
                       !editIsImportant
-                        ? "bg-background text-foreground shadow-2xs"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "border-primary bg-primary/10 text-primary font-medium"
+                        : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
                     }`}
                   >
-                    <Megaphone className="h-3.5 w-3.5" /> Обычное
+                    <Megaphone className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                    <div>
+                      <div className="text-xs font-medium">Обычное</div>
+                      <div className="text-[10px] opacity-75">Стандартное извещение</div>
+                    </div>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setEditIsImportant(true)}
-                    className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                    className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${
                       editIsImportant
-                        ? "bg-primary text-primary-foreground shadow-2xs font-medium"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "border-primary bg-primary/10 text-primary font-medium"
+                        : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
                     }`}
                   >
-                    <Sparkles className="h-3.5 w-3.5 text-amber-300" /> Важное
+                    <Sparkles className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                    <div>
+                      <div className="text-xs font-medium flex items-center gap-1">
+                        Важное <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 font-normal">Закреплено</Badge>
+                      </div>
+                      <div className="text-[10px] opacity-75">Всегда сверху в ленте</div>
+                    </div>
                   </button>
                 </div>
               </div>
