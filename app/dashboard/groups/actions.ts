@@ -24,20 +24,28 @@ export interface GroupStudentDTO {
   email: string;
   phone?: string;
   roleInGroup: "STUDENT" | "MONITOR" | "DEPUTY_MONITOR";
+  joinedAt: string;
+}
+
+export interface GroupSubjectDTO {
+  id: string;
+  name: string;
+  teacherName: string;
+  teacherEmail: string;
+}
+
+export interface GroupAnnouncementDTO {
+  id: string;
+  title: string;
+  content: string;
+  authorName: string;
+  date: string;
 }
 
 export interface GroupDetailsDTO extends GroupDTO {
   studentsList: GroupStudentDTO[];
-  subjectsList: {
-    id: string;
-    name: string;
-    teacherName: string;
-  }[];
-  activeDutyRoster: {
-    date: string;
-    seniorStudent: string;
-    dutyStudent: string;
-  };
+  subjectsList: GroupSubjectDTO[];
+  announcementsList: GroupAnnouncementDTO[];
 }
 
 export async function getGroupsAction(): Promise<GroupDTO[]> {
@@ -46,8 +54,8 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
       orderBy: { name: "asc" },
       include: {
         curator: { select: { id: true, name: true } },
-        monitor: { select: { name: true } },
-        deputyMonitor: { select: { name: true } },
+        monitor: { select: { id: true, name: true } },
+        deputyMonitor: { select: { id: true, name: true } },
         academicYear: { select: { name: true } },
         _count: { select: { students: true } },
       },
@@ -190,7 +198,7 @@ export async function updateGroupAction(
 export async function deleteGroupAction(groupId: string) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Только администратор может удалять группы");
+    return { success: false, error: "Только администратор может удалять группы" };
   }
 
   try {
@@ -206,14 +214,14 @@ export async function deleteGroupAction(groupId: string) {
   }
 }
 
-export async function getGroupByIdAction(groupId: string): Promise<GroupDTO | null> {
+export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsDTO | null> {
   try {
     const item = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        curator: { select: { name: true } },
-        monitor: { select: { name: true } },
-        deputyMonitor: { select: { name: true } },
+        curator: { select: { id: true, name: true } },
+        monitor: { select: { id: true, name: true } },
+        deputyMonitor: { select: { id: true, name: true } },
         academicYear: { select: { name: true } },
         _count: { select: { students: true } },
       },
@@ -226,20 +234,199 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDTO | nu
     const courseMatch = item.name.match(/-(\d)-/);
     const course = courseMatch ? parseInt(courseMatch[1], 10) : 1;
 
+    // Fetch enrolled students
+    const groupStudents = await prisma.groupStudent.findMany({
+      where: { groupId },
+      include: {
+        student: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: { student: { name: "asc" } },
+    });
+
+    const studentsList: GroupStudentDTO[] = groupStudents.map((gs) => {
+      let roleInGroup: "STUDENT" | "MONITOR" | "DEPUTY_MONITOR" = "STUDENT";
+      if (item.monitorId === gs.student.id) {
+        roleInGroup = "MONITOR";
+      } else if (item.deputyMonitorId === gs.student.id) {
+        roleInGroup = "DEPUTY_MONITOR";
+      }
+
+      return {
+        id: gs.student.id,
+        name: gs.student.name,
+        email: gs.student.email,
+        phone: gs.student.phone || undefined,
+        roleInGroup,
+        joinedAt: new Date(gs.joinedAt).toLocaleDateString("ru-RU"),
+      };
+    });
+
+    // Fetch subjects assigned to group
+    const groupSubjects = await prisma.groupSubject.findMany({
+      where: { groupId },
+      include: {
+        subject: { select: { name: true } },
+        teacher: { select: { name: true, email: true } },
+      },
+    });
+
+    const subjectsList: GroupSubjectDTO[] = groupSubjects.map((gs) => ({
+      id: gs.id,
+      name: gs.subject.name,
+      teacherName: gs.teacher.name,
+      teacherEmail: gs.teacher.email,
+    }));
+
+    // Fetch announcements
+    const announcements = await prisma.announcement.findMany({
+      where: {
+        OR: [
+          { targetGroupId: groupId },
+          { scope: "ALL" },
+        ],
+      },
+      include: {
+        author: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const announcementsList: GroupAnnouncementDTO[] = announcements.map((a) => ({
+      id: a.id,
+      title: a.title,
+      content: a.content,
+      authorName: a.author.name,
+      date: new Date(a.createdAt).toLocaleDateString("ru-RU"),
+    }));
+
     return {
       id: item.id,
       name: item.name,
       course,
       specialty: "Информационные системы и программирование",
       studentCount: item._count.students,
+      curatorId: item.curator?.id || undefined,
       curatorName: item.curator?.name || undefined,
       monitorName: item.monitor?.name || undefined,
       deputyMonitorName: item.deputyMonitor?.name || undefined,
       academicYear: item.academicYear.name,
       createdAt: new Date(item.createdAt).toLocaleDateString("ru-RU"),
+      studentsList,
+      subjectsList,
+      announcementsList,
     };
   } catch (error) {
     console.error("Failed to fetch group details:", error);
     return null;
+  }
+}
+
+export async function removeStudentFromGroupAction(groupId: string, studentId: string) {
+  const session = await auth();
+  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+    return { success: false, error: "Недостаточно прав для управления составом группы" };
+  }
+
+  try {
+    await prisma.groupStudent.delete({
+      where: {
+        groupId_studentId: { groupId, studentId },
+      },
+    });
+
+    // Reset monitor/deputy if this student was leader
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      select: { monitorId: true, deputyMonitorId: true },
+    });
+
+    if (group?.monitorId === studentId) {
+      await prisma.group.update({ where: { id: groupId }, data: { monitorId: null } });
+    }
+    if (group?.deputyMonitorId === studentId) {
+      await prisma.group.update({ where: { id: groupId }, data: { deputyMonitorId: null } });
+    }
+
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    revalidatePath("/dashboard/students");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to remove student from group:", error);
+    return { success: false, error: error.message || "Ошибка при исключении студента из группы" };
+  }
+}
+
+export async function setGroupLeadershipAction(
+  groupId: string,
+  studentId: string,
+  role: "MONITOR" | "DEPUTY_MONITOR" | "NONE"
+) {
+  const session = await auth();
+  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+    return { success: false, error: "Недостаточно прав для отбора старосты" };
+  }
+
+  try {
+    if (role === "MONITOR") {
+      await prisma.group.update({
+        where: { id: groupId },
+        data: { monitorId: studentId },
+      });
+    } else if (role === "DEPUTY_MONITOR") {
+      await prisma.group.update({
+        where: { id: groupId },
+        data: { deputyMonitorId: studentId },
+      });
+    } else {
+      const group = await prisma.group.findUnique({ where: { id: groupId } });
+      if (group?.monitorId === studentId) {
+        await prisma.group.update({ where: { id: groupId }, data: { monitorId: null } });
+      }
+      if (group?.deputyMonitorId === studentId) {
+        await prisma.group.update({ where: { id: groupId }, data: { deputyMonitorId: null } });
+      }
+    }
+
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update leadership:", error);
+    return { success: false, error: error.message || "Ошибка при обновлении статуса старосты" };
+  }
+}
+
+export async function createGroupAnnouncementAction(
+  groupId: string,
+  title: string,
+  content: string
+) {
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: "Требуется авторизация" };
+  }
+
+  try {
+    const announcement = await prisma.announcement.create({
+      data: {
+        title: title.trim(),
+        content: content.trim(),
+        authorId: session.user.id,
+        targetGroupId: groupId,
+        scope: "GROUP",
+      },
+    });
+
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    return { success: true, id: announcement.id };
+  } catch (error: any) {
+    console.error("Failed to create group announcement:", error);
+    return { success: false, error: error.message || "Ошибка при публикации объявления" };
   }
 }

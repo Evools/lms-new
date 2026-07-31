@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,13 +19,6 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -35,280 +28,129 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import {
   Users,
-  UserCheck,
   GraduationCap,
-  BookOpen,
-  ClipboardCheck,
-  Search,
-  ChevronLeft,
-  ShieldCheck,
-  UserCheck2,
-  Megaphone,
   Mail,
   Phone,
-  Award,
-  Calendar,
-  Plus,
-  TrendingUp,
+  Search,
+  BookOpen,
+  Megaphone,
+  UserCheck,
+  ChevronLeft,
+  Crown,
+  ShieldCheck,
   MoreVertical,
-  RefreshCw,
-  Check,
-  X,
-  AlertTriangle,
-  UserX,
+  Plus,
+  Trash2,
   Edit,
+  Send,
+  UserPlus,
+  Clock,
+  Sparkles,
 } from "lucide-react";
-import { GroupDTO } from "../../actions";
+import {
+  GroupDetailsDTO,
+  GroupStudentDTO,
+  GroupSubjectDTO,
+  GroupAnnouncementDTO,
+  removeStudentFromGroupAction,
+  setGroupLeadershipAction,
+  createGroupAnnouncementAction,
+} from "../../actions";
 
 interface GroupDetailsViewProps {
-  group: GroupDTO;
-  userRole: "ADMIN" | "TEACHER" | "STUDENT";
+  group: GroupDetailsDTO;
+  userRole: string;
 }
-
-export interface StudentItem {
-  id: string;
-  name: string;
-  role: "MONITOR" | "DEPUTY_MONITOR" | "STUDENT";
-  phone: string;
-  email: string;
-  status: "Отличник" | "Хорошист" | "Успевает";
-  avgGrade: string;
-  attendance: string;
-  isPresentToday: boolean;
-  dutyCount: number;
-}
-
-export interface SmartDutyItem {
-  id: string;
-  day: string;
-  dateStr: string;
-  isToday?: boolean;
-  isSunday?: boolean;
-  seniorName: string;
-  dutyName: string;
-  seniorPresent: boolean;
-  dutyPresent: boolean;
-  completionStatus: "ПРОДЕЖУРИЛ" | "НЕ_ПРОДЕЖУРИЛ" | "ОТСУТСТВОВАЛ" | "ОЖИДАЕТ";
-  replacedNote?: string;
-}
-
-const INITIAL_STUDENTS: StudentItem[] = [
-  { id: "s-1", name: "Петров Алексей Сергеевич", role: "MONITOR", phone: "+996 555 12-34-56", email: "petrov@lyceum.edu", status: "Отличник", avgGrade: "4.9", attendance: "98%", isPresentToday: true, dutyCount: 2 },
-  { id: "s-2", name: "Сидорова Анна Владимировна", role: "DEPUTY_MONITOR", phone: "+996 700 98-76-54", email: "sidorova@lyceum.edu", status: "Хорошист", avgGrade: "4.6", attendance: "95%", isPresentToday: true, dutyCount: 1 },
-  { id: "s-3", name: "Иванов Дмитрий Игоревич", role: "STUDENT", phone: "+996 777 45-67-89", email: "ivanov@lyceum.edu", status: "Хорошист", avgGrade: "4.2", attendance: "92%", isPresentToday: false, dutyCount: 1 },
-  { id: "s-4", name: "Ковалева Мария Андреевна", role: "STUDENT", phone: "+996 500 11-22-33", email: "kovaleva@lyceum.edu", status: "Отличник", avgGrade: "5.0", attendance: "100%", isPresentToday: true, dutyCount: 0 },
-  { id: "s-5", name: "Морозов Артём Викторович", role: "STUDENT", phone: "+996 550 33-44-55", email: "morozov@lyceum.edu", status: "Хорошист", avgGrade: "4.1", attendance: "90%", isPresentToday: true, dutyCount: 0 },
-  { id: "s-6", name: "Ахмедов Руслан Бекболотович", role: "STUDENT", phone: "+996 702 12-88-99", email: "akhmedov@lyceum.edu", status: "Хорошист", avgGrade: "4.4", attendance: "94%", isPresentToday: true, dutyCount: 0 },
-  { id: "s-7", name: "Байкенова Салтанат Нурлановна", role: "STUDENT", phone: "+996 551 66-77-88", email: "baikenova@lyceum.edu", status: "Отличник", avgGrade: "4.8", attendance: "97%", isPresentToday: true, dutyCount: 0 },
-];
-
-const DEMO_SUBJECTS = [
-  { id: "sub-1", name: "Веб-программирование (Next.js & React)", teacher: "Иванов Иван Иванович", hours: "4 ч / нед", room: "Кабинет 302", status: "Активен" },
-  { id: "sub-2", name: "Базы данных (PostgreSQL & Prisma)", teacher: "Сидоров Алексей Петрович", hours: "3 ч / нед", room: "Кабинет 305", status: "Активен" },
-  { id: "sub-3", name: "Объектно-ориентированное программирование", teacher: "Абдуллаева Гульнара Турсуновна", hours: "4 ч / нед", room: "Кабинет 301", status: "Активен" },
-  { id: "sub-4", name: "Компьютерные сети и безопасность", teacher: "Касымов Бахтияр Эрнестович", hours: "2 ч / нед", room: "Лаборатория 2", status: "Активен" },
-];
-
-const INITIAL_SMART_DUTY: SmartDutyItem[] = [
-  { id: "d-1", day: "Понедельник", dateStr: "27.07", seniorName: "Петров Алексей Сергеевич", dutyName: "Сидорова Анна Владимировна", seniorPresent: true, dutyPresent: true, completionStatus: "ПРОДЕЖУРИЛ" },
-  { id: "d-2", day: "Вторник", dateStr: "28.07", seniorName: "Петров Алексей Сергеевич", dutyName: "Ковалева Мария Андреевна", seniorPresent: true, dutyPresent: true, completionStatus: "ПРОДЕЖУРИЛ" },
-  { id: "d-3", day: "Среда (Сегодня)", dateStr: "31.07", isToday: true, seniorName: "Петров Алексей Сергеевич", dutyName: "Иванов Дмитрий Игоревич", seniorPresent: true, dutyPresent: false, completionStatus: "ОТСУТСТВОВАЛ", replacedNote: "Иванов Д. отсутствует по посещаемости. Требуется авто-замена!" },
-  { id: "d-4", day: "Четверг", dateStr: "01.08", seniorName: "Сидорова Анна Владимировна", dutyName: "Морозов Артём Викторович", seniorPresent: true, dutyPresent: true, completionStatus: "ОЖИДАЕТ" },
-  { id: "d-5", day: "Пятница", dateStr: "02.08", seniorName: "Петров Алексей Сергеевич", dutyName: "Ахмедов Руслан Бекболотович", seniorPresent: true, dutyPresent: true, completionStatus: "ОЖИДАЕТ" },
-  { id: "d-6", day: "Суббота", dateStr: "03.08", seniorName: "Сидорова Анна Владимировна", dutyName: "Байкенова Салтанат Нурлановна", seniorPresent: true, dutyPresent: true, completionStatus: "ОЖИДАЕТ" },
-  { id: "d-7", day: "Воскресенье", dateStr: "04.08", isSunday: true, seniorName: "— Выходной —", dutyName: "— Выходной —", seniorPresent: false, dutyPresent: false, completionStatus: "ОЖИДАЕТ" },
-];
-
-const INITIAL_ANNOUNCEMENTS = [
-  { id: "ann-1", title: "Контрольная работа по веб-разработке", date: "31 июля 2026", tag: "Экзамен", text: "Уважаемые студенты, в среду состоится итоговая практическая проверка знаний по React компонентам." },
-  { id: "ann-2", title: "Изменение в расписании пар", date: "29 июля 2026", tag: "Расписание", text: "Лекция по базам данных переносится на 2-ю пару в Кабинет 305." },
-];
 
 export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
   const router = useRouter();
-  const [students, setStudents] = useState<StudentItem[]>(INITIAL_STUDENTS);
-  const [weeklyDuty, setWeeklyDuty] = useState<SmartDutyItem[]>(INITIAL_SMART_DUTY);
-  const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
-  const [activeTab, setActiveTab] = useState<"STUDENTS" | "SUBJECTS" | "DUTY" | "ANNOUNCEMENTS">("STUDENTS");
-
-  const [monitorName] = useState(group.monitorName || "Не назначен");
-  const [deputyMonitorName] = useState(group.deputyMonitorName || "Не назначен");
-
-  const [selectedDutyDayIndex, setSelectedDutyDayIndex] = useState<number | null>(null);
-  const [editingSeniorName, setEditingSeniorName] = useState("");
-  const [editingDutyName, setEditingDutyName] = useState("");
+  const [isPending, startTransition] = useTransition();
 
   const [searchStudent, setSearchStudent] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"ALL" | "MONITORS" | "STUDENTS">("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "EXCELLENT" | "GOOD">("ALL");
+  const [activeTab, setActiveTab] = useState<"STUDENTS" | "SUBJECTS" | "ANNOUNCEMENTS" | "DUTY">("STUDENTS");
 
+  // Announcement modal state
   const [isAddAnnOpen, setIsAddAnnOpen] = useState(false);
   const [newAnnTitle, setNewAnnTitle] = useState("");
-  const [newAnnTag, setNewAnnTag] = useState("Общее");
-  const [newAnnText, setNewAnnText] = useState("");
+  const [newAnnContent, setNewAnnContent] = useState("");
+  const [annErrorMessage, setAnnErrorMessage] = useState<string | null>(null);
 
-  const isAdminTeacherOrMonitor =
-    userRole === "ADMIN" ||
-    userRole === "TEACHER" ||
-    students.some(s => s.role === "MONITOR" || s.role === "DEPUTY_MONITOR");
+  // Student deletion modal state
+  const [targetRemoveStudentId, setTargetRemoveStudentId] = useState<string | null>(null);
+  const [removeErrorMessage, setRemoveErrorMessage] = useState<string | null>(null);
 
-  const filteredStudents = students.filter((s) => {
-    const matchesSearch =
-      s.name.toLowerCase().includes(searchStudent.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchStudent.toLowerCase()) ||
-      s.phone.toLowerCase().includes(searchStudent.toLowerCase());
+  const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
 
-    const matchesRole =
-      roleFilter === "ALL" ||
-      (roleFilter === "MONITORS" && (s.role === "MONITOR" || s.role === "DEPUTY_MONITOR")) ||
-      (roleFilter === "STUDENTS" && s.role === "STUDENT");
-
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      (statusFilter === "EXCELLENT" && s.status === "Отличник") ||
-      (statusFilter === "GOOD" && s.status === "Хорошист");
-
-    return matchesSearch && matchesRole && matchesStatus;
+  // Filter students
+  const filteredStudents = group.studentsList.filter((s: GroupStudentDTO) => {
+    const query = searchStudent.toLowerCase();
+    return (
+      s.name.toLowerCase().includes(query) ||
+      s.email.toLowerCase().includes(query) ||
+      (s.phone && s.phone.toLowerCase().includes(query))
+    );
   });
 
-  const totalCount = students.length;
-  const excellentCount = students.filter((s) => s.status === "Отличник").length;
-  const avgGpa = (students.reduce((acc, s) => acc + parseFloat(s.avgGrade), 0) / totalCount).toFixed(2);
+  const handleConfirmRemoveStudent = async () => {
+    if (!targetRemoveStudentId) return;
 
-  const setStudentRoleQuick = (studentId: string, newRole: "MONITOR" | "DEPUTY_MONITOR" | "STUDENT") => {
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === studentId) return { ...s, role: newRole };
-        if (newRole === "MONITOR" && s.role === "MONITOR") return { ...s, role: "STUDENT" };
-        if (newRole === "DEPUTY_MONITOR" && s.role === "DEPUTY_MONITOR") return { ...s, role: "STUDENT" };
-        return s;
-      })
-    );
+    setRemoveErrorMessage(null);
+    const res = await removeStudentFromGroupAction(group.id, targetRemoveStudentId);
+
+    if (res.success) {
+      setTargetRemoveStudentId(null);
+    } else {
+      setRemoveErrorMessage(res.error || "Ошибка при исключении из группы");
+    }
   };
 
-  const handleAutoReplaceDuty = (index: number) => {
-    const targetDuty = weeklyDuty[index];
-    const candidate = students
-      .filter(s => s.isPresentToday && s.name !== targetDuty.seniorName && s.name !== targetDuty.dutyName)
-      .sort((a, b) => a.dutyCount - b.dutyCount)[0];
-
-    if (!candidate) return;
-
-    const updated = [...weeklyDuty];
-    updated[index] = {
-      ...updated[index],
-      dutyName: candidate.name,
-      dutyPresent: true,
-      completionStatus: "ОЖИДАЕТ",
-      replacedNote: `Автоматически заменен на присутствующего: ${candidate.name}`,
-    };
-
-    setStudents(prev => prev.map(s => s.id === candidate.id ? { ...s, dutyCount: s.dutyCount + 1 } : s));
-    setWeeklyDuty(updated);
-  };
-
-  const handleUpdateCompletionStatus = (index: number, newStatus: "ПРОДЕЖУРИЛ" | "НЕ_ПРОДЕЖУРИЛ" | "ОТСУТСТВОВАЛ") => {
-    const updated = [...weeklyDuty];
-    updated[index] = {
-      ...updated[index],
-      completionStatus: newStatus,
-      replacedNote:
-        newStatus === "ОТСУТСТВОВАЛ"
-          ? "Студент отсутствовал сегодня по посещаемости. Требуется авто-замена!"
-          : undefined,
-    };
-    setWeeklyDuty(updated);
-  };
-
-  const handleGenerateSmartRotation = () => {
-    const availableStudents = [...students].sort((a, b) => a.dutyCount - b.dutyCount);
-    let studentIndex = 0;
-
-    const newRoster = weeklyDuty.map(item => {
-      if (item.isSunday) {
-        return {
-          ...item,
-          seniorName: "— Выходной —",
-          dutyName: "— Выходной —",
-          completionStatus: "ОЖИДАЕТ" as const,
-        };
-      }
-
-      const senior = monitorName;
-      const dutyStudent = availableStudents[studentIndex % availableStudents.length];
-      studentIndex++;
-
-      return {
-        ...item,
-        seniorName: senior,
-        dutyName: dutyStudent.name,
-        seniorPresent: true,
-        dutyPresent: dutyStudent.isPresentToday,
-        completionStatus: dutyStudent.isPresentToday ? ("ОЖИДАЕТ" as const) : ("ОТСУТСТВОВАЛ" as const),
-        replacedNote: dutyStudent.isPresentToday
-          ? undefined
-          : `Студент ${dutyStudent.name} отсутствует в системе посещаемости. Нажмите «Авто-замена»`,
-      };
+  const handleSetLeadership = (studentId: string, role: "MONITOR" | "DEPUTY_MONITOR" | "NONE") => {
+    startTransition(async () => {
+      await setGroupLeadershipAction(group.id, studentId, role);
     });
-
-    setWeeklyDuty(newRoster);
   };
 
-  const handleOpenEditDuty = (index: number) => {
-    setSelectedDutyDayIndex(index);
-    setEditingSeniorName(weeklyDuty[index].seniorName);
-    setEditingDutyName(weeklyDuty[index].dutyName);
-  };
-
-  const handleSaveDuty = (e: React.FormEvent) => {
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedDutyDayIndex === null) return;
+    if (!newAnnTitle.trim() || !newAnnContent.trim()) return;
 
-    const updated = [...weeklyDuty];
-    updated[selectedDutyDayIndex] = {
-      ...updated[selectedDutyDayIndex],
-      seniorName: editingSeniorName,
-      dutyName: editingDutyName,
-    };
+    setAnnErrorMessage(null);
+    const res = await createGroupAnnouncementAction(group.id, newAnnTitle, newAnnContent);
 
-    setWeeklyDuty(updated);
-    setSelectedDutyDayIndex(null);
-  };
-
-  const handleAddAnnouncement = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAnnTitle.trim()) return;
-
-    const created = {
-      id: `ann-${Date.now()}`,
-      title: newAnnTitle.trim(),
-      date: new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }),
-      tag: newAnnTag,
-      text: newAnnText.trim(),
-    };
-
-    setAnnouncements([created, ...announcements]);
-    setNewAnnTitle("");
-    setNewAnnText("");
-    setIsAddAnnOpen(false);
+    if (res.success) {
+      setNewAnnTitle("");
+      setNewAnnContent("");
+      setIsAddAnnOpen(false);
+    } else {
+      setAnnErrorMessage(res.error || "Ошибка при публикации объявления");
+    }
   };
 
   return (
-    <div className="w-full space-y-4 text-xs">
+    <div className="w-full space-y-4 text-xs pb-16">
       {/* Top Header & Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Link href="/dashboard/groups" className="hover:text-primary transition-colors flex items-center gap-1">
             <ChevronLeft className="h-3.5 w-3.5" />
-            <span>Группы</span>
+            <span>Учебные группы</span>
           </Link>
           <span>/</span>
           <span className="text-foreground font-semibold">{group.name}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          {(userRole === "ADMIN" || userRole === "TEACHER") && (
+          {isAdminOrTeacher && (
             <Button
               variant="outline"
               size="xs"
@@ -329,12 +171,12 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
         </div>
       </div>
 
-      {/* Compact Main Header Visual Card */}
-      <Card className="border bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-2xs overflow-hidden">
+      {/* Main Header Card */}
+      <Card className="border bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-xs overflow-hidden">
         <CardContent className="p-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-2xs">
+              <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-xs">
                 <Users className="h-6 w-6" />
               </div>
               <div>
@@ -353,35 +195,25 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
             </div>
 
             {/* Quick KPI Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-2xs">
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Всего студентов</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-xs">
+                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Студентов в группе</div>
                 <div className="text-base font-extrabold text-primary flex items-center justify-center gap-1 mt-0.5">
-                  <GraduationCap className="h-3.5 w-3.5" />
-                  {totalCount}
+                  <GraduationCap className="h-4 w-4" />
+                  {group.studentCount} чел.
                 </div>
               </div>
 
-              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-2xs">
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Средний балл</div>
-                <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 mt-0.5">
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  {avgGpa}
+              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-xs">
+                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Куратор группы</div>
+                <div className="text-xs font-bold text-foreground mt-1 truncate max-w-[140px] mx-auto">
+                  {group.curatorName || "Не назначен"}
                 </div>
               </div>
 
-              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-2xs">
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Отличников</div>
-                <div className="text-base font-extrabold text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1 mt-0.5">
-                  <Award className="h-3.5 w-3.5" />
-                  {excellentCount}
-                </div>
-              </div>
-
-              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-2xs">
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Учебный год</div>
-                <div className="text-xs font-bold text-foreground flex items-center justify-center gap-1 mt-0.5">
-                  <Calendar className="h-3 w-3 text-muted-foreground" />
+              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-xs col-span-2 sm:col-span-1">
+                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Учебный период</div>
+                <div className="text-xs font-bold text-foreground mt-1">
                   {group.academicYear}
                 </div>
               </div>
@@ -390,474 +222,406 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
         </CardContent>
       </Card>
 
-      {/* Leadership Roster Overview - Compact */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card className="border shadow-none">
-          <CardContent className="p-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
-              <UserCheck className="h-4.5 w-4.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] text-muted-foreground uppercase font-semibold">
-                Куратор группы
-              </div>
-              <div className="text-xs font-semibold text-foreground truncate mt-0.5">
-                {group.curatorName || "Иванов Иван Иванович"}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border shadow-none">
-          <CardContent className="p-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
-              <ShieldCheck className="h-4.5 w-4.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] text-muted-foreground uppercase font-semibold">
-                Староста группы
-              </div>
-              <div className="text-xs font-semibold text-foreground truncate mt-0.5">
-                {monitorName}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border shadow-none">
-          <CardContent className="p-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
-              <UserCheck2 className="h-4.5 w-4.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] text-muted-foreground uppercase font-semibold">
-                Заместитель старосты
-              </div>
-              <div className="text-xs font-semibold text-foreground truncate mt-0.5">
-                {deputyMonitorName}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Tabs Navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-        <div className="flex items-center gap-1 overflow-x-auto">
+      {/* Group Workspace Navigation Tabs */}
+      <div className="space-y-4">
+        <div className="bg-muted/40 p-1 border rounded-xl flex items-center gap-1 overflow-x-auto">
           <Button
             size="xs"
             variant={activeTab === "STUDENTS" ? "default" : "ghost"}
             onClick={() => setActiveTab("STUDENTS")}
-            className="text-xs font-medium h-8"
+            className="text-xs gap-1.5 rounded-lg px-3 py-1.5 h-8"
           >
-            <GraduationCap className="h-3.5 w-3.5 mr-1.5" />
-            Студенты ({students.length})
+            <GraduationCap className="h-3.5 w-3.5" /> Состав студентов ({group.studentsList.length})
           </Button>
+
           <Button
             size="xs"
             variant={activeTab === "SUBJECTS" ? "default" : "ghost"}
             onClick={() => setActiveTab("SUBJECTS")}
-            className="text-xs font-medium h-8"
+            className="text-xs gap-1.5 rounded-lg px-3 py-1.5 h-8"
           >
-            <BookOpen className="h-3.5 w-3.5 mr-1.5" />
-            Дисциплины ({DEMO_SUBJECTS.length})
+            <BookOpen className="h-3.5 w-3.5" /> Предметы ({group.subjectsList.length})
           </Button>
-          <Button
-            size="xs"
-            variant={activeTab === "DUTY" ? "default" : "ghost"}
-            onClick={() => setActiveTab("DUTY")}
-            className="text-xs font-medium h-8"
-          >
-            <ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />
-            Умный график дежурства
-          </Button>
+
           <Button
             size="xs"
             variant={activeTab === "ANNOUNCEMENTS" ? "default" : "ghost"}
             onClick={() => setActiveTab("ANNOUNCEMENTS")}
-            className="text-xs font-medium h-8"
+            className="text-xs gap-1.5 rounded-lg px-3 py-1.5 h-8"
           >
-            <Megaphone className="h-3.5 w-3.5 mr-1.5" />
-            Объявления ({announcements.length})
+            <Megaphone className="h-3.5 w-3.5" /> Объявления ({group.announcementsList.length})
+          </Button>
+
+          <Button
+            size="xs"
+            variant={activeTab === "DUTY" ? "default" : "ghost"}
+            onClick={() => setActiveTab("DUTY")}
+            className="text-xs gap-1.5 rounded-lg px-3 py-1.5 h-8"
+          >
+            <Clock className="h-3.5 w-3.5" /> График дежурств
           </Button>
         </div>
 
-        {activeTab === "ANNOUNCEMENTS" && (
-          <Dialog open={isAddAnnOpen} onOpenChange={setIsAddAnnOpen}>
-            <DialogTrigger render={<Button size="xs" variant="outline" className="h-8 text-xs" />}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Добавить объявление
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[440px]">
-              <form onSubmit={handleAddAnnouncement}>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-base">
-                    <Megaphone className="h-4.5 w-4.5 text-primary" /> Новое объявление
-                  </DialogTitle>
-                  <DialogDescription className="text-xs">
-                    Опубликуйте уведомление для группы {group.name}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3 py-3 text-xs">
-                  <div className="space-y-1">
-                    <label className="font-semibold text-foreground">Заголовок *</label>
-                    <Input
-                      placeholder="Перенос занятия..."
-                      value={newAnnTitle}
-                      onChange={(e) => setNewAnnTitle(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="font-semibold text-foreground">Категория</label>
-                    <Select value={newAnnTag} onValueChange={(val) => val && setNewAnnTag(val)}>
-                      <SelectTrigger className="w-full h-8 text-xs">
-                        <SelectValue placeholder="Выберите категорию" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Общее">Общее</SelectItem>
-                        <SelectItem value="Расписание">Расписание</SelectItem>
-                        <SelectItem value="Экзамен">Экзамен / КР</SelectItem>
-                        <SelectItem value="Важное">Важное</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="font-semibold text-foreground">Текст объявления</label>
-                    <textarea
-                      rows={3}
-                      placeholder="Подробный текст..."
-                      value={newAnnText}
-                      onChange={(e) => setNewAnnText(e.target.value)}
-                      className="w-full p-2 rounded-md border text-xs bg-background text-foreground outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <DialogClose render={<Button variant="outline" type="button" size="xs" />}>
-                    Отмена
-                  </DialogClose>
-                  <Button type="submit" size="xs">Опубликовать</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
-
-      {/* Tab 1: STUDENTS */}
-      {activeTab === "STUDENTS" && (
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-muted/20 p-2.5 rounded-xl border">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Поиск по ФИО, email или телефону..."
-                className="pl-8 h-8 text-xs bg-background"
-                value={searchStudent}
-                onChange={(e) => setSearchStudent(e.target.value)}
-              />
-            </div>
-
-            <div className="flex items-center gap-1 bg-background border p-1 rounded-lg">
-              <Button
-                size="xs"
-                variant={roleFilter === "ALL" ? "default" : "ghost"}
-                onClick={() => setRoleFilter("ALL")}
-                className="text-[11px] h-6 px-2"
-              >
-                Все
-              </Button>
-              <Button
-                size="xs"
-                variant={roleFilter === "MONITORS" ? "default" : "ghost"}
-                onClick={() => setRoleFilter("MONITORS")}
-                className="text-[11px] h-6 px-2"
-              >
-                Старосты
-              </Button>
-              <Button
-                size="xs"
-                variant={statusFilter === "EXCELLENT" ? "default" : "ghost"}
-                onClick={() => setStatusFilter(statusFilter === "EXCELLENT" ? "ALL" : "EXCELLENT")}
-                className="text-[11px] h-6 px-2"
-              >
-                Отличники
-              </Button>
-            </div>
-          </div>
-
-          <Card className="border shadow-none overflow-hidden">
-            <div className="divide-y text-xs">
-              {filteredStudents.map((student, idx) => (
-                <div
-                  key={student.id}
-                  className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-muted/20 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-muted-foreground w-5 text-[11px] font-semibold text-center">{idx + 1}.</span>
-                    <Avatar className="h-8 w-8 border shrink-0">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-[11px]">
-                        {student.name.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                        {student.name}
-                        {student.status === "Отличник" && (
-                          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[9px] px-1.5 py-0 border-emerald-500/20">
-                            ★ Отличник
-                          </Badge>
-                        )}
-                        {student.isPresentToday ? (
-                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] px-1.5 py-0">
-                            Присутствует
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] px-1.5 py-0">
-                            Отсутствует
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground text-[11px] mt-0.5">
-                        <span className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" /> {student.email}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {student.phone}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 pl-8 sm:pl-0">
-                    <div className="text-right">
-                      <div className="text-[10px] text-muted-foreground">Ср. балл</div>
-                      <div className="font-bold text-primary text-xs">{student.avgGrade}</div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {student.role === "MONITOR" && <Badge className="text-[9px] px-1.5 py-0">Староста</Badge>}
-                      {student.role === "DEPUTY_MONITOR" && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Зам. старосты</Badge>}
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground" />}>
-                          <MoreVertical className="h-3.5 w-3.5" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuGroup>
-                            <DropdownMenuLabel>Назначение роли</DropdownMenuLabel>
-                          </DropdownMenuGroup>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => setStudentRoleQuick(student.id, "MONITOR")}>
-                            <ShieldCheck className="h-3.5 w-3.5 mr-2 text-primary" /> Сделать старостой
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setStudentRoleQuick(student.id, "DEPUTY_MONITOR")}>
-                            <UserCheck2 className="h-3.5 w-3.5 mr-2 text-primary" /> Сделать зам. старосты
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Tab 2: SUBJECTS */}
-      {activeTab === "SUBJECTS" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {DEMO_SUBJECTS.map((sub) => (
-            <Card key={sub.id} className="border shadow-none">
-              <CardHeader className="p-3 border-b">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xs font-bold flex items-center gap-1.5">
-                      <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-                      {sub.name}
-                    </CardTitle>
-                    <CardDescription className="text-[11px] mt-0.5">
-                      {sub.hours} • {sub.room}
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{sub.status}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-3 text-xs flex items-center justify-between text-muted-foreground">
-                <span>Преподаватель:</span>
-                <span className="font-semibold text-foreground">{sub.teacher}</span>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Tab 3: SMART DUTY SCHEDULE */}
-      {activeTab === "DUTY" && (
-        <Card className="border shadow-none">
-          <CardHeader className="py-2.5 px-4 border-b">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <ClipboardCheck className="h-4.5 w-4.5 text-primary" />
-                  Недельный наряд дежурства с контролем посещаемости
-                </CardTitle>
-                <CardDescription className="text-xs mt-0.5">
-                  Автоматический отбор присутствующих студентов группы {group.name} (без воскресенья)
-                </CardDescription>
+        {/* TAB 1: STUDENTS LIST WORKSPACE */}
+        {activeTab === "STUDENTS" && (
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-muted/20 p-2.5 rounded-xl border">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Поиск студента по ФИО, Email или телефону..."
+                  className="pl-8 h-8 text-xs bg-background"
+                  value={searchStudent}
+                  onChange={(e) => setSearchStudent(e.target.value)}
+                />
               </div>
 
-              {isAdminTeacherOrMonitor && (
-                <Button
-                  size="xs"
-                  onClick={handleGenerateSmartRotation}
-                  className="bg-primary text-primary-foreground font-semibold shadow-2xs text-xs shrink-0 h-7"
-                >
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Сформировать умный график
+              {isAdminOrTeacher && (
+                <Button size="xs" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/students/new" />}>
+                  <UserPlus className="h-3.5 w-3.5" /> Зачислить нового студента
                 </Button>
               )}
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y text-xs">
-              {weeklyDuty.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className={`p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 ${
-                    item.isToday ? "bg-primary/5 border-l-4 border-l-primary" : item.isSunday ? "bg-muted/30 opacity-70" : ""
-                  }`}
-                >
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <div className="font-bold text-foreground text-xs flex items-center gap-1.5">
-                      <span>{item.day} ({item.dateStr})</span>
-                      {item.isToday && <Badge className="text-[9px] px-1.5 py-0">Сегодня</Badge>}
-                      {item.isSunday && <Badge variant="outline" className="text-[9px] px-1.5 py-0">Выходной</Badge>}
-                    </div>
 
-                    {!item.isSunday ? (
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">Старший: </span>
-                          <span className="font-semibold text-foreground">{item.seniorName}</span>
+            <Card className="border shadow-none overflow-hidden">
+              <CardHeader className="py-2.5 px-4 border-b">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Приказной состав группы {group.name}
+                  </CardTitle>
+                  <Badge variant="outline" className="text-[10px]">
+                    Всего: {filteredStudents.length} чел.
+                  </Badge>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                <div className="divide-y text-xs">
+                  {filteredStudents.map((st: GroupStudentDTO, idx: number) => (
+                    <div
+                      key={st.id}
+                      className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/20 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-muted-foreground w-5 text-[11px] font-semibold text-center">{idx + 1}.</span>
+                        <Avatar className="h-8 w-8 border shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary font-bold text-[11px]">
+                            {st.name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <div className="min-w-0">
+                          <div className="font-semibold text-foreground text-xs flex items-center gap-2 flex-wrap">
+                            <Link href={`/dashboard/students/${st.id}/edit`} className="hover:underline hover:text-primary transition-colors">
+                              {st.name}
+                            </Link>
+
+                            {st.roleInGroup === "MONITOR" && (
+                              <Badge className="bg-amber-500 text-white text-[9px] px-1.5 py-0 gap-1">
+                                <Crown className="h-2.5 w-2.5" /> Староста
+                              </Badge>
+                            )}
+
+                            {st.roleInGroup === "DEPUTY_MONITOR" && (
+                              <Badge className="bg-blue-500 text-white text-[9px] px-1.5 py-0 gap-1">
+                                <ShieldCheck className="h-2.5 w-2.5" /> Зам. старосты
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground text-[11px] mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <Mail className="h-3 w-3" /> {st.email}
+                            </span>
+                            {st.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="h-3 w-3" /> {st.phone}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground">Дежурный: </span>
-                          <span className="font-semibold text-foreground">{item.dutyName}</span>
-                          {!item.dutyPresent && (
-                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] px-1.5 py-0">
-                              <UserX className="h-3 w-3 mr-0.5" /> Отсутствует
-                            </Badge>
-                          )}
-                        </div>
                       </div>
-                    ) : (
-                      <div className="text-muted-foreground text-[11px] italic">
-                        Дежурство по воскресеньям не проводится
-                      </div>
-                    )}
 
-                    {item.replacedNote && (
-                      <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium pt-0.5">
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                        {item.replacedNote}
-                      </div>
-                    )}
-                  </div>
+                      <div className="flex items-center gap-2 pl-8 sm:pl-0 shrink-0">
+                        <span className="text-[10px] text-muted-foreground">Зачислен: {st.joinedAt}</span>
 
-                  {!item.isSunday && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge
-                        variant={
-                          item.completionStatus === "ПРОДЕЖУРИЛ"
-                            ? "default"
-                            : item.completionStatus === "ОТСУТСТВОВАЛ"
-                            ? "destructive"
-                            : item.completionStatus === "НЕ_ПРОДЕЖУРИЛ"
-                            ? "destructive"
-                            : "outline"
-                        }
-                        className={item.completionStatus === "ПРОДЕЖУРИЛ" ? "bg-emerald-600 text-white text-[10px] px-1.5 py-0" : "text-[10px] px-1.5 py-0"}
-                      >
-                        {item.completionStatus === "ПРОДЕЖУРИЛ" && "✓ Продежурил"}
-                        {item.completionStatus === "ОТСУТСТВОВАЛ" && "Отсутствовал"}
-                        {item.completionStatus === "НЕ_ПРОДЕЖУРИЛ" && "Не продежурил"}
-                        {item.completionStatus === "ОЖИДАЕТ" && "Наряд активен"}
-                      </Badge>
-
-                      {isAdminTeacherOrMonitor && (
-                        <div className="flex items-center gap-1">
-                          {!item.dutyPresent && (
-                            <Button
-                              size="xs"
-                              variant="default"
-                              onClick={() => handleAutoReplaceDuty(idx)}
-                              className="text-[10px] h-6 bg-amber-600 hover:bg-amber-700 text-white px-2"
-                            >
-                              <RefreshCw className="h-3 w-3 mr-1" /> Авто-замена
-                            </Button>
-                          )}
-
+                        {isAdminOrTeacher && (
                           <DropdownMenu>
-                            <DropdownMenuTrigger render={<Button variant="outline" size="xs" className="h-6 text-[11px] px-2" />}>
-                              Отметка <MoreVertical className="h-3 w-3 ml-0.5" />
+                            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground" />}>
+                              <MoreVertical className="h-3.5 w-3.5" />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent align="end" className="w-52">
                               <DropdownMenuGroup>
-                                <DropdownMenuLabel>Отметка о дежурстве</DropdownMenuLabel>
+                                <DropdownMenuLabel className="text-xs">Назначения в группе</DropdownMenuLabel>
                               </DropdownMenuGroup>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "ПРОДЕЖУРИЛ")}>
-                                <Check className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Продежурил (Сдал)
+                              <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "MONITOR")}>
+                                <Crown className="h-3.5 w-3.5 mr-2 text-amber-500" /> Назначить старостой
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "ОТСУТСТВОВАЛ")}>
-                                <UserX className="h-3.5 w-3.5 mr-2 text-amber-600" /> Отсутствовал в корпусе
+                              <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "DEPUTY_MONITOR")}>
+                                <ShieldCheck className="h-3.5 w-3.5 mr-2 text-blue-500" /> Назначить зам. старосты
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "НЕ_ПРОДЕЖУРИЛ")}>
-                                <X className="h-3.5 w-3.5 mr-2 text-destructive" /> Не продежурил
-                              </DropdownMenuItem>
+                              {st.roleInGroup !== "STUDENT" && (
+                                <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "NONE")}>
+                                  <Users className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> Снять полномочия
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleOpenEditDuty(idx)}>
-                                <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Ручной выбор дежурного
+                              <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
+                                <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать профиль
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setTargetRemoveStudentId(st.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Исключить из группы
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </div>
-                      )}
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {filteredStudents.length === 0 && (
+                    <div className="p-8 text-center text-muted-foreground text-xs space-y-2">
+                      <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
+                      <div>Студенты не найдены в составе этой группы</div>
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tab 4: ANNOUNCEMENTS */}
-      {activeTab === "ANNOUNCEMENTS" && (
-        <div className="space-y-3">
-          {announcements.map((ann) => (
-            <Card key={ann.id} className="border shadow-none">
-              <CardHeader className="p-3 border-b">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-xs font-bold flex items-center gap-1.5">
-                      <Megaphone className="h-3.5 w-3.5 text-primary shrink-0" />
-                      {ann.title}
-                    </CardTitle>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{ann.tag}</Badge>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">{ann.date}</span>
-                </div>
-              </CardHeader>
-              <CardContent className="p-3 text-xs text-muted-foreground leading-relaxed pt-2">
-                {ann.text}
               </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* TAB 2: SUBJECTS & TEACHERS WORKSPACE */}
+        {activeTab === "SUBJECTS" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {group.subjectsList.map((sub: GroupSubjectDTO) => (
+              <Card key={sub.id} className="border shadow-none hover:border-primary/40 transition-all">
+                <CardHeader className="pb-2.5 border-b">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-sm font-bold text-foreground">
+                        {sub.name}
+                      </CardTitle>
+                      <CardDescription className="text-xs mt-0.5">
+                        Преподаватель: <strong className="text-foreground">{sub.teacherName}</strong>
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">
+                      Активен
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-3 text-xs space-y-2">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Mail className="h-3.5 w-3.5" /> Email: {sub.teacherEmail}
+                  </div>
+                  <div className="pt-2 border-t flex items-center justify-end">
+                    <Button size="xs" variant="ghost" className="text-xs text-primary gap-1" render={<Link href="/dashboard/lms" />}>
+                      <BookOpen className="h-3.5 w-3.5" /> Учебный контент & LMS
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            {group.subjectsList.length === 0 && (
+              <Card className="col-span-2 border shadow-none p-8 text-center text-muted-foreground space-y-2">
+                <BookOpen className="h-7 w-7 mx-auto text-muted-foreground/40" />
+                <div>Для группы {group.name} пока не назначены учебные дисциплины</div>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: GROUP ANNOUNCEMENTS WORKSPACE */}
+        {activeTab === "ANNOUNCEMENTS" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3 bg-muted/20 p-2.5 rounded-xl border">
+              <div>
+                <h3 className="font-semibold text-xs text-foreground">Объявления и важные извещения группы</h3>
+                <p className="text-[11px] text-muted-foreground">Публикация важной информации для студентов группы {group.name}</p>
+              </div>
+
+              {isAdminOrTeacher && (
+                <Dialog open={isAddAnnOpen} onOpenChange={setIsAddAnnOpen}>
+                  <DialogTrigger render={<Button size="xs" className="h-8 text-xs gap-1.5" />}>
+                    <Plus className="h-3.5 w-3.5" /> Опубликовать объявление
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[450px]">
+                    <form onSubmit={handleCreateAnnouncement}>
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                          <Megaphone className="h-4.5 w-4.5 text-primary" /> Публикация объявления
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                          Оповещение будет доступно всем студентам группы <strong>{group.name}</strong>
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      {annErrorMessage && (
+                        <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded border border-destructive/20 mt-2">
+                          {annErrorMessage}
+                        </div>
+                      )}
+
+                      <div className="space-y-3 py-3 text-xs">
+                        <div className="space-y-1.5">
+                          <label className="font-medium text-foreground">Заголовок объявления *</label>
+                          <Input
+                            required
+                            placeholder="Например: Изменение расписания на вторник"
+                            value={newAnnTitle}
+                            onChange={(e) => setNewAnnTitle(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="font-medium text-foreground">Текст сообщения *</label>
+                          <textarea
+                            required
+                            rows={4}
+                            placeholder="Введите подробную информацию..."
+                            value={newAnnContent}
+                            onChange={(e) => setNewAnnContent(e.target.value)}
+                            className="w-full p-2.5 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+
+                      <DialogFooter>
+                        <DialogClose render={<Button variant="outline" size="xs" type="button" />}>
+                          Отмена
+                        </DialogClose>
+                        <Button size="xs" type="submit" disabled={!newAnnTitle.trim() || !newAnnContent.trim()}>
+                          <Send className="h-3.5 w-3.5 mr-1" /> Опубликовать
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {group.announcementsList.map((ann: GroupAnnouncementDTO) => (
+                <Card key={ann.id} className="border shadow-none">
+                  <CardHeader className="pb-2 border-b">
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-sm font-bold text-foreground">{ann.title}</CardTitle>
+                      <Badge variant="outline" className="text-[10px]">{ann.date}</Badge>
+                    </div>
+                    <CardDescription className="text-[11px]">
+                      Автор: <strong className="text-foreground">{ann.authorName}</strong>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-3 text-xs leading-relaxed">
+                    {ann.content}
+                  </CardContent>
+                </Card>
+              ))}
+
+              {group.announcementsList.length === 0 && (
+                <Card className="border shadow-none p-8 text-center text-muted-foreground space-y-2">
+                  <Megaphone className="h-7 w-7 mx-auto text-muted-foreground/40" />
+                  <div>Нет активных объявлений для группы {group.name}</div>
+                </Card>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: AUTOMATED DUTY SCHEDULE WORKSPACE */}
+        {activeTab === "DUTY" && (
+          <Card className="border shadow-none">
+            <CardHeader className="pb-3 border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" /> График дежурств по группе
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    Автоматическое распределение студентов группы {group.name}
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary" className="text-[10px]">
+                  Поток: {group.name}
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-4 space-y-3 text-xs">
+              <div className="p-3 rounded-lg border bg-muted/20 flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="font-semibold text-foreground flex items-center gap-1.5">
+                    <UserCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Ответственные за порядок
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Староста группы: <strong className="text-foreground">{group.monitorName || "Не назначен"}</strong>
+                  </p>
+                </div>
+                <Button size="xs" variant="outline" render={<Link href="/dashboard/duty" />}>
+                  Полноэкранный график
+                </Button>
+              </div>
+
+              <div className="divide-y border rounded-xl overflow-hidden">
+                {group.studentsList.map((st: GroupStudentDTO, i: number) => (
+                  <div key={st.id} className="p-3 flex items-center justify-between hover:bg-muted/20">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-muted-foreground text-[11px] font-mono w-4">#{i + 1}</span>
+                      <span className="font-semibold text-foreground">{st.name}</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">
+                      {i % 2 === 0 ? "Понедельник / Среда" : "Вторник / Четверг"}
+                    </Badge>
+                  </div>
+                ))}
+
+                {group.studentsList.length === 0 && (
+                  <div className="p-6 text-center text-muted-foreground">
+                    Студенты для формирования графика дежурств пока не зачислены
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* AlertDialog for Student Removal */}
+      <AlertDialog
+        open={targetRemoveStudentId !== null}
+        onOpenChange={(open) => !open && setTargetRemoveStudentId(null)}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" /> Исключение из группы
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Вы действительно хотите исключить выбранного студента из состава группы <strong>{group.name}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {removeErrorMessage && (
+            <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded border border-destructive/20">
+              {removeErrorMessage}
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel size="sm">Отмена</AlertDialogCancel>
+            <Button variant="destructive" size="sm" onClick={handleConfirmRemoveStudent}>
+              Исключить из группы
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
