@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { NavMain, NavMainSection } from "@/components/nav-main";
-import { NavProjects } from "@/components/nav-projects";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
 import {
@@ -25,8 +24,8 @@ import {
   BarChart3,
   Settings,
   Building2,
-  Folder,
   GraduationCap,
+  Sparkles,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -44,23 +43,20 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const teams = [
     {
       name: "Лицей LMS",
-      logo: <Building2 className="h-4 w-4" />,
+      logo: <GraduationCap className="h-4 w-4" />,
       plan: "Учебный год 2026-2027",
     },
   ];
 
-  // -------------------------------------------------------------
-  // ROLE-BASED NAVIGATION SECTIONS ACCORDING TO TECHNICAL SPEC
-  // -------------------------------------------------------------
   const getNavSections = (): NavMainSection[] => {
-    // 1. ADMINISTRATOR ROLE NAVIGATION
+    // 1. ADMINISTRATOR ROLE
     if (role === "ADMIN") {
       return [
         {
-          groupLabel: "Главное",
+          groupLabel: "Обзор",
           items: [
             {
-              title: "Главная",
+              title: "Главная панель",
               url: "/dashboard",
               icon: <LayoutDashboard className="h-4 w-4" />,
             },
@@ -72,20 +68,35 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           ],
         },
         {
-          groupLabel: "Управление обучением",
+          groupLabel: "Учебный процесс",
           items: [
+            {
+              title: "Учебные группы",
+              url: "/dashboard/groups",
+              icon: <Users className="h-4 w-4" />,
+            },
             {
               title: "Зачисление студентов",
               url: "/dashboard/students",
               icon: <UserPlus className="h-4 w-4" />,
             },
             {
-              title: "Группы",
-              url: "/dashboard/groups",
-              icon: <Users className="h-4 w-4" />,
+              title: "Посещаемость",
+              url: "/dashboard/attendance",
+              icon: <CalendarCheck className="h-4 w-4" />,
             },
             {
-              title: "LMS & Материалы",
+              title: "График дежурств",
+              url: "/dashboard/duty",
+              icon: <Clock className="h-4 w-4" />,
+            },
+            {
+              title: "Домашние задания",
+              url: "/dashboard/assignments",
+              icon: <ClipboardList className="h-4 w-4" />,
+            },
+            {
+              title: "Материалы LMS",
               url: "/dashboard/lms",
               icon: <BookOpen className="h-4 w-4" />,
               items: [
@@ -94,38 +105,23 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                 { title: "Лекции & Практики", url: "/dashboard/lms/materials" },
               ],
             },
-            {
-              title: "Посещаемость",
-              url: "/dashboard/attendance",
-              icon: <CalendarCheck className="h-4 w-4" />,
-            },
-            {
-              title: "Домашние задания",
-              url: "/dashboard/assignments",
-              icon: <ClipboardList className="h-4 w-4" />,
-            },
-            {
-              title: "Дежурства",
-              url: "/dashboard/duty",
-              icon: <Clock className="h-4 w-4" />,
-            },
           ],
         },
         {
-          groupLabel: "Администрирование",
+          groupLabel: "Управление",
           items: [
             {
-              title: "Отчёты",
+              title: "Аналитика & Отчёты",
               url: "/dashboard/reports",
               icon: <BarChart3 className="h-4 w-4" />,
             },
             {
-              title: "Документы",
+              title: "Документы лицея",
               url: "/dashboard/documents",
               icon: <FileText className="h-4 w-4" />,
             },
             {
-              title: "Настройки",
+              title: "Настройки системы",
               url: "/dashboard/settings",
               icon: <Settings className="h-4 w-4" />,
             },
@@ -134,11 +130,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       ];
     }
 
-    // 2. TEACHER ROLE NAVIGATION
+    // 2. TEACHER ROLE
     if (role === "TEACHER") {
       return [
         {
-          groupLabel: "Главное",
+          groupLabel: "Обзор",
           items: [
             {
               title: "Главная",
@@ -153,27 +149,17 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           ],
         },
         {
-          groupLabel: "Мой учебный процесс",
+          groupLabel: "Учебный процесс",
           items: [
             {
-              title: "Зачисление студентов",
-              url: "/dashboard/students",
-              icon: <UserPlus className="h-4 w-4" />,
-            },
-            {
-              title: "Группы",
+              title: "Учебные группы",
               url: "/dashboard/groups",
               icon: <Users className="h-4 w-4" />,
             },
             {
-              title: "LMS & Контент",
-              url: "/dashboard/lms",
-              icon: <BookOpen className="h-4 w-4" />,
-              items: [
-                { title: "Темы & Уроки", url: "/dashboard/lms/topics" },
-                { title: "Тесты & Опросы", url: "/dashboard/lms/tests" },
-                { title: "Лекции & Практики", url: "/dashboard/lms/materials" },
-              ],
+              title: "Зачисление студентов",
+              url: "/dashboard/students",
+              icon: <UserPlus className="h-4 w-4" />,
             },
             {
               title: "Посещаемость пар",
@@ -190,6 +176,16 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               url: "/dashboard/duty",
               icon: <Clock className="h-4 w-4" />,
             },
+            {
+              title: "Контент LMS",
+              url: "/dashboard/lms",
+              icon: <BookOpen className="h-4 w-4" />,
+              items: [
+                { title: "Темы & Уроки", url: "/dashboard/lms/topics" },
+                { title: "Тесты & Опросы", url: "/dashboard/lms/tests" },
+                { title: "Лекции & Практики", url: "/dashboard/lms/materials" },
+              ],
+            },
           ],
         },
         {
@@ -205,10 +201,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       ];
     }
 
-    // 3. STUDENT ROLE NAVIGATION
+    // 3. STUDENT ROLE
     return [
       {
-        groupLabel: "Главное",
+        groupLabel: "Обзор",
         items: [
           {
             title: "Главная",
@@ -223,12 +219,12 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         ],
       },
       {
-        groupLabel: "Моя учеба",
+        groupLabel: "Моё обучение",
         items: [
           {
-            title: "Моя группа (ИС-1-25)",
-            url: "/dashboard/groups/is-1-25",
-            icon: <GraduationCap className="h-4 w-4" />,
+            title: "Учебные группы",
+            url: "/dashboard/groups",
+            icon: <Users className="h-4 w-4" />,
           },
           {
             title: "Учебные материалы",
@@ -241,7 +237,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             icon: <ClipboardList className="h-4 w-4" />,
           },
           {
-            title: "Дежурства",
+            title: "График дежурств",
             url: "/dashboard/duty",
             icon: <Clock className="h-4 w-4" />,
           },
@@ -260,27 +256,13 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     ];
   };
 
-  // -------------------------------------------------------------
-  // QUICK GROUPS BASED ON ROLE
-  // -------------------------------------------------------------
-  const getQuickGroups = () => {
-    return [
-      {
-        name: "Все группы",
-        url: "/dashboard/groups",
-        icon: <Folder className="h-4 w-4" />,
-      },
-    ];
-  };
-
   return (
-    <Sidebar collapsible="icon" className="border-r border-border/80" {...props}>
+    <Sidebar collapsible="icon" className="border-r border-border/80 bg-sidebar" {...props}>
       <SidebarHeader className="border-b p-2">
         <TeamSwitcher teams={teams} />
       </SidebarHeader>
       <SidebarContent className="gap-0 py-2">
         <NavMain sections={getNavSections()} />
-        <NavProjects projects={getQuickGroups()} />
       </SidebarContent>
       <SidebarFooter className="border-t p-2">
         <NavUser user={user} />
