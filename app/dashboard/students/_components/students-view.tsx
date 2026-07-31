@@ -500,7 +500,7 @@ export function StudentsView({ userRole }: StudentsViewProps) {
                           <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
                             <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenEditStudent(st)}>
+                          <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
                             <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать данные
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
@@ -588,93 +588,6 @@ export function StudentsView({ userRole }: StudentsViewProps) {
                 Подтвердить сброс
               </Button>
             </DialogFooter>
-          </DialogContent>
-        )}
-      </Dialog>
-
-      {/* Dialog for Editing Student Info */}
-      <Dialog open={editTargetStudent !== null} onOpenChange={(open) => !open && setEditTargetStudent(null)}>
-        {editTargetStudent && (
-          <DialogContent className="sm:max-w-[440px]">
-            <form onSubmit={handleSaveEditStudent}>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base">
-                  <Edit className="h-4.5 w-4.5 text-primary" /> Редактирование профиля
-                </DialogTitle>
-                <DialogDescription className="text-xs">
-                  Изменение персональных данных студента
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3 py-3 text-xs">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">ФИО Студента</label>
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    required
-                    className="h-8 text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-foreground">Email</label>
-                    <Input
-                      type="email"
-                      value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-foreground">Телефон</label>
-                    <Input
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-foreground">Группа</label>
-                    <Select value={editGroup} onValueChange={(val) => val && setEditGroup(val)}>
-                      <SelectTrigger className="w-full h-8 text-xs">
-                        <SelectValue placeholder="Группа" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ИС-1-25">ИС-1-25</SelectItem>
-                        <SelectItem value="ИС-2-24">ИС-2-24</SelectItem>
-                        <SelectItem value="Не распределен">Не распределен</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-foreground">Форма</label>
-                    <Select value={editType} onValueChange={(val) => val && setEditType(val as any)}>
-                      <SelectTrigger className="w-full h-8 text-xs">
-                        <SelectValue placeholder="Форма" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Бюджет">Бюджет</SelectItem>
-                        <SelectItem value="Контракт">Контракт</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <DialogClose render={<Button variant="outline" type="button" size="xs" />}>
-                  Отмена
-                </DialogClose>
-                <Button type="submit" size="xs">Сохранить изменения</Button>
-              </DialogFooter>
-            </form>
           </DialogContent>
         )}
       </Dialog>
