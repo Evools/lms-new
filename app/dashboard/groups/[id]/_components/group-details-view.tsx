@@ -462,45 +462,66 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
 
         {/* TAB 2: SUBJECTS & TEACHERS WORKSPACE */}
         {activeTab === "SUBJECTS" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {group.subjectsList.map((sub: GroupSubjectDTO) => (
-              <Card key={sub.id} className="border shadow-none hover:border-primary/40 transition-all">
-                <CardHeader className="pb-2.5 border-b">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-sm font-bold text-foreground">
-                        {sub.name}
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-0.5">
-                        Преподаватель: <strong className="text-foreground">{sub.teacherName}</strong>
-                      </CardDescription>
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">
-                      Активен
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-3 text-xs space-y-2">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Mail className="h-3.5 w-3.5" /> Email: {sub.teacherEmail}
-                  </div>
-                  <div className="pt-2 border-t flex items-center justify-end">
-                    <Button size="xs" variant="ghost" className="text-xs text-primary gap-1" render={<Link href="/dashboard/lms" />}>
-                      <BookOpen className="h-3.5 w-3.5" /> Учебный контент & LMS
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {group.subjectsList.length} {group.subjectsList.length === 1 ? "дисциплина" : "дисциплин"}
+              </span>
+            </div>
 
-            {group.subjectsList.length === 0 && (
-              <Card className="col-span-2 border shadow-none p-8 text-center text-muted-foreground space-y-2">
-                <BookOpen className="h-7 w-7 mx-auto text-muted-foreground/40" />
-                <div>Для группы {group.name} пока не назначены учебные дисциплины</div>
-              </Card>
-            )}
+            <div className="rounded-xl border overflow-hidden">
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_180px_auto] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span>Дисциплина</span>
+                <span className="hidden md:block">Преподаватель</span>
+                <span></span>
+              </div>
+
+              <div className="divide-y">
+                {group.subjectsList.map((sub: GroupSubjectDTO) => (
+                  <div
+                    key={sub.id}
+                    className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_180px_auto] items-center gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors"
+                  >
+                    {/* Subject name */}
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-foreground truncate">{sub.name}</div>
+                      {/* Mobile teacher */}
+                      <div className="md:hidden flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+                        <GraduationCap className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">{sub.teacherName}</span>
+                      </div>
+                    </div>
+
+                    {/* Teacher column */}
+                    <div className="hidden md:flex flex-col gap-0.5 min-w-0">
+                      <span className="text-xs text-foreground font-medium truncate">{sub.teacherName}</span>
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+                        <Mail className="h-2.5 w-2.5 shrink-0" /> {sub.teacherEmail}
+                      </span>
+                    </div>
+
+                    {/* Action */}
+                    <div className="flex items-center shrink-0">
+                      <Button size="xs" variant="ghost" className="h-7 text-xs text-primary gap-1 px-2" render={<Link href="/dashboard/lms" />}>
+                        <BookOpen className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">LMS</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                {group.subjectsList.length === 0 && (
+                  <div className="py-10 text-center text-muted-foreground text-xs space-y-2">
+                    <BookOpen className="h-7 w-7 mx-auto text-muted-foreground/40" />
+                    <div>Учебные дисциплины не назначены</div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
+
 
         {/* TAB 3: GROUP ANNOUNCEMENTS WORKSPACE */}
         {activeTab === "ANNOUNCEMENTS" && (
@@ -611,91 +632,87 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
               )}
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {group.announcementsList.map((ann: GroupAnnouncementDTO) => (
-                <Card
+                <div
                   key={ann.id}
-                  className={`border shadow-none transition-all overflow-hidden ${
+                  className={`rounded-xl border overflow-hidden transition-all ${
                     ann.isImportant
-                      ? "border-l-4 border-l-primary border-primary/30 bg-primary/5 dark:bg-primary/10"
-                      : "border-border hover:border-muted-foreground/30"
+                      ? "border-primary/40 bg-primary/5 dark:bg-primary/10"
+                      : "border-border hover:border-muted-foreground/20 bg-background"
                   }`}
                 >
-                  <CardContent className="p-4 space-y-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Avatar className="h-7 w-7 border shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
-                            {ann.authorName.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <span className="font-semibold text-foreground text-xs block truncate">
-                            {ann.authorName}
-                          </span>
+                  {/* Header strip */}
+                  <div className={`flex items-center justify-between px-3 py-2 border-b gap-3 ${
+                    ann.isImportant ? "border-primary/20 bg-primary/5" : "border-border bg-muted/30"
+                  }`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className="h-6 w-6 border shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary text-[9px] font-bold">
+                          {ann.authorName.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-medium text-foreground truncate">{ann.authorName}</span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{ann.date}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {ann.isImportant && (
+                        <Badge className="bg-primary text-primary-foreground text-[9px] px-1.5 py-0 gap-0.5 font-medium">
+                          <Sparkles className="h-2.5 w-2.5" /> Закреплено
+                        </Badge>
+                      )}
+                      {isAdminOrTeacher && (
+                        <div className="flex items-center gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => handleOpenEditAnn(ann)}
+                            className="h-6 w-6 text-muted-foreground hover:text-primary"
+                            title="Редактировать"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => setDeletingAnnId(ann.id)}
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            title="Удалить"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        {ann.isImportant ? (
-                          <Badge className="bg-primary text-primary-foreground text-[9px] px-2 py-0.5 gap-1 font-medium">
-                            <Sparkles className="h-3 w-3" /> Закреплено
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-[9px] px-2 py-0.5 font-medium">
-                            Общие
-                          </Badge>
-                        )}
-                        <span className="text-[11px] text-muted-foreground">{ann.date}</span>
-                        {isAdminOrTeacher && (
-                          <div className="flex items-center gap-0.5 ml-1">
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              onClick={() => handleOpenEditAnn(ann)}
-                              className="h-6 w-6 text-muted-foreground hover:text-primary"
-                              title="Редактировать объявление"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              onClick={() => setDeletingAnnId(ann.id)}
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                              title="Удалить объявление"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
+                  </div>
 
-                    <div className="pt-1">
-                      <h4 className="text-xs font-bold text-foreground mb-1">
-                        {ann.title}
-                      </h4>
-                      <p className="text-xs text-muted-foreground/90 leading-relaxed whitespace-pre-line">
-                        {ann.content}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                  {/* Body */}
+                  <div className="px-3 py-2.5 space-y-1">
+                    <h4 className={`text-xs font-semibold ${ann.isImportant ? "text-primary" : "text-foreground"}`}>
+                      {ann.title}
+                    </h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
+                      {ann.content}
+                    </p>
+                  </div>
+                </div>
               ))}
 
               {group.announcementsList.length === 0 && (
-                <Card className="border shadow-none p-8 text-center text-muted-foreground space-y-2">
+                <div className="rounded-xl border border-dashed py-10 text-center text-muted-foreground space-y-2">
                   <Megaphone className="h-7 w-7 mx-auto text-muted-foreground/30" />
-                  <div className="text-xs font-medium">Нет публикаций для группы {group.name}</div>
-                  <p className="text-[11px] text-muted-foreground/70 max-w-sm mx-auto">
-                    Опубликуйте первое объявление, чтобы оповестить всех студентов данной группы
+                  <div className="text-xs font-medium">Нет объявлений для группы {group.name}</div>
+                  <p className="text-[11px] text-muted-foreground/70">
+                    Опубликуйте первое объявление, чтобы оповестить студентов
                   </p>
-                </Card>
+                </div>
               )}
             </div>
           </div>
         )}
+
 
         {/* TAB 4: AUTOMATED DUTY SCHEDULE WORKSPACE */}
         {activeTab === "DUTY" && (
