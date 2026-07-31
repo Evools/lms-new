@@ -51,19 +51,13 @@ import {
   Calendar,
   Plus,
   TrendingUp,
-  Info,
-  Edit,
   MoreVertical,
-  Sparkles,
   RefreshCw,
   Check,
   X,
   AlertTriangle,
   UserX,
-  CheckCircle2,
-  CalendarDays,
-  Layers,
-  History,
+  Edit,
 } from "lucide-react";
 import { GroupDTO } from "../../actions";
 
@@ -81,8 +75,8 @@ export interface StudentItem {
   status: "Отличник" | "Хорошист" | "Успевает";
   avgGrade: string;
   attendance: string;
-  isPresentToday: boolean; // Attendance integration
-  dutyCount: number; // Rotation tracking
+  isPresentToday: boolean;
+  dutyCount: number;
 }
 
 export interface SmartDutyItem {
@@ -138,21 +132,17 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [activeTab, setActiveTab] = useState<"STUDENTS" | "SUBJECTS" | "DUTY" | "ANNOUNCEMENTS">("STUDENTS");
 
-  // Leadership state
   const [monitorName] = useState(group.monitorName || "Петров Алексей Сергеевич");
   const [deputyMonitorName] = useState(group.deputyMonitorName || "Сидорова Анна Владимировна");
 
-  // Assign Duty Dialog State
   const [selectedDutyDayIndex, setSelectedDutyDayIndex] = useState<number | null>(null);
   const [editingSeniorName, setEditingSeniorName] = useState("");
   const [editingDutyName, setEditingDutyName] = useState("");
 
-  // Filters
   const [searchStudent, setSearchStudent] = useState("");
   const [roleFilter, setRoleFilter] = useState<"ALL" | "MONITORS" | "STUDENTS">("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "EXCELLENT" | "GOOD">("ALL");
 
-  // Add Announcement Dialog State
   const [isAddAnnOpen, setIsAddAnnOpen] = useState(false);
   const [newAnnTitle, setNewAnnTitle] = useState("");
   const [newAnnTag, setNewAnnTag] = useState("Общее");
@@ -163,7 +153,6 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
     userRole === "TEACHER" ||
     students.some(s => s.role === "MONITOR" || s.role === "DEPUTY_MONITOR");
 
-  // Filter students logic
   const filteredStudents = students.filter((s) => {
     const matchesSearch =
       s.name.toLowerCase().includes(searchStudent.toLowerCase()) ||
@@ -183,12 +172,10 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  // Calculate Group KPIs
   const totalCount = students.length;
   const excellentCount = students.filter((s) => s.status === "Отличник").length;
   const avgGpa = (students.reduce((acc, s) => acc + parseFloat(s.avgGrade), 0) / totalCount).toFixed(2);
 
-  // Quick set student role from list
   const setStudentRoleQuick = (studentId: string, newRole: "MONITOR" | "DEPUTY_MONITOR" | "STUDENT") => {
     setStudents((prev) =>
       prev.map((s) => {
@@ -200,7 +187,6 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
     );
   };
 
-  // SMART ROTATION & AUTO-REPLACE LOGIC
   const handleAutoReplaceDuty = (index: number) => {
     const targetDuty = weeklyDuty[index];
     const candidate = students
@@ -215,14 +201,13 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
       dutyName: candidate.name,
       dutyPresent: true,
       completionStatus: "ОЖИДАЕТ",
-      replacedNote: `Автоматически заменен на присутствующего: ${candidate.name} (бывший дежурный отсутствовал)`,
+      replacedNote: `Автоматически заменен на присутствующего: ${candidate.name}`,
     };
 
     setStudents(prev => prev.map(s => s.id === candidate.id ? { ...s, dutyCount: s.dutyCount + 1 } : s));
     setWeeklyDuty(updated);
   };
 
-  // Update duty completion status
   const handleUpdateCompletionStatus = (index: number, newStatus: "ПРОДЕЖУРИЛ" | "НЕ_ПРОДЕЖУРИЛ" | "ОТСУТСТВОВАЛ") => {
     const updated = [...weeklyDuty];
     updated[index] = {
@@ -236,7 +221,6 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
     setWeeklyDuty(updated);
   };
 
-  // Auto Generate Smart Weekly Roster (Excludes Sunday!)
   const handleGenerateSmartRotation = () => {
     const availableStudents = [...students].sort((a, b) => a.dutyCount - b.dutyCount);
     let studentIndex = 0;
@@ -271,14 +255,12 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
     setWeeklyDuty(newRoster);
   };
 
-  // Open Edit Duty Dialog for specific day
   const handleOpenEditDuty = (index: number) => {
     setSelectedDutyDayIndex(index);
     setEditingSeniorName(weeklyDuty[index].seniorName);
     setEditingDutyName(weeklyDuty[index].dutyName);
   };
 
-  // Handle Save Duty Assignment
   const handleSaveDuty = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedDutyDayIndex === null) return;
@@ -313,7 +295,7 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4 text-xs">
       {/* Top Header & Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -325,73 +307,69 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
           <span className="text-foreground font-semibold">{group.name}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => router.push("/dashboard/groups")}
-            className="text-xs"
-          >
-            <ChevronLeft className="h-3.5 w-3.5 mr-1" /> К списку групп
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={() => router.push("/dashboard/groups")}
+          className="text-xs h-7"
+        >
+          <ChevronLeft className="h-3.5 w-3.5 mr-1" /> К списку групп
+        </Button>
       </div>
 
-      {/* Main Header Visual Card */}
-      <Card className="border bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-sm overflow-hidden relative">
-        <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-primary text-primary-foreground shadow-md">
-                  <Users className="h-7 w-7" />
+      {/* Compact Main Header Visual Card */}
+      <Card className="border bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-2xs overflow-hidden">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-2xs">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold tracking-tight text-foreground">
+                    Группа {group.name}
+                  </h1>
+                  <Badge className="bg-primary text-primary-foreground text-[10px] px-2 py-0">
+                    {group.course} Курс
+                  </Badge>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                      Группа {group.name}
-                    </h1>
-                    <Badge className="bg-primary text-primary-foreground text-xs font-semibold px-2.5 py-0.5">
-                      {group.course} Курс
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-                    {group.specialty}
-                  </p>
-                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {group.specialty}
+                </p>
               </div>
             </div>
 
             {/* Quick KPI Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-background/80 backdrop-blur-sm border p-3 rounded-xl text-center shadow-2xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-2xs">
                 <div className="text-[10px] text-muted-foreground uppercase font-semibold">Всего студентов</div>
-                <div className="text-lg font-extrabold text-primary flex items-center justify-center gap-1 mt-0.5">
-                  <GraduationCap className="h-4 w-4" />
+                <div className="text-base font-extrabold text-primary flex items-center justify-center gap-1 mt-0.5">
+                  <GraduationCap className="h-3.5 w-3.5" />
                   {totalCount}
                 </div>
               </div>
 
-              <div className="bg-background/80 backdrop-blur-sm border p-3 rounded-xl text-center shadow-2xs">
+              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-2xs">
                 <div className="text-[10px] text-muted-foreground uppercase font-semibold">Средний балл</div>
-                <div className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 mt-0.5">
-                  <TrendingUp className="h-4 w-4" />
+                <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 mt-0.5">
+                  <TrendingUp className="h-3.5 w-3.5" />
                   {avgGpa}
                 </div>
               </div>
 
-              <div className="bg-background/80 backdrop-blur-sm border p-3 rounded-xl text-center shadow-2xs">
+              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-2xs">
                 <div className="text-[10px] text-muted-foreground uppercase font-semibold">Отличников</div>
-                <div className="text-lg font-extrabold text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1 mt-0.5">
-                  <Award className="h-4 w-4" />
+                <div className="text-base font-extrabold text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1 mt-0.5">
+                  <Award className="h-3.5 w-3.5" />
                   {excellentCount}
                 </div>
               </div>
 
-              <div className="bg-background/80 backdrop-blur-sm border p-3 rounded-xl text-center shadow-2xs">
+              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-2xs">
                 <div className="text-[10px] text-muted-foreground uppercase font-semibold">Учебный год</div>
-                <div className="text-sm font-bold text-foreground flex items-center justify-center gap-1 mt-1">
-                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                <div className="text-xs font-bold text-foreground flex items-center justify-center gap-1 mt-0.5">
+                  <Calendar className="h-3 w-3 text-muted-foreground" />
                   {group.academicYear}
                 </div>
               </div>
@@ -400,121 +378,118 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
         </CardContent>
       </Card>
 
-      {/* Leadership Roster Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border shadow-none bg-card hover:border-primary/40 transition-all">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
-              <UserCheck className="h-5 w-5" />
+      {/* Leadership Roster Overview - Compact */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card className="border shadow-none">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+              <UserCheck className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wide">
-                Классный руководитель (Куратор)
+              <div className="text-[10px] text-muted-foreground uppercase font-semibold">
+                Куратор группы
               </div>
-              <div className="text-sm font-semibold text-foreground truncate mt-0.5">
+              <div className="text-xs font-semibold text-foreground truncate mt-0.5">
                 {group.curatorName || "Иванов Иван Иванович"}
               </div>
-              <div className="text-[11px] text-muted-foreground">Назначает старосту и дежурных</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border shadow-none bg-card hover:border-primary/40 transition-all">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
-              <ShieldCheck className="h-5 w-5" />
+        <Card className="border shadow-none">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+              <ShieldCheck className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wide">
+              <div className="text-[10px] text-muted-foreground uppercase font-semibold">
                 Староста группы
               </div>
-              <div className="text-sm font-semibold text-foreground truncate mt-0.5">
+              <div className="text-xs font-semibold text-foreground truncate mt-0.5">
                 {monitorName}
               </div>
-              <div className="text-[11px] text-muted-foreground">Организует дежурство по корпусу</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border shadow-none bg-card hover:border-primary/40 transition-all">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
-              <UserCheck2 className="h-5 w-5" />
+        <Card className="border shadow-none">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+              <UserCheck2 className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wide">
+              <div className="text-[10px] text-muted-foreground uppercase font-semibold">
                 Заместитель старосты
               </div>
-              <div className="text-sm font-semibold text-foreground truncate mt-0.5">
+              <div className="text-xs font-semibold text-foreground truncate mt-0.5">
                 {deputyMonitorName}
               </div>
-              <div className="text-[11px] text-muted-foreground">Помогает в ведении нарядов</div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Content Interactive Tabs Bar */}
+      {/* Main Tabs Navigation */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+        <div className="flex items-center gap-1 overflow-x-auto">
           <Button
-            size="sm"
+            size="xs"
             variant={activeTab === "STUDENTS" ? "default" : "ghost"}
             onClick={() => setActiveTab("STUDENTS")}
-            className="text-xs font-medium rounded-lg"
+            className="text-xs font-medium h-8"
           >
-            <GraduationCap className="h-4 w-4 mr-1.5" />
+            <GraduationCap className="h-3.5 w-3.5 mr-1.5" />
             Студенты ({students.length})
           </Button>
           <Button
-            size="sm"
+            size="xs"
             variant={activeTab === "SUBJECTS" ? "default" : "ghost"}
             onClick={() => setActiveTab("SUBJECTS")}
-            className="text-xs font-medium rounded-lg"
+            className="text-xs font-medium h-8"
           >
-            <BookOpen className="h-4 w-4 mr-1.5" />
+            <BookOpen className="h-3.5 w-3.5 mr-1.5" />
             Дисциплины ({DEMO_SUBJECTS.length})
           </Button>
           <Button
-            size="sm"
+            size="xs"
             variant={activeTab === "DUTY" ? "default" : "ghost"}
             onClick={() => setActiveTab("DUTY")}
-            className="text-xs font-medium rounded-lg"
+            className="text-xs font-medium h-8"
           >
-            <ClipboardCheck className="h-4 w-4 mr-1.5" />
+            <ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />
             Умный график дежурства
           </Button>
           <Button
-            size="sm"
+            size="xs"
             variant={activeTab === "ANNOUNCEMENTS" ? "default" : "ghost"}
             onClick={() => setActiveTab("ANNOUNCEMENTS")}
-            className="text-xs font-medium rounded-lg"
+            className="text-xs font-medium h-8"
           >
-            <Megaphone className="h-4 w-4 mr-1.5" />
+            <Megaphone className="h-3.5 w-3.5 mr-1.5" />
             Объявления ({announcements.length})
           </Button>
         </div>
 
         {activeTab === "ANNOUNCEMENTS" && (
           <Dialog open={isAddAnnOpen} onOpenChange={setIsAddAnnOpen}>
-            <DialogTrigger render={<Button size="xs" variant="outline" />}>
+            <DialogTrigger render={<Button size="xs" variant="outline" className="h-8 text-xs" />}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Добавить объявление
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[450px]">
+            <DialogContent className="sm:max-w-[440px]">
               <form onSubmit={handleAddAnnouncement}>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-base">
-                    <Megaphone className="h-5 w-5 text-primary" /> Новое объявление
+                    <Megaphone className="h-4.5 w-4.5 text-primary" /> Новое объявление
                   </DialogTitle>
-                  <DialogDescription>
-                    Опубликуйте важное уведомление для студентов группы {group.name}
+                  <DialogDescription className="text-xs">
+                    Опубликуйте уведомление для группы {group.name}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 py-3 text-xs">
                   <div className="space-y-1">
-                    <label className="font-medium text-foreground">Заголовок *</label>
+                    <label className="font-semibold text-foreground">Заголовок *</label>
                     <Input
-                      placeholder="Например: Перенос занятия"
+                      placeholder="Перенос занятия..."
                       value={newAnnTitle}
                       onChange={(e) => setNewAnnTitle(e.target.value)}
                       required
@@ -522,9 +497,9 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="font-medium text-foreground">Категория</label>
+                    <label className="font-semibold text-foreground">Категория</label>
                     <Select value={newAnnTag} onValueChange={(val) => val && setNewAnnTag(val)}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full h-8 text-xs">
                         <SelectValue placeholder="Выберите категорию" />
                       </SelectTrigger>
                       <SelectContent>
@@ -536,13 +511,13 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <label className="font-medium text-foreground">Текст объявления</label>
+                    <label className="font-semibold text-foreground">Текст объявления</label>
                     <textarea
                       rows={3}
-                      placeholder="Введите подробный текст..."
+                      placeholder="Подробный текст..."
                       value={newAnnText}
                       onChange={(e) => setNewAnnText(e.target.value)}
-                      className="w-full p-2 rounded-md border text-xs bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full p-2 rounded-md border text-xs bg-background text-foreground outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                 </div>
@@ -560,141 +535,99 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
 
       {/* Tab 1: STUDENTS */}
       {activeTab === "STUDENTS" && (
-        <div className="space-y-4">
-          {/* Filtering Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-muted/20 p-2.5 rounded-xl border">
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-muted/20 p-2.5 rounded-xl border">
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Поиск по ФИО, email или телефону..."
-                className="pl-9 h-8.5 text-xs bg-background"
+                className="pl-8 h-8 text-xs bg-background"
                 value={searchStudent}
                 onChange={(e) => setSearchStudent(e.target.value)}
               />
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto">
-              <div className="flex items-center gap-1 bg-background border p-1 rounded-lg">
-                <Button
-                  size="xs"
-                  variant={roleFilter === "ALL" ? "default" : "ghost"}
-                  onClick={() => setRoleFilter("ALL")}
-                  className="text-[11px] h-6 px-2"
-                >
-                  Все
-                </Button>
-                <Button
-                  size="xs"
-                  variant={roleFilter === "MONITORS" ? "default" : "ghost"}
-                  onClick={() => setRoleFilter("MONITORS")}
-                  className="text-[11px] h-6 px-2"
-                >
-                  Старосты
-                </Button>
-                <Button
-                  size="xs"
-                  variant={roleFilter === "STUDENTS" ? "default" : "ghost"}
-                  onClick={() => setRoleFilter("STUDENTS")}
-                  className="text-[11px] h-6 px-2"
-                >
-                  Студенты
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-1 bg-background border p-1 rounded-lg">
-                <Button
-                  size="xs"
-                  variant={statusFilter === "ALL" ? "default" : "ghost"}
-                  onClick={() => setStatusFilter("ALL")}
-                  className="text-[11px] h-6 px-2"
-                >
-                  Все успеваемости
-                </Button>
-                <Button
-                  size="xs"
-                  variant={statusFilter === "EXCELLENT" ? "default" : "ghost"}
-                  onClick={() => setStatusFilter("EXCELLENT")}
-                  className="text-[11px] h-6 px-2"
-                >
-                  Отличники
-                </Button>
-              </div>
+            <div className="flex items-center gap-1 bg-background border p-1 rounded-lg">
+              <Button
+                size="xs"
+                variant={roleFilter === "ALL" ? "default" : "ghost"}
+                onClick={() => setRoleFilter("ALL")}
+                className="text-[11px] h-6 px-2"
+              >
+                Все
+              </Button>
+              <Button
+                size="xs"
+                variant={roleFilter === "MONITORS" ? "default" : "ghost"}
+                onClick={() => setRoleFilter("MONITORS")}
+                className="text-[11px] h-6 px-2"
+              >
+                Старосты
+              </Button>
+              <Button
+                size="xs"
+                variant={statusFilter === "EXCELLENT" ? "default" : "ghost"}
+                onClick={() => setStatusFilter(statusFilter === "EXCELLENT" ? "ALL" : "EXCELLENT")}
+                className="text-[11px] h-6 px-2"
+              >
+                Отличники
+              </Button>
             </div>
           </div>
 
-          {/* Students List Card Table */}
           <Card className="border shadow-none overflow-hidden">
             <div className="divide-y text-xs">
               {filteredStudents.map((student, idx) => (
                 <div
                   key={student.id}
-                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 transition-colors"
+                  className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-muted/20 transition-colors"
                 >
-                  <div className="flex items-center gap-3.5">
-                    <span className="text-muted-foreground w-6 text-xs font-semibold text-center">{idx + 1}.</span>
-                    <Avatar className="h-9 w-9 border shadow-2xs">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted-foreground w-5 text-[11px] font-semibold text-center">{idx + 1}.</span>
+                    <Avatar className="h-8 w-8 border shrink-0">
+                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-[11px]">
                         {student.name.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-semibold text-foreground text-sm flex items-center gap-2">
+                      <div className="font-semibold text-foreground text-xs flex items-center gap-1.5">
                         {student.name}
                         {student.status === "Отличник" && (
-                          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 text-[10px] border-emerald-500/20">
+                          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[9px] px-1.5 py-0 border-emerald-500/20">
                             ★ Отличник
                           </Badge>
                         )}
                         {student.isPresentToday ? (
-                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px]">
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] px-1.5 py-0">
                             Присутствует
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px]">
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] px-1.5 py-0">
                             Отсутствует
                           </Badge>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground text-[11px] mt-0.5">
-                        <a href={`mailto:${student.email}`} className="hover:text-primary transition-colors flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground text-[11px] mt-0.5">
+                        <span className="flex items-center gap-1">
                           <Mail className="h-3 w-3" /> {student.email}
-                        </a>
-                        <a href={`tel:${student.phone}`} className="hover:text-primary transition-colors flex items-center gap-1">
+                        </span>
+                        <span className="flex items-center gap-1">
                           <Phone className="h-3 w-3" /> {student.phone}
-                        </a>
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 pl-9 sm:pl-0">
-                    <div className="text-right hidden md:block">
-                      <div className="text-[10px] text-muted-foreground">Посещаемость</div>
-                      <div className="font-semibold text-foreground">{student.attendance}</div>
-                    </div>
-
+                  <div className="flex items-center gap-3 pl-8 sm:pl-0">
                     <div className="text-right">
                       <div className="text-[10px] text-muted-foreground">Ср. балл</div>
-                      <div className="font-bold text-primary">{student.avgGrade}</div>
+                      <div className="font-bold text-primary text-xs">{student.avgGrade}</div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      {student.role === "MONITOR" && (
-                        <Badge className="bg-primary text-primary-foreground text-[10px]">
-                          Староста
-                        </Badge>
-                      )}
-                      {student.role === "DEPUTY_MONITOR" && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          Зам. старосты
-                        </Badge>
-                      )}
-                      {student.role === "STUDENT" && (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                          Студент
-                        </Badge>
-                      )}
+                    <div className="flex items-center gap-1">
+                      {student.role === "MONITOR" && <Badge className="text-[9px] px-1.5 py-0">Староста</Badge>}
+                      {student.role === "DEPUTY_MONITOR" && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Зам. старосты</Badge>}
 
-                      {/* Dropdown Menu for Student Actions */}
                       <DropdownMenu>
                         <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground" />}>
                           <MoreVertical className="h-3.5 w-3.5" />
@@ -716,13 +649,6 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
                   </div>
                 </div>
               ))}
-
-              {filteredStudents.length === 0 && (
-                <div className="p-10 text-center text-muted-foreground text-xs space-y-2">
-                  <Users className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                  <div>По вашим фильтрам студенты не найдены</div>
-                </div>
-              )}
             </div>
           </Card>
         </div>
@@ -730,278 +656,190 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
 
       {/* Tab 2: SUBJECTS */}
       {activeTab === "SUBJECTS" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {DEMO_SUBJECTS.map((sub) => (
-              <Card key={sub.id} className="border shadow-none hover:border-primary/40 transition-all">
-                <CardHeader className="pb-3 border-b">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                        <BookOpen className="h-4 w-4 text-primary shrink-0" />
-                        {sub.name}
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {sub.hours} • {sub.room}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">
-                      {sub.status}
-                    </Badge>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {DEMO_SUBJECTS.map((sub) => (
+            <Card key={sub.id} className="border shadow-none">
+              <CardHeader className="p-3 border-b">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-xs font-bold flex items-center gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                      {sub.name}
+                    </CardTitle>
+                    <CardDescription className="text-[11px] mt-0.5">
+                      {sub.hours} • {sub.room}
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="pt-3 text-xs space-y-2">
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Преподаватель:</span>
-                    <span className="font-semibold text-foreground">{sub.teacher}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{sub.status}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 text-xs flex items-center justify-between text-muted-foreground">
+                <span>Преподаватель:</span>
+                <span className="font-semibold text-foreground">{sub.teacher}</span>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
       {/* Tab 3: SMART DUTY SCHEDULE */}
       {activeTab === "DUTY" && (
-        <div className="space-y-4">
-          {/* Duty Schedule Table */}
-          <Card className="border shadow-none">
-            <CardHeader className="pb-3 border-b">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <ClipboardCheck className="h-5 w-5 text-primary" />
-                    Недельный наряд дежурства с контролем посещаемости
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-0.5">
-                    Автоматический отбор присутствующих студентов группы {group.name} (без воскресенья)
-                  </CardDescription>
-                </div>
-
-                {isAdminTeacherOrMonitor && (
-                  <Button
-                    size="xs"
-                    onClick={handleGenerateSmartRotation}
-                    className="bg-primary text-primary-foreground font-semibold shadow-2xs text-xs shrink-0"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Сформировать умный график
-                  </Button>
-                )}
+        <Card className="border shadow-none">
+          <CardHeader className="py-2.5 px-4 border-b">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <ClipboardCheck className="h-4.5 w-4.5 text-primary" />
+                  Недельный наряд дежурства с контролем посещаемости
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  Автоматический отбор присутствующих студентов группы {group.name} (без воскресенья)
+                </CardDescription>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y text-xs">
-                {weeklyDuty.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className={`p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${
-                      item.isToday ? "bg-primary/5 border-l-4 border-l-primary" : item.isSunday ? "bg-muted/30 opacity-70" : ""
-                    }`}
-                  >
-                    <div className="space-y-1.5 min-w-0 flex-1">
-                      <div className="font-bold text-foreground text-sm flex items-center gap-2">
-                        <span>{item.day} ({item.dateStr})</span>
-                        {item.isToday && (
-                          <Badge className="bg-primary text-primary-foreground text-[10px]">
-                            Сегодня
-                          </Badge>
-                        )}
-                        {item.isSunday && (
-                          <Badge variant="outline" className="text-[10px]">
-                            Выходной
-                          </Badge>
-                        )}
-                      </div>
 
-                      {!item.isSunday ? (
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                          <div>
-                            <span className="text-muted-foreground">Старший: </span>
-                            <span className="font-semibold text-foreground">{item.seniorName}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-muted-foreground">Дежурный: </span>
-                            <span className="font-semibold text-foreground">{item.dutyName}</span>
-                            {!item.dutyPresent && (
-                              <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[9px] flex items-center gap-1">
-                                <UserX className="h-3 w-3" /> Отсутствует
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-muted-foreground text-xs italic">
-                          Дежурство по воскресеньям не проводится
-                        </div>
-                      )}
-
-                      {item.replacedNote && (
-                        <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium pt-0.5">
-                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                          {item.replacedNote}
-                        </div>
-                      )}
+              {isAdminTeacherOrMonitor && (
+                <Button
+                  size="xs"
+                  onClick={handleGenerateSmartRotation}
+                  className="bg-primary text-primary-foreground font-semibold shadow-2xs text-xs shrink-0 h-7"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Сформировать умный график
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y text-xs">
+              {weeklyDuty.map((item, idx) => (
+                <div
+                  key={item.id}
+                  className={`p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 ${
+                    item.isToday ? "bg-primary/5 border-l-4 border-l-primary" : item.isSunday ? "bg-muted/30 opacity-70" : ""
+                  }`}
+                >
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                      <span>{item.day} ({item.dateStr})</span>
+                      {item.isToday && <Badge className="text-[9px] px-1.5 py-0">Сегодня</Badge>}
+                      {item.isSunday && <Badge variant="outline" className="text-[9px] px-1.5 py-0">Выходной</Badge>}
                     </div>
 
-                    {!item.isSunday && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        {/* Status Badge */}
-                        <Badge
-                          variant={
-                            item.completionStatus === "ПРОДЕЖУРИЛ"
-                              ? "default"
-                              : item.completionStatus === "ОТСУТСТВОВАЛ"
-                              ? "destructive"
-                              : item.completionStatus === "НЕ_ПРОДЕЖУРИЛ"
-                              ? "destructive"
-                              : "outline"
-                          }
-                          className={
-                            item.completionStatus === "ПРОДЕЖУРИЛ"
-                              ? "bg-emerald-600 text-white text-[10px]"
-                              : "text-[10px]"
-                          }
-                        >
-                          {item.completionStatus === "ПРОДЕЖУРИЛ" && "✓ Продежурил"}
-                          {item.completionStatus === "ОТСУТСТВОВАЛ" && "Отсутствовал"}
-                          {item.completionStatus === "НЕ_ПРОДЕЖУРИЛ" && "Не продежурил"}
-                          {item.completionStatus === "ОЖИДАЕТ" && "Наряд активен"}
-                        </Badge>
+                    {!item.isSunday ? (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Старший: </span>
+                          <span className="font-semibold text-foreground">{item.seniorName}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Дежурный: </span>
+                          <span className="font-semibold text-foreground">{item.dutyName}</span>
+                          {!item.dutyPresent && (
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] px-1.5 py-0">
+                              <UserX className="h-3 w-3 mr-0.5" /> Отсутствует
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-[11px] italic">
+                        Дежурство по воскресеньям не проводится
+                      </div>
+                    )}
 
-                        {/* Interactive Actions for Authorized Users */}
-                        {isAdminTeacherOrMonitor && (
-                          <div className="flex items-center gap-1">
-                            {/* Auto-replace button if student absent */}
-                            {!item.dutyPresent && (
-                              <Button
-                                size="xs"
-                                variant="default"
-                                onClick={() => handleAutoReplaceDuty(idx)}
-                                className="text-[10px] h-7 bg-amber-600 hover:bg-amber-700 text-white"
-                                title="Автоматически подобрать присутствующего дежурного"
-                              >
-                                <RefreshCw className="h-3 w-3 mr-1" /> Авто-замена
-                              </Button>
-                            )}
-
-                            {/* Mark Completion Actions Dropdown */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger render={<Button variant="outline" size="xs" className="h-7 text-[11px]" />}>
-                                Отметка <MoreVertical className="h-3 w-3 ml-1" />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuGroup>
-                                  <DropdownMenuLabel>Отметка о дежурстве</DropdownMenuLabel>
-                                </DropdownMenuGroup>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "ПРОДЕЖУРИЛ")}>
-                                  <Check className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Продежурил (Сдал)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "ОТСУТСТВОВАЛ")}>
-                                  <UserX className="h-3.5 w-3.5 mr-2 text-amber-600" /> Отсутствовал в корпусе
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "НЕ_ПРОДЕЖУРИЛ")}>
-                                  <X className="h-3.5 w-3.5 mr-2 text-destructive" /> Не продежурил
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleOpenEditDuty(idx)}>
-                                  <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Ручной выбор дежурного
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        )}
+                    {item.replacedNote && (
+                      <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium pt-0.5">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        {item.replacedNote}
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Dialog for Manual Duty Assignment */}
-          <Dialog open={selectedDutyDayIndex !== null} onOpenChange={(open) => !open && setSelectedDutyDayIndex(null)}>
-            {selectedDutyDayIndex !== null && (
-              <DialogContent className="sm:max-w-[425px]">
-                <form onSubmit={handleSaveDuty}>
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-base">
-                      <ClipboardCheck className="h-5 w-5 text-primary" />
-                      Ручной выбор дежурных ({weeklyDuty[selectedDutyDayIndex].day})
-                    </DialogTitle>
-                    <DialogDescription>
-                      Выберите старшего дежурного и дежурного студента из списка группы
-                    </DialogDescription>
-                  </DialogHeader>
+                  {!item.isSunday && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge
+                        variant={
+                          item.completionStatus === "ПРОДЕЖУРИЛ"
+                            ? "default"
+                            : item.completionStatus === "ОТСУТСТВОВАЛ"
+                            ? "destructive"
+                            : item.completionStatus === "НЕ_ПРОДЕЖУРИЛ"
+                            ? "destructive"
+                            : "outline"
+                        }
+                        className={item.completionStatus === "ПРОДЕЖУРИЛ" ? "bg-emerald-600 text-white text-[10px] px-1.5 py-0" : "text-[10px] px-1.5 py-0"}
+                      >
+                        {item.completionStatus === "ПРОДЕЖУРИЛ" && "✓ Продежурил"}
+                        {item.completionStatus === "ОТСУТСТВОВАЛ" && "Отсутствовал"}
+                        {item.completionStatus === "НЕ_ПРОДЕЖУРИЛ" && "Не продежурил"}
+                        {item.completionStatus === "ОЖИДАЕТ" && "Наряд активен"}
+                      </Badge>
 
-                  <div className="space-y-4 py-4 text-xs">
-                    <div className="space-y-1.5">
-                      <label className="font-semibold text-foreground">Старший дежурный *</label>
-                      <Select value={editingSeniorName} onValueChange={(val) => val && setEditingSeniorName(val)}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Выберите старшего дежурного" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {students.map((s) => (
-                            <SelectItem key={s.id} value={s.name}>
-                              {s.name} ({s.role === "MONITOR" ? "Староста" : s.role === "DEPUTY_MONITOR" ? "Зам. старосты" : "Студент"})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {isAdminTeacherOrMonitor && (
+                        <div className="flex items-center gap-1">
+                          {!item.dutyPresent && (
+                            <Button
+                              size="xs"
+                              variant="default"
+                              onClick={() => handleAutoReplaceDuty(idx)}
+                              className="text-[10px] h-6 bg-amber-600 hover:bg-amber-700 text-white px-2"
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" /> Авто-замена
+                            </Button>
+                          )}
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger render={<Button variant="outline" size="xs" className="h-6 text-[11px] px-2" />}>
+                              Отметка <MoreVertical className="h-3 w-3 ml-0.5" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuGroup>
+                                <DropdownMenuLabel>Отметка о дежурстве</DropdownMenuLabel>
+                              </DropdownMenuGroup>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "ПРОДЕЖУРИЛ")}>
+                                <Check className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Продежурил (Сдал)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "ОТСУТСТВОВАЛ")}>
+                                <UserX className="h-3.5 w-3.5 mr-2 text-amber-600" /> Отсутствовал в корпусе
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleUpdateCompletionStatus(idx, "НЕ_ПРОДЕЖУРИЛ")}>
+                                <X className="h-3.5 w-3.5 mr-2 text-destructive" /> Не продежурил
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleOpenEditDuty(idx)}>
+                                <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Ручной выбор дежурного
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
                     </div>
-
-                    <div className="space-y-1.5">
-                      <label className="font-semibold text-foreground">Дежурный студент *</label>
-                      <Select value={editingDutyName} onValueChange={(val) => val && setEditingDutyName(val)}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Выберите дежурного студента" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {students.map((s) => (
-                            <SelectItem key={s.id} value={s.name}>
-                              {s.name} {s.isPresentToday ? "✓ Присутствует" : "✗ Отсутствует"}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <DialogFooter>
-                    <DialogClose render={<Button variant="outline" type="button" size="xs" />}>
-                      Отмена
-                    </DialogClose>
-                    <Button type="submit" size="xs">Сохранить выбор</Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            )}
-          </Dialog>
-        </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Tab 4: ANNOUNCEMENTS */}
       {activeTab === "ANNOUNCEMENTS" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {announcements.map((ann) => (
-            <Card key={ann.id} className="border shadow-none hover:border-primary/30 transition-all">
-              <CardHeader className="pb-2">
+            <Card key={ann.id} className="border shadow-none">
+              <CardHeader className="p-3 border-b">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                      <Megaphone className="h-4 w-4 text-primary shrink-0" />
+                    <CardTitle className="text-xs font-bold flex items-center gap-1.5">
+                      <Megaphone className="h-3.5 w-3.5 text-primary shrink-0" />
                       {ann.title}
                     </CardTitle>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {ann.tag}
-                    </Badge>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{ann.tag}</Badge>
                   </div>
                   <span className="text-[11px] text-muted-foreground">{ann.date}</span>
                 </div>
               </CardHeader>
-              <CardContent className="text-xs text-muted-foreground leading-relaxed pt-1">
+              <CardContent className="p-3 text-xs text-muted-foreground leading-relaxed pt-2">
                 {ann.text}
               </CardContent>
             </Card>
