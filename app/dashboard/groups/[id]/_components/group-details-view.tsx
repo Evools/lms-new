@@ -307,134 +307,156 @@ export function GroupDetailsView({ group, userRole }: GroupDetailsViewProps) {
 
         {/* TAB 1: STUDENTS LIST WORKSPACE */}
         {activeTab === "STUDENTS" && (
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-muted/20 p-2.5 rounded-xl border">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                 <Input
-                  placeholder="Поиск студента по ФИО, Email или телефону..."
+                  placeholder="Поиск по ФИО, email или телефону..."
                   className="pl-8 h-8 text-xs bg-background"
                   value={searchStudent}
                   onChange={(e) => setSearchStudent(e.target.value)}
                 />
               </div>
 
-              {isAdminOrTeacher && (
-                <Button size="xs" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/students/new" />}>
-                  <UserPlus className="h-3.5 w-3.5" /> Зачислить нового студента
-                </Button>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-muted-foreground">
+                  {filteredStudents.length} чел.
+                </span>
+                {isAdminOrTeacher && (
+                  <Button size="xs" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/students/new" />}>
+                    <UserPlus className="h-3.5 w-3.5" /> Зачислить
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <Card className="border shadow-none overflow-hidden">
-              <CardHeader className="py-2.5 px-4 border-b">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Приказной состав группы {group.name}
-                  </CardTitle>
-                  <Badge variant="outline" className="text-[10px]">
-                    Всего: {filteredStudents.length} чел.
-                  </Badge>
-                </div>
-              </CardHeader>
+            <div className="rounded-xl border overflow-hidden">
+              {/* Table header */}
+              <div className="grid grid-cols-[28px_1fr_auto] md:grid-cols-[28px_1fr_160px_130px_auto] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-center">#</span>
+                <span>Студент</span>
+                <span className="hidden md:block">Email</span>
+                <span className="hidden md:block">Телефон</span>
+                <span></span>
+              </div>
 
-              <CardContent className="p-0">
-                <div className="divide-y text-xs">
-                  {filteredStudents.map((st: GroupStudentDTO, idx: number) => (
-                    <div
-                      key={st.id}
-                      className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/20 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-muted-foreground w-5 text-[11px] font-semibold text-center">{idx + 1}.</span>
-                        <Avatar className="h-8 w-8 border shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary font-bold text-[11px]">
-                            {st.name.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
+              <div className="divide-y">
+                {filteredStudents.map((st: GroupStudentDTO, idx: number) => (
+                  <div
+                    key={st.id}
+                    className="grid grid-cols-[28px_1fr_auto] md:grid-cols-[28px_1fr_160px_130px_auto] items-center gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors"
+                  >
+                    {/* Index */}
+                    <span className="text-[11px] text-muted-foreground text-center font-medium">{idx + 1}</span>
 
-                        <div className="min-w-0">
-                          <div className="font-semibold text-foreground text-xs flex items-center gap-2 flex-wrap">
-                            <Link href={`/dashboard/students/${st.id}/edit`} className="hover:underline hover:text-primary transition-colors">
-                              {st.name}
-                            </Link>
-
-                            {st.roleInGroup === "MONITOR" && (
-                              <Badge className="bg-amber-500 text-white text-[9px] px-1.5 py-0 gap-1">
-                                <Crown className="h-2.5 w-2.5" /> Староста
-                              </Badge>
-                            )}
-
-                            {st.roleInGroup === "DEPUTY_MONITOR" && (
-                              <Badge className="bg-blue-500 text-white text-[9px] px-1.5 py-0 gap-1">
-                                <ShieldCheck className="h-2.5 w-2.5" /> Зам. старосты
-                              </Badge>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground text-[11px] mt-0.5">
+                    {/* Name + badges */}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Avatar className="h-7 w-7 border shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                          {st.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Link
+                            href={`/dashboard/students/${st.id}/edit`}
+                            className="text-xs font-medium text-foreground hover:text-primary hover:underline transition-colors truncate"
+                          >
+                            {st.name}
+                          </Link>
+                          {st.roleInGroup === "MONITOR" && (
+                            <Badge className="shrink-0 bg-primary text-primary-foreground text-[9px] px-1.5 py-0 gap-0.5 font-medium whitespace-nowrap">
+                              <Crown className="h-2.5 w-2.5 shrink-0" /> Староста
+                            </Badge>
+                          )}
+                          {st.roleInGroup === "DEPUTY_MONITOR" && (
+                            <Badge variant="secondary" className="shrink-0 text-[9px] px-1.5 py-0 gap-0.5 font-medium whitespace-nowrap">
+                              <ShieldCheck className="h-2.5 w-2.5 shrink-0" /> Зам. старосты
+                            </Badge>
+                          )}
+                        </div>
+                        {/* Mobile contacts */}
+                        <div className="md:hidden flex flex-col gap-0.5 text-[10px] text-muted-foreground mt-0.5">
+                          <span className="flex items-center gap-1 truncate">
+                            <Mail className="h-2.5 w-2.5 shrink-0" /> {st.email}
+                          </span>
+                          {st.phone && (
                             <span className="flex items-center gap-1">
-                              <Mail className="h-3 w-3" /> {st.email}
+                              <Phone className="h-2.5 w-2.5 shrink-0" /> {st.phone}
                             </span>
-                            {st.phone && (
-                              <span className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" /> {st.phone}
-                              </span>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2 pl-8 sm:pl-0 shrink-0">
-                        <span className="text-[10px] text-muted-foreground">Зачислен: {st.joinedAt}</span>
-
-                        {isAdminOrTeacher && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground" />}>
-                              <MoreVertical className="h-3.5 w-3.5" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-52">
-                              <DropdownMenuGroup>
-                                <DropdownMenuLabel className="text-xs">Назначения в группе</DropdownMenuLabel>
-                              </DropdownMenuGroup>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "MONITOR")}>
-                                <Crown className="h-3.5 w-3.5 mr-2 text-amber-500" /> Назначить старостой
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "DEPUTY_MONITOR")}>
-                                <ShieldCheck className="h-3.5 w-3.5 mr-2 text-blue-500" /> Назначить зам. старосты
-                              </DropdownMenuItem>
-                              {st.roleInGroup !== "STUDENT" && (
-                                <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "NONE")}>
-                                  <Users className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> Снять полномочия
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
-                                <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать профиль
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setTargetRemoveStudentId(st.id)}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Исключить из группы
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
                     </div>
-                  ))}
 
-                  {filteredStudents.length === 0 && (
-                    <div className="p-8 text-center text-muted-foreground text-xs space-y-2">
-                      <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
-                      <div>Студенты не найдены в составе этой группы</div>
+                    {/* Email column */}
+                    <div className="hidden md:flex items-center gap-1 text-[11px] text-muted-foreground min-w-0">
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{st.email}</span>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+
+                    {/* Phone column */}
+                    <div className="hidden md:flex items-center gap-1 text-[11px] text-muted-foreground">
+                      {st.phone ? (
+                        <>
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span>{st.phone}</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center shrink-0">
+                      {isAdminOrTeacher ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground hover:text-foreground" />}>
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuLabel className="text-xs">Назначения в группе</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "MONITOR")}>
+                              <Crown className="h-3.5 w-3.5 mr-2 text-primary" /> Назначить старостой
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "DEPUTY_MONITOR")}>
+                              <ShieldCheck className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> Назначить зам. старосты
+                            </DropdownMenuItem>
+                            {st.roleInGroup !== "STUDENT" && (
+                              <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "NONE")}>
+                                <Users className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> Снять полномочия
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
+                              <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать профиль
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setTargetRemoveStudentId(st.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Исключить из группы
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">{st.joinedAt}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {filteredStudents.length === 0 && (
+                  <div className="py-10 text-center text-muted-foreground text-xs space-y-2">
+                    <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
+                    <div>Студенты не найдены</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
 
