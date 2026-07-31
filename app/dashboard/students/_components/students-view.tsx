@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -286,136 +287,9 @@ export function StudentsView({ userRole }: StudentsViewProps) {
         </div>
 
         {isAdminOrTeacher && (
-          <Dialog open={isEnrollDialogOpen} onOpenChange={setIsEnrollDialogOpen}>
-            <DialogTrigger render={<Button size="xs" className="h-8 text-xs" />}>
-              <UserPlus className="h-3.5 w-3.5 mr-1.5" /> Зарегистрировать студента
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[460px]">
-              <form onSubmit={handleEnrollSubmit}>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-base">
-                    <UserPlus className="h-4.5 w-4.5 text-primary" /> Регистрация аккаунта & Зачисление
-                  </DialogTitle>
-                  <DialogDescription className="text-xs">
-                    Создайте учётную запись пользователя и зачислите его в группу
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-3 py-3 text-xs">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-foreground">ФИО Студента *</label>
-                    <Input
-                      placeholder="Например: Касымов Бактыбек Замирович"
-                      value={enrollName}
-                      onChange={(e) => setEnrollName(e.target.value)}
-                      required
-                      className="h-8 text-xs"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-foreground">Email (Логин) *</label>
-                      <Input
-                        type="email"
-                        placeholder="kasymov@lyceum.edu"
-                        value={enrollEmail}
-                        onChange={(e) => setEnrollEmail(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-foreground">Телефон</label>
-                      <Input
-                        placeholder="+996 555 00-11-22"
-                        value={enrollPhone}
-                        onChange={(e) => setEnrollPhone(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-foreground">Учебная группа</label>
-                      <Select value={enrollGroup} onValueChange={(val) => val && setEnrollGroup(val)}>
-                        <SelectTrigger className="w-full h-8 text-xs">
-                          <SelectValue placeholder="Выберите группу" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ИС-1-25">ИС-1-25 (1 Курс)</SelectItem>
-                          <SelectItem value="ИС-2-24">ИС-2-24 (2 Курс)</SelectItem>
-                          <SelectItem value="Не распределен">Не распределен (Резерв)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-foreground">Форма обучения</label>
-                      <Select value={enrollType} onValueChange={(val) => val && setEnrollType(val as any)}>
-                        <SelectTrigger className="w-full h-8 text-xs">
-                          <SelectValue placeholder="Форма" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Бюджет">Бюджет</SelectItem>
-                          <SelectItem value="Контракт">Контракт</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 rounded-lg border bg-muted/30 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                        <KeyRound className="h-3.5 w-3.5 text-primary" /> Первоначальный пароль
-                      </label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        onClick={handleGenerateEnrollPassword}
-                        className="h-6 text-[10px] text-primary hover:underline px-1"
-                      >
-                        <Sparkles className="h-3 w-3 mr-1" /> Сгенерировать
-                      </Button>
-                    </div>
-
-                    <div className="relative">
-                      <Input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Пароль..."
-                        value={enrollPassword}
-                        onChange={(e) => setEnrollPassword(e.target.value)}
-                        className="h-8 pr-8 text-xs font-mono bg-background"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
-
-                    <label className="flex items-center gap-2 pt-0.5 text-[11px] text-muted-foreground cursor-pointer select-none">
-                      <Checkbox
-                        checked={mustChangePassword}
-                        onCheckedChange={(checked) => setMustChangePassword(!!checked)}
-                      />
-                      <span>Потребовать смену пароля при первом входе</span>
-                    </label>
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <DialogClose render={<Button variant="outline" type="button" size="xs" />}>
-                    Отмена
-                  </DialogClose>
-                  <Button type="submit" size="xs">Создать и зачислить</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button size="xs" className="h-8 text-xs" render={<Link href="/dashboard/students/new" />}>
+            <UserPlus className="h-3.5 w-3.5 mr-1.5" /> Зарегистрировать студента
+          </Button>
         )}
       </div>
 
