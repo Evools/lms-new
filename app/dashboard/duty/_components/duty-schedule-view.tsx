@@ -3,9 +3,9 @@
 import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
   SelectTrigger,
@@ -16,20 +16,15 @@ import {
 import {
   Clock,
   Calendar,
-  Users,
-  UserCheck,
   Crown,
   Sparkles,
-  RotateCcw,
   CheckCircle2,
   AlertCircle,
+  UserCheck,
+  UserX,
   ChevronLeft,
-  GraduationCap,
-  ShieldCheck,
-  Building2,
-  Check,
 } from "lucide-react";
-import { DayDutyGroupDTO, generateWeeklyDutyAction } from "../actions";
+import { DayDutyGroupDTO, generateWeeklyDutyAction, markDutyAbsentAction } from "../actions";
 
 interface DutyScheduleViewProps {
   userRole: string;
@@ -46,12 +41,13 @@ export function DutyScheduleView({
 }: DutyScheduleViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-
   const [currentGroupId, setCurrentGroupId] = useState<string>(
     selectedGroupId || (groupsList[0]?.id || "")
   );
   const [successMsg, setSuccessMsg] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Track locally which students are marked absent (studentId_date)
+  const [absentSet, setAbsentSet] = useState<Set<string>>(new Set());
 
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
 
@@ -62,7 +58,6 @@ export function DutyScheduleView({
 
   const handleAutoRotation = () => {
     if (!currentGroupId) return;
-
     setErrorMsg(null);
     startTransition(async () => {
       const res = await generateWeeklyDutyAction(currentGroupId);
@@ -75,39 +70,54 @@ export function DutyScheduleView({
     });
   };
 
+  const handleMarkAbsent = (studentId: string, fullDate: string) => {
+    const key = `${studentId}_${fullDate}`;
+    startTransition(async () => {
+      const res = await markDutyAbsentAction(currentGroupId, studentId, fullDate);
+      if (res.success) {
+        setAbsentSet((prev) => new Set(prev).add(key));
+      }
+    });
+  };
+
+  const isAbsent = (studentId: string, fullDate: string) =>
+    absentSet.has(`${studentId}_${fullDate}`);
+
   const selectedGroupObj = groupsList.find((g) => g.id === currentGroupId);
-  const todayDutyDay = weeklyDays.find((d) => d.isToday) || weeklyDays[0];
+  const todayDutyDay = weeklyDays.find((d) => d.isToday);
 
   return (
-    <div className="w-full space-y-6 pb-20 text-xs">
-      {/* Top Navigation & Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              График дежурств по лицею
+    <div className="w-full space-y-4 pb-20">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon-xs" className="h-7 w-7" render={<Link href="/dashboard/groups" />}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
+              График дежурств
+              {selectedGroupObj && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+                  {selectedGroupObj.name}
+                </Badge>
+              )}
             </h1>
-            {selectedGroupObj && (
-              <Badge variant="secondary" className="font-mono text-xs px-2.5 py-0.5">
-                Группа: {selectedGroupObj.name}
-              </Badge>
-            )}
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              2–3 дежурных в день · ротация по алфавитному списку группы
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Календарное распределение дежурных по учебным кабинетам, контроль чистоты и порядка
-          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Select Group Filter */}
+        <div className="flex items-center gap-2 shrink-0">
           <Select value={currentGroupId} onValueChange={handleGroupChange}>
-            <SelectTrigger className="h-8 text-xs w-44 bg-background">
+            <SelectTrigger className="h-8 text-xs w-40 bg-background">
               <SelectValue placeholder="Выберите группу" />
             </SelectTrigger>
             <SelectContent>
               {groupsList.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
+                <SelectItem key={g.id} value={g.id} className="text-xs">
                   Группа {g.name}
                 </SelectItem>
               ))}
@@ -119,10 +129,10 @@ export function DutyScheduleView({
               size="xs"
               onClick={handleAutoRotation}
               disabled={isPending || !currentGroupId}
-              className="h-8 text-xs gap-1.5 shadow-xs"
+              className="h-8 text-xs gap-1.5"
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-              {isPending ? "Ротация..." : "Авто-ротация на неделю"}
+              <Sparkles className="h-3.5 w-3.5" />
+              {isPending ? "Генерация..." : "Авто-ротация"}
             </Button>
           )}
         </div>
@@ -130,159 +140,202 @@ export function DutyScheduleView({
 
       {/* Notifications */}
       {successMsg && (
-        <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 flex items-center gap-3 animate-in fade-in duration-200">
-          <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <div className="text-xs">
-            <strong>График дежурств пересчитан!</strong> Все студенты группы распределены по дням недели.
+        <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 flex items-center gap-2.5 text-xs animate-in fade-in duration-200">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span><strong>График пересчитан!</strong> 2–3 дежурных назначены на каждый день недели.</span>
+        </div>
+      )}
+      {errorMsg && (
+        <div className="p-3 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2.5 text-xs animate-in fade-in duration-200">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Today strip */}
+      {todayDutyDay && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-primary/15 bg-primary/8">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-primary text-primary-foreground text-[9px] px-1.5 py-0 font-medium uppercase tracking-wider">
+                Сегодня
+              </Badge>
+              <span className="text-xs font-medium text-foreground">
+                {todayDutyDay.dayName}, {todayDutyDay.dateStr}
+              </span>
+            </div>
+            {todayDutyDay.leaderStudent && (
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Crown className="h-3 w-3 text-primary" />
+                Ст. дежурный: <strong className="text-foreground ml-0.5">{todayDutyDay.leaderStudent.name}</strong>
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 flex flex-wrap gap-2">
+            {todayDutyDay.dutyStudents.map((st) => {
+              const absent = isAbsent(st.id, todayDutyDay.fullDate);
+              return (
+                <div
+                  key={st.id}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition-all ${
+                    absent
+                      ? "border-muted bg-muted/50 opacity-50"
+                      : "border-primary/20 bg-background"
+                  }`}
+                >
+                  <Avatar className="h-5 w-5 border shrink-0">
+                    <AvatarFallback className={`text-[8px] font-bold ${absent ? "bg-muted text-muted-foreground" : "bg-primary/15 text-primary"}`}>
+                      {st.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className={absent ? "text-muted-foreground line-through" : "text-foreground font-medium"}>
+                    {st.name}
+                  </span>
+                  {absent ? (
+                    <Badge variant="outline" className="text-[8px] px-1 py-0 text-muted-foreground">
+                      Отсутствует
+                    </Badge>
+                  ) : (
+                    isAdminOrTeacher && (
+                      <button
+                        onClick={() => handleMarkAbsent(st.id, todayDutyDay.fullDate)}
+                        className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                        title="Отметить как отсутствующего"
+                      >
+                        <UserX className="h-3 w-3" />
+                      </button>
+                    )
+                  )}
+                </div>
+              );
+            })}
+            {todayDutyDay.dutyStudents.length === 0 && (
+              <span className="text-[11px] text-muted-foreground">Дежурные не назначены</span>
+            )}
           </div>
         </div>
       )}
 
-      {errorMsg && (
-        <div className="p-3.5 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-3 animate-in fade-in duration-200">
-          <AlertCircle className="h-4.5 w-4.5 shrink-0 text-destructive" />
-          <div className="text-xs">{errorMsg}</div>
-        </div>
-      )}
-
-      {/* Hero Banner: Today's Duty Summary */}
-      {todayDutyDay && (
-        <Card className="border bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-xs overflow-hidden">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-primary text-primary-foreground text-[10px] uppercase font-bold tracking-wider">
-                    Дежурство сегодня
-                  </Badge>
-                  <span className="text-xs font-semibold text-foreground">
-                    {todayDutyDay.dayName}, {todayDutyDay.dateStr}
-                  </span>
-                </div>
-                <h2 className="text-lg font-bold text-foreground mt-1">
-                  Ответственные за порядок в кабинете
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Обязанности: проветривание кабинета, подготвка доски к урокам, проверка порядка на столах
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-[280px]">
-                <div className="bg-background/90 border p-3 rounded-xl flex items-center gap-3 shadow-2xs">
-                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                    <Crown className="h-4.5 w-4.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] text-muted-foreground uppercase font-semibold">Старший дежурный</div>
-                    <div className="text-xs font-bold text-foreground truncate mt-0.5">
-                      {todayDutyDay.leaderStudent ? todayDutyDay.leaderStudent.name : "Не назначен"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-background/90 border p-3 rounded-xl flex items-center gap-3 shadow-2xs">
-                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
-                    <UserCheck className="h-4.5 w-4.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] text-muted-foreground uppercase font-semibold">Дежурный студент</div>
-                    <div className="text-xs font-bold text-foreground truncate mt-0.5">
-                      {todayDutyDay.dutyStudent ? todayDutyDay.dutyStudent.name : "Не назначен"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Weekly Duty Calendar Grid (Mon - Sat) */}
-      <div className="space-y-3">
+      {/* Weekly table */}
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-primary" />
-            Сетка дежурств на текущую неделю
-          </h2>
-          <Badge variant="outline" className="text-[10px]">
-            Понедельник — Суббота
-          </Badge>
+          <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 text-primary" />
+            Расписание на неделю
+          </span>
+          <span className="text-[10px] text-muted-foreground">Пн — Сб</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {weeklyDays.map((day) => (
-            <Card
-              key={day.fullDate}
-              className={`border shadow-none transition-all ${
-                day.isToday
-                  ? "border-primary/60 bg-primary/5 shadow-xs"
-                  : day.isSunday
-                  ? "bg-muted/20 opacity-75"
-                  : "hover:border-primary/30"
-              }`}
-            >
-              <CardHeader className="py-2.5 px-3.5 border-b">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs text-foreground">{day.dayName}</span>
-                    <span className="text-[11px] text-muted-foreground font-mono">{day.dateStr}</span>
+        <div className="rounded-xl border overflow-hidden">
+          {/* Table header */}
+          <div className="grid grid-cols-[100px_1fr_80px] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+            <span>День</span>
+            <span>Дежурные студенты</span>
+            <span className="text-right">Статус</span>
+          </div>
+
+          <div className="divide-y">
+            {weeklyDays.map((day) => (
+              <div
+                key={day.fullDate}
+                className={`grid grid-cols-[100px_1fr_80px] items-start gap-3 px-3 py-2.5 transition-colors ${
+                  day.isToday
+                    ? "bg-primary/5"
+                    : day.isSunday
+                    ? "bg-muted/20 opacity-60"
+                    : "hover:bg-muted/20"
+                }`}
+              >
+                {/* Day */}
+                <div className="pt-0.5">
+                  <div className={`text-xs font-medium ${day.isToday ? "text-primary" : "text-foreground"}`}>
+                    {day.dayName}
                   </div>
-                  {day.isToday && (
-                    <Badge className="bg-primary text-primary-foreground text-[9px] px-1.5 py-0">
-                      Сегодня
-                    </Badge>
+                  <div className="text-[10px] text-muted-foreground font-mono">{day.dateStr}</div>
+                  {day.leaderStudent && !day.isSunday && (
+                    <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
+                      <Crown className="h-2.5 w-2.5 text-primary shrink-0" />
+                      <span className="truncate">{day.leaderStudent.name}</span>
+                    </div>
                   )}
-                  {day.isSunday && (
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                </div>
+
+                {/* Duty students */}
+                <div className="flex flex-wrap gap-1.5 py-0.5">
+                  {day.isSunday ? (
+                    <span className="text-[10px] text-muted-foreground/50 self-center">Выходной день</span>
+                  ) : day.dutyStudents.length > 0 ? (
+                    day.dutyStudents.map((st) => {
+                      const absent = isAbsent(st.id, day.fullDate);
+                      return (
+                        <div
+                          key={st.id}
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs transition-all ${
+                            absent
+                              ? "border-muted bg-muted/30 opacity-50"
+                              : day.isToday
+                              ? "border-primary/20 bg-primary/5"
+                              : "border-border bg-muted/20"
+                          }`}
+                        >
+                          <Avatar className="h-4 w-4 border shrink-0">
+                            <AvatarFallback className={`text-[7px] font-bold ${absent ? "bg-muted text-muted-foreground" : day.isToday ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                              {st.name.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className={`text-[11px] ${absent ? "line-through text-muted-foreground" : day.isToday ? "text-primary font-medium" : "text-foreground"}`}>
+                            {st.name}
+                          </span>
+                          {absent && (
+                            <span className="text-[9px] text-muted-foreground/60">отсутствует</span>
+                          )}
+                          {!absent && isAdminOrTeacher && day.isToday && (
+                            <button
+                              onClick={() => handleMarkAbsent(st.id, day.fullDate)}
+                              className="text-muted-foreground/40 hover:text-destructive transition-colors"
+                              title="Отметить отсутствие"
+                            >
+                              <UserX className="h-2.5 w-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground/50 self-center">Не назначены</span>
+                  )}
+                </div>
+
+                {/* Status */}
+                <div className="flex justify-end pt-0.5">
+                  {day.isSunday ? (
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground/50">
                       Выходной
                     </Badge>
+                  ) : day.isToday ? (
+                    <Badge className="bg-primary text-primary-foreground text-[9px] px-1.5 py-0 font-medium">
+                      Сегодня
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                      Ожидает
+                    </Badge>
                   )}
                 </div>
-              </CardHeader>
+              </div>
+            ))}
 
-              <CardContent className="p-3 space-y-2.5 text-xs">
-                {!day.isSunday ? (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-[11px] flex items-center gap-1">
-                        <Crown className="h-3 w-3 text-amber-500" /> Старший:
-                      </span>
-                      <span className="font-semibold text-foreground truncate max-w-[140px]">
-                        {day.leaderStudent ? day.leaderStudent.name : "Не назначен"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-[11px] flex items-center gap-1">
-                        <UserCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> Дежурный:
-                      </span>
-                      <span className="font-semibold text-foreground truncate max-w-[140px]">
-                        {day.dutyStudent ? day.dutyStudent.name : "Не назначен"}
-                      </span>
-                    </div>
-
-                    <div className="pt-2 border-t flex items-center justify-between">
-                      <span className="text-[10px] text-muted-foreground">Статус:</span>
-                      <Badge
-                        variant="outline"
-                        className={
-                          day.isToday
-                            ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 text-[9px] px-1.5 py-0"
-                            : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 text-[9px] px-1.5 py-0"
-                        }
-                      >
-                        {day.isToday ? "Дежурит сегодня" : "Назначен"}
-                      </Badge>
-                    </div>
-                  </>
-                ) : (
-                  <div className="py-4 text-center text-muted-foreground text-[11px]">
-                    Воскресенье — Учебных занятий нет
-                  </div>
+            {weeklyDays.length === 0 && (
+              <div className="py-10 text-center text-muted-foreground text-xs space-y-2">
+                <Clock className="h-7 w-7 mx-auto text-muted-foreground/30" />
+                <div>График не сформирован</div>
+                {isAdminOrTeacher && (
+                  <p className="text-[10px]">Нажмите «Авто-ротация» для генерации расписания</p>
                 )}
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
