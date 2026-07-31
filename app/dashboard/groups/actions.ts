@@ -299,18 +299,24 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       orderBy: { createdAt: "desc" },
     });
 
-    const announcementsList: GroupAnnouncementDTO[] = announcements.map((a) => {
-      const isImportant = a.title.startsWith("[ВАЖНО]");
-      const cleanTitle = a.title.replace(/^\[ВАЖНО\]\s*/, "");
-      return {
-        id: a.id,
-        title: cleanTitle,
-        content: a.content,
-        authorName: a.author.name,
-        date: new Date(a.createdAt).toLocaleDateString("ru-RU"),
-        isImportant,
-      };
-    });
+    const announcementsList: GroupAnnouncementDTO[] = announcements
+      .map((a) => {
+        const isImportant = a.title.startsWith("[ВАЖНО]");
+        const cleanTitle = a.title.replace(/^\[ВАЖНО\]\s*/, "");
+        return {
+          id: a.id,
+          title: cleanTitle,
+          content: a.content,
+          authorName: a.author.name,
+          date: new Date(a.createdAt).toLocaleDateString("ru-RU"),
+          isImportant,
+        };
+      })
+      .sort((a, b) => {
+        if (a.isImportant && !b.isImportant) return -1;
+        if (!a.isImportant && b.isImportant) return 1;
+        return 0;
+      });
 
     return {
       id: item.id,
