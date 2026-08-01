@@ -26,6 +26,9 @@ import {
   ExternalLink,
   Trash2,
   Save,
+  BookOpen,
+  Laptop,
+  FlaskConical,
 } from "lucide-react";
 import { GroupItemDTO, updateMaterialAction } from "@/app/dashboard/lms/actions";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
@@ -407,13 +410,22 @@ export function EditMaterialView({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={MaterialType.LECTURE} className="text-xs">
-                    Лекция
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span>Лекция</span>
+                    </div>
                   </SelectItem>
                   <SelectItem value={MaterialType.PRACTICE} className="text-xs">
-                    Практическая работа
+                    <div className="flex items-center gap-2">
+                      <Laptop className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span>Практическая работа</span>
+                    </div>
                   </SelectItem>
                   <SelectItem value={MaterialType.LAB} className="text-xs">
-                    Лабораторная работа
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span>Лабораторная работа</span>
+                    </div>
                   </SelectItem>
                 </SelectContent>
               </Select>

@@ -35,6 +35,8 @@ import {
   Plus,
   Building2,
   BookOpen,
+  Laptop,
+  FlaskConical,
   Trash2,
   Pencil,
   Link2,
@@ -297,6 +299,19 @@ export function MaterialsView({
     }
   };
 
+  const getMaterialTypeIcon = (t: MaterialType) => {
+    switch (t) {
+      case MaterialType.LECTURE:
+        return <BookOpen className="h-3 w-3 text-primary shrink-0" />;
+      case MaterialType.PRACTICE:
+        return <Laptop className="h-3 w-3 text-primary shrink-0" />;
+      case MaterialType.LAB:
+        return <FlaskConical className="h-3 w-3 text-primary shrink-0" />;
+      default:
+        return <FileText className="h-3 w-3 text-primary shrink-0" />;
+    }
+  };
+
   return (
     <div className="space-y-3 w-full">
       {/* Top Breadcrumb & Page Title Bar */}
@@ -491,8 +506,9 @@ export function MaterialsView({
                                 </div>
                               )}
 
-                              <span className="text-[10px] text-muted-foreground">
-                                {mat.type === MaterialType.VIDEO ? "Видео" : "Урок"}
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                {getMaterialTypeIcon(mat.type)}
+                                <span>{getMaterialTypeLabel(mat.type)}</span>
                               </span>
                             </div>
                           </div>
@@ -527,8 +543,9 @@ export function MaterialsView({
                 <div className="space-y-1">
                   <h2 className="text-base font-bold text-foreground">{currentMat.title}</h2>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium">
-                      {getMaterialTypeLabel(currentMat.type)}
+                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium flex items-center gap-1">
+                      {getMaterialTypeIcon(currentMat.type)}
+                      <span>{getMaterialTypeLabel(currentMat.type)}</span>
                     </Badge>
                     <span>Глава: {currentMat.topicTitle}</span>
                     <span>• Автор: {currentMat.authorName}</span>
