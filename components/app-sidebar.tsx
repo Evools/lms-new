@@ -237,6 +237,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             icon: <ClipboardList className="h-4 w-4" />,
           },
           {
+            title: "Посещаемость",
+            url: "/dashboard/attendance",
+            icon: <CalendarCheck className="h-4 w-4" />,
+          },
+          {
             title: "График дежурств",
             url: "/dashboard/duty",
             icon: <Clock className="h-4 w-4" />,
