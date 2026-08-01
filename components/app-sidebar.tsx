@@ -27,6 +27,7 @@ import {
   GraduationCap,
   Sparkles,
   FileCheck2,
+  BookMarked,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -105,6 +106,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Тесты",
               url: "/dashboard/lms/tests",
               icon: <FileCheck2 className="h-4 w-4" />,
+            },
+            {
+              title: "Дисциплины",
+              url: "/dashboard/subjects",
+              icon: <BookMarked className="h-4 w-4" />,
             },
           ],
         },
@@ -186,6 +192,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Тесты",
               url: "/dashboard/lms/tests",
               icon: <FileCheck2 className="h-4 w-4" />,
+            },
+            {
+              title: "Дисциплины",
+              url: "/dashboard/subjects",
+              icon: <BookMarked className="h-4 w-4" />,
             },
           ],
         },
