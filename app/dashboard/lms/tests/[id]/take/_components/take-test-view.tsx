@@ -20,6 +20,12 @@ import {
   ArrowLeft,
   Building2,
   User,
+  Check,
+  XCircle,
+  BookOpen,
+  Sparkles,
+  Trophy,
+  BarChart2,
 } from "lucide-react";
 import { submitTestAnswersAction } from "@/app/dashboard/lms/actions";
 
@@ -29,6 +35,7 @@ interface QuestionItem {
   questionText: string;
   options: string[];
   points: number;
+  correctAnswer?: string;
 }
 
 interface TestTakeData {
@@ -44,6 +51,7 @@ interface TestTakeData {
     score: number;
     maxScore: number;
     submittedAt: string;
+    answers?: Record<string, string>;
   } | null;
 }
 
@@ -55,17 +63,74 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>({});
+  const START_KEY = `test_start_${test.id}`;
+  const ANSWERS_KEY = `test_answers_${test.id}`;
+
+  const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>(() => {
+    return test.userSubmission?.answers || {};
+  });
+
   const [testResult, setTestResult] = useState<{ score: number; maxScore: number } | null>(
     test.userSubmission ? { score: test.userSubmission.score, maxScore: test.userSubmission.maxScore } : null
   );
 
-  // Timer logic (if timeLimit is set and not already submitted)
   const initialSeconds = test.timeLimit ? test.timeLimit * 60 : null;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(initialSeconds);
+  const [isInitialized, setIsInitialized] = useState(false);
 
+  // Restore state and persistent timer from localStorage on mount
   useEffect(() => {
-    if (testResult || secondsLeft === null) return;
+    if (typeof window === "undefined") return;
+
+    if (test.userSubmission) {
+      localStorage.removeItem(START_KEY);
+      localStorage.removeItem(ANSWERS_KEY);
+      if (test.userSubmission.answers) {
+        setStudentAnswers(test.userSubmission.answers);
+      }
+      setIsInitialized(true);
+      return;
+    }
+
+    // Restore answers
+    const storedAnswersStr = localStorage.getItem(ANSWERS_KEY);
+    if (storedAnswersStr) {
+      try {
+        setStudentAnswers(JSON.parse(storedAnswersStr));
+      } catch {}
+    }
+
+    // Restore timer based on start timestamp
+    if (test.timeLimit) {
+      let startTime = localStorage.getItem(START_KEY);
+      const now = Date.now();
+      if (!startTime) {
+        startTime = now.toString();
+        localStorage.setItem(START_KEY, startTime);
+      }
+
+      const elapsedSec = Math.floor((now - Number(startTime)) / 1000);
+      const totalSec = test.timeLimit * 60;
+      const remainingSec = Math.max(0, totalSec - elapsedSec);
+      setSecondsLeft(remainingSec);
+
+      if (remainingSec <= 0 && !testResult) {
+        handleSubmit();
+      }
+    }
+
+    setIsInitialized(true);
+  }, [test.id]);
+
+  // Persist answers when updated
+  useEffect(() => {
+    if (!isInitialized || testResult || typeof window === "undefined") return;
+    localStorage.setItem(ANSWERS_KEY, JSON.stringify(studentAnswers));
+  }, [studentAnswers, isInitialized, testResult]);
+
+  // Live Timer Countdown Interval
+  useEffect(() => {
+    if (!isInitialized || testResult || secondsLeft === null) return;
     if (secondsLeft <= 0) {
       handleSubmit();
       return;
@@ -74,7 +139,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
       setSecondsLeft((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, [secondsLeft, testResult]);
+  }, [secondsLeft, isInitialized, testResult]);
 
   const formatTimer = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
@@ -83,7 +148,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const handleOptionSelect = (questionId: string, option: string, type: string) => {
-    if (testResult || isPending) return;
+    if (testResult || isPending || test.userSubmission) return;
 
     if (type === "MULTIPLE") {
       try {
@@ -113,7 +178,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const handleSubmit = () => {
-    if (testResult || isPending) return;
+    if (testResult || isPending || test.userSubmission) return;
 
     startTransition(async () => {
       const res = await submitTestAnswersAction({
@@ -121,8 +186,14 @@ export function TakeTestView({ test }: TakeTestViewProps) {
         answers: studentAnswers,
       });
 
-      if (res.success) {
-        toast.add({ title: "Тест успешно сдан!", type: "success" });
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(START_KEY);
+        localStorage.removeItem(ANSWERS_KEY);
+      }
+
+      if (res.success && res.score !== undefined && res.maxScore !== undefined) {
+        setTestResult({ score: res.score, maxScore: res.maxScore });
+        toast.add({ title: `Тест сдан! Ваш результат: ${res.score} из ${res.maxScore}`, type: "success" });
         router.refresh();
       } else {
         toast.add({ title: res.error || "Ошибка сдачи теста", type: "error" });
@@ -137,9 +208,13 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   const totalQuestions = test.questions.length;
   const isAlreadySubmitted = !!test.userSubmission || !!testResult;
 
+  const currentScore = testResult?.score ?? test.userSubmission?.score ?? 0;
+  const currentMaxScore = testResult?.maxScore ?? test.userSubmission?.maxScore ?? (totalQuestions || 1);
+  const scorePercent = currentMaxScore > 0 ? Math.round((currentScore / currentMaxScore) * 100) : 0;
+
   return (
     <div className="space-y-4 w-full text-xs pb-12">
-      {/* Top Header Bar */}
+      {/* Top Sticky Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs sticky top-16 z-20">
         <div className="flex items-center gap-2">
           <Link
@@ -161,140 +236,312 @@ export function TakeTestView({ test }: TakeTestViewProps) {
 
         <div className="flex items-center gap-3">
           {secondsLeft !== null && !isAlreadySubmitted && (
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 rounded-lg text-primary font-bold font-mono text-xs">
+            <div
+              className={`flex items-center gap-1.5 px-3 py-1 border rounded-lg font-bold font-mono text-xs ${
+                secondsLeft < 180
+                  ? "bg-destructive/10 text-destructive border-destructive/30 animate-pulse"
+                  : "bg-primary/10 border-primary/20 text-primary"
+              }`}
+            >
               <Clock className="h-3.5 w-3.5" />
               <span>{formatTimer(secondsLeft)}</span>
             </div>
           )}
 
           <Link href="/dashboard/lms/tests">
-            <Button size="xs" variant="outline" className="h-7 text-xs gap-1">
-              <ArrowLeft className="h-3 w-3" /> Назад к тестам
+            <Button size="xs" variant="outline" className="h-7 text-xs gap-1 font-medium">
+              <ArrowLeft className="h-3 w-3" /> Все тесты
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* Test Result Screen Banner */}
-      {isAlreadySubmitted && (
-        <div className="p-4 rounded-xl border border-primary/30 bg-primary/10 space-y-2 text-xs shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="font-bold text-primary flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-5 w-5" /> Результаты тестирования
-            </div>
-            <Badge className="bg-primary text-primary-foreground text-xs px-2.5 py-0.5 font-bold">
-              {testResult?.score ?? test.userSubmission?.score} из {testResult?.maxScore ?? test.userSubmission?.maxScore} баллов
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Вы уже прошли данный тест. Ответы сохранены в системе и отправлены преподавателю. Повторная сдача запрещена.
-          </p>
-        </div>
-      )}
+      {/* COMPLETED TEST RESULTS SCREEN */}
+      {isAlreadySubmitted ? (
+        <div className="space-y-4">
+          {/* Hero Score Card */}
+          <div className="bg-card border rounded-xl p-6 space-y-4 shadow-xs text-center relative overflow-hidden">
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-72 h-72 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
 
-      {/* Progress Bar */}
-      {!isAlreadySubmitted && (
-        <div className="bg-card border p-3 rounded-xl space-y-1.5 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <span className="text-muted-foreground">Прогресс ответов:</span>
-            <span className="text-primary font-bold">
-              {answeredCount} из {totalQuestions} вопросов
-            </span>
-          </div>
-          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-300 rounded-full"
-              style={{ width: `${(answeredCount / totalQuestions) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
+            <div className="flex flex-col items-center justify-center space-y-2.5 relative z-10">
+              <div className="h-14 w-14 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-primary shadow-xs">
+                <Trophy className="h-7 w-7" />
+              </div>
 
-      {/* Questions List */}
-      <div className="space-y-3">
-        {test.questions.map((q, qIdx) => {
-          const selectedVal = studentAnswers[q.id] || "";
-          let selectedMultiple: string[] = [];
-          if (q.type === "MULTIPLE") {
-            try {
-              selectedMultiple = selectedVal ? JSON.parse(selectedVal) : [];
-            } catch {
-              selectedMultiple = [];
-            }
-          }
-
-          return (
-            <Card key={q.id} className="p-4 border shadow-none bg-card rounded-xl space-y-3">
-              <div className="flex items-start justify-between gap-2 border-b pb-2">
-                <div className="flex items-start gap-2">
-                  <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                    {qIdx + 1}
-                  </span>
-                  <h3 className="text-xs font-bold text-foreground leading-snug">{q.questionText}</h3>
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Ваш итоговый результат</div>
+                <div className="text-3xl font-black text-foreground">
+                  {currentScore} <span className="text-sm font-normal text-muted-foreground">из {currentMaxScore} баллов</span>
                 </div>
-                <Badge variant="outline" className="text-[10px] border-primary/20 text-muted-foreground font-normal shrink-0">
-                  {q.points} {q.points === 1 ? "балл" : "балла"}
-                </Badge>
               </div>
 
-              {/* Question Answers */}
-              <div className="space-y-2 pt-1">
-                {q.type === "TEXT" ? (
-                  <Input
-                    placeholder="Введите ответ на вопрос..."
-                    disabled={isAlreadySubmitted}
-                    value={selectedVal}
-                    onChange={(e) => handleOptionSelect(q.id, e.target.value, "TEXT")}
-                    className="h-8 text-xs bg-background font-medium max-w-md"
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {q.options.map((opt, optIdx) => {
-                      const isSelected =
-                        q.type === "MULTIPLE"
-                          ? selectedMultiple.includes(opt)
-                          : selectedVal === opt;
+              <Badge
+                variant="outline"
+                className={`text-xs px-3 py-1 font-bold border-0 ${
+                  scorePercent >= 75
+                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
+                    : scorePercent >= 50
+                      ? "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
+                      : "bg-destructive/10 text-destructive"
+                }`}
+              >
+                {scorePercent}% — {scorePercent >= 75 ? "Отличный результат!" : scorePercent >= 50 ? "Зачтено" : "Попробуйте еще раз в следующий раз"}
+              </Badge>
 
-                      return (
-                        <div
-                          key={optIdx}
-                          onClick={() => handleOptionSelect(q.id, opt, q.type)}
-                          className={`p-2.5 rounded-lg border text-xs font-medium cursor-pointer transition-all flex items-center justify-between ${
-                            isSelected
-                              ? "bg-primary/10 border-primary text-primary font-semibold shadow-xs"
-                              : "bg-background hover:bg-muted/50 border-border text-foreground"
-                          } ${isAlreadySubmitted ? "cursor-not-allowed opacity-90" : ""}`}
-                        >
-                          <span className="truncate flex-1 pr-2">{opt}</span>
-                          <div
-                            className={`h-4 w-4 rounded-full border flex items-center justify-center text-[9px] shrink-0 ${
-                              isSelected
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "border-muted-foreground/40"
-                            }`}
-                          >
-                            {isSelected && "✓"}
-                          </div>
-                        </div>
-                      );
-                    })}
+              {test.userSubmission?.submittedAt && (
+                <div className="text-[11px] text-muted-foreground pt-1">
+                  Сдано: {new Date(test.userSubmission.submittedAt).toLocaleString("ru-RU")}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-3 border-t relative z-10">
+              <Link href="/dashboard/lms/tests">
+                <Button size="xs" variant="outline" className="h-8 px-4 text-xs font-medium gap-1.5">
+                  <ArrowLeft className="h-3.5 w-3.5" /> Вернуться к тестам
+                </Button>
+              </Link>
+              <Link href="/dashboard/lms/materials">
+                <Button size="xs" className="h-8 px-4 text-xs font-medium gap-1.5 shadow-xs">
+                  <BookOpen className="h-3.5 w-3.5" /> Учебные материалы
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Detailed Question Review Breakdown */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-xs font-bold text-foreground flex items-center gap-2">
+                <BarChart2 className="h-4 w-4 text-primary" /> Разбор вопросов и ответов
+              </h2>
+              <span className="text-[11px] text-muted-foreground">{test.questions.length} вопросов</span>
+            </div>
+
+            {test.questions.map((q, qIdx) => {
+              const selectedVal = studentAnswers[q.id] || "";
+              let selectedMultiple: string[] = [];
+              if (q.type === "MULTIPLE") {
+                try {
+                  selectedMultiple = selectedVal ? JSON.parse(selectedVal) : [];
+                } catch {
+                  selectedMultiple = [];
+                }
+              }
+
+              let isCorrect = false;
+              if (q.correctAnswer) {
+                if (q.type === "MULTIPLE") {
+                  try {
+                    const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim()).sort();
+                    const studentArr: string[] = selectedMultiple.map((s: string) => s.trim()).sort();
+                    isCorrect =
+                      correctArr.length === studentArr.length &&
+                      correctArr.every((val, idx) => val === studentArr[idx]);
+                  } catch {}
+                } else if (q.type === "TEXT") {
+                  isCorrect = selectedVal.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+                } else {
+                  isCorrect = selectedVal.trim() === q.correctAnswer.trim();
+                }
+              }
+
+              return (
+                <Card key={q.id} className="p-4 border shadow-none bg-card rounded-xl space-y-3">
+                  <div className="flex items-start justify-between gap-2 border-b pb-2">
+                    <div className="flex items-start gap-2">
+                      <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                        {qIdx + 1}
+                      </span>
+                      <h3 className="text-xs font-bold text-foreground leading-snug">{q.questionText}</h3>
+                    </div>
+
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] border-0 font-bold shrink-0 ${
+                        isCorrect
+                          ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
+                          : "bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-400"
+                      }`}
+                    >
+                      {isCorrect ? `+${q.points} б.` : "0 б."}
+                    </Badge>
                   </div>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
 
-      {/* Bottom Submit Action */}
-      {!isAlreadySubmitted && (
-        <div className="flex items-center justify-between p-3.5 bg-card border rounded-xl shadow-xs">
-          <span className="text-xs text-muted-foreground">
-            Заполнено {answeredCount} из {totalQuestions} вопросов
-          </span>
-          <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 px-4 text-xs font-bold gap-1.5 shadow-xs">
-            <Send className="h-3.5 w-3.5" /> Завершить и сдать тест
-          </Button>
+                  <div className="space-y-2 pt-1">
+                    {q.type === "TEXT" ? (
+                      <div className="space-y-1">
+                        <Input
+                          placeholder="Ответ..."
+                          disabled
+                          value={selectedVal}
+                          className="h-8 text-xs bg-background font-medium max-w-md"
+                        />
+                        {q.correctAnswer && (
+                          <div className="text-[11px] text-muted-foreground pt-1">
+                            Правильный ответ: <strong className="text-emerald-600 font-semibold">{q.correctAnswer}</strong>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {q.options.map((opt, optIdx) => {
+                          const isSelected =
+                            q.type === "MULTIPLE"
+                              ? selectedMultiple.includes(opt)
+                              : selectedVal === opt;
+
+                          let isCorrectOpt = false;
+                          if (q.correctAnswer) {
+                            if (q.type === "MULTIPLE") {
+                              try {
+                                const correctArr: string[] = JSON.parse(q.correctAnswer);
+                                isCorrectOpt = correctArr.includes(opt);
+                              } catch {}
+                            } else {
+                              isCorrectOpt = q.correctAnswer === opt;
+                            }
+                          }
+
+                          return (
+                            <div
+                              key={optIdx}
+                              className={`p-2.5 rounded-lg border text-xs font-medium flex items-center justify-between ${
+                                isCorrectOpt
+                                  ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-300 font-semibold"
+                                  : isSelected
+                                    ? "bg-rose-50 border-rose-300 text-rose-700 dark:bg-rose-950 dark:border-rose-800 dark:text-rose-300 font-semibold"
+                                    : "bg-background border-border text-muted-foreground opacity-70"
+                              }`}
+                            >
+                              <span className="truncate flex-1 pr-2">{opt}</span>
+                              <div
+                                className={`h-4 w-4 rounded-full border flex items-center justify-center text-[9px] shrink-0 ${
+                                  isCorrectOpt
+                                    ? "bg-emerald-600 text-white border-emerald-600"
+                                    : isSelected
+                                      ? "bg-rose-600 text-white border-rose-600"
+                                      : "border-muted-foreground/30"
+                                }`}
+                              >
+                                {isSelected ? "✓" : isCorrectOpt ? "✓" : ""}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* ACTIVE TEST TAKING MODE */
+        <div className="space-y-4">
+          {/* Progress Bar Header */}
+          <div className="bg-card border p-3.5 rounded-xl space-y-2 shadow-xs">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <HelpCircle className="h-3.5 w-3.5 text-primary" /> Прогресс выполнения
+              </span>
+              <span className="text-primary font-bold">
+                Отвечено {answeredCount} из {totalQuestions} вопросов
+              </span>
+            </div>
+            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-300 rounded-full"
+                style={{ width: `${(answeredCount / totalQuestions) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Active Questions List */}
+          <div className="space-y-3">
+            {test.questions.map((q, qIdx) => {
+              const selectedVal = studentAnswers[q.id] || "";
+              let selectedMultiple: string[] = [];
+              if (q.type === "MULTIPLE") {
+                try {
+                  selectedMultiple = selectedVal ? JSON.parse(selectedVal) : [];
+                } catch {
+                  selectedMultiple = [];
+                }
+              }
+
+              return (
+                <Card key={q.id} className="p-4 border shadow-none bg-card rounded-xl space-y-3">
+                  <div className="flex items-start justify-between gap-2 border-b pb-2">
+                    <div className="flex items-start gap-2">
+                      <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                        {qIdx + 1}
+                      </span>
+                      <h3 className="text-xs font-bold text-foreground leading-snug">{q.questionText}</h3>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] border-primary/20 text-muted-foreground font-normal shrink-0">
+                      {q.points} {q.points === 1 ? "балл" : "балла"}
+                    </Badge>
+                  </div>
+
+                  {/* Clean Option Inputs */}
+                  <div className="space-y-2 pt-1">
+                    {q.type === "TEXT" ? (
+                      <Input
+                        placeholder="Введите ваш ответ..."
+                        value={selectedVal}
+                        onChange={(e) => handleOptionSelect(q.id, e.target.value, "TEXT")}
+                        className="h-8 text-xs bg-background font-medium max-w-md"
+                      />
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {q.options.map((opt, optIdx) => {
+                          const isSelected =
+                            q.type === "MULTIPLE"
+                              ? selectedMultiple.includes(opt)
+                              : selectedVal === opt;
+
+                          return (
+                            <div
+                              key={optIdx}
+                              onClick={() => handleOptionSelect(q.id, opt, q.type)}
+                              className={`p-3 rounded-lg border text-xs font-medium cursor-pointer transition-all flex items-center justify-between ${
+                                isSelected
+                                  ? "bg-primary/10 border-primary text-primary font-semibold shadow-xs"
+                                  : "bg-background hover:bg-muted/50 border-border text-foreground"
+                              }`}
+                            >
+                              <span className="truncate flex-1 pr-2">{opt}</span>
+                              <div
+                                className={`h-4 w-4 rounded-full border flex items-center justify-center text-[9px] shrink-0 ${
+                                  isSelected
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "border-muted-foreground/40"
+                                }`}
+                              >
+                                {isSelected && "✓"}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Bottom Action Footer */}
+          <div className="flex items-center justify-between p-3.5 bg-card border rounded-xl shadow-xs">
+            <span className="text-xs text-muted-foreground">
+              Заполнено {answeredCount} из {totalQuestions} вопросов
+            </span>
+            <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 px-4 text-xs font-bold gap-1.5 shadow-xs">
+              <Send className="h-3.5 w-3.5" /> Завершить и сдать тест
+            </Button>
+          </div>
         </div>
       )}
     </div>

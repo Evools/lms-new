@@ -1037,6 +1037,13 @@ export async function getTestForTakeAction(testId: string) {
       },
     });
 
+    let savedAnswers: Record<string, string> = {};
+    if (existingSubmission?.answers) {
+      try {
+        savedAnswers = JSON.parse(existingSubmission.answers);
+      } catch {}
+    }
+
     let questionsToUse = test.questions.map((q) => {
       let opts: string[] = [];
       try {
@@ -1048,12 +1055,13 @@ export async function getTestForTakeAction(testId: string) {
         id: q.id,
         type: (q.type as any) || "SINGLE",
         questionText: q.questionText,
-        options: test.shuffleOptions ? [...opts].sort(() => Math.random() - 0.5) : opts,
+        options: test.shuffleOptions && !existingSubmission ? [...opts].sort(() => Math.random() - 0.5) : opts,
         points: q.points || 1,
+        correctAnswer: existingSubmission ? q.correctAnswer : undefined,
       };
     });
 
-    if (test.shuffleQuestions) {
+    if (test.shuffleQuestions && !existingSubmission) {
       questionsToUse = questionsToUse.sort(() => Math.random() - 0.5);
     }
 
@@ -1076,6 +1084,7 @@ export async function getTestForTakeAction(testId: string) {
               score: existingSubmission.score,
               maxScore: existingSubmission.maxScore,
               submittedAt: existingSubmission.submittedAt.toISOString(),
+              answers: savedAnswers,
             }
           : null,
       },
