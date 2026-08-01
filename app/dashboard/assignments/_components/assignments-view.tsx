@@ -47,6 +47,10 @@ import {
   PlusCircle,
   Link2,
   Eye,
+  Filter,
+  RefreshCw,
+  Check,
+  XCircle,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -86,6 +90,8 @@ interface AssignmentsViewProps {
   canCreate: boolean;
 }
 
+type ReviewStatusFilter = "ALL" | "SUBMITTED" | "ACCEPTED" | "NEED_REVISION";
+
 export function AssignmentsView({
   userRole,
   groups = [],
@@ -99,6 +105,7 @@ export function AssignmentsView({
 
   const [currentGroupId, setCurrentGroupId] = useState<string>(selectedGroupId);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [activeTabFilter, setActiveTabFilter] = useState<"ALL" | "PENDING">("ALL");
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -118,14 +125,10 @@ export function AssignmentsView({
   // Modal 3: Teacher Review Submissions Modal
   const [reviewTargetAssignment, setReviewTargetAssignment] = useState<AssignmentDTO | null>(null);
   const [reviewTeacherCommentMap, setReviewTeacherCommentMap] = useState<Record<string, string>>({});
+  const [reviewFilter, setReviewFilter] = useState<ReviewStatusFilter>("ALL");
 
-  // Full Assignment Details Modal & Card Expansion State
+  // Full Assignment Details Modal
   const [viewTargetAssignment, setViewTargetAssignment] = useState<AssignmentDTO | null>(null);
-  const [expandedAssignmentIds, setExpandedAssignmentIds] = useState<Record<string, boolean>>({});
-
-  const toggleExpandAssignment = (id: string) => {
-    setExpandedAssignmentIds((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
 
   const currentGroupObj = groups.find((g) => g.id === currentGroupId);
 
@@ -139,10 +142,6 @@ export function AssignmentsView({
     setAttachmentUrls((prev) => [...prev, ""]);
   };
 
-  const handleRemoveAttachmentUrl = (index: number) => {
-    setAttachmentUrls((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleUpdateAttachmentUrl = (index: number, value: string) => {
     setAttachmentUrls((prev) => {
       const copy = [...prev];
@@ -151,19 +150,14 @@ export function AssignmentsView({
     });
   };
 
-  // Open Create Modal Reset
-  const handleOpenCreateModal = () => {
-    setIsCreateOpen(true);
-    setNewTitle("");
-    setNewDescription("");
-    setNewDueDate("");
-    setAttachmentUrls([""]);
+  const handleRemoveAttachmentUrl = (index: number) => {
+    setAttachmentUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Create Assignment Submit
+  // Create Assignment Handler
   const handleCreateAssignment = () => {
-    if (!newTitle.trim() || !newDescription.trim() || !newGroupSubjectId) {
-      setErrorMsg("Заполните все обязательные поля");
+    if (!newGroupSubjectId || !newTitle.trim()) {
+      setErrorMsg("Заполните обязательные поля: Дисциплина и Заголовок");
       return;
     }
 
@@ -181,39 +175,45 @@ export function AssignmentsView({
       });
 
       if (res.success) {
-        setSuccessMsg("Домашнее задание успешно опубликовано!");
         setIsCreateOpen(false);
         setNewTitle("");
         setNewDescription("");
         setNewDueDate("");
         setAttachmentUrls([""]);
+        setSuccessMsg("Домашнее задание успешно опубликовано!");
         router.refresh();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при создании задания");
+        setErrorMsg(res.error || "Не удалось создать задание");
       }
     });
   };
 
-  // Delete Assignment
-  const handleDeleteAssignment = (id: string) => {
-    if (!confirm("Вы уверены, что хотите удалить это задание?")) return;
+  // Delete Assignment Handler
+  const handleDeleteAssignment = (assignmentId: string) => {
+    if (!confirm("Вы действительно хотите удалить это домашнее задание?")) return;
+
     setErrorMsg(null);
     startTransition(async () => {
-      const res = await deleteAssignmentAction(id);
+      const res = await deleteAssignmentAction(assignmentId);
       if (res.success) {
         setSuccessMsg("Задание удалено!");
         router.refresh();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при удалении");
+        setErrorMsg(res.error || "Не удалось удалить задание");
       }
     });
   };
 
-  // Student Submit Homework
+  // Student Submit Handler
   const handleStudentSubmit = () => {
     if (!submitTargetAssignment) return;
+    if (!submitFileUrl.trim() && !submitComment.trim()) {
+      setErrorMsg("Укажите ссылку на выполненное задание или напишите комментарий");
+      return;
+    }
+
     setErrorMsg(null);
     startTransition(async () => {
       const res = await submitAssignmentAction({
@@ -223,26 +223,23 @@ export function AssignmentsView({
       });
 
       if (res.success) {
-        setSuccessMsg("Работа успешно отправлена на проверку!");
         setSubmitTargetAssignment(null);
         setSubmitFileUrl("");
         setSubmitComment("");
+        setSuccessMsg("Решение отправлено на проверку преподавателю!");
         router.refresh();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при отправке работы");
+        setErrorMsg(res.error || "Ошибка при отправке задания");
       }
     });
   };
 
-  // Teacher Review Submission
-  const handleReviewSubmission = (
-    submissionId: string,
-    status: SubmissionStatus
-  ) => {
-    setErrorMsg(null);
+  // Teacher Review Single Submission Handler
+  const handleReviewSubmission = (submissionId: string, status: SubmissionStatus) => {
     const teacherComment = reviewTeacherCommentMap[submissionId] || "";
 
+    setErrorMsg(null);
     startTransition(async () => {
       const res = await reviewSubmissionAction({
         submissionId,
@@ -251,11 +248,11 @@ export function AssignmentsView({
       });
 
       if (res.success) {
-        setSuccessMsg("Статус проверки обновлен!");
+        setSuccessMsg("Результат проверки сохранён!");
         router.refresh();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при обновлении проверки");
+        setErrorMsg(res.error || "Ошибка при сохранении результата");
       }
     });
   };
@@ -273,17 +270,23 @@ export function AssignmentsView({
   });
 
   // Filtered Assignments
-  const filteredAssignments = assignments.filter(
-    (a) =>
+  const filteredAssignments = assignments.filter((a) => {
+    const matchesSearch =
       a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.subjectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.teacherName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      a.teacherName.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (activeTabFilter === "PENDING") {
+      return a.submissionsCount > a.acceptedCount;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-4 pb-8 text-xs">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-xs">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link
@@ -304,7 +307,7 @@ export function AssignmentsView({
         <div className="flex flex-wrap items-center gap-2">
           {canCreate && (
             <Link href={`/dashboard/assignments/new?group=${currentGroupId}`}>
-              <Button size="xs" className="h-8 text-xs gap-1.5">
+              <Button size="xs" className="h-8 text-xs gap-1.5 font-medium shadow-xs">
                 <Plus className="h-3.5 w-3.5" /> Создать задание
               </Button>
             </Link>
@@ -312,45 +315,81 @@ export function AssignmentsView({
         </div>
       </div>
 
-      {/* Group Selector & Search Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-card p-3 rounded-xl border items-center">
-        <div className="space-y-1">
-          <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-primary" /> Учебная группа
-          </label>
-          <Select value={currentGroupId} onValueChange={handleGroupChange}>
-            <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-              <SelectValue>{currentGroupObj?.name || "Выберите группу"}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id} className="text-xs font-medium">
-                  Группа {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Group Selector & Search Bar & Filter Tabs */}
+      <div className="bg-card p-3 rounded-xl border space-y-3 shadow-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-primary" /> Учебная группа
+            </label>
+            <Select value={currentGroupId} onValueChange={handleGroupChange}>
+              <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                <SelectValue>{currentGroupObj?.name || "Выберите группу"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={g.id} className="text-xs font-medium">
+                    Группа {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-[11px] font-medium text-muted-foreground">
+              Поиск по названию или предмету
+            </label>
+            <div className="relative w-full">
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input
+                placeholder="Введите название задания или предмета..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 text-xs pl-8 bg-background font-medium"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-1 sm:col-span-2">
-          <label className="text-[11px] font-medium text-muted-foreground">
-            Поиск по названию или предмету
-          </label>
-          <div className="relative w-full">
-            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
-            <Input
-              placeholder="Введите название задания или предмета..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 text-xs pl-8 bg-background"
-            />
-          </div>
+        {/* Tab Filters */}
+        <div className="flex items-center gap-1.5 pt-2 border-t">
+          <button
+            type="button"
+            onClick={() => setActiveTabFilter("ALL")}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+              activeTabFilter === "ALL"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            }`}
+          >
+            Все задания ({totalAssignments})
+          </button>
+
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => setActiveTabFilter("PENDING")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                activeTabFilter === "PENDING"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              }`}
+            >
+              Требуют проверки
+              {totalSubmissionsCount > totalAcceptedCount && (
+                <Badge variant="secondary" className="text-[9px] px-1 py-0 bg-primary/20 text-primary">
+                  {totalSubmissionsCount - totalAcceptedCount}
+                </Badge>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Analytics KPI Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
+        <div className="bg-card p-3 rounded-xl border flex items-center justify-between shadow-xs">
           <div className="space-y-0.5">
             <div className="text-[10px] text-muted-foreground font-medium">Всего заданий</div>
             <div className="text-base font-bold text-foreground">{totalAssignments} шт.</div>
@@ -360,7 +399,7 @@ export function AssignmentsView({
           </div>
         </div>
 
-        <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
+        <div className="bg-card p-3 rounded-xl border flex items-center justify-between shadow-xs">
           <div className="space-y-0.5">
             <div className="text-[10px] text-muted-foreground font-medium">Сдано на проверку</div>
             <div className="text-base font-bold text-primary">{totalSubmissionsCount} ответов</div>
@@ -370,7 +409,7 @@ export function AssignmentsView({
           </div>
         </div>
 
-        <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
+        <div className="bg-card p-3 rounded-xl border flex items-center justify-between shadow-xs">
           <div className="space-y-0.5">
             <div className="text-[10px] text-muted-foreground font-medium">Принятые работы</div>
             <div className="text-base font-bold text-primary">{totalAcceptedCount} шт.</div>
@@ -380,7 +419,7 @@ export function AssignmentsView({
           </div>
         </div>
 
-        <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
+        <div className="bg-card p-3 rounded-xl border flex items-center justify-between shadow-xs">
           <div className="space-y-0.5">
             <div className="text-[10px] text-muted-foreground font-medium">На доработке</div>
             <div className="text-base font-bold text-destructive">{totalNeedRevisionCount} шт.</div>
@@ -412,7 +451,6 @@ export function AssignmentsView({
           const userSub = assignment.userSubmission;
           const attachmentLinksList = parseAttachmentLinks(assignment.fileUrl);
 
-          // Clean plain text description snippet for compact card view
           const plainDescription = assignment.description
             ? assignment.description.replace(/[#*`_~\-\[\]()]/g, " ").replace(/\s+/g, " ").trim()
             : "";
@@ -464,7 +502,7 @@ export function AssignmentsView({
                 )}
               </div>
 
-              {/* Action & Status Row (stopPropagation to prevent card click conflict) */}
+              {/* Action & Status Row */}
               <div
                 className="flex items-center justify-between gap-2 pt-2 border-t border-border/50"
                 onClick={(e) => e.stopPropagation()}
@@ -477,16 +515,17 @@ export function AssignmentsView({
                       variant="outline"
                       onClick={() => {
                         setReviewTargetAssignment(assignment);
+                        setReviewFilter("ALL");
                         const initialComments: Record<string, string> = {};
                         assignment.submissions.forEach((s) => {
                           initialComments[s.id] = s.teacherComment || "";
                         });
                         setReviewTeacherCommentMap(initialComments);
                       }}
-                      className="h-7 text-xs gap-1.5 font-medium"
+                      className="h-7 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
                     >
-                      <FileCheck className="h-3.5 w-3.5 text-primary" />
-                      Проверка ({assignment.submissionsCount} / {assignment.totalStudents})
+                      <FileCheck className="h-3.5 w-3.5" />
+                      Проверить работы ({assignment.submissionsCount}/{assignment.totalStudents})
                     </Button>
 
                     <div className="flex items-center gap-1">
@@ -584,7 +623,7 @@ export function AssignmentsView({
       <Dialog open={viewTargetAssignment !== null} onOpenChange={(open) => !open && setViewTargetAssignment(null)}>
         {viewTargetAssignment && (
           <DialogContent className="p-4 gap-3 text-xs sm:max-w-[650px] max-h-[85vh] overflow-y-auto">
-            <DialogHeader className="pb-2 border-b gap-1">
+            <DialogHeader className="pb-2 border-b gap-1 text-left">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium">
                   {viewTargetAssignment.subjectName}
@@ -643,27 +682,22 @@ export function AssignmentsView({
         )}
       </Dialog>
 
-      {/* Modal 1: Spacious Rich Create Assignment Dialog */}
+      {/* Modal 1: Create Assignment Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="p-4 gap-3 text-xs sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="pb-2 border-b gap-1">
+          <DialogHeader className="pb-2 border-b gap-1 text-left">
             <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <Plus className="h-4 w-4 text-primary" /> Публикация домашнего задания
+              <Plus className="h-4 w-4 text-primary" /> Публикация нового задания
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              Укажите дисциплину, подробные инструкции к заданию, срок сдачи и материалы
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-1 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Учебная дисциплина</label>
+                <label className="font-medium text-foreground text-xs">Дисциплина *</label>
                 <Select value={newGroupSubjectId} onValueChange={setNewGroupSubjectId}>
                   <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue>
-                      {subjects.find((s) => s.id === newGroupSubjectId)?.subjectName || "Выберите предмет"}
-                    </SelectValue>
+                    <SelectValue placeholder="Выберите дисциплину" />
                   </SelectTrigger>
                   <SelectContent>
                     {subjects.map((s) => (
@@ -676,20 +710,20 @@ export function AssignmentsView({
               </div>
 
               <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Срок сдачи (Due Date)</label>
+                <label className="font-medium text-foreground text-xs">Срок сдачи (Дедлайн)</label>
                 <Input
                   type="date"
                   value={newDueDate}
                   onChange={(e) => setNewDueDate(e.target.value)}
-                  className="h-8 text-xs bg-background font-medium"
+                  className="h-8 text-xs bg-background"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Заголовок задания</label>
+              <label className="font-medium text-foreground text-xs">Заголовок задания *</label>
               <Input
-                placeholder="Например: Разработка REST API для управления задачами"
+                placeholder="Например: Домашнее задание №3. Списки и кортежи в Python"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 className="h-8 text-xs bg-background font-medium"
@@ -697,63 +731,13 @@ export function AssignmentsView({
             </div>
 
             <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs flex items-center justify-between">
-                <span>Подробное описание и требования к работе</span>
-                <span className="text-[10px] text-muted-foreground font-normal">Поддерживает многострочный текст</span>
-              </label>
+              <label className="font-medium text-foreground text-xs">Описание и требования</label>
               <Textarea
-                placeholder="Опишите задачи, требования к оформлению, критерии оценивания и любые подробные инструкции..."
+                placeholder="Подробное описание задачи..."
                 value={newDescription}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewDescription(e.target.value)}
-                className="text-xs bg-background min-h-[140px] leading-relaxed font-sans"
+                className="text-xs bg-background min-h-[120px]"
               />
-            </div>
-
-            {/* Dynamic Attachment URLs Section */}
-            <div className="space-y-2 pt-2 border-t">
-              <div className="flex items-center justify-between">
-                <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                  <Paperclip className="h-3.5 w-3.5 text-primary" /> Ссылки на прикреплённые материалы и файлы
-                </label>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  onClick={handleAddAttachmentUrl}
-                  className="h-6 px-2 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10"
-                >
-                  <PlusCircle className="h-3 w-3" /> Добавить ссылку
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                {attachmentUrls.map((url, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input
-                      placeholder="https://..."
-                      value={url}
-                      onChange={(e) => handleUpdateAttachmentUrl(idx, e.target.value)}
-                      className="h-8 text-xs bg-background flex-1 font-mono"
-                    />
-                    {url.trim() && (
-                      <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
-                        <Button type="button" size="xs" variant="ghost" className="h-8 w-8 p-0">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Button>
-                      </a>
-                    )}
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => handleRemoveAttachmentUrl(idx)}
-                      className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 shrink-0"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -762,7 +746,7 @@ export function AssignmentsView({
               Отмена
             </Button>
             <Button size="xs" disabled={isPending} onClick={handleCreateAssignment}>
-              Опубликовать задание
+              Опубликовать
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -772,7 +756,7 @@ export function AssignmentsView({
       <Dialog open={submitTargetAssignment !== null} onOpenChange={(open) => !open && setSubmitTargetAssignment(null)}>
         {submitTargetAssignment && (
           <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
-            <DialogHeader className="pb-2 border-b gap-1">
+            <DialogHeader className="pb-2 border-b gap-1 text-left">
               <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
                 <Send className="h-4 w-4 text-primary" /> Сдача домашнего задания
               </DialogTitle>
@@ -783,7 +767,7 @@ export function AssignmentsView({
 
             <div className="space-y-3 py-1 text-xs">
               <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Ссылка на выполненную работу (Google Drive / GitHub)</label>
+                <label className="font-medium text-foreground text-xs">Ссылка на работу (Google Drive / GitHub)</label>
                 <Input
                   placeholder="https://drive.google.com/..."
                   value={submitFileUrl}
@@ -793,9 +777,9 @@ export function AssignmentsView({
               </div>
 
               <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Комментарий преподавателю</label>
+                <label className="font-medium text-foreground text-xs">Пояснение преподавателю</label>
                 <Textarea
-                  placeholder="Напишите пояснение к выполненной работе..."
+                  placeholder="Напишите комментарий к выполненной работе..."
                   value={submitComment}
                   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSubmitComment(e.target.value)}
                   className="text-xs bg-background min-h-[70px]"
@@ -815,108 +799,184 @@ export function AssignmentsView({
         )}
       </Dialog>
 
-      {/* Modal 3: Teacher Submissions Review Dialog */}
+      {/* Modal 3: Spacious Teacher Review Submissions Dialog */}
       <Dialog open={reviewTargetAssignment !== null} onOpenChange={(open) => !open && setReviewTargetAssignment(null)}>
         {reviewTargetAssignment && (
-          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[520px]">
-            <DialogHeader className="pb-2 border-b gap-1">
-              <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
-                <FileCheck className="h-4 w-4 text-primary" /> Проверка сданных работ
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                Задание: <strong>{reviewTargetAssignment.title}</strong> ({reviewTargetAssignment.submissionsCount} сданных работ)
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[760px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="pb-2 border-b gap-1 text-left">
+              <div className="flex items-center justify-between">
+                <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+                  <FileCheck className="h-4 w-4 text-primary" /> Проверка сданных работ
+                </DialogTitle>
+                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                  {reviewTargetAssignment.submissionsCount} из {reviewTargetAssignment.totalStudents} сдали
+                </Badge>
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Задание: <strong className="text-foreground">{reviewTargetAssignment.title}</strong> ({reviewTargetAssignment.subjectName})
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-1 text-xs max-h-[380px] overflow-y-auto pr-1">
-              {reviewTargetAssignment.submissions.map((sub) => (
-                <div key={sub.id} className="p-3 border rounded-lg bg-card space-y-2">
-                  <div className="flex items-center justify-between gap-2 border-b pb-1.5">
-                    <div className="flex items-center gap-2 font-medium">
-                      <Avatar className="h-5 w-5 border shrink-0">
-                        <AvatarFallback className="text-[8px] font-bold bg-muted text-muted-foreground">
-                          {sub.studentName.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span>{sub.studentName}</span>
-                    </div>
+            {/* Submissions Filter Pills inside Review Modal */}
+            <div className="flex items-center gap-1.5 p-1 bg-muted/40 border rounded-lg">
+              <button
+                type="button"
+                onClick={() => setReviewFilter("ALL")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  reviewFilter === "ALL"
+                    ? "bg-card text-foreground shadow-xs border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Все сданные ({reviewTargetAssignment.submissions.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewFilter("SUBMITTED")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  reviewFilter === "SUBMITTED"
+                    ? "bg-card text-foreground shadow-xs border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                На проверке ({reviewTargetAssignment.submissions.filter((s) => s.status === SubmissionStatus.SUBMITTED).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewFilter("ACCEPTED")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  reviewFilter === "ACCEPTED"
+                    ? "bg-card text-foreground shadow-xs border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Принятые ({reviewTargetAssignment.submissions.filter((s) => s.status === SubmissionStatus.ACCEPTED).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewFilter("NEED_REVISION")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  reviewFilter === "NEED_REVISION"
+                    ? "bg-card text-foreground shadow-xs border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                На доработке ({reviewTargetAssignment.submissions.filter((s) => s.status === SubmissionStatus.NEED_REVISION).length})
+              </button>
+            </div>
 
-                    <Badge
-                      className={
-                        sub.status === SubmissionStatus.ACCEPTED
-                          ? "bg-primary text-primary-foreground text-[9px]"
-                          : sub.status === SubmissionStatus.NEED_REVISION
-                            ? "bg-destructive text-white text-[9px]"
-                            : "bg-muted text-muted-foreground text-[9px]"
-                      }
-                    >
-                      {sub.status === SubmissionStatus.ACCEPTED
-                        ? "Принято"
-                        : sub.status === SubmissionStatus.NEED_REVISION
-                          ? "На доработке"
-                          : "На проверке"}
-                    </Badge>
-                  </div>
+            {/* List of Submissions */}
+            <div className="space-y-3 py-1 text-xs">
+              {reviewTargetAssignment.submissions
+                .filter((sub) => {
+                  if (reviewFilter === "ALL") return true;
+                  return sub.status === reviewFilter;
+                })
+                .map((sub) => (
+                  <div key={sub.id} className="p-3.5 border rounded-xl bg-card space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between gap-2 border-b pb-2">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="h-7 w-7 border shrink-0">
+                          <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                            {sub.studentName.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-bold text-foreground text-xs">{sub.studentName}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Сдано: {new Date(sub.submittedAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Submission Attachment and Comment */}
-                  {sub.fileUrl && (
-                    <div>
-                      <a
-                        href={sub.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium font-mono"
-                      >
-                        <ExternalLink className="h-3 w-3" /> Ссылка на решение
-                      </a>
-                    </div>
-                  )}
-
-                  {sub.comment && (
-                    <div className="text-[11px] text-muted-foreground italic">
-                      Ответ студента: «{sub.comment}»
-                    </div>
-                  )}
-
-                  {/* Teacher Feedback input and Action buttons */}
-                  <div className="space-y-2 pt-1 border-t">
-                    <Input
-                      placeholder="Замечание или комментарий преподавателя..."
-                      value={reviewTeacherCommentMap[sub.id] || ""}
-                      onChange={(e) =>
-                        setReviewTeacherCommentMap((prev) => ({
-                          ...prev,
-                          [sub.id]: e.target.value,
-                        }))
-                      }
-                      className="h-7 text-xs bg-background"
-                    />
-
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="xs"
+                      <Badge
                         variant="outline"
-                        onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.NEED_REVISION)}
-                        className="h-6 px-2 text-[10px] text-destructive border-destructive/30 hover:bg-destructive/10"
+                        className={
+                          sub.status === SubmissionStatus.ACCEPTED
+                            ? "bg-primary/10 text-primary border-primary/30 text-[10px]"
+                            : sub.status === SubmissionStatus.NEED_REVISION
+                              ? "bg-destructive/10 text-destructive border-destructive/30 text-[10px]"
+                              : "bg-muted text-muted-foreground text-[10px]"
+                        }
                       >
-                        На доработку
-                      </Button>
+                        {sub.status === SubmissionStatus.ACCEPTED
+                          ? "Принято"
+                          : sub.status === SubmissionStatus.NEED_REVISION
+                            ? "На доработке"
+                            : "Ожидает проверки"}
+                      </Badge>
+                    </div>
 
-                      <Button
-                        size="xs"
-                        onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.ACCEPTED)}
-                        className="h-6 px-2 text-[10px]"
-                      >
-                        Принять работу
-                      </Button>
+                    {/* Student Solution Links & Comments */}
+                    <div className="space-y-2">
+                      {sub.fileUrl && (
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={sub.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs text-primary font-semibold hover:underline bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20 truncate"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">Открыть решение студента ({sub.fileUrl})</span>
+                          </a>
+                        </div>
+                      )}
+
+                      {sub.comment && (
+                        <div className="p-2.5 rounded-lg bg-muted/30 border text-xs text-foreground space-y-0.5">
+                          <span className="text-[10px] text-muted-foreground font-semibold block">Пояснение студента:</span>
+                          <p className="italic">«{sub.comment}»</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Teacher Feedback input and Action buttons */}
+                    <div className="space-y-2 pt-2 border-t">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-medium text-muted-foreground">
+                          Замечания или комментарий преподавателя к работе:
+                        </label>
+                        <Input
+                          placeholder="Например: Отличная работа! / Переделайте пункт 2..."
+                          value={reviewTeacherCommentMap[sub.id] || ""}
+                          onChange={(e) =>
+                            setReviewTeacherCommentMap((prev) => ({
+                              ...prev,
+                              [sub.id]: e.target.value,
+                            }))
+                          }
+                          className="h-8 text-xs bg-background"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          disabled={isPending}
+                          onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.NEED_REVISION)}
+                          className="h-7 px-3 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10 font-medium"
+                        >
+                          <XCircle className="h-3.5 w-3.5" /> На доработку
+                        </Button>
+
+                        <Button
+                          size="xs"
+                          disabled={isPending}
+                          onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.ACCEPTED)}
+                          className="h-7 px-3 text-xs gap-1 font-medium"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Принять работу
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
               {reviewTargetAssignment.submissions.length === 0 && (
-                <div className="py-8 text-center text-muted-foreground text-xs italic">
-                  Пока ни один студент не сдал работу
+                <div className="py-12 text-center text-muted-foreground text-xs italic bg-muted/20 border rounded-xl">
+                  Пока ни один студент не сдал работу на проверку
                 </div>
               )}
             </div>
