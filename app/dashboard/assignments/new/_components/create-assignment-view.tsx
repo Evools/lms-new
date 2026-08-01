@@ -43,6 +43,12 @@ import {
   CheckSquare,
   Award,
   ExternalLink,
+  FileText,
+  Clock,
+  LayoutTemplate,
+  FolderGit2,
+  HelpCircle,
+  Code2,
 } from "lucide-react";
 import { createAssignmentAction } from "../../actions";
 import { renderMarkdown } from "@/lib/markdown";
@@ -70,6 +76,86 @@ interface AttachmentLink {
   title: string;
   url: string;
 }
+
+const PRESET_TEMPLATES = [
+  {
+    id: "rest_api",
+    name: "REST API & Prisma (Лабораторная)",
+    icon: Code2,
+    content: `# Лабораторная работа: Разработка REST API на Next.js
+
+## 1. Цель работы
+Изучить принципы построения серверных экшенов, интеграции базы данных Prisma и обработки ошибок в современном стек-окружении.
+
+> **Обратите внимание**: Все работы должны сопровождаться чистым кодом и комментариями к ключевым функциям.
+
+---
+
+## 2. Чеклист задач к выполнению
+- [ ] Настроить схему базы данных в \`prisma/schema.prisma\`
+- [ ] Написать серверный экшен для получения данных
+- [ ] Реализовать обработку возможных ошибок с помощью \`try / catch\`
+- [ ] Проверить работу типов через команды \`npx tsc --noEmit\`
+- [ ] Ознакомиться с документацией проекта
+
+---
+
+## 3. Пример структуры функции
+\`\`\`typescript
+export async function getSubjectData(id: string) {
+  try {
+    const data = await prisma.subject.findUnique({ where: { id } });
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: "Ошибка загрузки данных" };
+  }
+}
+\`\`\``,
+  },
+  {
+    id: "lab",
+    name: "Лабораторная работа (Базовая)",
+    icon: FileText,
+    content: `# Лабораторная работа: [Тема работы]
+
+## 1. Цель работы
+- Изучить базовые концепции и закрепить практические навыки.
+
+## 2. Задания к выполнению
+- [ ] Шаг 1: Подготовить рабочее окружение
+- [ ] Шаг 2: Написать основной функционал
+- [ ] Шаг 3: Проверить корректность обработки ошибок
+
+> **Обратите внимание**: Все работы проверяются на уникальность.`,
+  },
+  {
+    id: "project",
+    name: "Практический проект",
+    icon: FolderGit2,
+    content: `# Практический проект: [Название проекта]
+
+## Требования к проекту
+1. Задание выполняется в парах или индивидуально.
+2. Проект должен быть загружен в репозиторий GitHub.
+
+## Чеклист проверки
+- [ ] Чистый код без ошибок типов
+- [ ] Полноценный пользовательский интерфейс
+- [ ] Интеграция с базой данных`,
+  },
+  {
+    id: "quiz",
+    name: "Контрольные вопросы",
+    icon: HelpCircle,
+    content: `# Контрольный срез
+
+Подготовьте развернутые письменные ответы на следующие вопросы:
+1. Опишите порядок передачи данных между компонентами.
+2. Как работают Server Actions в Next.js?
+
+> Ответ прикрепите в виде ссылки на текстовый документ.`,
+  },
+];
 
 export function CreateAssignmentView({
   groups = [],
@@ -112,8 +198,59 @@ export function CreateAssignmentView({
     setSelectedGroupSubjectId(sub[0]?.id || "");
   };
 
-  // Smart Enter Key Handler for Lists & Checklists
+  const charCount = description.length;
+  const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
+  const readingTimeMin = Math.ceil(wordCount / 180) || 1;
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [modKey, setModKey] = useState<string>("Alt");
+  const [enterModKey, setEnterModKey] = useState<string>("Ctrl");
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform || "");
+      if (isMac) {
+        setModKey("Cmd ⌘ + Shift ⇧");
+        setEnterModKey("Cmd ⌘");
+      } else {
+        setModKey("Ctrl + Shift");
+        setEnterModKey("Ctrl");
+      }
+    }
+  }, []);
+
+  // Insert Template
+  const handleApplyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const tmpl = PRESET_TEMPLATES.find((t) => t.id === templateId);
+    if (tmpl) {
+      setDescription(tmpl.content);
+    }
+  };
+
+  // Smart Key Handler: Shortcuts + Auto Lists
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Cmd+Enter or Ctrl+Enter -> Publish
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleSubmit();
+      return;
+    }
+
+    // Cmd+Shift+B or Ctrl+Shift+B -> Bold
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      insertFormatting("**", "**");
+      return;
+    }
+
+    // Cmd+Shift+I or Ctrl+Shift+I -> Italic
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "i") {
+      e.preventDefault();
+      insertFormatting("*", "*");
+      return;
+    }
+
     if (e.key !== "Enter" || e.shiftKey) return;
 
     const textarea = textareaRef.current;
@@ -332,6 +469,7 @@ export function CreateAssignmentView({
             disabled={isPending}
             onClick={handleSubmit}
             className="h-8 text-xs gap-1.5 font-medium"
+            title="Опубликовать (Ctrl + Enter)"
           >
             <Send className="h-3.5 w-3.5" />
             {isPending ? "Публикация..." : "Опубликовать задание"}
@@ -366,43 +504,69 @@ export function CreateAssignmentView({
 
             {/* WYSIWYG Visual Editor Controls */}
             <div className="space-y-2 pt-2">
-              <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 p-2 rounded-lg border">
-                {/* Editor / Preview Mode Pills */}
-                <div className="flex items-center gap-1 bg-background p-0.5 rounded-md border text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setMode("EDIT")}
-                    className={`px-3 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1.5 ${
-                      mode === "EDIT"
+              <div className="bg-muted/40 p-2.5 rounded-lg border space-y-2">
+                {/* Top Control Bar: Mode Toggle & Templates Dropdown */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div className="flex items-center gap-1 bg-background p-0.5 rounded-md border text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setMode("EDIT")}
+                      className={`px-3 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1.5 ${mode === "EDIT"
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <Edit3 className="h-3.5 w-3.5" /> WYSIWYG Редактор
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("PREVIEW")}
-                    className={`px-3 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1.5 ${
-                      mode === "PREVIEW"
+                        }`}
+                    >
+                      <Edit3 className="h-3.5 w-3.5" /> WYSIWYG Редактор
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode("PREVIEW")}
+                      className={`px-3 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1.5 ${mode === "PREVIEW"
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <Eye className="h-3.5 w-3.5" /> Предпросмотр
-                  </button>
+                        }`}
+                    >
+                      <Eye className="h-3.5 w-3.5" /> Предпросмотр
+                    </button>
+                  </div>
+
+                  {/* Clean Templates Selector */}
+                  <div className="flex items-center gap-1.5">
+                    <Select value={selectedTemplateId} onValueChange={handleApplyTemplate}>
+                      <SelectTrigger className="h-7 text-[11px] font-medium bg-background shadow-none border-border text-foreground gap-1.5 min-w-[170px]">
+                        <LayoutTemplate className="h-3 w-3 text-primary shrink-0" />
+                        <span>
+                          {PRESET_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || "Выбрать шаблон"}
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRESET_TEMPLATES.map((t) => {
+                          const IconComponent = t.icon;
+                          return (
+                            <SelectItem key={t.id} value={t.id} className="text-xs font-medium pl-7">
+                              <span className="flex items-center gap-2">
+                                <IconComponent className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <span>{t.name}</span>
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                {/* Rich Formatting Toolbar */}
+                {/* Pure Formatting Icons Toolbar */}
                 {mode === "EDIT" && (
-                  <div className="flex flex-wrap items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1 pt-0.5">
+
                     <Button
                       type="button"
                       variant="outline"
                       size="xs"
                       onClick={() => insertFormatting("**", "**")}
                       className="h-7 w-7 p-0 shadow-none"
-                      title="Жирный шрифт (**текст**)"
+                      title="Жирный (Ctrl+B)"
                     >
                       <Bold className="h-3.5 w-3.5" />
                     </Button>
@@ -412,7 +576,7 @@ export function CreateAssignmentView({
                       size="xs"
                       onClick={() => insertFormatting("*", "*")}
                       className="h-7 w-7 p-0 shadow-none"
-                      title="Курсив (*текст*)"
+                      title="Курсив (Ctrl+I)"
                     >
                       <Italic className="h-3.5 w-3.5" />
                     </Button>
@@ -422,7 +586,7 @@ export function CreateAssignmentView({
                       size="xs"
                       onClick={() => insertFormatting("~~", "~~")}
                       className="h-7 w-7 p-0 shadow-none"
-                      title="Зачёркнутый текст (~~текст~~)"
+                      title="Зачёркнутый"
                     >
                       <Strikethrough className="h-3.5 w-3.5" />
                     </Button>
@@ -495,7 +659,7 @@ export function CreateAssignmentView({
                       size="xs"
                       onClick={() => insertFormatting("\n> ", "\n")}
                       className="h-7 w-7 p-0 shadow-none"
-                      title="Цитата / Выделенный блок"
+                      title="Цитата"
                     >
                       <Quote className="h-3.5 w-3.5" />
                     </Button>
@@ -535,14 +699,29 @@ export function CreateAssignmentView({
 
               {/* Editor Workspace Canvas */}
               {mode === "EDIT" ? (
-                <Textarea
-                  ref={textareaRef}
-                  placeholder={`Опишите подробные инструкции к выполнению задания...\n\nПример составления:\n## 1. Цель работы\nИзучить основы построения компонентов на Next.js.\n\n## 2. Порядок выполнения\n- [ ] Создать схему базы данных\n- [ ] Написать серверный экшен\n- [ ] Добавить обработку ошибок\n\n> Задание сдать в виде ссылки на GitHub репозиторий.`}
-                  value={description}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="text-xs bg-background min-h-[380px] font-mono leading-relaxed p-4 border focus:ring-primary shadow-none"
-                />
+                <div className="space-y-1.5">
+                  <Textarea
+                    ref={textareaRef}
+                    placeholder={`Опишите подробные инструкции к выполнению задания...\n\nПример составления:\n## 1. Цель работы\nИзучить основы построения компонентов на Next.js.\n\n## 2. Порядок выполнения\n- [ ] Создать схему базы данных\n- [ ] Написать серверный экшен\n- [ ] Добавить обработку ошибок\n\n> Задание сдать в виде ссылки на GitHub репозиторий.`}
+                    value={description}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="text-xs bg-background min-h-[380px] font-mono leading-relaxed p-4 border focus:ring-primary shadow-none"
+                  />
+                  {/* Live Text Stats Bar */}
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                    <div className="flex items-center gap-3">
+                      <span>Символов: <strong className="font-semibold text-foreground">{charCount}</strong></span>
+                      <span>Слов: <strong className="font-semibold text-foreground">{wordCount}</strong></span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-primary" /> ~{readingTimeMin} мин на чтение
+                      </span>
+                    </div>
+                    <div className="text-[10px] opacity-70 hidden sm:block">
+                      Горячие клавиши: <kbd className="px-1 py-0.5 bg-muted border rounded">{modKey}+B</kbd> Жирный | <kbd className="px-1 py-0.5 bg-muted border rounded">{modKey}+I</kbd> Курсив | <kbd className="px-1 py-0.5 bg-muted border rounded">{enterModKey}+Enter</kbd> Опубликовать
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="min-h-[380px] p-5 border rounded-lg bg-card text-xs space-y-3 leading-relaxed">
                   {description ? (

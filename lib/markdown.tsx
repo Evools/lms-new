@@ -1,5 +1,5 @@
-import React from "react";
-import { ExternalLink, Check } from "lucide-react";
+import React, { useState } from "react";
+import { ExternalLink, Check, Copy } from "lucide-react";
 
 /** Helper to format inline markdown tokens: **bold**, *italic*, ~~strikethrough~~, `code`, [title](url) */
 function formatInline(text: string): React.ReactNode {
@@ -78,7 +78,7 @@ function highlightCodeLine(line: string, key: number): React.ReactNode {
   // Comments // ... or # ...
   if (line.trim().startsWith("//") || line.trim().startsWith("#")) {
     return (
-      <div key={key} className="text-muted-foreground/60 italic leading-relaxed">
+      <div key={key} className="text-muted-foreground/60 italic leading-relaxed whitespace-pre font-mono">
         {line}
       </div>
     );
@@ -155,6 +155,50 @@ function highlightCodeLine(line: string, key: number): React.ReactNode {
   );
 }
 
+/** Wrapper for Code Block with 1-click Copy button */
+function CodeBlockWithCopy({
+  rawCode,
+  children,
+}: {
+  rawCode: string;
+  children: React.ReactNode;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(rawCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="relative group my-3">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="absolute top-2.5 right-2.5 z-10 px-2 py-1 rounded bg-background/90 hover:bg-background border border-border text-[10px] text-muted-foreground hover:text-foreground transition-all flex items-center gap-1 opacity-70 group-hover:opacity-100 shadow-none font-medium"
+        title="Скопировать код"
+      >
+        {copied ? (
+          <>
+            <Check className="h-3 w-3 text-emerald-500" />
+            <span className="text-emerald-500">Скопировано!</span>
+          </>
+        ) : (
+          <>
+            <Copy className="h-3 w-3" />
+            <span>Копировать</span>
+          </>
+        )}
+      </button>
+
+      <div className="p-3 rounded-lg bg-muted/60 font-mono text-[11px] overflow-x-auto border border-border/80 text-foreground whitespace-pre leading-relaxed font-mono select-text">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** Renders multi-line Markdown text to real React elements with interactive checkbox & code syntax highlighting */
 export function renderMarkdown(
   text: string,
@@ -171,13 +215,11 @@ export function renderMarkdown(
     // Code block toggle
     if (line.trim().startsWith("```")) {
       if (inCodeBlock) {
+        const rawCode = codeBlockLines.join("\n");
         elements.push(
-          <div
-            key={index}
-            className="p-3 rounded-lg bg-muted/60 font-mono text-[11px] overflow-x-auto my-3 border border-border/80 text-foreground whitespace-pre leading-relaxed font-mono select-text"
-          >
+          <CodeBlockWithCopy key={index} rawCode={rawCode}>
             {codeBlockLines.map((cLine, idx) => highlightCodeLine(cLine, idx))}
-          </div>
+          </CodeBlockWithCopy>
         );
         codeBlockLines = [];
         inCodeBlock = false;
