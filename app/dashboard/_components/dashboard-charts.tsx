@@ -39,7 +39,7 @@ export function AdminGenderDistributionChart({ maleCount = 0, femaleCount = 0 }:
 
   return (
     <div className="h-[250px] w-full flex items-center justify-center">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
         <PieChart>
           <Pie
             data={data}
@@ -163,7 +163,7 @@ export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pend
 
   return (
     <div className="h-[240px] w-full flex items-center justify-center">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
         <PieChart>
           <Pie
             data={data}
@@ -262,7 +262,7 @@ export function StudentAttendancePieChart({ presentCount = 92, absentCount = 5, 
 
   return (
     <div className="h-[240px] w-full flex flex-col items-center justify-center">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
         <PieChart>
           <Pie
             data={data}
