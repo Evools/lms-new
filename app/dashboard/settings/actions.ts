@@ -1,0 +1,304 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { revalidatePath } from "next/cache";
+import bcrypt from "bcryptjs";
+
+export interface UserProfileDTO {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: string;
+  avatar?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AcademicYearDTO {
+  id: string;
+  name: string;
+  isCurrent: boolean;
+  startDate: string;
+  endDate: string;
+}
+
+export interface SystemStatsDTO {
+  totalUsers: number;
+  totalStudents: number;
+  totalTeachers: number;
+  totalAdmins: number;
+  totalGroups: number;
+  totalSubjects: number;
+  totalMaterials: number;
+  totalAssignments: number;
+  totalDocuments: number;
+}
+
+export async function getSettingsDataAction() {
+  try {
+    const session = await auth();
+    if (!session?.user) return null;
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        avatar: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    if (!currentUser) return null;
+
+    const profile: UserProfileDTO = {
+      ...currentUser,
+      createdAt: currentUser.createdAt.toISOString(),
+    };
+
+    // Admin-only data
+    let allUsers: UserProfileDTO[] = [];
+    let academicYears: AcademicYearDTO[] = [];
+    let systemStats: SystemStatsDTO | null = null;
+
+    if (session.user.role === "ADMIN") {
+      const [users, years, stats] = await Promise.all([
+        prisma.user.findMany({
+          select: {
+            id: true, name: true, email: true, phone: true,
+            role: true, avatar: true, isActive: true, createdAt: true,
+          },
+          orderBy: [{ role: "asc" }, { name: "asc" }],
+        }),
+        prisma.academicYear.findMany({ orderBy: { startDate: "desc" } }),
+        Promise.all([
+          prisma.user.count(),
+          prisma.user.count({ where: { role: "STUDENT" } }),
+          prisma.user.count({ where: { role: "TEACHER" } }),
+          prisma.user.count({ where: { role: "ADMIN" } }),
+          prisma.group.count(),
+          prisma.subject.count(),
+          prisma.material.count(),
+          prisma.assignment.count(),
+          prisma.document.count(),
+        ]),
+      ]);
+
+      allUsers = users.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() }));
+
+      academicYears = years.map((y) => ({
+        id: y.id,
+        name: y.name,
+        isCurrent: y.isCurrent,
+        startDate: y.startDate.toISOString(),
+        endDate: y.endDate.toISOString(),
+      }));
+
+      systemStats = {
+        totalUsers: stats[0],
+        totalStudents: stats[1],
+        totalTeachers: stats[2],
+        totalAdmins: stats[3],
+        totalGroups: stats[4],
+        totalSubjects: stats[5],
+        totalMaterials: stats[6],
+        totalAssignments: stats[7],
+        totalDocuments: stats[8],
+      };
+    }
+
+    return {
+      profile,
+      allUsers,
+      academicYears,
+      systemStats,
+      role: session.user.role as string,
+    };
+  } catch (error) {
+    console.error("getSettingsDataAction error:", error);
+    return null;
+  }
+}
+
+/** Update current user profile */
+export async function updateProfileAction(data: {
+  name: string;
+  phone?: string;
+  avatar?: string;
+}) {
+  const session = await auth();
+  if (!session?.user) return { success: false, error: "Не авторизован" };
+  if (!data.name.trim()) return { success: false, error: "Укажите имя" };
+
+  try {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        name: data.name.trim(),
+        phone: data.phone?.trim() || null,
+        avatar: data.avatar?.trim() || null,
+      },
+    });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Change current user password */
+export async function changePasswordAction(data: {
+  currentPassword: string;
+  newPassword: string;
+}) {
+  const session = await auth();
+  if (!session?.user) return { success: false, error: "Не авторизован" };
+  if (data.newPassword.length < 6) {
+    return { success: false, error: "Новый пароль должен быть не менее 6 символов" };
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (!user) return { success: false, error: "Пользователь не найден" };
+
+    const valid = await bcrypt.compare(data.currentPassword, user.password);
+    if (!valid) return { success: false, error: "Текущий пароль неверный" };
+
+    const hashed = await bcrypt.hash(data.newPassword, 12);
+    await prisma.user.update({ where: { id: session.user.id }, data: { password: hashed } });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Admin: toggle user active status */
+export async function toggleUserActiveAction(userId: string, isActive: boolean) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор" };
+  }
+  if (userId === session.user.id) {
+    return { success: false, error: "Нельзя деактивировать себя" };
+  }
+
+  try {
+    await prisma.user.update({ where: { id: userId }, data: { isActive } });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Admin: change user role */
+export async function changeUserRoleAction(userId: string, role: "ADMIN" | "TEACHER" | "STUDENT") {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор" };
+  }
+  if (userId === session.user.id) {
+    return { success: false, error: "Нельзя изменить свою роль" };
+  }
+
+  try {
+    await prisma.user.update({ where: { id: userId }, data: { role } });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Admin: create new user */
+export async function createUserAction(data: {
+  name: string;
+  email: string;
+  password: string;
+  role: "ADMIN" | "TEACHER" | "STUDENT";
+  phone?: string;
+}) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор" };
+  }
+  if (!data.name.trim() || !data.email.trim() || !data.password) {
+    return { success: false, error: "Заполните все поля" };
+  }
+  if (data.password.length < 6) {
+    return { success: false, error: "Пароль минимум 6 символов" };
+  }
+
+  try {
+    const exists = await prisma.user.findUnique({ where: { email: data.email.trim().toLowerCase() } });
+    if (exists) return { success: false, error: "Пользователь с таким email уже существует" };
+
+    const hashed = await bcrypt.hash(data.password, 12);
+    await prisma.user.create({
+      data: {
+        name: data.name.trim(),
+        email: data.email.trim().toLowerCase(),
+        password: hashed,
+        role: data.role,
+        phone: data.phone?.trim() || null,
+      },
+    });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Admin: update academic year */
+export async function setCurrentAcademicYearAction(yearId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор" };
+  }
+
+  try {
+    await prisma.academicYear.updateMany({ data: { isCurrent: false } });
+    await prisma.academicYear.update({ where: { id: yearId }, data: { isCurrent: true } });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Admin: create academic year */
+export async function createAcademicYearAction(data: {
+  name: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор" };
+  }
+
+  try {
+    const exists = await prisma.academicYear.findUnique({ where: { name: data.name.trim() } });
+    if (exists) return { success: false, error: "Учебный год уже существует" };
+
+    await prisma.academicYear.create({
+      data: {
+        name: data.name.trim(),
+        isCurrent: false,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+      },
+    });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
