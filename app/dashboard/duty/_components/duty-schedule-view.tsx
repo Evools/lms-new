@@ -335,7 +335,7 @@ export function DutyScheduleView({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link
-              href="/dashboard/groups"
+              href={currentGroupId ? `/dashboard/groups/${currentGroupId}` : "/dashboard/groups"}
               className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -368,26 +368,8 @@ export function DutyScheduleView({
         </div>
       </div>
 
-      {/* Screen Group Selector & KPI Bar */}
-      <div className="print:hidden grid grid-cols-1 md:grid-cols-4 gap-3">
-        {/* Selector Card */}
-        <div className="bg-card p-3 rounded-xl border flex flex-col justify-between space-y-2">
-          <div className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-primary" /> Учебная группа
-          </div>
-          <Select value={currentGroupId} onValueChange={handleGroupChange}>
-            <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-              <SelectValue>{currentGroupObj?.name || "Выберите группу"}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {groupsList.map((g) => (
-                <SelectItem key={g.id} value={g.id} className="text-xs font-medium">
-                  Группа {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {/* Screen KPI Bar */}
+      <div className="print:hidden grid grid-cols-1 md:grid-cols-3 gap-3">
 
         {/* KPI 1 */}
         <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
