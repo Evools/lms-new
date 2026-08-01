@@ -36,6 +36,38 @@ export interface SystemStatsDTO {
   totalDocuments: number;
 }
 
+export interface SystemConfigDTO {
+  institutionName: string;
+  supportEmail: string;
+  supportPhone: string;
+  address: string;
+  defaultMaxScore: string;
+  lessonDurationMinutes: string;
+  allowLateSubmissions: boolean;
+  allowSelfRegistration: boolean;
+  allowedEmailDomain: string;
+  maxFileUploadMb: string;
+  globalNoticeTitle: string;
+  globalNoticeContent: string;
+  showGlobalNotice: boolean;
+}
+
+const DEFAULT_CONFIG: SystemConfigDTO = {
+  institutionName: "Лицей LMS",
+  supportEmail: "support@lyceum.ru",
+  supportPhone: "+7 (495) 123-45-67",
+  address: "г. Москва, ул. Академика Королева, д. 12",
+  defaultMaxScore: "100",
+  lessonDurationMinutes: "45",
+  allowLateSubmissions: true,
+  allowSelfRegistration: true,
+  allowedEmailDomain: "",
+  maxFileUploadMb: "50",
+  globalNoticeTitle: "",
+  globalNoticeContent: "",
+  showGlobalNotice: false,
+};
+
 export async function getSettingsDataAction() {
   try {
     const session = await auth();
@@ -66,6 +98,38 @@ export async function getSettingsDataAction() {
     let allUsers: UserProfileDTO[] = [];
     let academicYears: AcademicYearDTO[] = [];
     let systemStats: SystemStatsDTO | null = null;
+    let systemConfig: SystemConfigDTO = { ...DEFAULT_CONFIG };
+
+    // Fetch system settings for all or admin
+    let settingsList: { key: string; value: string }[] = [];
+    try {
+      if (prisma.systemSetting) {
+        settingsList = await prisma.systemSetting.findMany();
+      }
+    } catch {}
+    const settingsMap = new Map(settingsList.map((s) => [s.key, s.value]));
+
+    systemConfig = {
+      institutionName: settingsMap.get("institutionName") ?? DEFAULT_CONFIG.institutionName,
+      supportEmail: settingsMap.get("supportEmail") ?? DEFAULT_CONFIG.supportEmail,
+      supportPhone: settingsMap.get("supportPhone") ?? DEFAULT_CONFIG.supportPhone,
+      address: settingsMap.get("address") ?? DEFAULT_CONFIG.address,
+      defaultMaxScore: settingsMap.get("defaultMaxScore") ?? DEFAULT_CONFIG.defaultMaxScore,
+      lessonDurationMinutes: settingsMap.get("lessonDurationMinutes") ?? DEFAULT_CONFIG.lessonDurationMinutes,
+      allowLateSubmissions: settingsMap.has("allowLateSubmissions")
+        ? settingsMap.get("allowLateSubmissions") === "true"
+        : DEFAULT_CONFIG.allowLateSubmissions,
+      allowSelfRegistration: settingsMap.has("allowSelfRegistration")
+        ? settingsMap.get("allowSelfRegistration") === "true"
+        : DEFAULT_CONFIG.allowSelfRegistration,
+      allowedEmailDomain: settingsMap.get("allowedEmailDomain") ?? DEFAULT_CONFIG.allowedEmailDomain,
+      maxFileUploadMb: settingsMap.get("maxFileUploadMb") ?? DEFAULT_CONFIG.maxFileUploadMb,
+      globalNoticeTitle: settingsMap.get("globalNoticeTitle") ?? DEFAULT_CONFIG.globalNoticeTitle,
+      globalNoticeContent: settingsMap.get("globalNoticeContent") ?? DEFAULT_CONFIG.globalNoticeContent,
+      showGlobalNotice: settingsMap.has("showGlobalNotice")
+        ? settingsMap.get("showGlobalNotice") === "true"
+        : DEFAULT_CONFIG.showGlobalNotice,
+    };
 
     if (session.user.role === "ADMIN") {
       const [users, years, stats] = await Promise.all([
@@ -118,11 +182,38 @@ export async function getSettingsDataAction() {
       allUsers,
       academicYears,
       systemStats,
+      systemConfig,
       role: session.user.role as string,
     };
   } catch (error) {
     console.error("getSettingsDataAction error:", error);
     return null;
+  }
+}
+
+/** Admin: Update system configuration */
+export async function updateSystemConfigAction(data: Partial<SystemConfigDTO>) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор может изменять системные настройки" };
+  }
+
+  try {
+    const entries = Object.entries(data);
+    for (const [key, val] of entries) {
+      if (val !== undefined) {
+        await prisma.systemSetting.upsert({
+          where: { key },
+          update: { value: String(val) },
+          create: { key, value: String(val) },
+        });
+      }
+    }
+
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }
 
@@ -296,6 +387,59 @@ export async function createAcademicYearAction(data: {
         endDate: new Date(data.endDate),
       },
     });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Admin: update academic year */
+export async function updateAcademicYearAction(
+  yearId: string,
+  data: {
+    name: string;
+    startDate: string;
+    endDate: string;
+  }
+) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор" };
+  }
+
+  try {
+    await prisma.academicYear.update({
+      where: { id: yearId },
+      data: {
+        name: data.name.trim(),
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+      },
+    });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Admin: delete academic year */
+export async function deleteAcademicYearAction(yearId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор" };
+  }
+
+  try {
+    const year = await prisma.academicYear.findUnique({ where: { id: yearId } });
+    if (!year) return { success: false, error: "Учебный год не найден" };
+
+    if (year.isCurrent) {
+      return { success: false, error: "Нельзя удалить текущий учебный год" };
+    }
+
+    await prisma.academicYear.delete({ where: { id: yearId } });
     revalidatePath("/dashboard/settings");
     return { success: true };
   } catch (error: any) {

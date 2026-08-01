@@ -30,6 +30,7 @@ export default async function SettingsPage() {
       allUsers={data.allUsers}
       academicYears={data.academicYears}
       systemStats={data.systemStats}
+      systemConfig={data.systemConfig}
       role={data.role}
     />
   );

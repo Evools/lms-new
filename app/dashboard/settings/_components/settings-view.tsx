@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,14 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectTrigger,
@@ -42,11 +51,20 @@ import {
   Building2,
   Eye,
   EyeOff,
+  Pencil,
+  Trash2,
+  Globe,
+  Sliders,
+  Megaphone,
+  Bell,
+  HelpCircle,
+  Check,
 } from "lucide-react";
 import type {
   UserProfileDTO,
   AcademicYearDTO,
   SystemStatsDTO,
+  SystemConfigDTO,
 } from "../actions";
 import {
   updateProfileAction,
@@ -56,6 +74,9 @@ import {
   createUserAction,
   setCurrentAcademicYearAction,
   createAcademicYearAction,
+  updateAcademicYearAction,
+  deleteAcademicYearAction,
+  updateSystemConfigAction,
 } from "../actions";
 
 interface SettingsViewProps {
@@ -63,10 +84,20 @@ interface SettingsViewProps {
   allUsers: UserProfileDTO[];
   academicYears: AcademicYearDTO[];
   systemStats: SystemStatsDTO | null;
+  systemConfig: SystemConfigDTO;
   role: string;
 }
 
-type Tab = "profile" | "security" | "users" | "academic" | "system";
+type Tab =
+  | "profile"
+  | "security"
+  | "organization"
+  | "learning"
+  | "access"
+  | "notice"
+  | "users"
+  | "academic"
+  | "system";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Администратор",
@@ -80,7 +111,7 @@ const ROLE_COLORS: Record<string, string> = {
   STUDENT: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
 };
 
-export function SettingsView({ profile, allUsers, academicYears, systemStats, role }: SettingsViewProps) {
+export function SettingsView({ profile, allUsers, academicYears, systemStats, systemConfig, role }: SettingsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -114,8 +145,33 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, ro
   const [newYearStart, setNewYearStart] = useState("");
   const [newYearEnd, setNewYearEnd] = useState("");
 
+  const [editYearTarget, setEditYearTarget] = useState<AcademicYearDTO | null>(null);
+  const [editYearName, setEditYearName] = useState("");
+  const [editYearStart, setEditYearStart] = useState("");
+  const [editYearEnd, setEditYearEnd] = useState("");
+
+  const [deleteYearTarget, setDeleteYearTarget] = useState<AcademicYearDTO | null>(null);
+
   // User search
   const [userSearch, setUserSearch] = useState("");
+
+  // System Config State
+  const [instName, setInstName] = useState(systemConfig?.institutionName || "");
+  const [instEmail, setInstEmail] = useState(systemConfig?.supportEmail || "");
+  const [instPhone, setInstPhone] = useState(systemConfig?.supportPhone || "");
+  const [instAddress, setInstAddress] = useState(systemConfig?.address || "");
+
+  const [defScore, setDefScore] = useState(systemConfig?.defaultMaxScore || "100");
+  const [lessonDuration, setLessonDuration] = useState(systemConfig?.lessonDurationMinutes || "45");
+  const [allowLate, setAllowLate] = useState(systemConfig?.allowLateSubmissions ?? true);
+
+  const [allowSelfReg, setAllowSelfReg] = useState(systemConfig?.allowSelfRegistration ?? true);
+  const [emailDomain, setEmailDomain] = useState(systemConfig?.allowedEmailDomain || "");
+  const [maxFileMb, setMaxFileMb] = useState(systemConfig?.maxFileUploadMb || "50");
+
+  const [noticeTitle, setNoticeTitle] = useState(systemConfig?.globalNoticeTitle || "");
+  const [noticeContent, setNoticeContent] = useState(systemConfig?.globalNoticeContent || "");
+  const [showNotice, setShowNotice] = useState(systemConfig?.showGlobalNotice ?? false);
 
   const showSuccess = (msg: string) => {
     setSuccessMsg(msg);
@@ -206,6 +262,55 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, ro
     });
   };
 
+  const handleOpenEditYear = (y: AcademicYearDTO) => {
+    setEditYearTarget(y);
+    setEditYearName(y.name);
+    setEditYearStart(y.startDate ? new Date(y.startDate).toISOString().slice(0, 10) : "");
+    setEditYearEnd(y.endDate ? new Date(y.endDate).toISOString().slice(0, 10) : "");
+  };
+
+  const handleUpdateYear = () => {
+    if (!editYearTarget || !editYearName.trim() || !editYearStart || !editYearEnd) {
+      showError("Заполните все поля"); return;
+    }
+    startTransition(async () => {
+      const res = await updateAcademicYearAction(editYearTarget.id, {
+        name: editYearName,
+        startDate: editYearStart,
+        endDate: editYearEnd,
+      });
+      if (res.success) {
+        setEditYearTarget(null);
+        showSuccess("Учебный год обновлён!");
+        router.refresh();
+      } else showError(res.error || "Ошибка");
+    });
+  };
+
+  const handleDeleteYear = () => {
+    if (!deleteYearTarget) return;
+    startTransition(async () => {
+      const res = await deleteAcademicYearAction(deleteYearTarget.id);
+      if (res.success) {
+        setDeleteYearTarget(null);
+        showSuccess("Учебный год удалён!");
+        router.refresh();
+      } else showError(res.error || "Ошибка");
+    });
+  };
+
+  const handleSaveConfig = (data: Partial<SystemConfigDTO>, successMessage: string) => {
+    startTransition(async () => {
+      const res = await updateSystemConfigAction(data);
+      if (res.success) {
+        showSuccess(successMessage);
+        router.refresh();
+      } else {
+        showError(res.error || "Ошибка сохранения настроек");
+      }
+    });
+  };
+
   const filteredUsers = allUsers.filter(
     (u) =>
       u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -215,9 +320,13 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, ro
   const TABS: { key: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { key: "profile" as Tab, label: "Профиль", icon: <User className="h-3.5 w-3.5" /> },
     { key: "security" as Tab, label: "Безопасность", icon: <Lock className="h-3.5 w-3.5" /> },
+    { key: "organization" as Tab, label: "Организация", icon: <Globe className="h-3.5 w-3.5" />, adminOnly: true },
+    { key: "learning" as Tab, label: "Обучение", icon: <Sliders className="h-3.5 w-3.5" />, adminOnly: true },
+    { key: "access" as Tab, label: "Документы & Доступ", icon: <Shield className="h-3.5 w-3.5" />, adminOnly: true },
+    { key: "notice" as Tab, label: "Объявление над сайтом", icon: <Megaphone className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "users" as Tab, label: "Пользователи", icon: <Users className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "academic" as Tab, label: "Учебный год", icon: <CalendarDays className="h-3.5 w-3.5" />, adminOnly: true },
-    { key: "system" as Tab, label: "Система", icon: <BarChart3 className="h-3.5 w-3.5" />, adminOnly: true },
+    { key: "system" as Tab, label: "Статистика", icon: <BarChart3 className="h-3.5 w-3.5" />, adminOnly: true },
   ].filter((t) => !t.adminOnly || isAdmin);
 
   return (
@@ -379,6 +488,268 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, ro
         </div>
       )}
 
+      {/* Tab: Organization (Admin only) */}
+      {activeTab === "organization" && isAdmin && (
+        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+            <Globe className="h-4 w-4 text-primary" /> Данные учебного заведения
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Название учебного заведения *</label>
+              <Input
+                value={instName}
+                onChange={(e) => setInstName(e.target.value)}
+                placeholder="например: Лицей №15 или Колледж ИТ"
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Email службы поддержки</label>
+              <Input
+                value={instEmail}
+                onChange={(e) => setInstEmail(e.target.value)}
+                placeholder="support@lyceum.ru"
+                className="h-8 text-xs bg-background font-mono"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Телефон связи</label>
+              <Input
+                value={instPhone}
+                onChange={(e) => setInstPhone(e.target.value)}
+                placeholder="+7 (495) 123-45-67"
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Физический адрес</label>
+              <Input
+                value={instAddress}
+                onChange={(e) => setInstAddress(e.target.value)}
+                placeholder="г. Москва, ул..."
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+          <Button
+            size="xs"
+            disabled={isPending}
+            onClick={() =>
+              handleSaveConfig(
+                {
+                  institutionName: instName,
+                  supportEmail: instEmail,
+                  supportPhone: instPhone,
+                  address: instAddress,
+                },
+                "Данные заведения сохранены!"
+              )
+            }
+            className="h-8 font-medium"
+          >
+            Сохранить настройки заведения
+          </Button>
+        </div>
+      )}
+
+      {/* Tab: Learning parameters (Admin only) */}
+      {activeTab === "learning" && isAdmin && (
+        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+            <Sliders className="h-4 w-4 text-primary" /> Параметры учебного процесса & Оценивания
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Балл за ДЗ по умолчанию (Max)</label>
+              <Input
+                type="number"
+                value={defScore}
+                onChange={(e) => setDefScore(e.target.value)}
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Длительность академического часа (мин)</label>
+              <Input
+                type="number"
+                value={lessonDuration}
+                onChange={(e) => setLessonDuration(e.target.value)}
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+
+          <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+            <label htmlFor="allow-late" className="space-y-0.5 cursor-pointer flex-1">
+              <div className="font-semibold text-foreground text-xs">Приём работ после дедлайна</div>
+              <div className="text-[11px] text-muted-foreground">
+                Разрешить студентам отправлять домашние задания позже срока (с пометкой «Сдано с опозданием»)
+              </div>
+            </label>
+            <Switch
+              id="allow-late"
+              checked={allowLate}
+              onCheckedChange={(checked) => setAllowLate(!!checked)}
+            />
+          </div>
+
+          <Button
+            size="xs"
+            disabled={isPending}
+            onClick={() =>
+              handleSaveConfig(
+                {
+                  defaultMaxScore: defScore,
+                  lessonDurationMinutes: lessonDuration,
+                  allowLateSubmissions: allowLate,
+                },
+                "Параметры учебного процесса сохранены!"
+              )
+            }
+            className="h-8 font-medium"
+          >
+            Сохранить параметры обучения
+          </Button>
+        </div>
+      )}
+
+      {/* Tab: Access & Registration (Admin only) */}
+      {activeTab === "access" && isAdmin && (
+        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+            <Shield className="h-4 w-4 text-primary" /> Безопасность, Доступ и Файлы
+          </h2>
+
+          <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+            <label htmlFor="allow-self-reg" className="space-y-0.5 cursor-pointer flex-1">
+              <div className="font-semibold text-foreground text-xs">Самостоятельная регистрация</div>
+              <div className="text-[11px] text-muted-foreground">
+                Разрешить студентам самостоятельно создавать аккаунты на странице входа (/register)
+              </div>
+            </label>
+            <Switch
+              id="allow-self-reg"
+              checked={allowSelfReg}
+              onCheckedChange={(checked) => setAllowSelfReg(!!checked)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Разрешённый домен Email для регистрации</label>
+              <Input
+                value={emailDomain}
+                onChange={(e) => setEmailDomain(e.target.value)}
+                placeholder="например: lyceum.ru (оставьте пустым для любых)"
+                className="h-8 text-xs bg-background font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Максимальный размер загружаемых файлов (МБ)</label>
+              <Input
+                type="number"
+                value={maxFileMb}
+                onChange={(e) => setMaxFileMb(e.target.value)}
+                placeholder="50"
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+
+          <Button
+            size="xs"
+            disabled={isPending}
+            onClick={() =>
+              handleSaveConfig(
+                {
+                  allowSelfRegistration: allowSelfReg,
+                  allowedEmailDomain: emailDomain,
+                  maxFileUploadMb: maxFileMb,
+                },
+                "Параметры доступа сохранены!"
+              )
+            }
+            className="h-8 font-medium"
+          >
+            Сохранить настройки доступа
+          </Button>
+        </div>
+      )}
+
+      {/* Tab: System Notice Banner (Admin only) */}
+      {activeTab === "notice" && isAdmin && (
+        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+            <Megaphone className="h-4 w-4 text-primary" /> Системное объявление для всех пользователей
+          </h2>
+
+          <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+            <label htmlFor="show-notice" className="space-y-0.5 cursor-pointer flex-1">
+              <div className="font-semibold text-foreground text-xs">Показывать баннер на сайте</div>
+              <div className="text-[11px] text-muted-foreground">
+                Включить отображение важного сообщения над главным меню для всех студентов и преподавателей
+              </div>
+            </label>
+            <Switch
+              id="show-notice"
+              checked={showNotice}
+              onCheckedChange={(checked) => setShowNotice(!!checked)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Заголовок объявления</label>
+              <Input
+                value={noticeTitle}
+                onChange={(e) => setNoticeTitle(e.target.value)}
+                placeholder="например: Внимание! Технический перерыв 15 августа"
+                className="h-8 text-xs bg-background font-semibold"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Текст сообщения</label>
+              <Input
+                value={noticeContent}
+                onChange={(e) => setNoticeContent(e.target.value)}
+                placeholder="Напишите подробное сообщение..."
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+
+          {showNotice && (noticeTitle || noticeContent) && (
+            <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 space-y-1 text-xs">
+              <div className="font-bold text-primary flex items-center gap-1.5">
+                <Bell className="h-3.5 w-3.5" /> Предпросмотр баннера:
+              </div>
+              <div className="font-semibold text-foreground">{noticeTitle || "Без заголовка"}</div>
+              <div className="text-[11px] text-muted-foreground">{noticeContent || "Без текста"}</div>
+            </div>
+          )}
+
+          <Button
+            size="xs"
+            disabled={isPending}
+            onClick={() =>
+              handleSaveConfig(
+                {
+                  globalNoticeTitle: noticeTitle,
+                  globalNoticeContent: noticeContent,
+                  showGlobalNotice: showNotice,
+                },
+                "Системное объявление обновлено!"
+              )
+            }
+            className="h-8 font-medium"
+          >
+            Сохранить объявление
+          </Button>
+        </div>
+      )}
+
       {/* Tab: Users (Admin only) */}
       {activeTab === "users" && isAdmin && (
         <div className="space-y-3">
@@ -499,17 +870,37 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, ro
                       {new Date(y.startDate).toLocaleDateString("ru-RU")} — {new Date(y.endDate).toLocaleDateString("ru-RU")}
                     </div>
                   </div>
-                  {!y.isCurrent && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      disabled={isPending}
-                      onClick={() => handleSetCurrentYear(y.id)}
-                      className="h-6 px-2 text-[10px] font-medium text-primary border-primary/30 hover:bg-primary/10"
+                  <div className="flex items-center gap-2">
+                    {!y.isCurrent && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={isPending}
+                        onClick={() => handleSetCurrentYear(y.id)}
+                        className="h-6 px-2 text-[10px] font-medium text-primary border-primary/30 hover:bg-primary/10"
+                      >
+                        Сделать текущим
+                      </Button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditYear(y)}
+                      className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                      title="Редактировать"
                     >
-                      Сделать текущим
-                    </Button>
-                  )}
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    {!y.isCurrent && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteYearTarget(y)}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Удалить"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {academicYears.length === 0 && (
@@ -648,6 +1039,59 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, ro
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal: Edit Academic Year */}
+      <Dialog open={editYearTarget !== null} onOpenChange={(open) => !open && setEditYearTarget(null)}>
+        {editYearTarget && (
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[380px]">
+            <DialogHeader className="pb-2 border-b gap-1 text-left">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+                <Pencil className="h-4 w-4 text-primary" /> Редактировать учебный год
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2.5 py-1">
+              <div className="space-y-1">
+                <label className="font-medium text-xs">Название *</label>
+                <Input value={editYearName} onChange={(e) => setEditYearName(e.target.value)} placeholder="2026-2027" className="h-8 text-xs bg-background" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="font-medium text-xs">Начало *</label>
+                  <Input type="date" value={editYearStart} onChange={(e) => setEditYearStart(e.target.value)} className="h-8 text-xs bg-background" />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-medium text-xs">Конец *</label>
+                  <Input type="date" value={editYearEnd} onChange={(e) => setEditYearEnd(e.target.value)} className="h-8 text-xs bg-background" />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setEditYearTarget(null)}>Отмена</Button>
+              <Button size="xs" disabled={isPending} onClick={handleUpdateYear}>Сохранить</Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* Modal: Delete Academic Year */}
+      <AlertDialog open={deleteYearTarget !== null} onOpenChange={(open) => !open && setDeleteYearTarget(null)}>
+        {deleteYearTarget && (
+          <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+            <AlertDialogHeader className="place-items-start text-left gap-1">
+              <AlertDialogTitle className="text-sm font-bold flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-destructive" /> Удалить учебный год?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                Вы действительно хотите удалить «{deleteYearTarget.name}»? Все связанные учебные группы будут также удалены.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setDeleteYearTarget(null)}>Отмена</Button>
+              <Button variant="destructive" size="xs" disabled={isPending} onClick={handleDeleteYear}>Удалить</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
     </div>
   );
 }

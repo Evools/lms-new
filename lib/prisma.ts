@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
 
 // Detect if cached client in globalThis is missing recently added models
 const existingClient = globalForPrisma.prisma;
-const isStale = existingClient && !("test" in existingClient);
+const isStale = existingClient && (!("test" in existingClient) || !("systemSetting" in existingClient));
 
 export const prisma =
   !isStale && existingClient

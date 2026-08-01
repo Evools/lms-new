@@ -359,3 +359,11 @@ model TestSubmission {
   @@unique([testId, studentId])
   @@map("test_submissions")
 }
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
