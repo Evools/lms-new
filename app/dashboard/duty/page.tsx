@@ -2,7 +2,6 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import {
   getDutyScheduleAction,
-  getAllGroupsTodayDutyAction,
   getGroupDutyStatsAction,
 } from "./actions";
 import { DutyScheduleView } from "./_components/duty-schedule-view";
@@ -24,10 +23,7 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
   const { groups, weeklyDays, groupStudents } = await getDutyScheduleAction(group);
   const targetGroupId = group || groups[0]?.id;
 
-  const [allGroupsTodayDuty, groupDutyStats] = await Promise.all([
-    getAllGroupsTodayDutyAction(),
-    targetGroupId ? getGroupDutyStatsAction(targetGroupId) : Promise.resolve([]),
-  ]);
+  const groupDutyStats = targetGroupId ? await getGroupDutyStatsAction(targetGroupId) : [];
 
   return (
     <DutyScheduleView
@@ -35,7 +31,6 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
       groupsList={groups}
       weeklyDays={weeklyDays}
       groupStudents={groupStudents}
-      allGroupsTodayDuty={allGroupsTodayDuty}
       groupDutyStats={groupDutyStats}
       selectedGroupId={targetGroupId}
     />

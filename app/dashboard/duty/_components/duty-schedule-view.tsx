@@ -60,7 +60,6 @@ import {
   addDutyStudentAction,
   removeDutyStudentAction,
   addDisciplinaryDutyAction,
-  AllGroupsTodayDutyDTO,
   StudentDutyStatDTO,
   GroupStudentWithDutyInfo,
 } from "../actions";
@@ -70,7 +69,6 @@ interface DutyScheduleViewProps {
   groupsList: { id: string; name: string }[];
   weeklyDays: DayDutyGroupDTO[];
   groupStudents: GroupStudentWithDutyInfo[];
-  allGroupsTodayDuty: AllGroupsTodayDutyDTO[];
   groupDutyStats: StudentDutyStatDTO[];
   selectedGroupId?: string;
 }
@@ -87,7 +85,6 @@ export function DutyScheduleView({
   groupsList = [],
   weeklyDays = [],
   groupStudents = [],
-  allGroupsTodayDuty = [],
   groupDutyStats = [],
   selectedGroupId,
 }: DutyScheduleViewProps) {
@@ -98,7 +95,7 @@ export function DutyScheduleView({
     selectedGroupId || (groupsList[0]?.id || "")
   );
 
-  const [activeTab, setActiveTab] = useState<"WEEKLY" | "ALL_GROUPS" | "STATS">("WEEKLY");
+  const [activeTab, setActiveTab] = useState<"WEEKLY" | "STATS">("WEEKLY");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -466,19 +463,6 @@ export function DutyScheduleView({
 
           <button
             type="button"
-            onClick={() => setActiveTab("ALL_GROUPS")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              activeTab === "ALL_GROUPS"
-                ? "bg-background text-foreground shadow-2xs border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Building2 className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
-            Сводка по лицею (Сегодня)
-          </button>
-
-          <button
-            type="button"
             onClick={() => setActiveTab("STATS")}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
               activeTab === "STATS"
@@ -682,71 +666,7 @@ export function DutyScheduleView({
         </Card>
       )}
 
-      {/* TAB 2: ALL GROUPS TODAY SUMMARY */}
-      {activeTab === "ALL_GROUPS" && (
-        <div className="print:hidden space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Building2 className="h-4 w-4 text-primary" /> Сводное табло дежурств по всем группам лицея на сегодня
-            </h2>
-            <Badge variant="outline" className="text-[10px]">
-              Всего групп: {allGroupsTodayDuty.length}
-            </Badge>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {allGroupsTodayDuty.map((g) => (
-              <Card key={g.groupId} className="p-3 border hover:border-primary/40 transition-all space-y-2.5">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <div className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5 text-primary" /> Группа {g.groupName}
-                  </div>
-                  <Link
-                    href={`/dashboard/duty?group=${g.groupId}`}
-                    className="text-[10px] text-primary hover:underline flex items-center gap-0.5 font-medium"
-                  >
-                    Перейти <ArrowRight className="h-2.5 w-2.5" />
-                  </Link>
-                </div>
-
-                {g.leaderStudent && (
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <Crown className="h-3 w-3 text-primary shrink-0" />
-                    <span>Староста: <strong>{g.leaderStudent.name}</strong></span>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <div className="text-[10px] text-muted-foreground font-medium">Дежурные на сегодня:</div>
-                  {g.dutyStudents.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {g.dutyStudents.map((st) => (
-                        <div
-                          key={st.id}
-                          className="flex items-center gap-1 px-2 py-1 rounded-md border border-primary/20 bg-primary/5 text-primary text-xs font-medium"
-                        >
-                          <Avatar className="h-4 w-4 border shrink-0">
-                            <AvatarFallback className="text-[7px] font-bold bg-primary/20 text-primary">
-                              {st.name.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span>{st.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-muted-foreground/60 italic py-1">
-                      Дежурные не назначены
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: DUTY STATS & AUDIT */}
+      {/* TAB 2: DUTY STATS & AUDIT */}
       {activeTab === "STATS" && (
         <Card className="print:hidden p-0 border overflow-hidden">
           <CardHeader className="p-3 border-b bg-muted/30">
