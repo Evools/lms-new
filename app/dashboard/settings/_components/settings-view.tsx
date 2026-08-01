@@ -37,19 +37,11 @@ import {
   Users,
   CalendarDays,
   ChevronRight,
-  CheckCircle2,
-  AlertCircle,
   Shield,
   GraduationCap,
   Award,
   Plus,
-  ToggleLeft,
-  ToggleRight,
   BookOpen,
-  ClipboardList,
-  FileText,
-  BarChart3,
-  Building2,
   Eye,
   EyeOff,
   Pencil,
@@ -58,8 +50,10 @@ import {
   Sliders,
   Megaphone,
   Bell,
-  HelpCircle,
-  Check,
+  Search,
+  Building2,
+  FileText,
+  ClipboardList,
 } from "lucide-react";
 import type {
   UserProfileDTO,
@@ -89,16 +83,7 @@ interface SettingsViewProps {
   role: string;
 }
 
-type Tab =
-  | "profile"
-  | "security"
-  | "organization"
-  | "learning"
-  | "access"
-  | "notice"
-  | "users"
-  | "academic"
-  | "system";
+type Tab = "profile" | "system" | "users" | "academic";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Администратор",
@@ -112,27 +97,33 @@ const ROLE_COLORS: Record<string, string> = {
   STUDENT: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
 };
 
-export function SettingsView({ profile, allUsers, academicYears, systemStats, systemConfig, role }: SettingsViewProps) {
+export function SettingsView({
+  profile,
+  allUsers,
+  academicYears,
+  systemStats,
+  systemConfig,
+  role,
+}: SettingsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const isAdmin = role === "ADMIN";
   const [activeTab, setActiveTab] = useState<Tab>("profile");
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Profile
+  // Profile State
   const [profileName, setProfileName] = useState(profile.name);
   const [profilePhone, setProfilePhone] = useState(profile.phone || "");
   const [profileAvatar, setProfileAvatar] = useState(profile.avatar || "");
 
-  // Password
+  // Password State
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [showPwd, setShowPwd] = useState(false);
 
-  // Create User
+  // User Search & Create State
+  const [userSearch, setUserSearch] = useState("");
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -140,7 +131,7 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
   const [newUserRole, setNewUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT">("STUDENT");
   const [newUserPhone, setNewUserPhone] = useState("");
 
-  // Academic Year
+  // Academic Year State
   const [isCreateYearOpen, setIsCreateYearOpen] = useState(false);
   const [newYearName, setNewYearName] = useState("");
   const [newYearStart, setNewYearStart] = useState("");
@@ -153,9 +144,6 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
 
   const [deleteYearTarget, setDeleteYearTarget] = useState<AcademicYearDTO | null>(null);
 
-  // User search
-  const [userSearch, setUserSearch] = useState("");
-
   // System Config State
   const [instName, setInstName] = useState(systemConfig?.institutionName || "");
   const [instEmail, setInstEmail] = useState(systemConfig?.supportEmail || "");
@@ -165,107 +153,133 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
   const [defScore, setDefScore] = useState(systemConfig?.defaultMaxScore || "100");
   const [lessonDuration, setLessonDuration] = useState(systemConfig?.lessonDurationMinutes || "45");
   const [allowLate, setAllowLate] = useState(systemConfig?.allowLateSubmissions ?? true);
-
   const [allowSelfReg, setAllowSelfReg] = useState(systemConfig?.allowSelfRegistration ?? true);
-  const [emailDomain, setEmailDomain] = useState(systemConfig?.allowedEmailDomain || "");
-  const [maxFileMb, setMaxFileMb] = useState(systemConfig?.maxFileUploadMb || "50");
 
   const [noticeTitle, setNoticeTitle] = useState(systemConfig?.globalNoticeTitle || "");
   const [noticeContent, setNoticeContent] = useState(systemConfig?.globalNoticeContent || "");
   const [showNotice, setShowNotice] = useState(systemConfig?.showGlobalNotice ?? false);
 
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(null), 3500);
-    setErrorMsg(null);
-    try {
-      toast.add({ title: msg, type: "success" });
-    } catch {}
-  };
-  const showError = (msg: string) => {
-    setErrorMsg(msg);
-    setTimeout(() => setErrorMsg(null), 4000);
-    try {
-      toast.add({ title: msg, type: "error" });
-    } catch {}
-  };
-
+  // Profile Handlers
   const handleUpdateProfile = () => {
-    if (!profileName.trim()) { showError("Укажите имя"); return; }
+    if (!profileName.trim()) {
+      toast.add({ title: "Укажите имя и фамилию", type: "error" });
+      return;
+    }
     startTransition(async () => {
       const res = await updateProfileAction({ name: profileName, phone: profilePhone, avatar: profileAvatar });
-      if (res.success) { showSuccess("Профиль обновлён!"); router.refresh(); }
-      else showError(res.error || "Ошибка");
+      if (res.success) {
+        toast.add({ title: "Профиль обновлён", type: "success" });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка обновления профиля", type: "error" });
+      }
     });
   };
 
   const handleChangePassword = () => {
-    if (!currentPwd || !newPwd) { showError("Заполните все поля"); return; }
-    if (newPwd !== confirmPwd) { showError("Пароли не совпадают"); return; }
-    if (newPwd.length < 6) { showError("Минимум 6 символов"); return; }
+    if (!currentPwd || !newPwd) {
+      toast.add({ title: "Заполните поля паролей", type: "error" });
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      toast.add({ title: "Пароли не совпадают", type: "error" });
+      return;
+    }
+    if (newPwd.length < 6) {
+      toast.add({ title: "Минимальная длина пароля — 6 символов", type: "error" });
+      return;
+    }
     startTransition(async () => {
       const res = await changePasswordAction({ currentPassword: currentPwd, newPassword: newPwd });
       if (res.success) {
-        showSuccess("Пароль изменён!");
+        toast.add({ title: "Пароль успешно изменён", type: "success" });
         setCurrentPwd(""); setNewPwd(""); setConfirmPwd("");
-      } else showError(res.error || "Ошибка");
+      } else {
+        toast.add({ title: res.error || "Ошибка смены пароля", type: "error" });
+      }
     });
   };
 
-  const handleToggleUser = (userId: string, currentActive: boolean) => {
+  // User Handlers
+  const handleToggleUser = (userId: string, targetActiveState: boolean) => {
     startTransition(async () => {
-      const res = await toggleUserActiveAction(userId, !currentActive);
-      if (res.success) { showSuccess("Статус пользователя изменён!"); router.refresh(); }
-      else showError(res.error || "Ошибка");
+      const res = await toggleUserActiveAction(userId, targetActiveState);
+      if (res.success) {
+        toast.add({
+          title: targetActiveState ? "Пользователь активирован" : "Пользователь заблокирован",
+          type: "success",
+        });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка изменения статуса", type: "error" });
+      }
     });
   };
 
   const handleChangeRole = (userId: string, newRole: "ADMIN" | "TEACHER" | "STUDENT") => {
     startTransition(async () => {
       const res = await changeUserRoleAction(userId, newRole);
-      if (res.success) { showSuccess("Роль изменена!"); router.refresh(); }
-      else showError(res.error || "Ошибка");
+      if (res.success) {
+        toast.add({ title: "Роль пользователя обновлена", type: "success" });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка смены роли", type: "error" });
+      }
     });
   };
 
   const handleCreateUser = () => {
     if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword) {
-      showError("Заполните все поля"); return;
+      toast.add({ title: "Заполните обязательные поля", type: "error" });
+      return;
     }
     startTransition(async () => {
       const res = await createUserAction({
-        name: newUserName, email: newUserEmail,
-        password: newUserPassword, role: newUserRole, phone: newUserPhone,
+        name: newUserName,
+        email: newUserEmail,
+        password: newUserPassword,
+        role: newUserRole,
+        phone: newUserPhone,
       });
       if (res.success) {
         setIsCreateUserOpen(false);
         setNewUserName(""); setNewUserEmail(""); setNewUserPassword(""); setNewUserPhone("");
-        showSuccess("Пользователь создан!");
+        toast.add({ title: "Пользователь успешно создан", type: "success" });
         router.refresh();
-      } else showError(res.error || "Ошибка");
+      } else {
+        toast.add({ title: res.error || "Ошибка создания пользователя", type: "error" });
+      }
     });
   };
 
+  // Academic Year Handlers
   const handleSetCurrentYear = (yearId: string) => {
     startTransition(async () => {
       const res = await setCurrentAcademicYearAction(yearId);
-      if (res.success) { showSuccess("Учебный год установлен!"); router.refresh(); }
-      else showError(res.error || "Ошибка");
+      if (res.success) {
+        toast.add({ title: "Текущий учебный год изменён", type: "success" });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка", type: "error" });
+      }
     });
   };
 
   const handleCreateYear = () => {
     if (!newYearName.trim() || !newYearStart || !newYearEnd) {
-      showError("Заполните все поля"); return;
+      toast.add({ title: "Укажите название и даты учебного года", type: "error" });
+      return;
     }
     startTransition(async () => {
       const res = await createAcademicYearAction({ name: newYearName, startDate: newYearStart, endDate: newYearEnd });
       if (res.success) {
         setIsCreateYearOpen(false);
         setNewYearName(""); setNewYearStart(""); setNewYearEnd("");
-        showSuccess("Учебный год добавлен!");
+        toast.add({ title: "Учебный год создан", type: "success" });
         router.refresh();
-      } else showError(res.error || "Ошибка");
+      } else {
+        toast.add({ title: res.error || "Ошибка", type: "error" });
+      }
     });
   };
 
@@ -278,7 +292,8 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
 
   const handleUpdateYear = () => {
     if (!editYearTarget || !editYearName.trim() || !editYearStart || !editYearEnd) {
-      showError("Заполните все поля"); return;
+      toast.add({ title: "Заполните все поля", type: "error" });
+      return;
     }
     startTransition(async () => {
       const res = await updateAcademicYearAction(editYearTarget.id, {
@@ -288,9 +303,11 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
       });
       if (res.success) {
         setEditYearTarget(null);
-        showSuccess("Учебный год обновлён!");
+        toast.add({ title: "Учебный год обновлён", type: "success" });
         router.refresh();
-      } else showError(res.error || "Ошибка");
+      } else {
+        toast.add({ title: res.error || "Ошибка", type: "error" });
+      }
     });
   };
 
@@ -300,20 +317,49 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
       const res = await deleteAcademicYearAction(deleteYearTarget.id);
       if (res.success) {
         setDeleteYearTarget(null);
-        showSuccess("Учебный год удалён!");
+        toast.add({ title: "Учебный год удалён", type: "success" });
         router.refresh();
-      } else showError(res.error || "Ошибка");
+      } else {
+        toast.add({ title: res.error || "Ошибка", type: "error" });
+      }
     });
   };
 
-  const handleSaveConfig = (data: Partial<SystemConfigDTO>, successMessage: string) => {
+  // Instant Toggle Handler for System Switches
+  const handleToggleSystemSwitch = (key: keyof SystemConfigDTO, val: boolean, labelMsg: string) => {
+    if (key === "allowLateSubmissions") setAllowLate(val);
+    if (key === "allowSelfRegistration") setAllowSelfReg(val);
+    if (key === "showGlobalNotice") setShowNotice(val);
+
     startTransition(async () => {
-      const res = await updateSystemConfigAction(data);
+      const res = await updateSystemConfigAction({ [key]: val });
       if (res.success) {
-        showSuccess(successMessage);
+        toast.add({ title: labelMsg, type: "success" });
         router.refresh();
       } else {
-        showError(res.error || "Ошибка сохранения настроек");
+        toast.add({ title: res.error || "Ошибка сохранения", type: "error" });
+      }
+    });
+  };
+
+  // Save Text Fields Handler for System Settings
+  const handleSaveSystemFields = () => {
+    startTransition(async () => {
+      const res = await updateSystemConfigAction({
+        institutionName: instName,
+        supportEmail: instEmail,
+        supportPhone: instPhone,
+        address: instAddress,
+        defaultMaxScore: defScore,
+        lessonDurationMinutes: lessonDuration,
+        globalNoticeTitle: noticeTitle,
+        globalNoticeContent: noticeContent,
+      });
+      if (res.success) {
+        toast.add({ title: "Настройки системы сохранены", type: "success" });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка сохранения", type: "error" });
       }
     });
   };
@@ -325,15 +371,10 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
   );
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
-    { key: "profile" as Tab, label: "Профиль", icon: <User className="h-3.5 w-3.5" /> },
-    { key: "security" as Tab, label: "Безопасность", icon: <Lock className="h-3.5 w-3.5" /> },
-    { key: "organization" as Tab, label: "Организация", icon: <Globe className="h-3.5 w-3.5" />, adminOnly: true },
-    { key: "learning" as Tab, label: "Обучение", icon: <Sliders className="h-3.5 w-3.5" />, adminOnly: true },
-    { key: "access" as Tab, label: "Документы & Доступ", icon: <Shield className="h-3.5 w-3.5" />, adminOnly: true },
-    { key: "notice" as Tab, label: "Объявление над сайтом", icon: <Megaphone className="h-3.5 w-3.5" />, adminOnly: true },
+    { key: "profile" as Tab, label: "Мой профиль", icon: <User className="h-3.5 w-3.5" /> },
+    { key: "system" as Tab, label: "Настройки системы", icon: <Globe className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "users" as Tab, label: "Пользователи", icon: <Users className="h-3.5 w-3.5" />, adminOnly: true },
-    { key: "academic" as Tab, label: "Учебный год", icon: <CalendarDays className="h-3.5 w-3.5" />, adminOnly: true },
-    { key: "system" as Tab, label: "Статистика", icon: <BarChart3 className="h-3.5 w-3.5" />, adminOnly: true },
+    { key: "academic" as Tab, label: "Учебные годы", icon: <CalendarDays className="h-3.5 w-3.5" />, adminOnly: true },
   ].filter((t) => !t.adminOnly || isAdmin);
 
   return (
@@ -347,7 +388,7 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
             <span className="text-foreground font-semibold">Настройки</span>
           </div>
           <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <Settings className="h-4 w-4 text-primary" /> Настройки системы
+            <Settings className="h-4 w-4 text-primary" /> Настройки LMS
           </h1>
         </div>
         <Badge variant="outline" className={`text-[10px] font-semibold border ${ROLE_COLORS[profile.role] || ""}`}>
@@ -355,19 +396,7 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
         </Badge>
       </div>
 
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0" /><span>{successMsg}</span>
-        </div>
-      )}
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 shrink-0" /><span>{errorMsg}</span>
-        </div>
-      )}
-
-      {/* Tab Navigation */}
+      {/* Navigation Tabs */}
       <div className="flex items-center gap-1 p-1 bg-card border rounded-xl shadow-xs overflow-x-auto">
         {TABS.map((tab) => (
           <button
@@ -380,20 +409,21 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
             }`}
           >
-            {tab.icon}{tab.label}
+            {tab.icon}
+            {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Tab: Profile */}
+      {/* Tab: Profile & Security */}
       {activeTab === "profile" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Profile Card */}
           <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
             <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-              <User className="h-4 w-4 text-primary" /> Личные данные
+              <User className="h-4 w-4 text-primary" /> Данные профиля
             </h2>
 
-            {/* Avatar preview */}
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-full border-2 border-primary/30 bg-muted flex items-center justify-center overflow-hidden shrink-0">
                 {profileAvatar ? (
@@ -430,357 +460,207 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
             </Button>
           </div>
 
+          {/* Password Card */}
           <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
             <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-              <Shield className="h-4 w-4 text-primary" /> Информация об аккаунте
+              <Lock className="h-4 w-4 text-primary" /> Смена пароля
             </h2>
-            <div className="space-y-2.5">
-              {[
-                { label: "Email", value: profile.email },
-                { label: "Роль", value: ROLE_LABELS[profile.role] || profile.role },
-                { label: "Статус", value: profile.isActive ? "Активен" : "Заблокирован" },
-                { label: "Дата регистрации", value: new Date(profile.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" }) },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                  <span className="text-muted-foreground">{item.label}</span>
-                  <span className="font-medium text-foreground">{item.value}</span>
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Текущий пароль *</label>
+                <div className="relative">
+                  <Input
+                    type={showPwd ? "text" : "password"}
+                    value={currentPwd}
+                    onChange={(e) => setCurrentPwd(e.target.value)}
+                    className="h-8 text-xs bg-background pr-8"
+                  />
+                  <button type="button" onClick={() => setShowPwd((v) => !v)} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
+                    {showPwd ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Security */}
-      {activeTab === "security" && (
-        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-            <Lock className="h-4 w-4 text-primary" /> Смена пароля
-          </h2>
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Текущий пароль *</label>
-              <div className="relative">
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Новый пароль *</label>
+                <Input type={showPwd ? "text" : "password"} value={newPwd} onChange={(e) => setNewPwd(e.target.value)} className="h-8 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Подтвердите новый пароль *</label>
                 <Input
                   type={showPwd ? "text" : "password"}
-                  value={currentPwd}
-                  onChange={(e) => setCurrentPwd(e.target.value)}
-                  className="h-8 text-xs bg-background pr-8"
+                  value={confirmPwd}
+                  onChange={(e) => setConfirmPwd(e.target.value)}
+                  className={`h-8 text-xs bg-background ${confirmPwd && confirmPwd !== newPwd ? "border-destructive" : ""}`}
                 />
-                <button type="button" onClick={() => setShowPwd((v) => !v)} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
-                  {showPwd ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Новый пароль *</label>
-              <Input type={showPwd ? "text" : "password"} value={newPwd} onChange={(e) => setNewPwd(e.target.value)} className="h-8 text-xs bg-background" />
+            <Button size="xs" disabled={isPending} onClick={handleChangePassword} className="w-full h-8 font-medium">
+              Изменить пароль
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: System Settings (Admin Only) */}
+      {activeTab === "system" && isAdmin && (
+        <div className="space-y-3">
+          {/* Instant Switches Card */}
+          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+              <Sliders className="h-4 w-4 text-primary" /> Быстрые переключатели системы
+            </h2>
+
+            <div className="space-y-2">
+              <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+                <label htmlFor="allow-self-reg" className="space-y-0.5 cursor-pointer flex-1">
+                  <div className="font-semibold text-foreground text-xs">Самостоятельная регистрация студентов</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Разрешить новым студентам самостоятельно регистрироваться на странице входа (/register)
+                  </div>
+                </label>
+                <Switch
+                  id="allow-self-reg"
+                  checked={allowSelfReg}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    handleToggleSystemSwitch("allowSelfRegistration", checked, checked ? "Самостоятельная регистрация включена" : "Самостоятельная регистрация отключена")
+                  }
+                />
+              </div>
+
+              <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+                <label htmlFor="allow-late" className="space-y-0.5 cursor-pointer flex-1">
+                  <div className="font-semibold text-foreground text-xs">Приём домашних заданий после дедлайна</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Разрешить студентам отправлять решения позже срока (с пометкой «Сдано с опозданием»)
+                  </div>
+                </label>
+                <Switch
+                  id="allow-late"
+                  checked={allowLate}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    handleToggleSystemSwitch("allowLateSubmissions", checked, checked ? "Приём после дедлайна разрешён" : "Приём после дедлайна запрещён")
+                  }
+                />
+              </div>
+
+              <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+                <label htmlFor="show-notice" className="space-y-0.5 cursor-pointer flex-1">
+                  <div className="font-semibold text-foreground text-xs">Системный баннер объявления</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Отображать сквозное важное сообщение для всех студентов и преподавателей
+                  </div>
+                </label>
+                <Switch
+                  id="show-notice"
+                  checked={showNotice}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    handleToggleSystemSwitch("showGlobalNotice", checked, checked ? "Системный баннер включён" : "Системный баннер отключён")
+                  }
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Подтвердите пароль *</label>
-              <Input
-                type={showPwd ? "text" : "password"}
-                value={confirmPwd}
-                onChange={(e) => setConfirmPwd(e.target.value)}
-                className={`h-8 text-xs bg-background ${confirmPwd && confirmPwd !== newPwd ? "border-destructive" : ""}`}
-              />
-              {confirmPwd && confirmPwd !== newPwd && (
-                <p className="text-[10px] text-destructive">Пароли не совпадают</p>
+          </div>
+
+          {/* System Parameters & Banner Text Card */}
+          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+              <Globe className="h-4 w-4 text-primary" /> Параметры заведения и системного баннера
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Название учебного заведения *</label>
+                <Input value={instName} onChange={(e) => setInstName(e.target.value)} placeholder="Лицей №15" className="h-8 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Email техподдержки</label>
+                <Input value={instEmail} onChange={(e) => setInstEmail(e.target.value)} placeholder="support@lyceum.ru" className="h-8 text-xs bg-background font-mono" />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Телефон связи</label>
+                <Input value={instPhone} onChange={(e) => setInstPhone(e.target.value)} placeholder="+7 (495) 123-45-67" className="h-8 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Физический адрес</label>
+                <Input value={instAddress} onChange={(e) => setInstAddress(e.target.value)} placeholder="г. Москва, ул..." className="h-8 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Макс. балл за ДЗ по умолчанию</label>
+                <Input type="number" value={defScore} onChange={(e) => setDefScore(e.target.value)} className="h-8 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Длительность урока (минут)</label>
+                <Input type="number" value={lessonDuration} onChange={(e) => setLessonDuration(e.target.value)} className="h-8 text-xs bg-background" />
+              </div>
+            </div>
+
+            {/* Global Notice Text */}
+            <div className="pt-2 border-t space-y-2">
+              <h3 className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                <Megaphone className="h-3.5 w-3.5 text-primary" /> Текст системного объявления
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <Input
+                  value={noticeTitle}
+                  onChange={(e) => setNoticeTitle(e.target.value)}
+                  placeholder="Заголовок баннера..."
+                  className="h-8 text-xs bg-background font-semibold"
+                />
+                <Input
+                  value={noticeContent}
+                  onChange={(e) => setNoticeContent(e.target.value)}
+                  placeholder="Подробный текст баннера..."
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+
+              {showNotice && (noticeTitle || noticeContent) && (
+                <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 space-y-1 text-xs">
+                  <div className="font-bold text-primary flex items-center gap-1.5">
+                    <Bell className="h-3.5 w-3.5" /> Предпросмотр баннера:
+                  </div>
+                  <div className="font-semibold text-foreground">{noticeTitle || "Без заголовка"}</div>
+                  <div className="text-[11px] text-muted-foreground">{noticeContent || "Без текста"}</div>
+                </div>
               )}
             </div>
+
+            <Button size="xs" disabled={isPending} onClick={handleSaveSystemFields} className="w-full h-8 font-medium">
+              Сохранить параметры системы
+            </Button>
           </div>
-          <Button size="xs" disabled={isPending} onClick={handleChangePassword} className="w-full h-8 font-medium">
-            Изменить пароль
-          </Button>
         </div>
       )}
 
-      {/* Tab: Organization (Admin only) */}
-      {activeTab === "organization" && isAdmin && (
-        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-            <Globe className="h-4 w-4 text-primary" /> Данные учебного заведения
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Название учебного заведения *</label>
-              <Input
-                value={instName}
-                onChange={(e) => setInstName(e.target.value)}
-                placeholder="например: Лицей №15 или Колледж ИТ"
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Email службы поддержки</label>
-              <Input
-                value={instEmail}
-                onChange={(e) => setInstEmail(e.target.value)}
-                placeholder="support@lyceum.ru"
-                className="h-8 text-xs bg-background font-mono"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Телефон связи</label>
-              <Input
-                value={instPhone}
-                onChange={(e) => setInstPhone(e.target.value)}
-                placeholder="+7 (495) 123-45-67"
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Физический адрес</label>
-              <Input
-                value={instAddress}
-                onChange={(e) => setInstAddress(e.target.value)}
-                placeholder="г. Москва, ул..."
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-          </div>
-          <Button
-            size="xs"
-            disabled={isPending}
-            onClick={() =>
-              handleSaveConfig(
-                {
-                  institutionName: instName,
-                  supportEmail: instEmail,
-                  supportPhone: instPhone,
-                  address: instAddress,
-                },
-                "Данные заведения сохранены!"
-              )
-            }
-            className="h-8 font-medium"
-          >
-            Сохранить настройки заведения
-          </Button>
-        </div>
-      )}
-
-      {/* Tab: Learning parameters (Admin only) */}
-      {activeTab === "learning" && isAdmin && (
-        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-            <Sliders className="h-4 w-4 text-primary" /> Параметры учебного процесса & Оценивания
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Балл за ДЗ по умолчанию (Max)</label>
-              <Input
-                type="number"
-                value={defScore}
-                onChange={(e) => setDefScore(e.target.value)}
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Длительность академического часа (мин)</label>
-              <Input
-                type="number"
-                value={lessonDuration}
-                onChange={(e) => setLessonDuration(e.target.value)}
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-          </div>
-
-          <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
-            <label htmlFor="allow-late" className="space-y-0.5 cursor-pointer flex-1">
-              <div className="font-semibold text-foreground text-xs">Приём работ после дедлайна</div>
-              <div className="text-[11px] text-muted-foreground">
-                Разрешить студентам отправлять домашние задания позже срока (с пометкой «Сдано с опозданием»)
-              </div>
-            </label>
-            <Switch
-              id="allow-late"
-              checked={allowLate}
-              onCheckedChange={(checked) => setAllowLate(!!checked)}
-            />
-          </div>
-
-          <Button
-            size="xs"
-            disabled={isPending}
-            onClick={() =>
-              handleSaveConfig(
-                {
-                  defaultMaxScore: defScore,
-                  lessonDurationMinutes: lessonDuration,
-                  allowLateSubmissions: allowLate,
-                },
-                "Параметры учебного процесса сохранены!"
-              )
-            }
-            className="h-8 font-medium"
-          >
-            Сохранить параметры обучения
-          </Button>
-        </div>
-      )}
-
-      {/* Tab: Access & Registration (Admin only) */}
-      {activeTab === "access" && isAdmin && (
-        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-            <Shield className="h-4 w-4 text-primary" /> Безопасность, Доступ и Файлы
-          </h2>
-
-          <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
-            <label htmlFor="allow-self-reg" className="space-y-0.5 cursor-pointer flex-1">
-              <div className="font-semibold text-foreground text-xs">Самостоятельная регистрация</div>
-              <div className="text-[11px] text-muted-foreground">
-                Разрешить студентам самостоятельно создавать аккаунты на странице входа (/register)
-              </div>
-            </label>
-            <Switch
-              id="allow-self-reg"
-              checked={allowSelfReg}
-              onCheckedChange={(checked) => setAllowSelfReg(!!checked)}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Разрешённый домен Email для регистрации</label>
-              <Input
-                value={emailDomain}
-                onChange={(e) => setEmailDomain(e.target.value)}
-                placeholder="например: lyceum.ru (оставьте пустым для любых)"
-                className="h-8 text-xs bg-background font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Максимальный размер загружаемых файлов (МБ)</label>
-              <Input
-                type="number"
-                value={maxFileMb}
-                onChange={(e) => setMaxFileMb(e.target.value)}
-                placeholder="50"
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-          </div>
-
-          <Button
-            size="xs"
-            disabled={isPending}
-            onClick={() =>
-              handleSaveConfig(
-                {
-                  allowSelfRegistration: allowSelfReg,
-                  allowedEmailDomain: emailDomain,
-                  maxFileUploadMb: maxFileMb,
-                },
-                "Параметры доступа сохранены!"
-              )
-            }
-            className="h-8 font-medium"
-          >
-            Сохранить настройки доступа
-          </Button>
-        </div>
-      )}
-
-      {/* Tab: System Notice Banner (Admin only) */}
-      {activeTab === "notice" && isAdmin && (
-        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-            <Megaphone className="h-4 w-4 text-primary" /> Системное объявление для всех пользователей
-          </h2>
-
-          <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
-            <label htmlFor="show-notice" className="space-y-0.5 cursor-pointer flex-1">
-              <div className="font-semibold text-foreground text-xs">Показывать баннер на сайте</div>
-              <div className="text-[11px] text-muted-foreground">
-                Включить отображение важного сообщения над главным меню для всех студентов и преподавателей
-              </div>
-            </label>
-            <Switch
-              id="show-notice"
-              checked={showNotice}
-              onCheckedChange={(checked) => setShowNotice(!!checked)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Заголовок объявления</label>
-              <Input
-                value={noticeTitle}
-                onChange={(e) => setNoticeTitle(e.target.value)}
-                placeholder="например: Внимание! Технический перерыв 15 августа"
-                className="h-8 text-xs bg-background font-semibold"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Текст сообщения</label>
-              <Input
-                value={noticeContent}
-                onChange={(e) => setNoticeContent(e.target.value)}
-                placeholder="Напишите подробное сообщение..."
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-          </div>
-
-          {showNotice && (noticeTitle || noticeContent) && (
-            <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 space-y-1 text-xs">
-              <div className="font-bold text-primary flex items-center gap-1.5">
-                <Bell className="h-3.5 w-3.5" /> Предпросмотр баннера:
-              </div>
-              <div className="font-semibold text-foreground">{noticeTitle || "Без заголовка"}</div>
-              <div className="text-[11px] text-muted-foreground">{noticeContent || "Без текста"}</div>
-            </div>
-          )}
-
-          <Button
-            size="xs"
-            disabled={isPending}
-            onClick={() =>
-              handleSaveConfig(
-                {
-                  globalNoticeTitle: noticeTitle,
-                  globalNoticeContent: noticeContent,
-                  showGlobalNotice: showNotice,
-                },
-                "Системное объявление обновлено!"
-              )
-            }
-            className="h-8 font-medium"
-          >
-            Сохранить объявление
-          </Button>
-        </div>
-      )}
-
-      {/* Tab: Users (Admin only) */}
+      {/* Tab: Users Management (Admin Only) */}
       {activeTab === "users" && isAdmin && (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Поиск пользователей..."
+                placeholder="Поиск по имени или email..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                className="h-8 text-xs bg-card pl-3"
+                className="h-8 text-xs bg-card pl-8"
               />
             </div>
             <Button size="xs" className="h-8 gap-1.5 font-medium" onClick={() => setIsCreateUserOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Создать пользователя
+              <Plus className="h-3.5 w-3.5" /> Добавить пользователя
             </Button>
           </div>
 
           <div className="bg-card border rounded-xl overflow-hidden shadow-xs">
             <div className="p-3.5 border-b flex items-center justify-between">
               <h2 className="font-bold text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" /> Все пользователи
+                <Users className="h-4 w-4 text-primary" /> Все аккаунты системы
               </h2>
               <span className="text-[11px] text-muted-foreground">{filteredUsers.length} чел.</span>
             </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -788,16 +668,16 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
                     <th className="text-left py-2 px-3.5 font-medium">Имя</th>
                     <th className="text-left py-2 px-2 font-medium">Email</th>
                     <th className="text-center py-2 px-2 font-medium">Роль</th>
-                    <th className="text-center py-2 px-2 font-medium">Статус</th>
-                    <th className="text-right py-2 px-3.5 font-medium">Действия</th>
+                    <th className="text-center py-2 px-2 font-medium">Статус аккаунта</th>
+                    <th className="text-right py-2 px-3.5 font-medium">Активен (Switch)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredUsers.map((u) => (
                     <tr key={u.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="py-2 px-3.5 font-medium text-foreground">{u.name}</td>
-                      <td className="py-2 px-2 text-muted-foreground font-mono text-[10px]">{u.email}</td>
-                      <td className="py-2 px-2 text-center">
+                      <td className="py-2.5 px-3.5 font-medium text-foreground">{u.name}</td>
+                      <td className="py-2.5 px-2 text-muted-foreground font-mono text-[10px]">{u.email}</td>
+                      <td className="py-2.5 px-2 text-center">
                         {u.id === profile.id ? (
                           <Badge variant="outline" className={`text-[9px] border ${ROLE_COLORS[u.role] || ""}`}>
                             {ROLE_LABELS[u.role] || u.role}
@@ -819,28 +699,32 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
                           </Select>
                         )}
                       </td>
-                      <td className="py-2 px-2 text-center">
-                        <Badge variant="outline" className={`text-[9px] border-0 ${u.isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <td className="py-2.5 px-2 text-center">
+                        <Badge variant="outline" className={`text-[9px] border-0 ${u.isActive ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
                           {u.isActive ? "Активен" : "Заблокирован"}
                         </Badge>
                       </td>
-                      <td className="py-2 px-3.5 text-right">
+                      <td className="py-2.5 px-3.5 text-right">
                         {u.id !== profile.id && (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleUser(u.id, u.isActive)}
-                            disabled={isPending}
-                            className={`p-1 rounded transition-colors ${u.isActive ? "text-amber-500 hover:bg-amber-50" : "text-primary hover:bg-primary/10"}`}
-                            title={u.isActive ? "Заблокировать" : "Активировать"}
-                          >
-                            {u.isActive
-                              ? <ToggleRight className="h-4 w-4" />
-                              : <ToggleLeft className="h-4 w-4" />}
-                          </button>
+                          <div className="flex items-center justify-end">
+                            <Switch
+                              checked={u.isActive}
+                              disabled={isPending}
+                              onCheckedChange={(checked) => handleToggleUser(u.id, checked)}
+                              title={u.isActive ? "Заблокировать" : "Активировать"}
+                            />
+                          </div>
                         )}
                       </td>
                     </tr>
                   ))}
+                  {filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center text-muted-foreground italic">
+                        Пользователи не найдены
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -848,7 +732,7 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
         </div>
       )}
 
-      {/* Tab: Academic Year (Admin only) */}
+      {/* Tab: Academic Years (Admin Only) */}
       {activeTab === "academic" && isAdmin && (
         <div className="space-y-3">
           <div className="flex justify-end">
@@ -915,53 +799,6 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
                   Учебные годы не добавлены
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: System Stats (Admin only) */}
-      {activeTab === "system" && isAdmin && systemStats && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: "Пользователей", value: systemStats.totalUsers, icon: <Users className="h-4 w-4" /> },
-              { label: "Студентов", value: systemStats.totalStudents, icon: <GraduationCap className="h-4 w-4" /> },
-              { label: "Преподавателей", value: systemStats.totalTeachers, icon: <Award className="h-4 w-4" /> },
-              { label: "Администраторов", value: systemStats.totalAdmins, icon: <Shield className="h-4 w-4" /> },
-              { label: "Учебных групп", value: systemStats.totalGroups, icon: <Building2 className="h-4 w-4" /> },
-              { label: "Дисциплин", value: systemStats.totalSubjects, icon: <BookOpen className="h-4 w-4" /> },
-              { label: "Материалов", value: systemStats.totalMaterials, icon: <BookOpen className="h-4 w-4" /> },
-              { label: "Заданий", value: systemStats.totalAssignments, icon: <ClipboardList className="h-4 w-4" /> },
-            ].map((item) => (
-              <div key={item.label} className="bg-card border rounded-xl p-3 flex items-center justify-between gap-2 shadow-xs">
-                <div>
-                  <div className="text-[10px] text-muted-foreground">{item.label}</div>
-                  <div className="text-lg font-bold text-primary">{item.value}</div>
-                </div>
-                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  {item.icon}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-card border rounded-xl p-4 space-y-2 shadow-xs">
-            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-              <Settings className="h-4 w-4 text-primary" /> О системе
-            </h2>
-            <div className="space-y-1.5">
-              {[
-                { label: "Платформа", value: "Лицей LMS" },
-                { label: "Технологии", value: "Next.js, Prisma, PostgreSQL, NextAuth" },
-                { label: "База данных", value: "PostgreSQL" },
-                { label: "Документов в архиве", value: `${systemStats.totalDocuments} шт.` },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                  <span className="text-muted-foreground">{item.label}</span>
-                  <span className="font-medium text-foreground">{item.value}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>

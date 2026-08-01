@@ -108,50 +108,51 @@ export async function getSettingsDataAction() {
       }
     } catch {}
     const settingsMap = new Map(settingsList.map((s) => [s.key, s.value]));
+    const getBool = (key: string, fallback: boolean) =>
+      settingsMap.has(key) ? settingsMap.get(key) === "true" : fallback;
+    const getStr = (key: string, fallback: string) =>
+      settingsMap.get(key) ?? fallback;
 
     systemConfig = {
-      institutionName: settingsMap.get("institutionName") ?? DEFAULT_CONFIG.institutionName,
-      supportEmail: settingsMap.get("supportEmail") ?? DEFAULT_CONFIG.supportEmail,
-      supportPhone: settingsMap.get("supportPhone") ?? DEFAULT_CONFIG.supportPhone,
-      address: settingsMap.get("address") ?? DEFAULT_CONFIG.address,
-      defaultMaxScore: settingsMap.get("defaultMaxScore") ?? DEFAULT_CONFIG.defaultMaxScore,
-      lessonDurationMinutes: settingsMap.get("lessonDurationMinutes") ?? DEFAULT_CONFIG.lessonDurationMinutes,
-      allowLateSubmissions: settingsMap.has("allowLateSubmissions")
-        ? settingsMap.get("allowLateSubmissions") === "true"
-        : DEFAULT_CONFIG.allowLateSubmissions,
-      allowSelfRegistration: settingsMap.has("allowSelfRegistration")
-        ? settingsMap.get("allowSelfRegistration") === "true"
-        : DEFAULT_CONFIG.allowSelfRegistration,
-      allowedEmailDomain: settingsMap.get("allowedEmailDomain") ?? DEFAULT_CONFIG.allowedEmailDomain,
-      maxFileUploadMb: settingsMap.get("maxFileUploadMb") ?? DEFAULT_CONFIG.maxFileUploadMb,
-      globalNoticeTitle: settingsMap.get("globalNoticeTitle") ?? DEFAULT_CONFIG.globalNoticeTitle,
-      globalNoticeContent: settingsMap.get("globalNoticeContent") ?? DEFAULT_CONFIG.globalNoticeContent,
-      showGlobalNotice: settingsMap.has("showGlobalNotice")
-        ? settingsMap.get("showGlobalNotice") === "true"
-        : DEFAULT_CONFIG.showGlobalNotice,
+      institutionName: getStr("institutionName", DEFAULT_CONFIG.institutionName),
+      supportEmail: getStr("supportEmail", DEFAULT_CONFIG.supportEmail),
+      supportPhone: getStr("supportPhone", DEFAULT_CONFIG.supportPhone),
+      address: getStr("address", DEFAULT_CONFIG.address),
+      defaultMaxScore: getStr("defaultMaxScore", DEFAULT_CONFIG.defaultMaxScore),
+      lessonDurationMinutes: getStr("lessonDurationMinutes", DEFAULT_CONFIG.lessonDurationMinutes),
+      allowLateSubmissions: getBool("allowLateSubmissions", DEFAULT_CONFIG.allowLateSubmissions),
+      allowSelfRegistration: getBool("allowSelfRegistration", DEFAULT_CONFIG.allowSelfRegistration),
+      allowedEmailDomain: getStr("allowedEmailDomain", DEFAULT_CONFIG.allowedEmailDomain),
+      maxFileUploadMb: getStr("maxFileUploadMb", DEFAULT_CONFIG.maxFileUploadMb),
+      globalNoticeTitle: getStr("globalNoticeTitle", DEFAULT_CONFIG.globalNoticeTitle),
+      globalNoticeContent: getStr("globalNoticeContent", DEFAULT_CONFIG.globalNoticeContent),
+      showGlobalNotice: getBool("showGlobalNotice", DEFAULT_CONFIG.showGlobalNotice),
     };
 
     if (session.user.role === "ADMIN") {
-      const [users, years, stats] = await Promise.all([
-        prisma.user.findMany({
-          select: {
-            id: true, name: true, email: true, phone: true,
-            role: true, avatar: true, isActive: true, createdAt: true,
-          },
-          orderBy: [{ role: "asc" }, { name: "asc" }],
-        }),
-        prisma.academicYear.findMany({ orderBy: { startDate: "desc" } }),
-        Promise.all([
-          prisma.user.count(),
-          prisma.user.count({ where: { role: "STUDENT" } }),
-          prisma.user.count({ where: { role: "TEACHER" } }),
-          prisma.user.count({ where: { role: "ADMIN" } }),
-          prisma.group.count(),
-          prisma.subject.count(),
-          prisma.material.count(),
-          prisma.assignment.count(),
-          prisma.document.count(),
-        ]),
+      const users = await prisma.user.findMany({
+        select: {
+          id: true, name: true, email: true, phone: true,
+          role: true, avatar: true, isActive: true, createdAt: true,
+        },
+        orderBy: [{ role: "asc" }, { name: "asc" }],
+      });
+
+      const years = await prisma.academicYear.findMany({ orderBy: { startDate: "desc" } });
+
+      const [
+        totalUsers, totalStudents, totalTeachers, totalAdmins,
+        totalGroups, totalSubjects, totalMaterials, totalAssignments, totalDocuments
+      ] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { role: "STUDENT" } }),
+        prisma.user.count({ where: { role: "TEACHER" } }),
+        prisma.user.count({ where: { role: "ADMIN" } }),
+        prisma.group.count(),
+        prisma.subject.count(),
+        prisma.material.count(),
+        prisma.assignment.count(),
+        prisma.document.count(),
       ]);
 
       allUsers = users.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() }));
@@ -165,15 +166,15 @@ export async function getSettingsDataAction() {
       }));
 
       systemStats = {
-        totalUsers: stats[0],
-        totalStudents: stats[1],
-        totalTeachers: stats[2],
-        totalAdmins: stats[3],
-        totalGroups: stats[4],
-        totalSubjects: stats[5],
-        totalMaterials: stats[6],
-        totalAssignments: stats[7],
-        totalDocuments: stats[8],
+        totalUsers,
+        totalStudents,
+        totalTeachers,
+        totalAdmins,
+        totalGroups,
+        totalSubjects,
+        totalMaterials,
+        totalAssignments,
+        totalDocuments,
       };
     }
 
