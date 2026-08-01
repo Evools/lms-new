@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Check } from "lucide-react";
 
 /** Helper to format inline markdown tokens: **bold**, *italic*, ~~strikethrough~~, `code`, [title](url) */
 function formatInline(text: string): React.ReactNode {
@@ -35,7 +35,7 @@ function formatInline(text: string): React.ReactNode {
       parts.push(
         <code
           key={keyIdx++}
-          className="px-1 py-0.5 rounded bg-muted font-mono text-[11px] border"
+          className="px-1 py-0.5 rounded bg-muted font-mono text-[11px] border border-border/60 text-primary font-medium"
         >
           {token.slice(1, -1)}
         </code>
@@ -69,7 +69,93 @@ function formatInline(text: string): React.ReactNode {
   return parts.length > 0 ? parts : text;
 }
 
-/** Renders multi-line Markdown text to real React elements with interactive checkbox support */
+/** Syntax Highlighter for Code Block Lines */
+function highlightCodeLine(line: string, key: number): React.ReactNode {
+  if (!line.trim()) {
+    return <div key={key} className="h-4" />;
+  }
+
+  // Comments // ... or # ...
+  if (line.trim().startsWith("//") || line.trim().startsWith("#")) {
+    return (
+      <div key={key} className="text-muted-foreground/60 italic leading-relaxed">
+        {line}
+      </div>
+    );
+  }
+
+  const tokens: React.ReactNode[] = [];
+  const regex =
+    /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/[^\n]*|\b(?:export|default|async|function|const|let|var|return|try|catch|import|from|if|else|await|new|type|interface|enum|class|extends|implements)\b|\b(?:true|false|null|undefined|\d+)\b|\b[a-zA-Z_]\w*(?=\s*\())/g;
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let subKey = 0;
+
+  while ((match = regex.exec(line)) !== null) {
+    if (match.index > lastIndex) {
+      tokens.push(line.substring(lastIndex, match.index));
+    }
+
+    const token = match[0];
+
+    if (token.startsWith("//")) {
+      tokens.push(
+        <span key={subKey++} className="text-muted-foreground/60 italic">
+          {token}
+        </span>
+      );
+    } else if (
+      (token.startsWith('"') && token.endsWith('"')) ||
+      (token.startsWith("'") && token.endsWith("'")) ||
+      (token.startsWith("`") && token.endsWith("`"))
+    ) {
+      tokens.push(
+        <span key={subKey++} className="text-primary font-medium">
+          {token}
+        </span>
+      );
+    } else if (
+      /^(export|default|async|function|const|let|var|return|try|catch|import|from|if|else|await|new|type|interface|enum|class|extends|implements)$/.test(
+        token
+      )
+    ) {
+      tokens.push(
+        <span key={subKey++} className="text-primary font-semibold">
+          {token}
+        </span>
+      );
+    } else if (/^(true|false|null|undefined|\d+)$/.test(token)) {
+      tokens.push(
+        <span key={subKey++} className="text-foreground font-medium opacity-90">
+          {token}
+        </span>
+      );
+    } else if (/^[a-zA-Z_]\w*$/.test(token)) {
+      tokens.push(
+        <span key={subKey++} className="text-foreground font-medium">
+          {token}
+        </span>
+      );
+    } else {
+      tokens.push(token);
+    }
+
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < line.length) {
+    tokens.push(line.substring(lastIndex));
+  }
+
+  return (
+    <div key={key} className="leading-relaxed whitespace-pre font-mono">
+      {tokens.length > 0 ? tokens : line}
+    </div>
+  );
+}
+
+/** Renders multi-line Markdown text to real React elements with interactive checkbox & code syntax highlighting */
 export function renderMarkdown(
   text: string,
   onToggleCheckbox?: (lineIndex: number) => void
@@ -86,12 +172,12 @@ export function renderMarkdown(
     if (line.trim().startsWith("```")) {
       if (inCodeBlock) {
         elements.push(
-          <pre
+          <div
             key={index}
-            className="p-2.5 rounded-md bg-muted font-mono text-[11px] overflow-x-auto my-2 border border-border"
+            className="p-3 rounded-lg bg-muted/60 font-mono text-[11px] overflow-x-auto my-3 border border-border/80 text-foreground whitespace-pre leading-relaxed font-mono select-text"
           >
-            <code>{codeBlockLines.join("\n")}</code>
-          </pre>
+            {codeBlockLines.map((cLine, idx) => highlightCodeLine(cLine, idx))}
+          </div>
         );
         codeBlockLines = [];
         inCodeBlock = false;
@@ -137,7 +223,7 @@ export function renderMarkdown(
       elements.push(
         <blockquote
           key={index}
-          className="border-l-2 border-primary pl-3 py-1 my-1.5 text-muted-foreground italic bg-primary/5 rounded-r"
+          className="border-l-2 border-primary pl-3 py-1.5 my-2 text-muted-foreground italic bg-primary/5 rounded-r text-xs"
         >
           {formatInline(line.slice(2))}
         </blockquote>
@@ -147,7 +233,7 @@ export function renderMarkdown(
 
     // Horizontal rule
     if (line.trim() === "---" || line.trim() === "***") {
-      elements.push(<hr key={index} className="my-2 border-border" />);
+      elements.push(<hr key={index} className="my-3 border-border/60" />);
       return;
     }
 
@@ -158,14 +244,17 @@ export function renderMarkdown(
         <div
           key={index}
           onClick={() => onToggleCheckbox && onToggleCheckbox(index)}
-          className="flex items-center gap-2 my-1 pl-1 text-xs cursor-pointer select-none group"
+          className="flex items-center gap-2 my-1.5 pl-0.5 text-xs cursor-pointer select-none group"
         >
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={() => onToggleCheckbox && onToggleCheckbox(index)}
-            className="h-3.5 w-3.5 accent-primary rounded cursor-pointer shrink-0"
-          />
+          <div
+            className={`h-4 w-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-all ${
+              checked
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-input bg-background group-hover:border-primary/60"
+            }`}
+          >
+            {checked && <Check className="h-3 w-3 stroke-[3]" />}
+          </div>
           <span className={checked ? "line-through opacity-60" : "group-hover:text-primary transition-colors"}>
             {formatInline(line.slice(6))}
           </span>
