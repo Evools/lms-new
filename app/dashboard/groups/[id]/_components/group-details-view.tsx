@@ -926,14 +926,25 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                               </Avatar>
                               <span className="truncate">{st.name}</span>
                               {isAdminOrTeacher && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveDutyStudent(st.id, day.fullDate)}
-                                  className="text-muted-foreground/40 hover:text-destructive transition-colors ml-0.5"
-                                  title="Убрать из дежурных"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger render={
+                                    <button
+                                      type="button"
+                                      className="p-1 rounded hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors ml-0.5"
+                                    />
+                                  }>
+                                    <MoreVertical className="h-3 w-3" />
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
+                                    <DropdownMenuItem
+                                      onClick={() => handleRemoveDutyStudent(st.id, day.fullDate)}
+                                      className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      <span>Удалить из дежурных</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               )}
                             </div>
                           ))
