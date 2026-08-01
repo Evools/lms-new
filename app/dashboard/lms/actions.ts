@@ -102,7 +102,21 @@ export async function getLmsOverviewDataAction(groupId?: string) {
       orderBy: { name: "asc" },
     });
 
-    const selectedGroupId = groupId || groups[0]?.id || "";
+    let selectedGroupId = groupId || "";
+
+    if (!selectedGroupId && session?.user?.id && role === "STUDENT") {
+      const enrollment = await prisma.groupStudent.findFirst({
+        where: { studentId: session.user.id },
+        select: { groupId: true },
+      });
+      if (enrollment?.groupId) {
+        selectedGroupId = enrollment.groupId;
+      }
+    }
+
+    if (!selectedGroupId) {
+      selectedGroupId = groups[0]?.id || "";
+    }
 
     if (!selectedGroupId) {
       return {
@@ -419,7 +433,21 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       orderBy: { name: "asc" },
     });
 
-    const selectedGroupId = groupId || groups[0]?.id || "";
+    let selectedGroupId = groupId || "";
+
+    if (!selectedGroupId && session?.user?.id && role === "STUDENT") {
+      const enrollment = await prisma.groupStudent.findFirst({
+        where: { studentId: session.user.id },
+        select: { groupId: true },
+      });
+      if (enrollment?.groupId) {
+        selectedGroupId = enrollment.groupId;
+      }
+    }
+
+    if (!selectedGroupId) {
+      selectedGroupId = groups[0]?.id || "";
+    }
 
     if (!selectedGroupId) {
       return {
@@ -693,7 +721,21 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
       orderBy: { name: "asc" },
     });
 
-    const selectedGroupId = groupId || groups[0]?.id || "";
+    let selectedGroupId = groupId || "";
+
+    if (!selectedGroupId && currentUserId && role === "STUDENT") {
+      const enrollment = await prisma.groupStudent.findFirst({
+        where: { studentId: currentUserId },
+        select: { groupId: true },
+      });
+      if (enrollment?.groupId) {
+        selectedGroupId = enrollment.groupId;
+      }
+    }
+
+    if (!selectedGroupId) {
+      selectedGroupId = groups[0]?.id || "";
+    }
 
     if (!selectedGroupId) {
       return {

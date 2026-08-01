@@ -251,8 +251,13 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           },
           {
             title: "Учебные материалы",
-            url: "/dashboard/lms",
+            url: "/dashboard/lms/materials",
             icon: <BookOpen className="h-4 w-4" />,
+          },
+          {
+            title: "Тесты & Опросы",
+            url: "/dashboard/lms/tests",
+            icon: <FileCheck2 className="h-4 w-4" />,
           },
           {
             title: "Мои задания",

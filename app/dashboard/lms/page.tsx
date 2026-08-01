@@ -14,6 +14,10 @@ export default async function LmsOverviewPage({ searchParams }: PageProps) {
     redirect("/login");
   }
 
+  if (session.user.role === "STUDENT") {
+    redirect("/dashboard/lms/materials");
+  }
+
   const { group } = await searchParams;
   const data = await getLmsOverviewDataAction(group);
 

@@ -179,6 +179,35 @@ export function LmsOverviewView({
         )}
       </div>
 
+      {/* Student Guide Banner */}
+      {!canCreate && (
+        <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 space-y-2 text-xs">
+          <div className="font-bold text-primary flex items-center gap-2">
+            <GraduationCap className="h-4 w-4" /> Инструкция для студента — Как заниматься на платформе:
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+            <div className="p-2.5 bg-card border rounded-lg space-y-1">
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 text-primary" /> 1. Твоя учебная группа
+              </span>
+              Материалы и темы автоматически отображаются для твоей группы.
+            </div>
+            <div className="p-2.5 bg-card border rounded-lg space-y-1">
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <BookOpen className="h-3.5 w-3.5 text-primary" /> 2. Лекции и материалы
+              </span>
+              Изучай конспекты, методички и презентации — нажимай «Открыть».
+            </div>
+            <div className="p-2.5 bg-card border rounded-lg space-y-1">
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <FileCheck2 className="h-3.5 w-3.5 text-primary" /> 3. Тесты и проверка
+              </span>
+              Проходи онлайн-тесты прямо в блоке темы или во вкладке «Тесты & Опросы».
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Section Nav Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Link href={`/dashboard/lms/topics?group=${selectedGroupId}`}>
