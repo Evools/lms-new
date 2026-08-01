@@ -41,12 +41,17 @@ import {
   Building2,
   ShieldCheck,
   ArrowRight,
+  AlertTriangle,
+  UserX,
+  RefreshCw,
+  FileText,
 } from "lucide-react";
 import {
   DayDutyGroupDTO,
   generateWeeklyDutyAction,
   addDutyStudentAction,
   removeDutyStudentAction,
+  addDisciplinaryDutyAction,
   AllGroupsTodayDutyDTO,
   StudentDutyStatDTO,
   GroupStudentWithDutyInfo,
@@ -63,7 +68,7 @@ interface DutyScheduleViewProps {
 }
 
 type StudentPickerMode = {
-  type: "add";
+  type: "add" | "penalty";
   fullDate: string;
   dayName: string;
   existingIds: string[];
@@ -90,9 +95,25 @@ export function DutyScheduleView({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Absent tracking state map: key = `${studentId}_${fullDate}`, value = reason
+  const [absentMap, setAbsentMap] = useState<Record<string, string>>({});
+
+  // Penalty reason state
+  const [penaltyReason, setPenaltyReason] = useState<string>("Опоздание на урок");
+
   // Student picker dialog
   const [pickerMode, setPickerMode] = useState<StudentPickerMode | null>(null);
   const [pickerStudentId, setPickerStudentId] = useState<string>("");
+
+  // Replacement dialog
+  const [replaceTarget, setReplaceTarget] = useState<{
+    fullDate: string;
+    dayName: string;
+    absentStudentId: string;
+    absentStudentName: string;
+    existingIds: string[];
+  } | null>(null);
+  const [replacementStudentId, setReplacementStudentId] = useState<string>("");
 
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
   const currentGroupObj = groupsList.find((g) => g.id === currentGroupId);
@@ -134,30 +155,56 @@ export function DutyScheduleView({
     });
   };
 
-  // Confirm Manual Add
+  // Mark student absent
+  const handleMarkAbsent = (studentId: string, fullDate: string, reason: string = "Прогул/Отсутствие") => {
+    setAbsentMap((prev) => ({
+      ...prev,
+      [`${studentId}_${fullDate}`]: reason,
+    }));
+    setSuccessMsg("Пропуск зафиксирован. Вы можете назначить замену.");
+    setTimeout(() => setSuccessMsg(null), 3000);
+  };
+
+  // Confirm Add (Standard or Penalty)
   const handleConfirmAdd = () => {
     if (!pickerMode || !pickerStudentId) return;
     setErrorMsg(null);
+
     startTransition(async () => {
-      const res = await addDutyStudentAction(currentGroupId, pickerStudentId, pickerMode.fullDate);
+      let res;
+      if (pickerMode.type === "penalty") {
+        res = await addDisciplinaryDutyAction(
+          currentGroupId,
+          pickerStudentId,
+          pickerMode.fullDate,
+          penaltyReason
+        );
+      } else {
+        res = await addDutyStudentAction(currentGroupId, pickerStudentId, pickerMode.fullDate);
+      }
+
       if (res.success) {
-        setSuccessMsg("Дежурный успешно добавлен!");
+        setSuccessMsg(
+          pickerMode.type === "penalty"
+            ? `Внеочередное дежурство (${penaltyReason}) назначено!`
+            : "Дежурный успешно добавлен!"
+        );
         setPickerMode(null);
         setPickerStudentId("");
         router.refresh();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка добавления дежурного");
+        setErrorMsg(res.error || "Ошибка сохранения дежурного");
       }
     });
   };
 
   // Open add dialog
-  const openAddModal = (day: DayDutyGroupDTO) => {
+  const openAddModal = (day: DayDutyGroupDTO, type: "add" | "penalty" = "add") => {
     const existing = day.dutyStudents.map((s) => s.id);
     const available = groupStudents.filter((s) => !existing.includes(s.id));
     setPickerMode({
-      type: "add",
+      type,
       fullDate: day.fullDate,
       dayName: `${day.dayName} (${day.dateStr})`,
       existingIds: existing,
@@ -196,8 +243,90 @@ export function DutyScheduleView({
 
   return (
     <div className="space-y-4 pb-8 text-xs">
-      {/* Top Header Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
+      {/* Dynamic Print CSS */}
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-duty-roster, #printable-duty-roster * {
+            visibility: visible;
+          }
+          #printable-duty-roster {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 20px;
+            background: white !important;
+            color: black !important;
+          }
+        }
+      `}</style>
+
+      {/* Printable Poster Container (Hidden on screen, Visible on print) */}
+      <div id="printable-duty-roster" className="hidden print:block space-y-6 font-sans">
+        <div className="text-center border-b-2 border-black pb-4 space-y-1">
+          <h1 className="text-xl font-bold uppercase tracking-wider">ЛИЦЕЙСКОЕ РАСПИСАНИЕ ДЕЖУРСТВ</h1>
+          <div className="text-sm font-semibold">
+            Учебная группа: <strong>{currentGroupObj?.name || "Все группы"}</strong> | Учебный период: 2025-2026 гг.
+          </div>
+          {weeklyDays.length > 0 && (
+            <div className="text-xs text-gray-600">
+              Неделя: {weeklyDays[0]?.dateStr} — {weeklyDays[weeklyDays.length - 1]?.dateStr}
+            </div>
+          )}
+        </div>
+
+        <table className="w-full border-collapse border border-black text-xs">
+          <thead>
+            <tr className="bg-gray-100 border-b border-black text-left">
+              <th className="border border-black p-2 w-32">День недели</th>
+              <th className="border border-black p-2 w-24">Дата</th>
+              <th className="border border-black p-2">Дежурные студенты</th>
+              <th className="border border-black p-2 w-40">Староста / Ответственный</th>
+            </tr>
+          </thead>
+          <tbody>
+            {weeklyDays.map((day) => (
+              <tr key={day.fullDate} className="border-b border-black">
+                <td className="border border-black p-2 font-bold">{day.dayName}</td>
+                <td className="border border-black p-2 font-mono">{day.dateStr}</td>
+                <td className="border border-black p-2">
+                  {day.isSunday ? (
+                    <span className="italic text-gray-500">Выходной день</span>
+                  ) : day.dutyStudents && day.dutyStudents.length > 0 ? (
+                    <div className="space-y-1">
+                      {day.dutyStudents.map((st) => (
+                        <div key={st.id} className="font-medium">
+                          • {st.name}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="italic text-gray-500">Не назначены</span>
+                  )}
+                </td>
+                <td className="border border-black p-2">
+                  {day.leaderStudent ? day.leaderStudent.name : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="pt-8 grid grid-cols-2 gap-8 text-xs">
+          <div>
+            Куратор группы: _____________________ / (Ф.И.О.)
+          </div>
+          <div className="text-right">
+            Завуч по УР: _____________________ / (Ф.И.О.)
+          </div>
+        </div>
+      </div>
+
+      {/* Screen UI Top Header */}
+      <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link
@@ -211,13 +340,13 @@ export function DutyScheduleView({
             </h1>
           </div>
           <p className="text-xs text-muted-foreground pl-6">
-            Централизованный аудит, автоматическая ротация и оперативные замены
+            Централизованный аудит, дисциплинарные назначения, автоматическая ротация и замены
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="xs" onClick={handlePrint} className="h-8 text-xs gap-1.5">
-            <Printer className="h-3.5 w-3.5" /> Печать
+            <Printer className="h-3.5 w-3.5" /> Печать (A4)
           </Button>
 
           {isAdminOrTeacher && (
@@ -234,8 +363,8 @@ export function DutyScheduleView({
         </div>
       </div>
 
-      {/* Group Selector & KPI Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      {/* Screen Group Selector & KPI Bar */}
+      <div className="print:hidden grid grid-cols-1 md:grid-cols-4 gap-3">
         {/* Selector Card */}
         <div className="bg-card p-3 rounded-xl border flex flex-col justify-between space-y-2">
           <div className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
@@ -298,21 +427,21 @@ export function DutyScheduleView({
 
       {/* Alert Messages */}
       {successMsg && (
-        <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2">
+        <div className="print:hidden p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
           <span>{successMsg}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
+        <div className="print:hidden p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Main Mode Tabs & Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b pb-2">
+      <div className="print:hidden flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b pb-2">
         <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border">
           <button
             type="button"
@@ -369,30 +498,43 @@ export function DutyScheduleView({
 
       {/* TAB 1: WEEKLY GROUP SCHEDULE */}
       {activeTab === "WEEKLY" && (
-        <Card className="p-0 border overflow-hidden">
+        <Card className="print:hidden p-0 border overflow-hidden">
           <CardHeader className="p-3 border-b bg-muted/30">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-xs font-bold text-foreground">
                   Недельная ведомость дежурств
                 </CardTitle>
                 <CardDescription className="text-[11px] text-muted-foreground">
-                  Расписание дежурных по учебным дням недели
+                  Расписание дежурных, внеочередные назначения и учет пропусков
                 </CardDescription>
               </div>
 
               {isAdminOrTeacher && (
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={() => {
-                    const targetDay = weeklyDays.find((d) => d.isToday && !d.isSunday) || weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
-                    if (targetDay) openAddModal(targetDay);
-                  }}
-                  className="h-7 text-xs gap-1 border-primary/20 text-primary hover:bg-primary/10"
-                >
-                  <UserPlus className="h-3.5 w-3.5" /> Назначить дежурного
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => {
+                      const targetDay = weeklyDays.find((d) => d.isToday && !d.isSunday) || weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
+                      if (targetDay) openAddModal(targetDay, "penalty");
+                    }}
+                    className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" /> За нарушение
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => {
+                      const targetDay = weeklyDays.find((d) => d.isToday && !d.isSunday) || weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
+                      if (targetDay) openAddModal(targetDay, "add");
+                    }}
+                    className="h-7 text-xs gap-1 border-primary/20 text-primary hover:bg-primary/10"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" /> Назначить
+                  </Button>
+                </div>
               )}
             </div>
           </CardHeader>
@@ -441,33 +583,60 @@ export function DutyScheduleView({
                       {day.isSunday ? (
                         <span className="text-[11px] text-muted-foreground/60 italic">Выходной день</span>
                       ) : day.dutyStudents && day.dutyStudents.length > 0 ? (
-                        day.dutyStudents.map((st) => (
-                          <div
-                            key={st.id}
-                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${
-                              day.isToday
-                                ? "border-primary/30 bg-primary/10 text-primary"
-                                : "border-border bg-muted/20 text-foreground"
-                            }`}
-                          >
-                            <Avatar className="h-4 w-4 border shrink-0">
-                              <AvatarFallback className={`text-[7px] font-bold ${day.isToday ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
-                                {st.name.slice(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="truncate">{st.name}</span>
-                            {isAdminOrTeacher && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveDuty(st.id, day.fullDate)}
-                                className="text-muted-foreground/40 hover:text-destructive transition-colors ml-0.5"
-                                title="Убрать из дежурных"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        ))
+                        day.dutyStudents.map((st) => {
+                          const absentReason = absentMap[`${st.id}_${day.fullDate}`];
+                          return (
+                            <div
+                              key={st.id}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${
+                                absentReason
+                                  ? "border-destructive/30 bg-destructive/10 text-destructive line-through opacity-70"
+                                  : day.isToday
+                                  ? "border-primary/30 bg-primary/10 text-primary"
+                                  : "border-border bg-muted/20 text-foreground"
+                              }`}
+                            >
+                              <Avatar className="h-4 w-4 border shrink-0">
+                                <AvatarFallback className={`text-[7px] font-bold ${
+                                  absentReason ? "bg-destructive/20 text-destructive"
+                                  : day.isToday ? "bg-primary/20 text-primary"
+                                  : "bg-muted text-muted-foreground"
+                                }`}>
+                                  {st.name.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="truncate">{st.name}</span>
+
+                              {absentReason && (
+                                <span className="text-[9px] font-normal no-underline text-destructive font-semibold">
+                                  ({absentReason})
+                                </span>
+                              )}
+
+                              {isAdminOrTeacher && !absentReason && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkAbsent(st.id, day.fullDate, "Прогул/Болезнь")}
+                                  className="text-muted-foreground/40 hover:text-destructive transition-colors ml-0.5"
+                                  title="Отметить пропуск"
+                                >
+                                  <UserX className="h-3 w-3" />
+                                </button>
+                              )}
+
+                              {isAdminOrTeacher && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveDuty(st.id, day.fullDate)}
+                                  className="text-muted-foreground/40 hover:text-destructive transition-colors ml-0.5"
+                                  title="Убрать из дежурных"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })
                       ) : (
                         <span className="text-[11px] text-muted-foreground/50">Не назначены</span>
                       )}
@@ -479,7 +648,7 @@ export function DutyScheduleView({
                         <Button
                           size="xs"
                           variant="outline"
-                          onClick={() => openAddModal(day)}
+                          onClick={() => openAddModal(day, "add")}
                           disabled={availableStudents.length === 0}
                           className="h-7 text-xs px-2.5 gap-1 border-primary/20 text-primary hover:bg-primary/10"
                         >
@@ -498,7 +667,7 @@ export function DutyScheduleView({
 
       {/* TAB 2: ALL GROUPS TODAY SUMMARY */}
       {activeTab === "ALL_GROUPS" && (
-        <div className="space-y-3">
+        <div className="print:hidden space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <Building2 className="h-4 w-4 text-primary" /> Сводное табло дежурств по всем группам лицея на сегодня
@@ -562,7 +731,7 @@ export function DutyScheduleView({
 
       {/* TAB 3: DUTY STATS & AUDIT */}
       {activeTab === "STATS" && (
-        <Card className="p-0 border overflow-hidden">
+        <Card className="print:hidden p-0 border overflow-hidden">
           <CardHeader className="p-3 border-b bg-muted/30">
             <CardTitle className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4 text-primary" /> Рейтинг и аудит дежурств группы {currentGroupObj?.name}
@@ -623,13 +792,21 @@ export function DutyScheduleView({
         </Card>
       )}
 
-      {/* Dialog for Manual Student Picker */}
+      {/* Dialog for Manual Student Picker / Penalty Picker */}
       <Dialog open={pickerMode !== null} onOpenChange={(open) => !open && setPickerMode(null)}>
         {pickerMode && (
           <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
             <DialogHeader className="pb-2 border-b gap-1">
               <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
-                <UserPlus className="h-4 w-4 text-primary" /> Назначение дежурного
+                {pickerMode.type === "penalty" ? (
+                  <>
+                    <AlertTriangle className="h-4 w-4 text-primary" /> Назначение за нарушение / опоздание
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4 text-primary" /> Назначение дежурного
+                  </>
+                )}
               </DialogTitle>
               <DialogDescription className="text-xs">
                 День: <strong>{pickerMode.dayName}</strong>
@@ -637,6 +814,22 @@ export function DutyScheduleView({
             </DialogHeader>
 
             <div className="space-y-3 py-1 text-xs">
+              {pickerMode.type === "penalty" && (
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground text-xs">Причина внеочередного дежурства</label>
+                  <Select value={penaltyReason} onValueChange={setPenaltyReason}>
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue>{penaltyReason}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Опоздание на урок" className="text-xs">Опоздание на урок</SelectItem>
+                      <SelectItem value="Нарушение формы/дисциплины" className="text-xs">Нарушение формы / дисциплины</SelectItem>
+                      <SelectItem value="Невыполнение обязанностей" className="text-xs">Невыполнение обязанностей</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Выберите учащегося</label>
                 <Select value={pickerStudentId} onValueChange={(val) => val && setPickerStudentId(val)}>
@@ -659,7 +852,7 @@ export function DutyScheduleView({
                           <div className="flex items-center justify-between w-full gap-2">
                             <span>{st.name}</span>
                             {st.recentDutyNote && (
-                              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">
+                              <span className="text-[10px] text-primary font-normal">
                                 ({st.recentDutyNote})
                               </span>
                             )}
@@ -676,7 +869,15 @@ export function DutyScheduleView({
                 Отмена
               </Button>
               <Button size="xs" disabled={!pickerStudentId || isPending} onClick={handleConfirmAdd}>
-                <UserPlus className="h-3.5 w-3.5 mr-1" /> Назначить
+                {pickerMode.type === "penalty" ? (
+                  <>
+                    <AlertTriangle className="h-3.5 w-3.5 mr-1 text-primary-foreground" /> Назначить за нарушение
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-3.5 w-3.5 mr-1" /> Назначить
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -1207,7 +1207,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                             <div className="flex items-center justify-between w-full gap-2">
                               <span>{st.name}</span>
                               {isAlreadyOnDutyThisWeek && (
-                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">
+                                <span className="text-[10px] text-primary font-normal">
                                   (Уже дежурит на этой неделе)
                                 </span>
                               )}

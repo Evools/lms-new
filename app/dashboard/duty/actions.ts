@@ -572,3 +572,38 @@ export async function markDutyAbsentAction(
   // Actual DB change happens when the user picks a replacement via replaceDutyStudentAction.
   return { success: true };
 }
+
+/** Assign a student to duty as a disciplinary penalty */
+export async function addDisciplinaryDutyAction(
+  groupId: string,
+  studentId: string,
+  dateStr: string,
+  _reason: string
+) {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+  ) {
+    return { success: false, error: "Недостаточно прав" };
+  }
+  try {
+    const date = new Date(dateStr);
+    const existing = await prisma.dutySchedule.findFirst({
+      where: { groupId, studentId, date },
+    });
+    if (existing) {
+      return { success: false, error: "Студент уже назначен на дежурство в этот день" };
+    }
+
+    await prisma.dutySchedule.create({
+      data: { groupId, studentId, date, isLeader: false },
+    });
+
+    revalidatePath("/dashboard/duty");
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

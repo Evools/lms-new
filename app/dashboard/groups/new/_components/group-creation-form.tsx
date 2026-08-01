@@ -287,7 +287,7 @@ export function GroupCreationForm({ teachersList = [] }: GroupCreationFormProps)
             <Card className="border shadow-none">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" /> Предпросмотр карточки
+                  <Sparkles className="h-3.5 w-3.5 text-primary" /> Предпросмотр карточки
                 </CardTitle>
               </CardHeader>
 
