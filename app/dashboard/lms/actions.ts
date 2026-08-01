@@ -1,0 +1,837 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { MaterialType } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+
+export interface GroupItemDTO {
+  id: string;
+  name: string;
+}
+
+export interface GroupSubjectDTO {
+  id: string;
+  subjectName: string;
+  teacherName: string;
+}
+
+export interface MaterialDTO {
+  id: string;
+  topicId: string;
+  topicTitle: string;
+  authorId: string;
+  authorName: string;
+  type: MaterialType;
+  title: string;
+  content?: string | null;
+  fileUrl?: string | null;
+  linkUrl?: string | null;
+  createdAt: string;
+}
+
+export interface TopicDTO {
+  id: string;
+  groupSubjectId: string;
+  subjectName: string;
+  teacherName: string;
+  title: string;
+  description?: string | null;
+  order: number;
+  createdAt: string;
+  materialsCount: number;
+  assignmentsCount: number;
+  testsCount: number;
+  materials: MaterialDTO[];
+}
+
+export interface TestQuestionDTO {
+  id: string;
+  testId: string;
+  questionText: string;
+  options: string[]; // parsed array
+  correctAnswer: string;
+  points: number;
+  order: number;
+}
+
+export interface TestSubmissionDTO {
+  id: string;
+  testId: string;
+  studentId: string;
+  studentName: string;
+  score: number;
+  maxScore: number;
+  submittedAt: string;
+}
+
+export interface TestDTO {
+  id: string;
+  groupSubjectId: string;
+  subjectName: string;
+  topicId?: string | null;
+  topicTitle?: string | null;
+  teacherName: string;
+  authorName: string;
+  title: string;
+  description?: string | null;
+  timeLimit?: number | null;
+  isPublished: boolean;
+  createdAt: string;
+  questionsCount: number;
+  totalPoints: number;
+  questions: TestQuestionDTO[];
+  userSubmission?: TestSubmissionDTO | null;
+  submissionsCount: number;
+  submissions: TestSubmissionDTO[];
+}
+
+// -------------------------------------------------------------
+// 1. LMS Overview Hub Data Action
+// -------------------------------------------------------------
+export async function getLmsOverviewDataAction(groupId?: string) {
+  try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+
+    const groups = await prisma.group.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+
+    const selectedGroupId = groupId || groups[0]?.id || "";
+
+    if (!selectedGroupId) {
+      return {
+        groups: [],
+        subjects: [],
+        selectedGroupId: "",
+        canCreate: role === "ADMIN" || role === "TEACHER",
+        stats: { totalTopics: 0, totalMaterials: 0, totalTests: 0 },
+        recentTopics: [],
+        recentMaterials: [],
+        recentTests: [],
+      };
+    }
+
+    const groupSubjects = await prisma.groupSubject.findMany({
+      where: { groupId: selectedGroupId },
+      include: {
+        subject: { select: { name: true } },
+        teacher: { select: { name: true } },
+      },
+    });
+
+    const groupSubjectIds = groupSubjects.map((gs) => gs.id);
+
+    const [totalTopics, totalMaterials, totalTests, dbTopics, dbMaterials, dbTests] =
+      await Promise.all([
+        prisma.topic.count({ where: { groupSubjectId: { in: groupSubjectIds } } }),
+        prisma.material.count({
+          where: { topic: { groupSubjectId: { in: groupSubjectIds } } },
+        }),
+        prisma.test.count({ where: { groupSubjectId: { in: groupSubjectIds } } }),
+        prisma.topic.findMany({
+          where: { groupSubjectId: { in: groupSubjectIds } },
+          take: 6,
+          orderBy: { createdAt: "desc" },
+          include: {
+            groupSubject: { include: { subject: true, teacher: true } },
+            materials: true,
+          },
+        }),
+        prisma.material.findMany({
+          where: { topic: { groupSubjectId: { in: groupSubjectIds } } },
+          take: 6,
+          orderBy: { createdAt: "desc" },
+          include: {
+            topic: { select: { title: true } },
+            author: { select: { name: true } },
+          },
+        }),
+        prisma.test.findMany({
+          where: { groupSubjectId: { in: groupSubjectIds } },
+          take: 6,
+          orderBy: { createdAt: "desc" },
+          include: {
+            groupSubject: { include: { subject: true, teacher: true } },
+            questions: true,
+          },
+        }),
+      ]);
+
+    const subjects: GroupSubjectDTO[] = groupSubjects.map((gs) => ({
+      id: gs.id,
+      subjectName: gs.subject.name,
+      teacherName: gs.teacher.name,
+    }));
+
+    return {
+      groups,
+      subjects,
+      selectedGroupId,
+      canCreate: role === "ADMIN" || role === "TEACHER",
+      stats: { totalTopics, totalMaterials, totalTests },
+      recentTopics: dbTopics.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        subjectName: t.groupSubject.subject.name,
+        teacherName: t.groupSubject.teacher.name,
+        materialsCount: t.materials.length,
+        createdAt: t.createdAt.toISOString(),
+      })),
+      recentMaterials: dbMaterials.map((m) => ({
+        id: m.id,
+        title: m.title,
+        type: m.type,
+        topicTitle: m.topic.title,
+        authorName: m.author.name,
+        fileUrl: m.fileUrl,
+        linkUrl: m.linkUrl,
+        createdAt: m.createdAt.toISOString(),
+      })),
+      recentTests: dbTests.map((t) => ({
+        id: t.id,
+        title: t.title,
+        subjectName: t.groupSubject.subject.name,
+        questionsCount: t.questions.length,
+        timeLimit: t.timeLimit,
+        createdAt: t.createdAt.toISOString(),
+      })),
+    };
+  } catch (err) {
+    console.error("getLmsOverviewDataAction error:", err);
+    return {
+      groups: [],
+      subjects: [],
+      selectedGroupId: "",
+      canCreate: false,
+      stats: { totalTopics: 0, totalMaterials: 0, totalTests: 0 },
+      recentTopics: [],
+      recentMaterials: [],
+      recentTests: [],
+    };
+  }
+}
+
+// -------------------------------------------------------------
+// 2. Topics Data & Actions
+// -------------------------------------------------------------
+export async function getTopicsDataAction(groupId?: string, groupSubjectId?: string) {
+  try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+
+    const groups = await prisma.group.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+
+    const selectedGroupId = groupId || groups[0]?.id || "";
+
+    if (!selectedGroupId) {
+      return {
+        groups: [],
+        subjects: [],
+        topics: [],
+        selectedGroupId: "",
+        selectedGroupSubjectId: "",
+        canCreate: role === "ADMIN" || role === "TEACHER",
+      };
+    }
+
+    const groupSubjects = await prisma.groupSubject.findMany({
+      where: { groupId: selectedGroupId },
+      include: {
+        subject: { select: { name: true } },
+        teacher: { select: { name: true } },
+      },
+    });
+
+    const subjects: GroupSubjectDTO[] = groupSubjects.map((gs) => ({
+      id: gs.id,
+      subjectName: gs.subject.name,
+      teacherName: gs.teacher.name,
+    }));
+
+    const selectedGroupSubjectId =
+      groupSubjectId && groupSubjects.some((s) => s.id === groupSubjectId)
+        ? groupSubjectId
+        : "";
+
+    const whereClause = selectedGroupSubjectId
+      ? { groupSubjectId: selectedGroupSubjectId }
+      : { groupSubjectId: { in: groupSubjects.map((gs) => gs.id) } };
+
+    const dbTopics = await prisma.topic.findMany({
+      where: whereClause,
+      include: {
+        groupSubject: {
+          include: {
+            subject: { select: { name: true } },
+            teacher: { select: { name: true } },
+          },
+        },
+        materials: {
+          include: { author: { select: { name: true } } },
+          orderBy: { createdAt: "desc" },
+        },
+        assignments: { select: { id: true } },
+        tests: { select: { id: true } },
+      },
+      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    });
+
+    const topics: TopicDTO[] = dbTopics.map((t) => ({
+      id: t.id,
+      groupSubjectId: t.groupSubjectId,
+      subjectName: t.groupSubject.subject.name,
+      teacherName: t.groupSubject.teacher.name,
+      title: t.title,
+      description: t.description,
+      order: t.order,
+      createdAt: t.createdAt.toISOString(),
+      materialsCount: t.materials.length,
+      assignmentsCount: t.assignments.length,
+      testsCount: t.tests.length,
+      materials: t.materials.map((m) => ({
+        id: m.id,
+        topicId: m.topicId,
+        topicTitle: t.title,
+        authorId: m.authorId,
+        authorName: m.author.name,
+        type: m.type,
+        title: m.title,
+        content: m.content,
+        fileUrl: m.fileUrl,
+        linkUrl: m.linkUrl,
+        createdAt: m.createdAt.toISOString(),
+      })),
+    }));
+
+    return {
+      groups,
+      subjects,
+      topics,
+      selectedGroupId,
+      selectedGroupSubjectId,
+      canCreate: role === "ADMIN" || role === "TEACHER",
+    };
+  } catch (err) {
+    console.error("getTopicsDataAction error:", err);
+    return {
+      groups: [],
+      subjects: [],
+      topics: [],
+      selectedGroupId: "",
+      selectedGroupSubjectId: "",
+      canCreate: false,
+    };
+  }
+}
+
+export async function createTopicAction(data: {
+  groupSubjectId: string;
+  title: string;
+  description?: string;
+  order?: number;
+}) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для создания темы" };
+    }
+
+    if (!data.groupSubjectId || !data.title.trim()) {
+      return { success: false, error: "Укажите дисциплину и название темы" };
+    }
+
+    await prisma.topic.create({
+      data: {
+        groupSubjectId: data.groupSubjectId,
+        title: data.title.trim(),
+        description: data.description?.trim() || null,
+        order: data.order ?? 0,
+      },
+    });
+
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+    return { success: true };
+  } catch (err) {
+    console.error("createTopicAction error:", err);
+    return { success: false, error: "Ошибка при создании темы" };
+  }
+}
+
+export async function deleteTopicAction(topicId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав" };
+    }
+
+    await prisma.topic.delete({
+      where: { id: topicId },
+    });
+
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+    return { success: true };
+  } catch (err) {
+    console.error("deleteTopicAction error:", err);
+    return { success: false, error: "Ошибка при удалении темы" };
+  }
+}
+
+// -------------------------------------------------------------
+// 3. Materials Data & Actions
+// -------------------------------------------------------------
+export async function getMaterialsDataAction(groupId?: string, topicId?: string, type?: string) {
+  try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+
+    const groups = await prisma.group.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+
+    const selectedGroupId = groupId || groups[0]?.id || "";
+
+    if (!selectedGroupId) {
+      return {
+        groups: [],
+        subjects: [],
+        topics: [],
+        materials: [],
+        selectedGroupId: "",
+        canCreate: role === "ADMIN" || role === "TEACHER",
+      };
+    }
+
+    const groupSubjects = await prisma.groupSubject.findMany({
+      where: { groupId: selectedGroupId },
+      include: {
+        subject: { select: { name: true } },
+        teacher: { select: { name: true } },
+      },
+    });
+
+    const subjects: GroupSubjectDTO[] = groupSubjects.map((gs) => ({
+      id: gs.id,
+      subjectName: gs.subject.name,
+      teacherName: gs.teacher.name,
+    }));
+
+    const dbTopics = await prisma.topic.findMany({
+      where: { groupSubjectId: { in: groupSubjects.map((gs) => gs.id) } },
+      select: { id: true, title: true },
+      orderBy: { title: "asc" },
+    });
+
+    const topicIds = dbTopics.map((t) => t.id);
+
+    const whereClause: Record<string, unknown> = {
+      topicId: topicId ? topicId : { in: topicIds },
+    };
+
+    if (type && Object.values(MaterialType).includes(type as MaterialType)) {
+      whereClause.type = type as MaterialType;
+    }
+
+    const dbMaterials = await prisma.material.findMany({
+      where: whereClause,
+      include: {
+        topic: { select: { title: true } },
+        author: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const materials: MaterialDTO[] = dbMaterials.map((m) => ({
+      id: m.id,
+      topicId: m.topicId,
+      topicTitle: m.topic.title,
+      authorId: m.authorId,
+      authorName: m.author.name,
+      type: m.type,
+      title: m.title,
+      content: m.content,
+      fileUrl: m.fileUrl,
+      linkUrl: m.linkUrl,
+      createdAt: m.createdAt.toISOString(),
+    }));
+
+    return {
+      groups,
+      subjects,
+      topics: dbTopics,
+      materials,
+      selectedGroupId,
+      canCreate: role === "ADMIN" || role === "TEACHER",
+    };
+  } catch (err) {
+    console.error("getMaterialsDataAction error:", err);
+    return {
+      groups: [],
+      subjects: [],
+      topics: [],
+      materials: [],
+      selectedGroupId: "",
+      canCreate: false,
+    };
+  }
+}
+
+export async function createMaterialAction(data: {
+  topicId: string;
+  type: MaterialType;
+  title: string;
+  content?: string;
+  fileUrl?: string;
+  linkUrl?: string;
+}) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для публикации материала" };
+    }
+
+    if (!data.topicId || !data.title.trim() || !data.type) {
+      return { success: false, error: "Укажите тему, тип и название материала" };
+    }
+
+    await prisma.material.create({
+      data: {
+        topicId: data.topicId,
+        authorId: session.user.id,
+        type: data.type,
+        title: data.title.trim(),
+        content: data.content?.trim() || null,
+        fileUrl: data.fileUrl?.trim() || null,
+        linkUrl: data.linkUrl?.trim() || null,
+      },
+    });
+
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+    return { success: true };
+  } catch (err) {
+    console.error("createMaterialAction error:", err);
+    return { success: false, error: "Ошибка при публикации материала" };
+  }
+}
+
+export async function deleteMaterialAction(materialId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав" };
+    }
+
+    await prisma.material.delete({
+      where: { id: materialId },
+    });
+
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+    return { success: true };
+  } catch (err) {
+    console.error("deleteMaterialAction error:", err);
+    return { success: false, error: "Ошибка при удалении материала" };
+  }
+}
+
+// -------------------------------------------------------------
+// 4. Tests Data & Actions
+// -------------------------------------------------------------
+export async function getTestsDataAction(groupId?: string, topicId?: string) {
+  try {
+    const session = await auth();
+    const currentUserId = session?.user?.id;
+    const role = session?.user?.role || "STUDENT";
+
+    const groups = await prisma.group.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+
+    const selectedGroupId = groupId || groups[0]?.id || "";
+
+    if (!selectedGroupId) {
+      return {
+        groups: [],
+        subjects: [],
+        topics: [],
+        tests: [],
+        selectedGroupId: "",
+        canCreate: role === "ADMIN" || role === "TEACHER",
+      };
+    }
+
+    const groupSubjects = await prisma.groupSubject.findMany({
+      where: { groupId: selectedGroupId },
+      include: {
+        subject: { select: { name: true } },
+        teacher: { select: { name: true } },
+      },
+    });
+
+    const subjects: GroupSubjectDTO[] = groupSubjects.map((gs) => ({
+      id: gs.id,
+      subjectName: gs.subject.name,
+      teacherName: gs.teacher.name,
+    }));
+
+    const dbTopics = await prisma.topic.findMany({
+      where: { groupSubjectId: { in: groupSubjects.map((gs) => gs.id) } },
+      select: { id: true, title: true },
+      orderBy: { title: "asc" },
+    });
+
+    const whereClause: Record<string, unknown> = {
+      groupSubjectId: { in: groupSubjects.map((gs) => gs.id) },
+    };
+
+    if (topicId) {
+      whereClause.topicId = topicId;
+    }
+
+    const dbTests = await prisma.test.findMany({
+      where: whereClause,
+      include: {
+        groupSubject: { include: { subject: { select: { name: true } }, teacher: { select: { name: true } } } },
+        topic: { select: { title: true } },
+        author: { select: { name: true } },
+        questions: { orderBy: { order: "asc" } },
+        submissions: {
+          include: { student: { select: { name: true } } },
+          orderBy: { submittedAt: "desc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const tests: TestDTO[] = dbTests.map((t) => {
+      const userSub = currentUserId ? t.submissions.find((s) => s.studentId === currentUserId) : null;
+      const totalPoints = t.questions.reduce((acc, q) => acc + (q.points || 1), 0);
+
+      const parsedQuestions: TestQuestionDTO[] = t.questions.map((q) => {
+        let parsedOptions: string[] = [];
+        try {
+          parsedOptions = JSON.parse(q.options);
+        } catch {
+          parsedOptions = [];
+        }
+        return {
+          id: q.id,
+          testId: q.testId,
+          questionText: q.questionText,
+          options: parsedOptions,
+          correctAnswer: q.correctAnswer,
+          points: q.points,
+          order: q.order,
+        };
+      });
+
+      const parsedSubmissions: TestSubmissionDTO[] = t.submissions.map((s) => ({
+        id: s.id,
+        testId: s.testId,
+        studentId: s.studentId,
+        studentName: s.student.name,
+        score: s.score,
+        maxScore: s.maxScore,
+        submittedAt: s.submittedAt.toISOString(),
+      }));
+
+      return {
+        id: t.id,
+        groupSubjectId: t.groupSubjectId,
+        subjectName: t.groupSubject.subject.name,
+        topicId: t.topicId,
+        topicTitle: t.topic?.title || null,
+        teacherName: t.groupSubject.teacher.name,
+        authorName: t.author.name,
+        title: t.title,
+        description: t.description,
+        timeLimit: t.timeLimit,
+        isPublished: t.isPublished,
+        createdAt: t.createdAt.toISOString(),
+        questionsCount: t.questions.length,
+        totalPoints,
+        questions: parsedQuestions,
+        userSubmission: userSub
+          ? {
+              id: userSub.id,
+              testId: userSub.testId,
+              studentId: userSub.studentId,
+              studentName: userSub.student.name,
+              score: userSub.score,
+              maxScore: userSub.maxScore,
+              submittedAt: userSub.submittedAt.toISOString(),
+            }
+          : null,
+        submissionsCount: t.submissions.length,
+        submissions: parsedSubmissions,
+      };
+    });
+
+    return {
+      groups,
+      subjects,
+      topics: dbTopics,
+      tests,
+      selectedGroupId,
+      canCreate: role === "ADMIN" || role === "TEACHER",
+    };
+  } catch (err) {
+    console.error("getTestsDataAction error:", err);
+    return {
+      groups: [],
+      subjects: [],
+      topics: [],
+      tests: [],
+      selectedGroupId: "",
+      canCreate: false,
+    };
+  }
+}
+
+export async function createTestAction(data: {
+  groupSubjectId: string;
+  topicId?: string;
+  title: string;
+  description?: string;
+  timeLimit?: number;
+  questions: {
+    questionText: string;
+    options: string[];
+    correctAnswer: string;
+    points?: number;
+  }[];
+}) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для создания теста" };
+    }
+
+    if (!data.groupSubjectId || !data.title.trim() || !data.questions || data.questions.length === 0) {
+      return { success: false, error: "Укажите дисциплину, название и добавьте хотя бы 1 вопрос" };
+    }
+
+    const test = await prisma.test.create({
+      data: {
+        groupSubjectId: data.groupSubjectId,
+        topicId: data.topicId || null,
+        authorId: session.user.id,
+        title: data.title.trim(),
+        description: data.description?.trim() || null,
+        timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
+        questions: {
+          create: data.questions.map((q, idx) => ({
+            questionText: q.questionText.trim(),
+            options: JSON.stringify(q.options.filter((o) => o.trim().length > 0)),
+            correctAnswer: q.correctAnswer.trim(),
+            points: q.points ? Number(q.points) : 1,
+            order: idx,
+          })),
+        },
+      },
+    });
+
+    revalidatePath("/dashboard/lms/tests");
+    revalidatePath("/dashboard/lms");
+    return { success: true, testId: test.id };
+  } catch (err) {
+    console.error("createTestAction error:", err);
+    return { success: false, error: "Ошибка при создании теста" };
+  }
+}
+
+export async function submitTestAnswersAction(data: {
+  testId: string;
+  answers: Record<string, string>; // questionId -> selectedOption
+}) {
+  try {
+    const session = await auth();
+    const studentId = session?.user?.id;
+
+    if (!studentId) {
+      return { success: false, error: "Вы должны быть авторизованы" };
+    }
+
+    const test = await prisma.test.findUnique({
+      where: { id: data.testId },
+      include: { questions: true },
+    });
+
+    if (!test) {
+      return { success: false, error: "Тест не найден" };
+    }
+
+    let userScore = 0;
+    let maxScore = 0;
+
+    test.questions.forEach((q) => {
+      const qPoints = q.points || 1;
+      maxScore += qPoints;
+      const studentAnswer = data.answers[q.id];
+      if (studentAnswer && studentAnswer.trim() === q.correctAnswer.trim()) {
+        userScore += qPoints;
+      }
+    });
+
+    await prisma.testSubmission.upsert({
+      where: {
+        testId_studentId: {
+          testId: data.testId,
+          studentId: studentId,
+        },
+      },
+      update: {
+        score: userScore,
+        maxScore,
+        answers: JSON.stringify(data.answers),
+        submittedAt: new Date(),
+      },
+      create: {
+        testId: data.testId,
+        studentId: studentId,
+        score: userScore,
+        maxScore,
+        answers: JSON.stringify(data.answers),
+      },
+    });
+
+    revalidatePath("/dashboard/lms/tests");
+    return { success: true, score: userScore, maxScore };
+  } catch (err) {
+    console.error("submitTestAnswersAction error:", err);
+    return { success: false, error: "Ошибка при отправке ответов" };
+  }
+}
+
+export async function deleteTestAction(testId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав" };
+    }
+
+    await prisma.test.delete({
+      where: { id: testId },
+    });
+
+    revalidatePath("/dashboard/lms/tests");
+    revalidatePath("/dashboard/lms");
+    return { success: true };
+  } catch (err) {
+    console.error("deleteTestAction error:", err);
+    return { success: false, error: "Ошибка при удалении теста" };
+  }
+}
