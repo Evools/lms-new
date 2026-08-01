@@ -295,6 +295,120 @@ export async function removeDutyStudentAction(
   }
 }
 
+export interface AllGroupsTodayDutyDTO {
+  groupId: string;
+  groupName: string;
+  leaderStudent?: { id: string; name: string };
+  dutyStudents: { id: string; name: string }[];
+}
+
+export interface StudentDutyStatDTO {
+  studentId: string;
+  studentName: string;
+  totalDutiesCount: number;
+  lastDutyDate?: string;
+  isMonitor: boolean;
+}
+
+/** Fetch today's duty roster for ALL groups in the school */
+export async function getAllGroupsTodayDutyAction(): Promise<AllGroupsTodayDutyDTO[]> {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const groups = await prisma.group.findMany({
+      select: {
+        id: true,
+        name: true,
+        monitor: { select: { id: true, name: true } },
+        dutySchedules: {
+          where: {
+            date: { gte: todayStart, lte: todayEnd },
+          },
+          include: {
+            student: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return groups.map((g) => {
+      const leaderSched = g.dutySchedules.find((s) => s.isLeader);
+      const dutyScheds = g.dutySchedules.filter((s) => !s.isLeader);
+
+      return {
+        groupId: g.id,
+        groupName: g.name,
+        leaderStudent: leaderSched
+          ? { id: leaderSched.student.id, name: leaderSched.student.name }
+          : g.monitor
+          ? { id: g.monitor.id, name: g.monitor.name }
+          : undefined,
+        dutyStudents: dutyScheds.map((s) => ({
+          id: s.student.id,
+          name: s.student.name,
+        })),
+      };
+    });
+  } catch (error) {
+    console.error("Error in getAllGroupsTodayDutyAction:", error);
+    return [];
+  }
+}
+
+/** Fetch duty statistics for all students in a specific group */
+export async function getGroupDutyStatsAction(groupId: string): Promise<StudentDutyStatDTO[]> {
+  try {
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        monitor: { select: { id: true } },
+        students: {
+          include: { student: { select: { id: true, name: true } } },
+          orderBy: { student: { name: "asc" } },
+        },
+      },
+    });
+
+    if (!group) return [];
+
+    const allGroupSchedules = await prisma.dutySchedule.findMany({
+      where: { groupId, isLeader: false },
+      select: { studentId: true, date: true },
+      orderBy: { date: "desc" },
+    });
+
+    const dutyCounts: Record<string, number> = {};
+    const lastDates: Record<string, string> = {};
+
+    allGroupSchedules.forEach((s) => {
+      dutyCounts[s.studentId] = (dutyCounts[s.studentId] || 0) + 1;
+      if (!lastDates[s.studentId]) {
+        lastDates[s.studentId] = new Date(s.date).toLocaleDateString("ru-RU", {
+          day: "numeric",
+          month: "numeric",
+        });
+      }
+    });
+
+    return group.students.map((gs) => ({
+      studentId: gs.student.id,
+      studentName: gs.student.name,
+      totalDutiesCount: dutyCounts[gs.student.id] || 0,
+      lastDutyDate: lastDates[gs.student.id] || "Еще не дежурил(а)",
+      isMonitor: group.monitor?.id === gs.student.id,
+    }));
+  } catch (error) {
+    console.error("Error in getGroupDutyStatsAction:", error);
+    return [];
+  }
+}
+
 /** Replace an absent student with another for a duty day */
 export async function replaceDutyStudentAction(
   groupId: string,
