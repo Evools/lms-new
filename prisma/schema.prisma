@@ -28,6 +28,7 @@ enum MaterialType {
   PDF
   DOCUMENT
   LINK
+  TEST
 }
 
 enum AnnouncementScope {

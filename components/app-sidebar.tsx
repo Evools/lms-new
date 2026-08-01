@@ -26,6 +26,7 @@ import {
   Building2,
   GraduationCap,
   Sparkles,
+  FileCheck2,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -96,14 +97,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               icon: <ClipboardList className="h-4 w-4" />,
             },
             {
-              title: "Материалы LMS",
-              url: "/dashboard/lms",
+              title: "Материалы",
+              url: "/dashboard/lms/materials",
               icon: <BookOpen className="h-4 w-4" />,
-              items: [
-                { title: "Темы & Уроки", url: "/dashboard/lms/topics" },
-                { title: "Тесты & Опросы", url: "/dashboard/lms/tests" },
-                { title: "Лекции & Практики", url: "/dashboard/lms/materials" },
-              ],
+            },
+            {
+              title: "Тесты",
+              url: "/dashboard/lms/tests",
+              icon: <FileCheck2 className="h-4 w-4" />,
             },
           ],
         },
@@ -177,14 +178,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               icon: <Clock className="h-4 w-4" />,
             },
             {
-              title: "Контент LMS",
-              url: "/dashboard/lms",
+              title: "Материалы",
+              url: "/dashboard/lms/materials",
               icon: <BookOpen className="h-4 w-4" />,
-              items: [
-                { title: "Темы & Уроки", url: "/dashboard/lms/topics" },
-                { title: "Тесты & Опросы", url: "/dashboard/lms/tests" },
-                { title: "Лекции & Практики", url: "/dashboard/lms/materials" },
-              ],
+            },
+            {
+              title: "Тесты",
+              url: "/dashboard/lms/tests",
+              icon: <FileCheck2 className="h-4 w-4" />,
             },
           ],
         },

@@ -29,8 +29,6 @@ import {
   BookOpen,
   Laptop,
   GraduationCap,
-  Sparkles,
-  Info,
 } from "lucide-react";
 import { GroupItemDTO, createMaterialAction } from "../../../actions";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
@@ -132,7 +130,7 @@ export function CreateMaterialView({
     }
 
     if ((type === MaterialType.PDF || type === MaterialType.DOCUMENT) && !fileUrl.trim() && !content.trim()) {
-      setErrorMsg("Укажите ссылку на файл документа или добавьте текстовое описание");
+      setErrorMsg("Укажите ссылку на файл документа или добавьте описание");
       return;
     }
 
@@ -190,10 +188,10 @@ export function CreateMaterialView({
           </Link>
           <div>
             <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" /> Адаптивный конструктор материалов LMS
+              <FileText className="h-5 w-5 text-primary" /> Публикация учебного материала
             </h1>
             <p className="text-xs text-muted-foreground">
-              Формат публикаций автоматически настраивает поля ввода и инструменты под тип материала
+              Создание конспектов лекций, практик, прикрепление видеоуроков, презентаций и внешних ресурсов
             </p>
           </div>
         </div>
@@ -219,11 +217,11 @@ export function CreateMaterialView({
       )}
 
       {/* Form Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Left Column: Format Selector & Dynamic Workspace */}
-        <div className="md:col-span-2 space-y-4">
+        <div className="md:col-span-2 space-y-3">
           {/* Format / Type Segmented Selector Bar */}
-          <Card className="p-4 border shadow-none rounded-xl space-y-2">
+          <div className="p-3.5 border rounded-xl bg-card space-y-2 text-xs shadow-xs">
             <div className="flex items-center justify-between">
               <label className="font-semibold text-foreground text-xs block">
                 Выберите формат публикуемого материала *
@@ -266,10 +264,10 @@ export function CreateMaterialView({
                 );
               })}
             </div>
-          </Card>
+          </div>
 
-          {/* DYNAMIC WORKSPACE CARD - ADAPTS FUNCTIONALLY PER FORMAT */}
-          <Card className="p-4 border shadow-none rounded-xl space-y-4">
+          {/* DYNAMIC WORKSPACE FOR MATERIALS */}
+          <div className="p-3.5 border rounded-xl bg-card space-y-4 text-xs shadow-xs">
             <div className="space-y-1">
               <label className="font-semibold text-foreground text-xs">Заголовок материала *</label>
               <Input
@@ -290,18 +288,17 @@ export function CreateMaterialView({
               />
             </div>
 
-            {/* DYNAMIC HERO FIELD 1: VIDEO URL */}
             {type === MaterialType.VIDEO && (
               <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-semibold text-primary text-xs flex items-center gap-1.5">
                     <Video className="h-4 w-4" /> Ссылка на видеозапись (YouTube, VK Видео, Rutube) *
                   </label>
-                  <span className="text-[10px] text-muted-foreground">Интегрируется прямо в плейлист группы</span>
+                  <span className="text-[10px] text-muted-foreground">Проигрывается прямо в LMS</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
-                    placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                    placeholder="https://www.youtube.com/watch?v=..."
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
                     className="h-8 text-xs bg-background font-mono border-primary/40 flex-1"
@@ -317,18 +314,17 @@ export function CreateMaterialView({
               </div>
             )}
 
-            {/* DYNAMIC HERO FIELD 2: CLOUD DOCUMENT URL */}
             {(type === MaterialType.PDF || type === MaterialType.DOCUMENT) && (
               <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-semibold text-primary text-xs flex items-center gap-1.5">
                     <FileText className="h-4 w-4" /> Ссылка на файл документа (Google Drive, Yandex.Disk) *
                   </label>
-                  <span className="text-[10px] text-muted-foreground">Прямой доступ для скачивания студентами</span>
+                  <span className="text-[10px] text-muted-foreground">Прямое скачивание студентом</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
-                    placeholder="https://drive.google.com/file/d/.../view"
+                    placeholder="https://drive.google.com/file/d/..."
                     value={fileUrl}
                     onChange={(e) => setFileUrl(e.target.value)}
                     className="h-8 text-xs bg-background font-mono border-primary/40 flex-1"
@@ -344,14 +340,13 @@ export function CreateMaterialView({
               </div>
             )}
 
-            {/* DYNAMIC HERO FIELD 3: EXTERNAL WEB LINK */}
             {type === MaterialType.LINK && (
               <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-semibold text-primary text-xs flex items-center gap-1.5">
                     <Link2 className="h-4 w-4" /> Внешняя адресная ссылка на веб-ресурс (URL) *
                   </label>
-                  <span className="text-[10px] text-muted-foreground">Открывается в отдельном окне</span>
+                  <span className="text-[10px] text-muted-foreground">Открывается в отдельной вкладке</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
@@ -371,7 +366,6 @@ export function CreateMaterialView({
               </div>
             )}
 
-            {/* DYNAMIC HERO FIELD 4: PRACTICE STARTER REPO */}
             {(type === MaterialType.PRACTICE || type === MaterialType.LAB) && (
               <div className="p-3 rounded-lg border bg-muted/40 space-y-1.5">
                 <label className="font-medium text-foreground text-xs flex items-center gap-1.5">
@@ -386,7 +380,6 @@ export function CreateMaterialView({
               </div>
             )}
 
-            {/* REUSABLE WYSIWYG EDITOR - TAILORED FOR THE SELECTED FORMAT */}
             <RichWysiwygEditor
               value={content}
               onChange={setContent}
@@ -414,38 +407,7 @@ export function CreateMaterialView({
               templates={getActiveTemplates()}
               onSubmit={handleSubmit}
             />
-
-            {/* SECONDARY ATTACHMENT FIELDS FOR LECTURE MODE */}
-            {type === MaterialType.LECTURE && (
-              <div className="pt-2 border-t space-y-3">
-                <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                  <Link2 className="h-3.5 w-3.5 text-primary" /> Прикреплённые файлы и внешние ссылки к лекции
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="font-medium text-muted-foreground text-[11px]">Файл презентации / конспекта (Google / Yandex)</label>
-                    <Input
-                      placeholder="https://drive.google.com/..."
-                      value={fileUrl}
-                      onChange={(e) => setFileUrl(e.target.value)}
-                      className="h-8 text-xs bg-background font-mono"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="font-medium text-muted-foreground text-[11px]">Дополнительная веб-ссылка</label>
-                    <Input
-                      placeholder="https://..."
-                      value={linkUrl}
-                      onChange={(e) => setLinkUrl(e.target.value)}
-                      className="h-8 text-xs bg-background font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </Card>
+          </div>
         </div>
 
         {/* Right Column: Settings & Metadata */}

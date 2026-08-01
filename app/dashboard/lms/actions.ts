@@ -127,7 +127,7 @@ export async function getLmsOverviewDataAction(groupId?: string) {
 
     const groupSubjectIds = groupSubjects.map((gs) => gs.id);
 
-    const [totalTopics, totalMaterials, totalTests, dbTopics, dbMaterials, dbTests] =
+    const [totalTopics, totalMaterials, totalTests, dbTopics] =
       await Promise.all([
         prisma.topic.count({ where: { groupSubjectId: { in: groupSubjectIds } } }),
         prisma.material.count({
@@ -136,29 +136,11 @@ export async function getLmsOverviewDataAction(groupId?: string) {
         prisma.test.count({ where: { groupSubjectId: { in: groupSubjectIds } } }),
         prisma.topic.findMany({
           where: { groupSubjectId: { in: groupSubjectIds } },
-          take: 6,
-          orderBy: { createdAt: "desc" },
+          orderBy: { order: "asc" },
           include: {
             groupSubject: { include: { subject: true, teacher: true } },
-            materials: true,
-          },
-        }),
-        prisma.material.findMany({
-          where: { topic: { groupSubjectId: { in: groupSubjectIds } } },
-          take: 6,
-          orderBy: { createdAt: "desc" },
-          include: {
-            topic: { select: { title: true } },
-            author: { select: { name: true } },
-          },
-        }),
-        prisma.test.findMany({
-          where: { groupSubjectId: { in: groupSubjectIds } },
-          take: 6,
-          orderBy: { createdAt: "desc" },
-          include: {
-            groupSubject: { include: { subject: true, teacher: true } },
-            questions: true,
+            materials: { orderBy: { createdAt: "asc" } },
+            tests: { include: { questions: true }, orderBy: { createdAt: "asc" } },
           },
         }),
       ]);
@@ -175,6 +157,28 @@ export async function getLmsOverviewDataAction(groupId?: string) {
       selectedGroupId,
       canCreate: role === "ADMIN" || role === "TEACHER",
       stats: { totalTopics, totalMaterials, totalTests },
+      topicsWithContent: dbTopics.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        order: t.order,
+        subjectName: t.groupSubject.subject.name,
+        teacherName: t.groupSubject.teacher.name,
+        materials: t.materials.map((m) => ({
+          id: m.id,
+          type: m.type,
+          title: m.title,
+          content: m.content,
+          fileUrl: m.fileUrl,
+          linkUrl: m.linkUrl,
+        })),
+        tests: t.tests.map((test) => ({
+          id: test.id,
+          title: test.title,
+          questionsCount: test.questions.length,
+          timeLimit: test.timeLimit,
+        })),
+      })),
       recentTopics: dbTopics.map((t) => ({
         id: t.id,
         title: t.title,
@@ -184,24 +188,8 @@ export async function getLmsOverviewDataAction(groupId?: string) {
         materialsCount: t.materials.length,
         createdAt: t.createdAt.toISOString(),
       })),
-      recentMaterials: dbMaterials.map((m) => ({
-        id: m.id,
-        title: m.title,
-        type: m.type,
-        topicTitle: m.topic.title,
-        authorName: m.author.name,
-        fileUrl: m.fileUrl,
-        linkUrl: m.linkUrl,
-        createdAt: m.createdAt.toISOString(),
-      })),
-      recentTests: dbTests.map((t) => ({
-        id: t.id,
-        title: t.title,
-        subjectName: t.groupSubject.subject.name,
-        questionsCount: t.questions.length,
-        timeLimit: t.timeLimit,
-        createdAt: t.createdAt.toISOString(),
-      })),
+      recentMaterials: [],
+      recentTests: [],
     };
   } catch (err) {
     console.error("getLmsOverviewDataAction error:", err);
@@ -430,8 +418,15 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
 
     const dbTopics = await prisma.topic.findMany({
       where: { groupSubjectId: { in: groupSubjects.map((gs) => gs.id) } },
-      select: { id: true, title: true },
-      orderBy: { title: "asc" },
+      orderBy: { order: "asc" },
+      include: {
+        materials: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            author: { select: { name: true } },
+          },
+        },
+      },
     });
 
     const topicIds = dbTopics.map((t) => t.id);
@@ -467,10 +462,31 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       createdAt: m.createdAt.toISOString(),
     }));
 
+    const topicsWithMaterials = dbTopics.map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      order: t.order,
+      materials: t.materials.map((m) => ({
+        id: m.id,
+        topicId: m.topicId,
+        topicTitle: t.title,
+        authorId: m.authorId,
+        authorName: m.author.name,
+        type: m.type,
+        title: m.title,
+        content: m.content,
+        fileUrl: m.fileUrl,
+        linkUrl: m.linkUrl,
+        createdAt: m.createdAt.toISOString(),
+      })),
+    }));
+
     return {
       groups,
       subjects,
-      topics: dbTopics,
+      topics: dbTopics.map((t) => ({ id: t.id, title: t.title })),
+      topicsWithMaterials,
       materials,
       selectedGroupId,
       canCreate: role === "ADMIN" || role === "TEACHER",
