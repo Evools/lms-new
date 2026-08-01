@@ -284,7 +284,7 @@ export function GroupEditForm({ group, userRole, teachersList = [] }: GroupEditF
         {/* Right Sidebar: Live Preview Card */}
         <div className="space-y-6">
           <div className="sticky top-20 z-10">
-            <Card className="shadow-md border-primary/20 bg-gradient-to-b from-card via-card to-primary/5">
+            <Card className="border shadow-none">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-amber-500" /> Предпросмотр изменений

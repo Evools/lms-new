@@ -217,94 +217,108 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
       </div>
 
       {/* Main Header Card */}
-      <Card className="border bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-xs overflow-hidden">
-        <CardContent className="p-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-xs">
-                <Users className="h-6 w-6" />
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-bold tracking-tight text-foreground">
+                  Группа {group.name}
+                </h1>
+                <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 font-medium">
+                  {group.course} Курс
+                </Badge>
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold tracking-tight text-foreground">
-                    Группа {group.name}
-                  </h1>
-                  <Badge className="bg-primary text-primary-foreground text-[10px] px-2 py-0">
-                    {group.course} Курс
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {group.specialty}
-                </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {group.specialty}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick KPI Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="bg-background border p-2 rounded-lg text-center">
+              <div className="text-[9px] text-muted-foreground uppercase font-semibold">Студентов в группе</div>
+              <div className="text-sm font-bold text-primary flex items-center justify-center gap-1 mt-0.5">
+                <GraduationCap className="h-3.5 w-3.5" />
+                {group.studentCount} чел.
               </div>
             </div>
 
-            {/* Quick KPI Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-xs">
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Студентов в группе</div>
-                <div className="text-base font-extrabold text-primary flex items-center justify-center gap-1 mt-0.5">
-                  <GraduationCap className="h-4 w-4" />
-                  {group.studentCount} чел.
-                </div>
+            <div className="bg-background border p-2 rounded-lg text-center">
+              <div className="text-[9px] text-muted-foreground uppercase font-semibold">Куратор группы</div>
+              <div className="text-xs font-bold text-foreground mt-0.5 truncate max-w-[130px] mx-auto">
+                {group.curatorName || "Не назначен"}
               </div>
+            </div>
 
-              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-xs">
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Куратор группы</div>
-                <div className="text-xs font-bold text-foreground mt-1 truncate max-w-[140px] mx-auto">
-                  {group.curatorName || "Не назначен"}
-                </div>
-              </div>
-
-              <div className="bg-background/90 border p-2.5 rounded-xl text-center shadow-xs col-span-2 sm:col-span-1">
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Учебный период</div>
-                <div className="text-xs font-bold text-foreground mt-1">
-                  {group.academicYear}
-                </div>
+            <div className="bg-background border p-2 rounded-lg text-center col-span-2 sm:col-span-1">
+              <div className="text-[9px] text-muted-foreground uppercase font-semibold">Учебный период</div>
+              <div className="text-xs font-bold text-foreground mt-0.5">
+                {group.academicYear}
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Group Workspace Navigation Tabs */}
       <div className="space-y-4">
-        <div className="bg-muted/40 p-1 border rounded-xl flex items-center gap-1 overflow-x-auto">
-          <Button
-            size="xs"
-            variant={activeTab === "STUDENTS" ? "default" : "ghost"}
+        <div className="bg-muted/60 p-1 border rounded-xl flex items-center gap-1 overflow-x-auto text-xs">
+          <button
+            type="button"
             onClick={() => setActiveTab("STUDENTS")}
-            className="text-xs gap-1.5 rounded-lg px-3 py-1.5 h-8"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
+              activeTab === "STUDENTS"
+                ? "bg-background border border-border shadow-2xs text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <GraduationCap className="h-3.5 w-3.5" /> Состав студентов ({group.studentsList.length})
-          </Button>
+            <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+            <span>Состав студентов ({group.studentsList.length})</span>
+          </button>
 
-          <Button
-            size="xs"
-            variant={activeTab === "SUBJECTS" ? "default" : "ghost"}
+          <button
+            type="button"
             onClick={() => setActiveTab("SUBJECTS")}
-            className="text-xs gap-1.5 rounded-lg px-3 py-1.5 h-8"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
+              activeTab === "SUBJECTS"
+                ? "bg-background border border-border shadow-2xs text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <BookOpen className="h-3.5 w-3.5" /> Предметы ({group.subjectsList.length})
-          </Button>
+            <BookOpen className="h-3.5 w-3.5 shrink-0" />
+            <span>Предметы ({group.subjectsList.length})</span>
+          </button>
 
-          <Button
-            size="xs"
-            variant={activeTab === "ANNOUNCEMENTS" ? "default" : "ghost"}
+          <button
+            type="button"
             onClick={() => setActiveTab("ANNOUNCEMENTS")}
-            className="text-xs gap-1.5 rounded-lg px-3 py-1.5 h-8"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
+              activeTab === "ANNOUNCEMENTS"
+                ? "bg-background border border-border shadow-2xs text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <Megaphone className="h-3.5 w-3.5" /> Объявления ({group.announcementsList.length})
-          </Button>
+            <Megaphone className="h-3.5 w-3.5 shrink-0" />
+            <span>Объявления ({group.announcementsList.length})</span>
+          </button>
 
-          <Button
-            size="xs"
-            variant={activeTab === "DUTY" ? "default" : "ghost"}
+          <button
+            type="button"
             onClick={() => setActiveTab("DUTY")}
-            className="text-xs gap-1.5 rounded-lg px-3 py-1.5 h-8"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
+              activeTab === "DUTY"
+                ? "bg-background border border-border shadow-2xs text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <Clock className="h-3.5 w-3.5" /> График дежурств
-          </Button>
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span>График дежурств</span>
+          </button>
         </div>
 
         {/* TAB 1: STUDENTS LIST WORKSPACE */}
@@ -881,7 +895,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
 
       {/* Dialog for Editing Announcement */}
       <Dialog open={editingAnn !== null} onOpenChange={(open) => !open && setEditingAnn(null)}>
-        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[540px]">
           <form onSubmit={handleSaveEditAnn} className="space-y-3">
             <DialogHeader className="pb-2 border-b">
               <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
