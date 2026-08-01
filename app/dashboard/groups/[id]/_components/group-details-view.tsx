@@ -543,7 +543,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                   <DialogTrigger render={<Button size="xs" className="h-8 text-xs gap-1.5" />}>
                     <Plus className="h-3.5 w-3.5" /> Новое объявление
                   </DialogTrigger>
-                  <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+                  <DialogContent className="p-4 gap-3 text-xs sm:max-w-[540px]">
                     <form onSubmit={handleCreateAnnouncement} className="space-y-3">
                       <DialogHeader className="pb-2 border-b gap-1">
                         <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">

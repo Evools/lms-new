@@ -1,12 +1,10 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
   SelectTrigger,
@@ -22,7 +20,6 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -47,10 +44,9 @@ import {
   Trash2,
   Pencil,
   AlertTriangle,
-  Loader2,
-  X,
-  UploadCloud,
+  Sparkles,
   Lock,
+  UploadCloud,
 } from "lucide-react";
 import {
   createAnnouncementAction,
@@ -80,14 +76,6 @@ export interface AnnouncementItem {
   files?: FileAttachmentItem[];
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-}
-
 interface AnnouncementsViewProps {
   userRole: "ADMIN" | "TEACHER" | "STUDENT";
   userName: string;
@@ -112,26 +100,22 @@ export function AnnouncementsView({
   const [newBody, setNewBody] = useState("");
   const [newAudience, setNewAudience] = useState<"LYCEUM" | "GROUP" | "TEACHERS">("LYCEUM");
   const [newPinned, setNewPinned] = useState(false);
-  const [newFiles, setNewFiles] = useState<FileAttachmentItem[]>([]);
 
   // Edit Form State
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editAudience, setEditAudience] = useState<"LYCEUM" | "GROUP" | "TEACHERS">("LYCEUM");
   const [editPinned, setEditPinned] = useState(false);
-  const [editFiles, setEditFiles] = useState<FileAttachmentItem[]>([]);
 
   const canCreate = userRole === "ADMIN" || userRole === "TEACHER";
 
   const handleDownloadFile = (file: FileAttachmentItem) => {
     let downloadUrl = file.fileUrl;
-
     if (!downloadUrl || downloadUrl === "#" || !downloadUrl.startsWith("blob:")) {
       const dummyContent = `Официальный документ лицея: ${file.fileName}\nДата скачивания: ${new Date().toLocaleString()}\nПлатформа Лицей LMS.`;
       const blob = new Blob([dummyContent], { type: "text/plain;charset=utf-8" });
       downloadUrl = URL.createObjectURL(blob);
     }
-
     const a = document.createElement("a");
     a.href = downloadUrl;
     a.download = file.fileName;
@@ -146,7 +130,6 @@ export function AnnouncementsView({
     setEditBody(item.body);
     setEditAudience(item.targetAudience);
     setEditPinned(!!item.isPinned);
-    setEditFiles(item.files || []);
   };
 
   // Filter Announcements
@@ -167,7 +150,6 @@ export function AnnouncementsView({
 
   const confirmDeleteAnnouncement = () => {
     if (!deletingId) return;
-
     const targetId = deletingId;
     setAnnouncements((prev) => prev.filter((a) => a.id !== targetId));
     setDeletingId(null);
@@ -191,7 +173,6 @@ export function AnnouncementsView({
       groupName: newAudience === "GROUP" ? "ИС-1-25" : undefined,
       createdAt: "Только что",
       isPinned: newPinned,
-      files: newFiles,
     };
 
     setAnnouncements([createdItem, ...announcements]);
@@ -204,7 +185,6 @@ export function AnnouncementsView({
     setNewBody("");
     setNewAudience("LYCEUM");
     setNewPinned(false);
-    setNewFiles([]);
     setIsDialogOpen(false);
 
     startTransition(async () => {
@@ -225,7 +205,6 @@ export function AnnouncementsView({
     const updatedBody = editBody.trim();
     const updatedAudience = editAudience;
     const updatedPinned = editPinned;
-    const updatedFiles = editFiles;
 
     setAnnouncements((prev) =>
       prev.map((item) =>
@@ -236,7 +215,6 @@ export function AnnouncementsView({
               body: updatedBody,
               targetAudience: updatedAudience,
               isPinned: updatedPinned,
-              files: updatedFiles,
             }
           : item
       )
@@ -257,21 +235,21 @@ export function AnnouncementsView({
     switch (audience) {
       case "LYCEUM":
         return (
-          <Badge variant="outline" className="gap-1 text-[11px]">
+          <Badge variant="outline" className="gap-1 text-[10px] font-medium">
             <Building2 className="h-3 w-3" />
             Всему лицею
           </Badge>
         );
       case "GROUP":
         return (
-          <Badge variant="secondary" className="gap-1 text-[11px]">
+          <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
             <Users className="h-3 w-3" />
-            {groupName ? `Группа ${groupName}` : "Учебная группа"}
+            {groupName ? `Группа ${groupName}` : "Группа ИС-1-25"}
           </Badge>
         );
       case "TEACHERS":
         return (
-          <Badge variant="outline" className="border-primary/40 text-primary gap-1 text-[11px]">
+          <Badge variant="outline" className="border-primary/40 text-primary gap-1 text-[10px] font-medium">
             <UserCheck className="h-3 w-3" />
             Преподавателям
           </Badge>
@@ -280,115 +258,155 @@ export function AnnouncementsView({
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4 pb-20 text-xs">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Объявления лицея</h1>
-          <p className="text-sm text-muted-foreground">
-            Официальные уведомления, расписания и новости учебного процесса
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-primary" />
+              Объявления лицея
+            </h1>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+              {announcements.length} всего
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Официальные извещения, изменения расписаний и новости лицея
           </p>
         </div>
 
         {canCreate && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger render={<Button size="sm" />}>
-              <Plus className="h-4 w-4 mr-1.5" /> Опубликовать объявление
+            <DialogTrigger render={<Button size="xs" className="h-8 text-xs gap-1.5 shrink-0" />}>
+              <Plus className="h-3.5 w-3.5" /> Новое объявление
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[550px]">
-              <form onSubmit={handleCreateSubmit}>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-base">
-                    <Megaphone className="h-5 w-5 text-primary" />
-                    Новое объявление
+            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[540px]">
+              <form onSubmit={handleCreateSubmit} className="space-y-3">
+                <DialogHeader className="pb-2 border-b gap-1">
+                  <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <Megaphone className="h-4 w-4 text-primary" /> Новое объявление
                   </DialogTitle>
-                  <DialogDescription>
-                    Опубликуйте уведомление для лицея, конкретной группы или преподавателей
+                  <DialogDescription className="text-xs">
+                    Опубликуйте извещение для лицея, конкретной группы или преподавателей
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="space-y-3 text-xs">
+                  {/* Type Selector Cards (Restored 2-Card Style) */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-foreground">Заголовок объявления *</label>
+                    <label className="font-medium text-foreground text-xs">Категория</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNewPinned(false)}
+                        className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
+                          !newPinned
+                            ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                            : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                        }`}
+                      >
+                        <div className={`mt-0.5 p-1 rounded-md shrink-0 ${!newPinned ? "bg-primary/15" : "bg-muted"}`}>
+                          <Megaphone className={`h-3.5 w-3.5 ${!newPinned ? "text-primary" : "text-muted-foreground"}`} />
+                        </div>
+                        <div>
+                          <div className={`text-xs font-medium ${!newPinned ? "text-primary" : "text-foreground"}`}>Обычное</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">Стандартное извещение</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setNewPinned(true)}
+                        className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
+                          newPinned
+                            ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                            : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                        }`}
+                      >
+                        <div className={`mt-0.5 p-1 rounded-md shrink-0 ${newPinned ? "bg-primary/15" : "bg-muted"}`}>
+                          <Sparkles className={`h-3.5 w-3.5 ${newPinned ? "text-primary" : "text-muted-foreground"}`} />
+                        </div>
+                        <div>
+                          <div className={`text-xs font-medium flex items-center gap-1.5 ${newPinned ? "text-primary" : "text-foreground"}`}>
+                            Важное
+                            <Badge className="bg-primary/15 text-primary border-0 text-[8px] px-1 py-0 font-medium">закреплено</Badge>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">Всегда сверху в ленте</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-medium text-foreground text-xs">Целевая аудитория</label>
+                    <Select
+                      value={newAudience}
+                      onValueChange={(val) => {
+                        if (val) setNewAudience(val as any);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue>
+                          {newAudience === "LYCEUM"
+                            ? "Всему лицею"
+                            : newAudience === "GROUP"
+                            ? "Студентам"
+                            : "Преподавателям"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LYCEUM" className="text-xs">Всему лицею</SelectItem>
+                        <SelectItem value="GROUP" className="text-xs">Студентам</SelectItem>
+                        <SelectItem value="TEACHERS" className="text-xs">Преподавателям</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-medium text-foreground text-xs">Заголовок *</label>
                     <Input
-                      placeholder="Например: Изменение в расписании пар..."
+                      required
+                      placeholder="Например: Изменение расписания на вторник"
                       value={newTitle}
                       onChange={(e) => setNewTitle(e.target.value)}
-                      required
+                      className="h-8 text-xs"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-foreground">Целевая аудитория</label>
-                      <Select
-                        value={newAudience}
-                        onValueChange={(val) => {
-                          if (val) setNewAudience(val as any);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue>
-                            {newAudience === "LYCEUM"
-                              ? "Всему лицею"
-                              : newAudience === "GROUP"
-                              ? "Студентам группы ИС-1-25"
-                              : "Преподавательскому составу"}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="LYCEUM">Всему лицею</SelectItem>
-                          <SelectItem value="GROUP">Студентам группы ИС-1-25</SelectItem>
-                          <SelectItem value="TEACHERS">Преподавательскому составу</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex items-center pt-5">
-                      <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                        <Checkbox
-                          checked={newPinned}
-                          onCheckedChange={(checked) => setNewPinned(!!checked)}
-                        />
-                        <span>Закрепить как важное</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-foreground">Текст объявления *</label>
+                  <div className="space-y-1">
+                    <label className="font-medium text-foreground text-xs">Текст объявления *</label>
                     <textarea
+                      required
                       rows={4}
-                      className="w-full rounded-md border border-input bg-background p-3 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-                      placeholder="Введите текст вашего объявления..."
+                      placeholder="Введите подробный текст объявления..."
                       value={newBody}
                       onChange={(e) => setNewBody(e.target.value)}
-                      required
+                      className="w-full p-2 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary resize-none"
                     />
                   </div>
 
                   {/* Disabled File Upload Dropzone */}
-                  <div className="space-y-1.5 opacity-65 pointer-events-none select-none">
+                  <div className="space-y-1.5 opacity-65 pointer-events-none select-none pt-1">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-medium text-muted-foreground">Прикрепить файлы</label>
-                      <Badge variant="outline" className="text-[10px] gap-1 py-0 px-2 bg-muted text-muted-foreground font-normal border">
-                        <Lock className="h-3 w-3" /> Пока что недоступно
+                      <Badge variant="outline" className="text-[9px] gap-1 py-0 px-1.5 bg-muted text-muted-foreground font-normal border">
+                        <Lock className="h-2.5 w-2.5" /> Временно отключено
                       </Badge>
                     </div>
-                    <div className="border border-dashed border-input/60 rounded-md p-4 flex flex-col items-center justify-center bg-muted/20 text-center cursor-not-allowed">
-                      <UploadCloud className="h-6 w-6 text-muted-foreground/40 mb-1.5" />
-                      <span className="text-xs font-medium text-muted-foreground">Загрузка файлов временно отключена</span>
-                      <span className="text-[11px] text-muted-foreground/60 mt-0.5">Будет подключено после интеграции облачного хранилища S3</span>
+                    <div className="border border-dashed border-input/60 rounded-lg p-3 flex flex-col items-center justify-center bg-muted/20 text-center cursor-not-allowed">
+                      <UploadCloud className="h-5 w-5 text-muted-foreground/40 mb-1" />
+                      <span className="text-[11px] font-medium text-muted-foreground">Загрузка файлов недоступна</span>
+                      <span className="text-[10px] text-muted-foreground/60 mt-0.5">Будет подключено после интеграции S3</span>
                     </div>
                   </div>
                 </div>
 
-                <DialogFooter>
-                  <DialogClose render={<Button variant="outline" type="button" />}>
+                <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+                  <Button variant="outline" size="xs" type="button" onClick={() => setIsDialogOpen(false)}>
                     Отмена
-                  </DialogClose>
-                  <Button type="submit" disabled={isPending}>
-                    {isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                  </Button>
+                  <Button size="xs" type="submit" disabled={isPending || !newTitle.trim() || !newBody.trim()}>
                     Опубликовать
                   </Button>
                 </DialogFooter>
@@ -398,103 +416,132 @@ export function AnnouncementsView({
         )}
       </div>
 
-      {/* Edit Announcement Modal Dialog */}
+      {/* Edit Announcement Modal */}
       <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
-        <DialogContent className="sm:max-w-[550px]">
-          <form onSubmit={handleEditSubmit}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base">
-                <Pencil className="h-5 w-5 text-primary" />
-                Редактировать объявление
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[540px]">
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <DialogHeader className="pb-2 border-b gap-1">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Pencil className="h-4 w-4 text-primary" /> Редактирование объявления
               </DialogTitle>
-              <DialogDescription>
-                Внесите изменения в ранее опубликованное объявление
-              </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
+            <div className="space-y-3 text-xs">
+              {/* Type Selector Cards (Restored 2-Card Style) */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">Заголовок объявления *</label>
+                <label className="font-medium text-foreground text-xs">Категория</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditPinned(false)}
+                    className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
+                      !editPinned
+                        ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                        : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                    }`}
+                  >
+                    <div className={`mt-0.5 p-1 rounded-md shrink-0 ${!editPinned ? "bg-primary/15" : "bg-muted"}`}>
+                      <Megaphone className={`h-3.5 w-3.5 ${!editPinned ? "text-primary" : "text-muted-foreground"}`} />
+                    </div>
+                    <div>
+                      <div className={`text-xs font-medium ${!editPinned ? "text-primary" : "text-foreground"}`}>Обычное</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Стандартное извещение</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditPinned(true)}
+                    className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
+                      editPinned
+                        ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                        : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                    }`}
+                  >
+                    <div className={`mt-0.5 p-1 rounded-md shrink-0 ${editPinned ? "bg-primary/15" : "bg-muted"}`}>
+                      <Sparkles className={`h-3.5 w-3.5 ${editPinned ? "text-primary" : "text-muted-foreground"}`} />
+                    </div>
+                    <div>
+                      <div className={`text-xs font-medium flex items-center gap-1.5 ${editPinned ? "text-primary" : "text-foreground"}`}>
+                        Важное
+                        <Badge className="bg-primary/15 text-primary border-0 text-[8px] px-1 py-0 font-medium">закреплено</Badge>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Всегда сверху в ленте</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Целевая аудитория</label>
+                <Select
+                  value={editAudience}
+                  onValueChange={(val) => {
+                    if (val) setEditAudience(val as any);
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue>
+                      {editAudience === "LYCEUM"
+                        ? "Всему лицею"
+                        : editAudience === "GROUP"
+                        ? "Студентам"
+                        : "Преподавателям"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LYCEUM" className="text-xs">Всему лицею</SelectItem>
+                    <SelectItem value="GROUP" className="text-xs">Студентам</SelectItem>
+                    <SelectItem value="TEACHERS" className="text-xs">Преподавателям</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Заголовок *</label>
                 <Input
+                  required
                   placeholder="Заголовок объявления"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  required
+                  className="h-8 text-xs"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-foreground">Целевая аудитория</label>
-                  <Select
-                    value={editAudience}
-                    onValueChange={(val) => {
-                      if (val) setEditAudience(val as any);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue>
-                        {editAudience === "LYCEUM"
-                          ? "Всему лицею"
-                          : editAudience === "GROUP"
-                          ? "Студентам группы ИС-1-25"
-                          : "Преподавательскому составу"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LYCEUM">Всему лицею</SelectItem>
-                      <SelectItem value="GROUP">Студентам группы ИС-1-25</SelectItem>
-                      <SelectItem value="TEACHERS">Преподавательскому составу</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center pt-5">
-                  <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                    <Checkbox
-                      checked={editPinned}
-                      onCheckedChange={(checked) => setEditPinned(!!checked)}
-                    />
-                    <span>Закрепить как важное</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">Текст объявления *</label>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Текст объявления *</label>
                 <textarea
+                  required
                   rows={4}
-                  className="w-full rounded-md border border-input bg-background p-3 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
                   placeholder="Введите текст объявления..."
                   value={editBody}
                   onChange={(e) => setEditBody(e.target.value)}
-                  required
+                  className="w-full p-2 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary resize-none"
                 />
               </div>
 
-              {/* Disabled File Upload Dropzone for Editing */}
-              <div className="space-y-1.5 opacity-65 pointer-events-none select-none">
+              {/* Disabled File Upload Dropzone */}
+              <div className="space-y-1.5 opacity-65 pointer-events-none select-none pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-medium text-muted-foreground">Прикрепить файлы</label>
-                  <Badge variant="outline" className="text-[10px] gap-1 py-0 px-2 bg-muted text-muted-foreground font-normal border">
-                    <Lock className="h-3 w-3" /> Пока что недоступно
+                  <Badge variant="outline" className="text-[9px] gap-1 py-0 px-1.5 bg-muted text-muted-foreground font-normal border">
+                    <Lock className="h-2.5 w-2.5" /> Временно отключено
                   </Badge>
                 </div>
-                <div className="border border-dashed border-input/60 rounded-md p-4 flex flex-col items-center justify-center bg-muted/20 text-center cursor-not-allowed">
-                  <UploadCloud className="h-6 w-6 text-muted-foreground/40 mb-1.5" />
-                  <span className="text-xs font-medium text-muted-foreground">Загрузка файлов временно отключена</span>
-                  <span className="text-[11px] text-muted-foreground/60 mt-0.5">Будет подключено после интеграции облачного хранилища S3</span>
+                <div className="border border-dashed border-input/60 rounded-lg p-3 flex flex-col items-center justify-center bg-muted/20 text-center cursor-not-allowed">
+                  <UploadCloud className="h-5 w-5 text-muted-foreground/40 mb-1" />
+                  <span className="text-[11px] font-medium text-muted-foreground">Загрузка файлов недоступна</span>
+                  <span className="text-[10px] text-muted-foreground/60 mt-0.5">Будет подключено после интеграции S3</span>
                 </div>
               </div>
             </div>
 
-            <DialogFooter>
-              <Button variant="outline" type="button" onClick={() => setEditingItem(null)}>
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" type="button" onClick={() => setEditingItem(null)}>
                 Отмена
               </Button>
-              <Button type="submit" disabled={isPending}>
-                {isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-                Сохранить изменения
+              <Button size="xs" type="submit" disabled={isPending || !editTitle.trim() || !editBody.trim()}>
+                Сохранить
               </Button>
             </DialogFooter>
           </form>
@@ -503,19 +550,22 @@ export function AnnouncementsView({
 
       {/* Delete Confirmation Alert Dialog */}
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Удалить объявление?
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="text-left place-items-start gap-1">
+            <AlertDialogTitle className="flex items-center gap-2 text-sm font-bold text-destructive">
+              <AlertTriangle className="h-4 w-4" /> Удалить объявление?
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Вы действительно хотите удалить это объявление? Это действие окончательно и его нельзя будет отменить.
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Вы действительно хотите удалить это объявление?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={confirmDeleteAnnouncement}>
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <AlertDialogCancel className="h-7 text-xs px-3">Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={confirmDeleteAnnouncement}
+              className="h-7 text-xs px-3"
+            >
               Удалить
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -523,269 +573,225 @@ export function AnnouncementsView({
       </AlertDialog>
 
       {/* Search & Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          <Button
-            size="xs"
-            variant={activeAudienceFilter === "ALL" ? "default" : "outline"}
-            onClick={() => setActiveAudienceFilter("ALL")}
-          >
-            Все ({announcements.length})
-          </Button>
-          <Button
-            size="xs"
-            variant={activeAudienceFilter === "LYCEUM" ? "default" : "outline"}
-            onClick={() => setActiveAudienceFilter("LYCEUM")}
-          >
-            Лицею
-          </Button>
-          <Button
-            size="xs"
-            variant={activeAudienceFilter === "GROUP" ? "default" : "outline"}
-            onClick={() => setActiveAudienceFilter("GROUP")}
-          >
-            Моей группе
-          </Button>
-          <Button
-            size="xs"
-            variant={activeAudienceFilter === "TEACHERS" ? "default" : "outline"}
-            onClick={() => setActiveAudienceFilter("TEACHERS")}
-          >
-            Преподавателям
-          </Button>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        {/* Audience Filter Pills */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+          {(["ALL", "LYCEUM", "GROUP", "TEACHERS"] as const).map((audVal) => {
+            const isActive = activeAudienceFilter === audVal;
+            const labels = {
+              ALL: `Все (${announcements.length})`,
+              LYCEUM: "Лицею",
+              GROUP: "Студентам",
+              TEACHERS: "Преподавателям",
+            };
+            return (
+              <button
+                key={audVal}
+                type="button"
+                onClick={() => setActiveAudienceFilter(audVal)}
+                className={`px-2.5 py-1 rounded-md text-xs transition-colors font-medium whitespace-nowrap ${
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {labels[audVal]}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Search Bar */}
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        {/* Search Input */}
+        <div className="relative w-full sm:w-60">
+          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Поиск объявлений..."
-            className="pl-9 h-9 text-xs"
+            className="pl-8 h-8 text-xs bg-background"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Announcements List */}
-      <div className="space-y-4">
-        {/* Pinned Announcements Section */}
-        {pinnedAnnouncements.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
-              <Pin className="h-3.5 w-3.5 fill-current" />
-              <span>Закрепленные объявления</span>
+      {/* Announcements Feed */}
+      <div className="space-y-2.5">
+        {/* Pinned Announcements */}
+        {pinnedAnnouncements.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-xl border border-primary/40 bg-primary/5 dark:bg-primary/10 overflow-hidden transition-all"
+          >
+            {/* Header strip */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-primary/20 bg-primary/5 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-6 w-6 border shrink-0">
+                  <AvatarFallback className="bg-primary/15 text-primary text-[9px] font-bold">
+                    {item.authorName.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-xs font-medium text-foreground truncate">{item.authorName}</span>
+                <span className="text-muted-foreground text-[10px]">·</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">{item.createdAt}</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {getAudienceBadge(item.targetAudience, item.groupName)}
+                <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 gap-0.5 font-medium">
+                  <Sparkles className="h-2.5 w-2.5" /> Закреплено
+                </Badge>
+                {canCreate && (
+                  <div className="flex items-center gap-0.5 ml-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="h-6 w-6 text-muted-foreground hover:text-primary"
+                      onClick={() => handleStartEdit(item)}
+                      title="Редактировать"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeletingId(item.id)}
+                      title="Удалить"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {pinnedAnnouncements.map((item) => (
-              <Card key={item.id} className="border border-primary/30 bg-primary/5 shadow-none">
-                <CardHeader className="pb-3 border-b border-primary/20">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9 border shrink-0">
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                          {item.authorName.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm text-foreground">{item.authorName}</span>
-                          <Badge variant="secondary" className="text-[10px] py-0 px-1.5">
-                            {item.authorRole === "ADMIN" ? "Администратор" : "Преподаватель"}
-                          </Badge>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                          {item.createdAt}
-                        </div>
+            {/* Body */}
+            <div className="p-3 space-y-1.5 text-xs">
+              <h3 className="font-bold text-xs text-primary leading-snug">{item.title}</h3>
+              <p className="text-muted-foreground text-xs leading-relaxed whitespace-pre-line">
+                {item.body}
+              </p>
+
+              {/* Files */}
+              {item.files && item.files.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  {item.files.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between p-2 rounded-md border bg-background text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="font-medium text-xs text-foreground truncate">{file.fileName}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{file.fileSize}</span>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => handleDownloadFile(file)}
+                        className="h-6 text-[10px] text-primary hover:text-primary hover:bg-primary/10 gap-1 shrink-0"
+                      >
+                        <Download className="h-3 w-3" /> Скачать
+                      </Button>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      {getAudienceBadge(item.targetAudience, item.groupName)}
-                      <Badge className="bg-primary text-primary-foreground gap-1 text-[10px]">
-                        <Pin className="h-3 w-3 fill-current" /> Важно
-                      </Badge>
-                      {canCreate && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => handleStartEdit(item)}
-                            className="text-muted-foreground hover:text-foreground"
-                            title="Редактировать объявление"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => setDeletingId(item.id)}
-                            className="text-muted-foreground hover:text-destructive"
-                            title="Удалить объявление"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-4 space-y-3 text-sm">
-                  <h3 className="font-semibold text-base text-foreground leading-snug">{item.title}</h3>
-                  <p className="text-muted-foreground text-xs leading-relaxed whitespace-pre-line">
-                    {item.body}
-                  </p>
-
-                  {/* Render Attached Files List */}
-                  {item.files && item.files.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      {item.files.map((file) => (
-                        <div
-                          key={file.id}
-                          className="flex items-center justify-between p-2.5 border rounded-md bg-background text-xs"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="p-1.5 rounded bg-muted">
-                              <FileText className="h-4 w-4 text-primary" />
-                            </div>
-                            <div className="truncate">
-                              <div className="font-medium text-foreground truncate">{file.fileName}</div>
-                              <div className="text-[10px] text-muted-foreground">{file.fileSize}</div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => handleDownloadFile(file)}
-                            className="shrink-0 text-primary hover:text-primary hover:bg-primary/10"
-                          >
-                            <Download className="h-3.5 w-3.5 mr-1" /> Скачать
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        ))}
 
-        {/* Regular Announcements Feed */}
-        {regularAnnouncements.length > 0 && (
-          <div className="space-y-4">
-            {pinnedAnnouncements.length > 0 && (
-              <div className="text-xs font-medium text-muted-foreground pt-2">
-                Все объявления
+        {/* Regular Announcements */}
+        {regularAnnouncements.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-xl border border-border hover:border-muted-foreground/20 bg-background overflow-hidden transition-all"
+          >
+            {/* Header strip */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-6 w-6 border shrink-0">
+                  <AvatarFallback className="bg-muted text-muted-foreground text-[9px] font-bold">
+                    {item.authorName.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-xs font-medium text-foreground truncate">{item.authorName}</span>
+                <span className="text-muted-foreground text-[10px]">·</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">{item.createdAt}</span>
               </div>
-            )}
 
-            {regularAnnouncements.map((item) => (
-              <Card key={item.id} className="border shadow-none">
-                <CardHeader className="pb-3 border-b">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9 border shrink-0">
-                        <AvatarFallback className="text-xs font-semibold">
-                          {item.authorName.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm text-foreground">{item.authorName}</span>
-                          <Badge variant="outline" className="text-[10px] py-0 px-1.5">
-                            {item.authorRole === "ADMIN" ? "Администратор" : "Преподаватель"}
-                          </Badge>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                          {item.createdAt}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {getAudienceBadge(item.targetAudience, item.groupName)}
-                      {canCreate && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => handleStartEdit(item)}
-                            className="text-muted-foreground hover:text-foreground"
-                            title="Редактировать объявление"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => setDeletingId(item.id)}
-                            className="text-muted-foreground hover:text-destructive"
-                            title="Удалить объявление"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {getAudienceBadge(item.targetAudience, item.groupName)}
+                {canCreate && (
+                  <div className="flex items-center gap-0.5 ml-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="h-6 w-6 text-muted-foreground hover:text-primary"
+                      onClick={() => handleStartEdit(item)}
+                      title="Редактировать"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeletingId(item.id)}
+                      title="Удалить"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
-                </CardHeader>
+                )}
+              </div>
+            </div>
 
-                <CardContent className="pt-4 space-y-3 text-sm">
-                  <h3 className="font-semibold text-base text-foreground leading-snug">{item.title}</h3>
-                  <p className="text-muted-foreground text-xs leading-relaxed whitespace-pre-line">
-                    {item.body}
-                  </p>
+            {/* Body */}
+            <div className="p-3 space-y-1.5 text-xs">
+              <h3 className="font-semibold text-xs text-foreground leading-snug">{item.title}</h3>
+              <p className="text-muted-foreground text-xs leading-relaxed whitespace-pre-line">
+                {item.body}
+              </p>
 
-                  {/* Render Attached Files List */}
-                  {item.files && item.files.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      {item.files.map((file) => (
-                        <div
-                          key={file.id}
-                          className="flex items-center justify-between p-2.5 border rounded-md bg-muted/20 text-xs"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="p-1.5 rounded bg-background border">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                            <div className="truncate">
-                              <div className="font-medium text-foreground truncate">{file.fileName}</div>
-                              <div className="text-[10px] text-muted-foreground">{file.fileSize}</div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="xs"
-                            onClick={() => handleDownloadFile(file)}
-                            className="shrink-0"
-                          >
-                            <Download className="h-3.5 w-3.5 mr-1" /> Скачать
-                          </Button>
-                        </div>
-                      ))}
+              {/* Files */}
+              {item.files && item.files.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  {item.files.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between p-2 rounded-md border bg-muted/20 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="font-medium text-xs text-foreground truncate">{file.fileName}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{file.fileSize}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => handleDownloadFile(file)}
+                        className="h-6 text-[10px] gap-1 shrink-0"
+                      >
+                        <Download className="h-3 w-3" /> Скачать
+                      </Button>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        ))}
 
         {/* Empty State */}
         {filteredAnnouncements.length === 0 && (
-          <Card className="border shadow-none p-12 text-center">
-            <div className="flex justify-center mb-3">
-              <Megaphone className="h-10 w-10 text-muted-foreground/50" />
-            </div>
-            <h3 className="text-base font-semibold text-foreground">Объявлений не найдено</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-              По вашему запросу объявлений не обнаружено. Попробуйте изменить параметры поиска или фильтра.
+          <div className="rounded-xl border p-12 text-center space-y-2">
+            <Megaphone className="h-8 w-8 mx-auto text-muted-foreground/40" />
+            <h3 className="text-sm font-semibold text-foreground">Объявлений не найдено</h3>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              По вашему запросу объявлений не обнаружено. Сбросьте поиск или фильтр.
             </p>
-          </Card>
+          </div>
         )}
       </div>
     </div>
