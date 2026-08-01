@@ -27,6 +27,7 @@ import {
   Sparkles,
   Trophy,
   BarChart2,
+  Eye,
 } from "lucide-react";
 import { submitTestAnswersAction } from "@/app/dashboard/lms/actions";
 
@@ -46,6 +47,7 @@ interface TestTakeData {
   timeLimit?: number | null;
   subjectName: string;
   teacherName: string;
+  userRole?: string;
   questions: QuestionItem[];
   userSubmission?: {
     id: string;
@@ -64,6 +66,8 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  const isTeacherOrAdmin = test.userRole === "ADMIN" || test.userRole === "TEACHER";
+
   const START_KEY = `test_start_${test.id}`;
   const ANSWERS_KEY = `test_answers_${test.id}`;
 
@@ -75,13 +79,16 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     test.userSubmission ? { score: test.userSubmission.score, maxScore: test.userSubmission.maxScore } : null
   );
 
-  const initialSeconds = test.timeLimit ? test.timeLimit * 60 : null;
+  const initialSeconds = test.timeLimit && !isTeacherOrAdmin ? test.timeLimit * 60 : null;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(initialSeconds);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Restore state and persistent timer from localStorage on mount
+  // Restore state and persistent timer from localStorage on mount (for students only)
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || isTeacherOrAdmin) {
+      setIsInitialized(true);
+      return;
+    }
 
     if (test.userSubmission) {
       localStorage.removeItem(START_KEY);
@@ -123,15 +130,15 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     setIsInitialized(true);
   }, [test.id]);
 
-  // Persist answers when updated
+  // Persist answers when updated (for students)
   useEffect(() => {
-    if (!isInitialized || testResult || typeof window === "undefined") return;
+    if (!isInitialized || testResult || isTeacherOrAdmin || typeof window === "undefined") return;
     localStorage.setItem(ANSWERS_KEY, JSON.stringify(studentAnswers));
-  }, [studentAnswers, isInitialized, testResult]);
+  }, [studentAnswers, isInitialized, testResult, isTeacherOrAdmin]);
 
   // Live Timer Countdown Interval
   useEffect(() => {
-    if (!isInitialized || testResult || secondsLeft === null) return;
+    if (!isInitialized || testResult || secondsLeft === null || isTeacherOrAdmin) return;
     if (secondsLeft <= 0) {
       handleSubmit();
       return;
@@ -140,7 +147,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
       setSecondsLeft((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, [secondsLeft, isInitialized, testResult]);
+  }, [secondsLeft, isInitialized, testResult, isTeacherOrAdmin]);
 
   const formatTimer = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
@@ -149,7 +156,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const handleOptionSelect = (questionId: string, option: string, type: string) => {
-    if (testResult || isPending || test.userSubmission) return;
+    if (testResult || isPending || test.userSubmission || isTeacherOrAdmin) return;
 
     if (type === "MULTIPLE") {
       try {
@@ -179,7 +186,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const handleSubmit = () => {
-    if (testResult || isPending || test.userSubmission) return;
+    if (testResult || isPending || test.userSubmission || isTeacherOrAdmin) return;
 
     startTransition(async () => {
       const res = await submitTestAnswersAction({
@@ -215,6 +222,16 @@ export function TakeTestView({ test }: TakeTestViewProps) {
 
   return (
     <div className="space-y-4 w-full text-xs pb-12">
+      {/* Teacher / Admin Preview Notice */}
+      {isTeacherOrAdmin && (
+        <div className="p-3 rounded-xl border border-primary/30 bg-primary/10 text-primary text-xs flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2 font-bold">
+            <Eye className="h-4 w-4 text-primary" /> Режим просмотра теста (Преподаватель / Администратор)
+          </div>
+          <span className="text-[11px] font-normal text-muted-foreground">Сдача теста доступна только студентам</span>
+        </div>
+      )}
+
       {/* Top Sticky Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs sticky top-16 z-20">
         <div className="flex items-center gap-2">
@@ -236,7 +253,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          {secondsLeft !== null && !isAlreadySubmitted && (
+          {secondsLeft !== null && !isAlreadySubmitted && !isTeacherOrAdmin && (
             <div
               className={`flex items-center gap-1.5 px-3 py-1 border rounded-lg font-bold font-mono text-xs ${
                 secondsLeft < 180
@@ -257,7 +274,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
         </div>
       </div>
 
-      {/* COMPLETED TEST RESULTS SCREEN */}
+      {/* COMPLETED TEST RESULTS SCREEN (For Students after submission) */}
       {isAlreadySubmitted ? (
         <div className="space-y-4">
           {/* Hero Score Card */}
@@ -443,25 +460,27 @@ export function TakeTestView({ test }: TakeTestViewProps) {
           </div>
         </div>
       ) : (
-        /* ACTIVE TEST TAKING MODE */
+        /* ACTIVE TEST TAKING / PREVIEW MODE */
         <div className="space-y-4">
-          {/* Progress Bar Header */}
-          <div className="bg-card border p-3.5 rounded-xl space-y-2 shadow-xs">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <HelpCircle className="h-3.5 w-3.5 text-primary" /> Прогресс выполнения
-              </span>
-              <span className="text-primary font-bold">
-                Отвечено {answeredCount} из {totalQuestions} вопросов
-              </span>
+          {/* Progress Bar / Questions Header */}
+          {!isTeacherOrAdmin && (
+            <div className="bg-card border p-3.5 rounded-xl space-y-2 shadow-xs">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <HelpCircle className="h-3.5 w-3.5 text-primary" /> Прогресс выполнения
+                </span>
+                <span className="text-primary font-bold">
+                  Отвечено {answeredCount} из {totalQuestions} вопросов
+                </span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-300 rounded-full"
+                  style={{ width: `${(answeredCount / totalQuestions) * 100}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-300 rounded-full"
-                style={{ width: `${(answeredCount / totalQuestions) * 100}%` }}
-              />
-            </div>
-          </div>
+          )}
 
           {/* Active Questions List */}
           <div className="space-y-3">
@@ -490,42 +509,72 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                     </Badge>
                   </div>
 
-                  {/* Clean Option Inputs */}
+                  {/* Option Inputs */}
                   <div className="space-y-2 pt-1">
                     {q.type === "TEXT" ? (
-                      <Input
-                        placeholder="Введите ваш ответ..."
-                        value={selectedVal}
-                        onChange={(e) => handleOptionSelect(q.id, e.target.value, "TEXT")}
-                        className="h-8 text-xs bg-background font-medium max-w-md"
-                      />
+                      <div className="space-y-1">
+                        <Input
+                          placeholder={isTeacherOrAdmin ? "Пример ответа..." : "Введите ваш ответ..."}
+                          disabled={isTeacherOrAdmin}
+                          value={isTeacherOrAdmin ? q.correctAnswer || "" : selectedVal}
+                          onChange={(e) => handleOptionSelect(q.id, e.target.value, "TEXT")}
+                          className="h-8 text-xs bg-background font-medium max-w-md"
+                        />
+                        {isTeacherOrAdmin && q.correctAnswer && (
+                          <div className="text-[11px] text-muted-foreground pt-1">
+                            Правильный ответ: <strong className="text-primary font-semibold">{q.correctAnswer}</strong>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {q.options.map((opt, optIdx) => {
-                          const isSelected =
+                          let isSelected =
                             q.type === "MULTIPLE"
                               ? selectedMultiple.includes(opt)
                               : selectedVal === opt;
+
+                          let isCorrectOpt = false;
+                          if (isTeacherOrAdmin && q.correctAnswer) {
+                            if (q.type === "MULTIPLE") {
+                              try {
+                                const correctArr: string[] = JSON.parse(q.correctAnswer);
+                                isCorrectOpt = correctArr.includes(opt);
+                              } catch {}
+                            } else {
+                              isCorrectOpt = q.correctAnswer === opt;
+                            }
+                          }
 
                           return (
                             <div
                               key={optIdx}
                               onClick={() => handleOptionSelect(q.id, opt, q.type)}
-                              className={`p-3 rounded-lg border text-xs font-medium cursor-pointer transition-all flex items-center justify-between ${
-                                isSelected
-                                  ? "bg-primary/10 border-primary text-primary font-semibold shadow-xs"
-                                  : "bg-background hover:bg-muted/50 border-border text-foreground"
+                              className={`p-3 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
+                                isTeacherOrAdmin
+                                  ? isCorrectOpt
+                                    ? "bg-primary/15 border-primary/40 text-primary font-semibold"
+                                    : "bg-background border-border text-muted-foreground opacity-70"
+                                  : isSelected
+                                    ? "bg-primary/10 border-primary text-primary font-semibold shadow-xs cursor-pointer"
+                                    : "bg-background hover:bg-muted/50 border-border text-foreground cursor-pointer"
                               }`}
                             >
                               <span className="truncate flex-1 pr-2">{opt}</span>
                               <div
                                 className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
-                                  isSelected
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "border-muted-foreground/40"
+                                  isTeacherOrAdmin
+                                    ? isCorrectOpt
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "border-muted-foreground/30"
+                                    : isSelected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "border-muted-foreground/40"
                                 }`}
                               >
-                                {isSelected && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                                {isTeacherOrAdmin
+                                  ? isCorrectOpt && <Check className="h-2.5 w-2.5 stroke-[3]" />
+                                  : isSelected && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                               </div>
                             </div>
                           );
@@ -538,15 +587,17 @@ export function TakeTestView({ test }: TakeTestViewProps) {
             })}
           </div>
 
-          {/* Bottom Action Footer */}
-          <div className="flex items-center justify-between p-3.5 bg-card border rounded-xl shadow-xs">
-            <span className="text-xs text-muted-foreground">
-              Заполнено {answeredCount} из {totalQuestions} вопросов
-            </span>
-            <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 px-4 text-xs font-bold gap-1.5 shadow-xs">
-              <Send className="h-3.5 w-3.5" /> Завершить и сдать тест
-            </Button>
-          </div>
+          {/* Bottom Action Footer (For Students Only) */}
+          {!isTeacherOrAdmin && (
+            <div className="flex items-center justify-between p-3.5 bg-card border rounded-xl shadow-xs">
+              <span className="text-xs text-muted-foreground">
+                Заполнено {answeredCount} из {totalQuestions} вопросов
+              </span>
+              <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 px-4 text-xs font-bold gap-1.5 shadow-xs">
+                <Send className="h-3.5 w-3.5" /> Завершить и сдать тест
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

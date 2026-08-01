@@ -1028,6 +1028,9 @@ export async function getTestForTakeAction(testId: string) {
       return { success: false, error: "Тест не найден" };
     }
 
+    const userRole = session.user.role || "STUDENT";
+    const isTeacherOrAdmin = userRole === "ADMIN" || userRole === "TEACHER";
+
     const existingSubmission = await prisma.testSubmission.findUnique({
       where: {
         testId_studentId: {
@@ -1057,7 +1060,7 @@ export async function getTestForTakeAction(testId: string) {
         questionText: q.questionText,
         options: test.shuffleOptions && !existingSubmission ? [...opts].sort(() => Math.random() - 0.5) : opts,
         points: q.points || 1,
-        correctAnswer: existingSubmission ? q.correctAnswer : undefined,
+        correctAnswer: isTeacherOrAdmin || existingSubmission ? q.correctAnswer : undefined,
       };
     });
 
@@ -1074,6 +1077,7 @@ export async function getTestForTakeAction(testId: string) {
         timeLimit: test.timeLimit,
         subjectName: test.groupSubject.subject.name,
         teacherName: test.groupSubject.teacher.name,
+        userRole,
         questions: questionsToUse,
         userSubmission: existingSubmission
           ? {
@@ -1172,6 +1176,14 @@ export async function submitTestAnswersAction(data: {
 
     if (!studentId) {
       return { success: false, error: "Вы должны быть авторизованы" };
+    }
+
+    const userRole = session?.user?.role || "STUDENT";
+    if (userRole === "ADMIN" || userRole === "TEACHER") {
+      return {
+        success: false,
+        error: "Администратор и Преподаватель не могут сдавать тест. Доступен только режим просмотра.",
+      };
     }
 
     const test = await prisma.test.findUnique({

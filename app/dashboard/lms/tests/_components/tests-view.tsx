@@ -363,8 +363,8 @@ export function TestsView({
         </div>
       )}
 
-      {/* Tests Compact Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {/* Tests Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {filteredTests.map((test) => {
           const userSub = test.userSubmission;
           const userPercent = userSub && userSub.maxScore > 0
@@ -374,66 +374,65 @@ export function TestsView({
           return (
             <Card
               key={test.id}
-              className="p-3.5 border shadow-none hover:border-primary/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between space-y-3 bg-card rounded-xl group relative overflow-hidden"
+              className="p-4 border shadow-none hover:border-primary/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between space-y-3.5 bg-card rounded-xl group relative overflow-hidden"
             >
-              {/* Header Row */}
-              <div className="flex items-start justify-between gap-2 border-b pb-2.5">
+              {/* Header: Subject & Time */}
+              <div className="flex items-center justify-between gap-2 border-b pb-3">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                    <FileCheck2 className="h-4 w-4" />
+                  <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                    <FileCheck2 className="h-3.5 w-3.5" />
                   </div>
-                  <div className="min-w-0">
-                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium px-2 py-0.5 truncate max-w-[130px]">
-                      {test.subjectName}
-                    </Badge>
-                    {test.topicTitle && (
-                      <div className="text-[10px] text-muted-foreground truncate pt-0.5">
-                        {test.topicTitle}
-                      </div>
-                    )}
-                  </div>
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold px-2 py-0.5 truncate max-w-[140px]">
+                    {test.subjectName}
+                  </Badge>
                 </div>
 
                 {test.timeLimit ? (
-                  <span className="text-[10px] font-medium text-foreground bg-muted/60 px-2 py-1 rounded-md shrink-0 flex items-center gap-1">
+                  <span className="text-[10px] font-semibold text-foreground bg-muted/60 px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1 border">
                     <Clock className="h-3 w-3 text-primary shrink-0" /> {test.timeLimit} мин.
                   </span>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground italic shrink-0">Без лимита</span>
+                  <span className="text-[10px] text-muted-foreground font-medium italic shrink-0">Без ограничений</span>
                 )}
               </div>
 
-              {/* Title & Stats */}
-              <div className="space-y-2 flex-1">
-                <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-snug">
+              {/* Title & Description */}
+              <div className="space-y-1.5 flex-1">
+                <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                   {test.title}
                 </h3>
-                {test.description && (
-                  <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed font-normal">
-                    {test.description}
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed font-normal">
+                  {test.description || "Тестовые вопросы для самостоятельной проверки знаний и аттестации..."}
+                </p>
 
                 {/* Key Metrics Chips */}
-                <div className="flex flex-wrap items-center gap-2 text-[10px] pt-1">
-                  <span className="px-2 py-0.5 rounded-md bg-muted/50 text-foreground font-medium flex items-center gap-1 border">
-                    <HelpCircle className="h-3 w-3 text-primary" /> {test.questionsCount} вопросов
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-muted/50 text-foreground font-medium flex items-center gap-1 border">
-                    <Award className="h-3 w-3 text-primary" /> {test.totalPoints} баллов
-                  </span>
+                <div className="flex items-center gap-2 text-[11px] pt-1.5">
+                  <div className="flex items-center gap-1 font-medium text-foreground bg-muted/40 px-2 py-0.5 rounded-md border">
+                    <HelpCircle className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>{test.questionsCount} {test.questionsCount === 1 ? "вопрос" : "вопросов"}</span>
+                  </div>
+                  <div className="flex items-center gap-1 font-medium text-foreground bg-muted/40 px-2 py-0.5 rounded-md border">
+                    <Award className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>{test.totalPoints} {test.totalPoints === 1 ? "балл" : "баллов"}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Teacher Info */}
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-2 border-t border-border/50">
-                <span className="flex items-center gap-1 truncate max-w-[150px]">
-                  <User className="h-3 w-3 text-muted-foreground shrink-0" /> Преподаватель: {test.teacherName}
+              {/* Teacher Info Bar */}
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t pt-2.5">
+                <span className="flex items-center gap-1 truncate max-w-[160px]">
+                  <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {test.teacherName}
                 </span>
+
+                {test.topicTitle && (
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[130px]">
+                    Тема: {test.topicTitle}
+                  </span>
+                )}
               </div>
 
-              {/* Footer / Status & Action Button */}
-              <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
+              {/* Action Footer */}
+              <div className="flex items-center justify-between gap-2 border-t pt-2.5">
                 {canCreate ? (
                   /* Teacher / Admin Controls */
                   <div className="flex items-center justify-between w-full gap-2">
@@ -443,11 +442,22 @@ export function TestsView({
                       onClick={() => setViewSubmissionsTest(test)}
                       className="h-7 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
                     >
-                      <FileText className="h-3.5 w-3.5" />
-                      Результаты ({test.submissionsCount})
+                      <FileText className="h-3.5 w-3.5 text-primary" />
+                      Работы ({test.submissionsCount})
                     </Button>
 
                     <div className="flex items-center gap-1">
+                      <Link href={`/dashboard/lms/tests/${test.id}/take`}>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                          title="Просмотр теста"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+
                       <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
                         <Button
                           size="xs"
@@ -474,30 +484,26 @@ export function TestsView({
                   /* Student Controls */
                   <div className="flex items-center justify-between w-full gap-2">
                     {userSub ? (
-                      <div className="flex flex-col space-y-0.5">
-                        <span className="text-[9px] text-muted-foreground font-semibold">Ваш результат:</span>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-bold border-primary/30 bg-primary/10 text-primary px-2 py-0.5"
-                        >
-                          {userSub.score} / {userSub.maxScore} б. ({userPercent}%)
-                        </Badge>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold text-[11px]">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span>Результат: {userSub.score} / {userSub.maxScore} б. ({userPercent}%)</span>
                       </div>
                     ) : (
-                      <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground bg-muted/40 border-border/50">
+                      <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground bg-muted/30 border-border/50 px-2 py-0.5">
                         Не пройден
                       </Badge>
                     )}
 
                     {userSub ? (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        disabled
-                        className="h-7 text-xs gap-1.5 font-medium border-primary/20 text-primary bg-primary/5 opacity-90 cursor-not-allowed"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Сдано
-                      </Button>
+                      <Link href={`/dashboard/lms/tests/${test.id}/take`}>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-7 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-primary" /> Результат
+                        </Button>
+                      </Link>
                     ) : (
                       <Link href={`/dashboard/lms/tests/${test.id}/take`}>
                         <Button
@@ -864,35 +870,114 @@ export function TestsView({
       {/* Modal 3: Teacher View Submissions Dialog */}
       <Dialog open={viewSubmissionsTest !== null} onOpenChange={(open) => !open && setViewSubmissionsTest(null)}>
         {viewSubmissionsTest && (
-          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[500px]">
-            <DialogHeader className="pb-2 border-b gap-1">
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[720px]">
+            <DialogHeader className="pb-3 border-b gap-1.5 place-items-start text-left">
+              <div className="flex items-center justify-between w-full">
+                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold">
+                  {viewSubmissionsTest.subjectName}
+                </Badge>
+                <span className="text-[11px] text-muted-foreground">
+                  Вопросов: {viewSubmissionsTest.questionsCount} • Всего {viewSubmissionsTest.totalPoints} баллов
+                </span>
+              </div>
               <DialogTitle className="text-sm font-bold text-foreground">
                 Результаты теста: {viewSubmissionsTest.title}
               </DialogTitle>
-              <DialogDescription className="text-xs">
-                Всего сдано работ: {viewSubmissionsTest.submissionsCount}
+              <DialogDescription className="text-xs text-muted-foreground">
+                Список студентов группы, прошедших тестирование
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-2 py-1 text-xs max-h-[350px] overflow-y-auto">
-              {viewSubmissionsTest.submissions.map((sub: TestSubmissionDTO) => (
-                <div key={sub.id} className="p-2.5 rounded-lg border bg-card flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-foreground text-xs">{sub.studentName}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      Дата: {new Date(sub.submittedAt).toLocaleDateString("ru-RU")}
+            {/* Quick Summary Stats Bar */}
+            {viewSubmissionsTest.submissions.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-muted/40 border text-center">
+                <div className="space-y-0.5">
+                  <div className="text-[10px] text-muted-foreground">Сдано работ</div>
+                  <div className="text-sm font-bold text-primary">{viewSubmissionsTest.submissions.length} чел.</div>
+                </div>
+                <div className="space-y-0.5 border-x">
+                  <div className="text-[10px] text-muted-foreground">Средний балл</div>
+                  <div className="text-sm font-bold text-foreground">
+                    {Math.round(
+                      (viewSubmissionsTest.submissions.reduce((acc, s) => acc + s.score, 0) /
+                        viewSubmissionsTest.submissions.length) *
+                        10
+                    ) / 10}{" "}
+                    / {viewSubmissionsTest.totalPoints}
+                  </div>
+                </div>
+                <div className="space-y-0.5">
+                  <div className="text-[10px] text-muted-foreground">Успеваемость</div>
+                  <div className="text-sm font-bold text-primary">
+                    {Math.round(
+                      (viewSubmissionsTest.submissions.reduce(
+                        (acc, s) => acc + (s.maxScore > 0 ? s.score / s.maxScore : 0),
+                        0
+                      ) /
+                        viewSubmissionsTest.submissions.length) *
+                        100
+                    )}
+                    %
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Submissions Table / Cards */}
+            <div className="space-y-2 py-1 text-xs max-h-[400px] overflow-y-auto pr-1">
+              {viewSubmissionsTest.submissions.map((sub: TestSubmissionDTO) => {
+                const percent = sub.maxScore > 0 ? Math.round((sub.score / sub.maxScore) * 100) : 0;
+
+                return (
+                  <div
+                    key={sub.id}
+                    className="p-3 rounded-xl border bg-card hover:border-primary/40 transition-colors flex items-center justify-between gap-3 shadow-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                        {sub.studentName ? sub.studentName[0].toUpperCase() : "С"}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-foreground text-xs truncate">{sub.studentName}</div>
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span>Сдано: {new Date(sub.submittedAt).toLocaleString("ru-RU")}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right space-y-0.5">
+                        <div className="text-xs font-bold text-foreground">
+                          {sub.score} / {sub.maxScore} баллов
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-medium">
+                          {percent}% выполнения
+                        </div>
+                      </div>
+
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-bold border ${
+                          percent >= 75
+                            ? "bg-primary/15 text-primary border-primary/30"
+                            : percent >= 50
+                              ? "bg-primary/10 text-primary border-primary/20"
+                              : "bg-destructive/10 text-destructive border-destructive/30"
+                        }`}
+                      >
+                        {percent >= 75 ? "Отлично" : percent >= 50 ? "Зачтено" : "Незачёт"}
+                      </Badge>
                     </div>
                   </div>
-
-                  <Badge variant="outline" className="text-xs font-bold border-primary/30 text-primary bg-primary/5">
-                    {sub.score} / {sub.maxScore} баллов
-                  </Badge>
-                </div>
-              ))}
+                );
+              })}
 
               {viewSubmissionsTest.submissions.length === 0 && (
-                <div className="py-6 text-center text-muted-foreground text-xs italic">
-                  Пока ни один студент не прошёл данный тест
+                <div className="py-10 text-center text-muted-foreground text-xs space-y-1 bg-muted/20 border rounded-xl">
+                  <FileCheck2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                  <p className="font-semibold text-foreground">Пока нет сданных работ</p>
+                  <p className="text-[11px]">Студенты вашей группы ещё не проходили данный тест</p>
                 </div>
               )}
             </div>
