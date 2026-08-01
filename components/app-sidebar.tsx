@@ -28,6 +28,7 @@ import {
   Sparkles,
   FileCheck2,
   BookMarked,
+  User,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -118,6 +119,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           groupLabel: "Управление",
           items: [
             {
+              title: "Мой профиль",
+              url: "/dashboard/profile",
+              icon: <User className="h-4 w-4" />,
+            },
+            {
               title: "Аналитика & Отчёты",
               url: "/dashboard/reports",
               icon: <BarChart3 className="h-4 w-4" />,
@@ -201,8 +207,13 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           ],
         },
         {
-          groupLabel: "Справочник",
+          groupLabel: "Аккаунт & Документы",
           items: [
+            {
+              title: "Мой профиль",
+              url: "/dashboard/profile",
+              icon: <User className="h-4 w-4" />,
+            },
             {
               title: "Документы лицея",
               url: "/dashboard/documents",
@@ -261,8 +272,13 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         ],
       },
       {
-        groupLabel: "Справочник",
+        groupLabel: "Аккаунт & Документы",
         items: [
+          {
+            title: "Мой профиль",
+            url: "/dashboard/profile",
+            icon: <User className="h-4 w-4" />,
+          },
           {
             title: "Документы лицея",
             url: "/dashboard/documents",

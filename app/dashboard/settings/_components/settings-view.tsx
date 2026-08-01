@@ -83,7 +83,7 @@ interface SettingsViewProps {
   role: string;
 }
 
-type Tab = "profile" | "system" | "users" | "academic";
+type Tab = "system" | "users" | "academic";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Администратор",
@@ -109,7 +109,7 @@ export function SettingsView({
   const [isPending, startTransition] = useTransition();
 
   const isAdmin = role === "ADMIN";
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
+  const [activeTab, setActiveTab] = useState<Tab>("system");
 
   // Profile State
   const [profileName, setProfileName] = useState(profile.name);
@@ -371,7 +371,6 @@ export function SettingsView({
   );
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
-    { key: "profile" as Tab, label: "Мой профиль", icon: <User className="h-3.5 w-3.5" /> },
     { key: "system" as Tab, label: "Настройки системы", icon: <Globe className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "users" as Tab, label: "Пользователи", icon: <Users className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "academic" as Tab, label: "Учебные годы", icon: <CalendarDays className="h-3.5 w-3.5" />, adminOnly: true },
@@ -414,92 +413,6 @@ export function SettingsView({
           </button>
         ))}
       </div>
-
-      {/* Tab: Profile & Security */}
-      {activeTab === "profile" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Profile Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-              <User className="h-4 w-4 text-primary" /> Данные профиля
-            </h2>
-
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full border-2 border-primary/30 bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                {profileAvatar ? (
-                  <img src={profileAvatar} alt="avatar" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-base font-bold text-muted-foreground">
-                    {profile.name.slice(0, 1).toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-foreground truncate">{profile.name}</div>
-                <div className="text-[10px] text-muted-foreground">{profile.email}</div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Имя и фамилия *</label>
-                <Input value={profileName} onChange={(e) => setProfileName(e.target.value)} className="h-8 text-xs bg-background" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Телефон</label>
-                <Input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="+7 (XXX) XXX-XX-XX" className="h-8 text-xs bg-background" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Ссылка на аватар</label>
-                <Input value={profileAvatar} onChange={(e) => setProfileAvatar(e.target.value)} placeholder="https://..." className="h-8 text-xs bg-background font-mono" />
-              </div>
-            </div>
-
-            <Button size="xs" disabled={isPending} onClick={handleUpdateProfile} className="w-full h-8 font-medium">
-              Сохранить профиль
-            </Button>
-          </div>
-
-          {/* Password Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-              <Lock className="h-4 w-4 text-primary" /> Смена пароля
-            </h2>
-            <div className="space-y-2">
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Текущий пароль *</label>
-                <div className="relative">
-                  <Input
-                    type={showPwd ? "text" : "password"}
-                    value={currentPwd}
-                    onChange={(e) => setCurrentPwd(e.target.value)}
-                    className="h-8 text-xs bg-background pr-8"
-                  />
-                  <button type="button" onClick={() => setShowPwd((v) => !v)} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
-                    {showPwd ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Новый пароль *</label>
-                <Input type={showPwd ? "text" : "password"} value={newPwd} onChange={(e) => setNewPwd(e.target.value)} className="h-8 text-xs bg-background" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Подтвердите новый пароль *</label>
-                <Input
-                  type={showPwd ? "text" : "password"}
-                  value={confirmPwd}
-                  onChange={(e) => setConfirmPwd(e.target.value)}
-                  className={`h-8 text-xs bg-background ${confirmPwd && confirmPwd !== newPwd ? "border-destructive" : ""}`}
-                />
-              </div>
-            </div>
-            <Button size="xs" disabled={isPending} onClick={handleChangePassword} className="w-full h-8 font-medium">
-              Изменить пароль
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Tab: System Settings (Admin Only) */}
       {activeTab === "system" && isAdmin && (
