@@ -3,7 +3,6 @@
 import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -414,10 +413,10 @@ export function CreateTestView({
       )}
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Left Column: Form & Questions Builder */}
-        <div className="md:col-span-2 space-y-4">
-          <Card className="p-4 border shadow-none rounded-xl space-y-3">
+        <div className="md:col-span-2 space-y-3">
+          <div className="p-3.5 border rounded-xl bg-card space-y-2.5 text-xs shadow-xs">
             <div className="space-y-1">
               <label className="font-semibold text-foreground text-xs">Название теста *</label>
               <Input
@@ -434,14 +433,14 @@ export function CreateTestView({
                 placeholder="Укажите правила сдачи теста, критерии оценивания и особенности вопросов..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="text-xs bg-background min-h-[70px] leading-relaxed font-sans"
+                className="text-xs bg-background min-h-[60px] leading-relaxed font-sans"
               />
             </div>
-          </Card>
+          </div>
 
           {/* Question Builder / Interactive Preview section */}
           {isPreview ? (
-            <Card className="p-4 border shadow-none rounded-xl space-y-4">
+            <div className="p-3.5 border rounded-xl bg-card space-y-3 text-xs shadow-xs">
               <div className="flex items-center justify-between border-b pb-2">
                 <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                   <Eye className="h-3.5 w-3.5 text-primary" /> Режим предпросмотра теста
@@ -521,9 +520,9 @@ export function CreateTestView({
                   </div>
                 ))}
               </div>
-            </Card>
+            </div>
           ) : (
-            <Card className="p-4 border shadow-none rounded-xl space-y-4">
+            <div className="p-3.5 border rounded-xl bg-card space-y-3 text-xs shadow-xs">
               <div className="flex items-center justify-between border-b pb-2">
                 <div className="space-y-0.5">
                   <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -756,7 +755,7 @@ export function CreateTestView({
                   <PlusCircle className="h-3.5 w-3.5" /> Добавить ещё один вопрос
                 </Button>
               </div>
-            </Card>
+            </div>
           )}
         </div>
 

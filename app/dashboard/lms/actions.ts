@@ -735,6 +735,7 @@ export async function createTestAction(data: {
 
     const test = await prisma.test.create({
       data: {
+        // Create new test with shuffle options and multi-type questions
         groupSubjectId: data.groupSubjectId,
         topicId: data.topicId || null,
         authorId: session.user.id,
