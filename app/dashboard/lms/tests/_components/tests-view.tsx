@@ -367,86 +367,97 @@ export function TestsView({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredTests.map((test) => {
           const userSub = test.userSubmission;
+          const userPercent = userSub && userSub.maxScore > 0
+            ? Math.round((userSub.score / userSub.maxScore) * 100)
+            : 0;
 
           return (
             <Card
               key={test.id}
-              className="p-3.5 border shadow-none hover:border-primary/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between space-y-3 bg-card rounded-xl group"
+              className="p-3.5 border shadow-none hover:border-primary/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between space-y-3 bg-card rounded-xl group relative overflow-hidden"
             >
-              {/* Header */}
-              <div className="flex items-center justify-between gap-2 border-b pb-2">
-                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium px-2 py-0.5 shrink-0">
-                  {test.subjectName}
-                </Badge>
+              {/* Header Row */}
+              <div className="flex items-start justify-between gap-2 border-b pb-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                    <FileCheck2 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium px-2 py-0.5 truncate max-w-[130px]">
+                      {test.subjectName}
+                    </Badge>
+                    {test.topicTitle && (
+                      <div className="text-[10px] text-muted-foreground truncate pt-0.5">
+                        {test.topicTitle}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 {test.timeLimit ? (
-                  <span className="text-[11px] text-muted-foreground font-normal flex items-center gap-1 shrink-0 bg-muted/60 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] font-medium text-foreground bg-muted/60 px-2 py-1 rounded-md shrink-0 flex items-center gap-1">
                     <Clock className="h-3 w-3 text-primary shrink-0" /> {test.timeLimit} мин.
                   </span>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground italic">Без времени</span>
+                  <span className="text-[10px] text-muted-foreground italic shrink-0">Без лимита</span>
                 )}
               </div>
 
               {/* Title & Stats */}
-              <div className="space-y-1 flex-1">
-                <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+              <div className="space-y-2 flex-1">
+                <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-snug">
                   {test.title}
                 </h3>
-                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed font-normal">
-                  {test.description || "Тестовые вопросы для самопроверки и аттестации..."}
-                </p>
-                <div className="text-[11px] text-muted-foreground pt-1 flex items-center gap-2">
-                  <span className="flex items-center gap-1 font-medium">
+                {test.description && (
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed font-normal">
+                    {test.description}
+                  </p>
+                )}
+
+                {/* Key Metrics Chips */}
+                <div className="flex flex-wrap items-center gap-2 text-[10px] pt-1">
+                  <span className="px-2 py-0.5 rounded-md bg-muted/50 text-foreground font-medium flex items-center gap-1 border">
                     <HelpCircle className="h-3 w-3 text-primary" /> {test.questionsCount} вопросов
                   </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1 font-medium">
+                  <span className="px-2 py-0.5 rounded-md bg-muted/50 text-foreground font-medium flex items-center gap-1 border">
                     <Award className="h-3 w-3 text-primary" /> {test.totalPoints} баллов
                   </span>
                 </div>
               </div>
 
-              {/* Author Info */}
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/50">
-                <span className="flex items-center gap-1 truncate max-w-[130px]">
-                  <User className="h-3 w-3 text-muted-foreground shrink-0" /> {test.teacherName}
+              {/* Teacher Info */}
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-2 border-t border-border/50">
+                <span className="flex items-center gap-1 truncate max-w-[150px]">
+                  <User className="h-3 w-3 text-muted-foreground shrink-0" /> Преподаватель: {test.teacherName}
                 </span>
-
-                {test.topicTitle && (
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
-                    Тема: {test.topicTitle}
-                  </span>
-                )}
               </div>
 
-              {/* Footer / Actions */}
+              {/* Footer / Status & Action Button */}
               <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
                 {canCreate ? (
                   /* Teacher / Admin Controls */
-                    <div className="flex items-center justify-between w-full gap-2">
-                      <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-between w-full gap-2">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setViewSubmissionsTest(test)}
+                      className="h-7 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Результаты ({test.submissionsCount})
+                    </Button>
+
+                    <div className="flex items-center gap-1">
+                      <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
                         <Button
                           size="xs"
                           variant="outline"
-                          onClick={() => setViewSubmissionsTest(test)}
-                          className="h-7 text-xs gap-1.5 font-medium"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                          title="Редактировать тест"
                         >
-                          <FileText className="h-3.5 w-3.5 text-primary" />
-                          Результаты ({test.submissionsCount})
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
-
-                        <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                            title="Редактировать тест"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        </Link>
-                      </div>
+                      </Link>
 
                       <Button
                         size="xs"
@@ -458,51 +469,64 @@ export function TestsView({
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
+                  </div>
                 ) : (
                   /* Student Controls */
                   <div className="flex items-center justify-between w-full gap-2">
                     {userSub ? (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-medium border-0 bg-primary/10 text-primary px-2 py-0.5"
-                      >
-                        Результат: {userSub.score} / {userSub.maxScore} баллов
-                      </Badge>
+                      <div className="flex flex-col space-y-0.5">
+                        <span className="text-[9px] text-muted-foreground font-semibold">Ваш результат:</span>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-bold border-primary/30 bg-primary/10 text-primary px-2 py-0.5"
+                        >
+                          {userSub.score} / {userSub.maxScore} б. ({userPercent}%)
+                        </Badge>
+                      </div>
                     ) : (
                       <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground bg-muted/40 border-border/50">
                         Не пройден
                       </Badge>
                     )}
 
-                    <Button
-                      size="xs"
-                      variant={userSub ? "outline" : "default"}
-                      onClick={() => {
-                        let questionsToUse = [...test.questions];
+                    {userSub ? (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled
+                        className="h-7 text-xs gap-1.5 font-medium border-primary/20 text-primary bg-primary/5 opacity-90 cursor-not-allowed"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Сдано
+                      </Button>
+                    ) : (
+                      <Button
+                        size="xs"
+                        onClick={() => {
+                          let questionsToUse = [...test.questions];
 
-                        if (test.shuffleQuestions) {
-                          questionsToUse = questionsToUse.sort(() => Math.random() - 0.5);
-                        }
+                          if (test.shuffleQuestions) {
+                            questionsToUse = questionsToUse.sort(() => Math.random() - 0.5);
+                          }
 
-                        if (test.shuffleOptions) {
-                          questionsToUse = questionsToUse.map((q) => ({
-                            ...q,
-                            options: [...q.options].sort(() => Math.random() - 0.5),
-                          }));
-                        }
+                          if (test.shuffleOptions) {
+                            questionsToUse = questionsToUse.map((q) => ({
+                              ...q,
+                              options: [...q.options].sort(() => Math.random() - 0.5),
+                            }));
+                          }
 
-                        setActiveTest({
-                          ...test,
-                          questions: questionsToUse,
-                        });
-                        setStudentAnswers({});
-                        setTestResult(null);
-                      }}
-                      className="h-7 text-xs gap-1.5 font-medium"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      {userSub ? "Перепройти" : "Пройти тест"}
-                    </Button>
+                          setActiveTest({
+                            ...test,
+                            questions: questionsToUse,
+                          });
+                          setStudentAnswers({});
+                          setTestResult(null);
+                        }}
+                        className="h-7 text-xs gap-1.5 font-medium shadow-xs"
+                      >
+                        <Send className="h-3.5 w-3.5" /> Пройти тест
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

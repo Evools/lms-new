@@ -1090,6 +1090,22 @@ export async function submitTestAnswersAction(data: {
       return { success: false, error: "Тест не найден" };
     }
 
+    const existingSubmission = await prisma.testSubmission.findUnique({
+      where: {
+        testId_studentId: {
+          testId: data.testId,
+          studentId: studentId,
+        },
+      },
+    });
+
+    if (existingSubmission) {
+      return {
+        success: false,
+        error: "Вы уже проходили этот тест. Повторное прохождение запрещено.",
+      };
+    }
+
     let userScore = 0;
     let maxScore = 0;
 
@@ -1128,20 +1144,8 @@ export async function submitTestAnswersAction(data: {
       }
     });
 
-    await prisma.testSubmission.upsert({
-      where: {
-        testId_studentId: {
-          testId: data.testId,
-          studentId: studentId,
-        },
-      },
-      update: {
-        score: userScore,
-        maxScore,
-        answers: JSON.stringify(data.answers),
-        submittedAt: new Date(),
-      },
-      create: {
+    await prisma.testSubmission.create({
+      data: {
         testId: data.testId,
         studentId: studentId,
         score: userScore,
