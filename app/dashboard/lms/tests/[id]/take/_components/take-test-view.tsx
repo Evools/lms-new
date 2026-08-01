@@ -21,6 +21,7 @@ import {
   Building2,
   User,
   Check,
+  X,
   XCircle,
   BookOpen,
   Sparkles,
@@ -277,15 +278,15 @@ export function TakeTestView({ test }: TakeTestViewProps) {
 
               <Badge
                 variant="outline"
-                className={`text-xs px-3 py-1 font-bold border-0 ${
+                className={`text-xs px-3 py-1 font-bold border ${
                   scorePercent >= 75
-                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
+                    ? "bg-primary/15 text-primary border-primary/30"
                     : scorePercent >= 50
-                      ? "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
-                      : "bg-destructive/10 text-destructive"
+                      ? "bg-primary/10 text-primary border-primary/20"
+                      : "bg-destructive/10 text-destructive border-destructive/30"
                 }`}
               >
-                {scorePercent}% — {scorePercent >= 75 ? "Отличный результат!" : scorePercent >= 50 ? "Зачтено" : "Попробуйте еще раз в следующий раз"}
+                {scorePercent}% — {scorePercent >= 75 ? "Отличный результат!" : scorePercent >= 50 ? "Зачтено" : "Попробуйте ещё раз в следующий раз"}
               </Badge>
 
               {test.userSubmission?.submittedAt && (
@@ -358,10 +359,10 @@ export function TakeTestView({ test }: TakeTestViewProps) {
 
                     <Badge
                       variant="outline"
-                      className={`text-[10px] border-0 font-bold shrink-0 ${
+                      className={`text-[10px] border font-bold shrink-0 ${
                         isCorrect
-                          ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
-                          : "bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-400"
+                          ? "bg-primary/15 text-primary border-primary/30"
+                          : "bg-destructive/10 text-destructive border-destructive/30"
                       }`}
                     >
                       {isCorrect ? `+${q.points} б.` : "0 б."}
@@ -379,7 +380,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                         />
                         {q.correctAnswer && (
                           <div className="text-[11px] text-muted-foreground pt-1">
-                            Правильный ответ: <strong className="text-emerald-600 font-semibold">{q.correctAnswer}</strong>
+                            Правильный ответ: <strong className="text-primary font-semibold">{q.correctAnswer}</strong>
                           </div>
                         )}
                       </div>
@@ -408,23 +409,27 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                               key={optIdx}
                               className={`p-2.5 rounded-lg border text-xs font-medium flex items-center justify-between ${
                                 isCorrectOpt
-                                  ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-300 font-semibold"
+                                  ? "bg-primary/15 border-primary/40 text-primary font-semibold"
                                   : isSelected
-                                    ? "bg-rose-50 border-rose-300 text-rose-700 dark:bg-rose-950 dark:border-rose-800 dark:text-rose-300 font-semibold"
-                                    : "bg-background border-border text-muted-foreground opacity-70"
+                                    ? "bg-destructive/10 border-destructive/30 text-destructive font-semibold"
+                                    : "bg-background border-border text-muted-foreground opacity-60"
                               }`}
                             >
                               <span className="truncate flex-1 pr-2">{opt}</span>
                               <div
-                                className={`h-4 w-4 rounded-full border flex items-center justify-center text-[9px] shrink-0 ${
+                                className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
                                   isCorrectOpt
-                                    ? "bg-emerald-600 text-white border-emerald-600"
+                                    ? "bg-primary text-primary-foreground border-primary"
                                     : isSelected
-                                      ? "bg-rose-600 text-white border-rose-600"
+                                      ? "bg-destructive text-destructive-foreground border-destructive"
                                       : "border-muted-foreground/30"
                                 }`}
                               >
-                                {isSelected ? "✓" : isCorrectOpt ? "✓" : ""}
+                                {isCorrectOpt ? (
+                                  <Check className="h-2.5 w-2.5 stroke-[3]" />
+                                ) : isSelected ? (
+                                  <X className="h-2.5 w-2.5 stroke-[3]" />
+                                ) : null}
                               </div>
                             </div>
                           );
@@ -514,13 +519,13 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                             >
                               <span className="truncate flex-1 pr-2">{opt}</span>
                               <div
-                                className={`h-4 w-4 rounded-full border flex items-center justify-center text-[9px] shrink-0 ${
+                                className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
                                   isSelected
                                     ? "bg-primary text-primary-foreground border-primary"
                                     : "border-muted-foreground/40"
                                 }`}
                               >
-                                {isSelected && "✓"}
+                                {isSelected && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                               </div>
                             </div>
                           );
