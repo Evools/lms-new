@@ -303,16 +303,18 @@ model Document {
 }
 
 model Test {
-  id             String   @id @default(cuid())
-  groupSubjectId String
-  topicId        String?
-  authorId       String
-  title          String
-  description    String?
-  timeLimit      Int?     // minutes
-  isPublished    Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id               String   @id @default(cuid())
+  groupSubjectId   String
+  topicId          String?
+  authorId         String
+  title            String
+  description      String?
+  timeLimit        Int?     // minutes
+  shuffleQuestions Boolean  @default(false)
+  shuffleOptions   Boolean  @default(false)
+  isPublished      Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   groupSubject GroupSubject @relation(fields: [groupSubjectId], references: [id], onDelete: Cascade)
   topic        Topic?       @relation(fields: [topicId], references: [id], onDelete: SetNull)
@@ -327,9 +329,10 @@ model Test {
 model TestQuestion {
   id            String   @id @default(cuid())
   testId        String
+  type          String   @default("SINGLE") // SINGLE, MULTIPLE, TEXT, TRUE_FALSE
   questionText  String
   options       String   // JSON stringified array of option strings e.g. '["Option 1","Option 2"]'
-  correctAnswer String   // Exact correct answer option text or index
+  correctAnswer String   // Exact correct answer option text or JSON array for MULTIPLE
   points        Int      @default(1)
   order         Int      @default(0)
   createdAt     DateTime @default(now())

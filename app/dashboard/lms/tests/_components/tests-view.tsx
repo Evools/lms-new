@@ -41,6 +41,7 @@ import {
   Award,
   Eye,
   FileText,
+  Check,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -280,16 +281,11 @@ export function TestsView({
 
         <div className="flex items-center gap-2">
           {canCreate && (
-            <Button
-              size="xs"
-              onClick={() => {
-                setIsCreateOpen(true);
-                setNewGroupSubjectId(subjects[0]?.id || "");
-              }}
-              className="h-8 text-xs gap-1.5 font-medium"
-            >
-              <Plus className="h-3.5 w-3.5" /> Конструктор тестов
-            </Button>
+            <Link href={`/dashboard/lms/tests/new?group=${selectedGroupId}&topic=${selectedTopicId}`}>
+              <Button size="xs" className="h-8 text-xs gap-1.5 font-medium">
+                <Plus className="h-3.5 w-3.5" /> Конструктор тестов
+              </Button>
+            </Link>
           )}
         </div>
       </div>
@@ -468,7 +464,23 @@ export function TestsView({
                       size="xs"
                       variant={userSub ? "outline" : "default"}
                       onClick={() => {
-                        setActiveTest(test);
+                        let questionsToUse = [...test.questions];
+
+                        if (test.shuffleQuestions) {
+                          questionsToUse = questionsToUse.sort(() => Math.random() - 0.5);
+                        }
+
+                        if (test.shuffleOptions) {
+                          questionsToUse = questionsToUse.map((q) => ({
+                            ...q,
+                            options: [...q.options].sort(() => Math.random() - 0.5),
+                          }));
+                        }
+
+                        setActiveTest({
+                          ...test,
+                          questions: questionsToUse,
+                        });
                         setStudentAnswers({});
                         setTestResult(null);
                       }}
@@ -537,46 +549,116 @@ export function TestsView({
             ) : (
               /* Question list for student */
               <div className="space-y-4 py-1 text-xs">
-                {activeTest.questions.map((q: TestQuestionDTO, idx: number) => (
-                  <div key={q.id} className="p-3 border rounded-xl bg-card space-y-2">
-                    <div className="flex items-start justify-between gap-2 border-b pb-1.5">
-                      <span className="font-bold text-foreground text-xs">
-                        Вопрос #{idx + 1}: {q.questionText}
-                      </span>
-                      <Badge variant="secondary" className="text-[9px] shrink-0 font-normal">
-                        +{q.points} б.
-                      </Badge>
-                    </div>
+                {activeTest.questions.map((q: TestQuestionDTO, idx: number) => {
+                  const qType = q.type || "SINGLE";
 
-                    <div className="space-y-1.5 pt-1">
-                      {q.options.map((opt: string, optIdx: number) => {
-                        const isSelected = studentAnswers[q.id] === opt;
+                  return (
+                    <div key={q.id} className="p-3 border rounded-xl bg-card space-y-2">
+                      <div className="flex items-start justify-between gap-2 border-b pb-1.5">
+                        <div className="space-y-0.5">
+                          <Badge variant="outline" className="text-[9px] border-primary/30 text-primary">
+                            {qType === "SINGLE"
+                              ? "Один выбор"
+                              : qType === "MULTIPLE"
+                                ? "Множественный выбор"
+                                : qType === "TEXT"
+                                  ? "Текстовый ответ"
+                                  : "Верно/Неверно"}
+                          </Badge>
+                          <span className="font-bold text-foreground text-xs block">
+                            Вопрос #{idx + 1}: {q.questionText}
+                          </span>
+                        </div>
+                        <Badge variant="secondary" className="text-[9px] shrink-0 font-normal">
+                          +{q.points} б.
+                        </Badge>
+                      </div>
 
-                        return (
-                          <div
-                            key={optIdx}
-                            onClick={() =>
+                      {qType === "TEXT" ? (
+                        <div className="space-y-1 pt-1">
+                          <label className="text-[10px] text-muted-foreground font-medium">Введите ваш ответ:</label>
+                          <Input
+                            placeholder="Ваш ответ..."
+                            value={studentAnswers[q.id] || ""}
+                            onChange={(e) =>
                               setStudentAnswers((prev) => ({
                                 ...prev,
-                                [q.id]: opt,
+                                [q.id]: e.target.value,
                               }))
                             }
-                            className={`p-2 rounded-lg border text-xs cursor-pointer transition-all flex items-center gap-2 ${
-                              isSelected
-                                ? "border-primary bg-primary/10 font-semibold text-primary"
-                                : "border-border hover:bg-muted/40 font-normal"
-                            }`}
-                          >
-                            <div className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"}`}>
-                              {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
-                            </div>
-                            <span>{opt}</span>
-                          </div>
-                        );
-                      })}
+                            className="h-8 text-xs bg-background font-medium"
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 pt-1">
+                          {q.options.map((opt: string, optIdx: number) => {
+                            let isSelected = false;
+
+                            if (qType === "MULTIPLE") {
+                              try {
+                                const selectedArr: string[] = JSON.parse(studentAnswers[q.id] || "[]");
+                                isSelected = Array.isArray(selectedArr) && selectedArr.includes(opt);
+                              } catch {
+                                isSelected = false;
+                              }
+                            } else {
+                              isSelected = studentAnswers[q.id] === opt;
+                            }
+
+                            const handleOptionClick = () => {
+                              if (qType === "MULTIPLE") {
+                                let currentArr: string[] = [];
+                                try {
+                                  currentArr = JSON.parse(studentAnswers[q.id] || "[]");
+                                  if (!Array.isArray(currentArr)) currentArr = [];
+                                } catch {
+                                  currentArr = [];
+                                }
+
+                                if (currentArr.includes(opt)) {
+                                  currentArr = currentArr.filter((item) => item !== opt);
+                                } else {
+                                  currentArr.push(opt);
+                                }
+
+                                setStudentAnswers((prev) => ({
+                                  ...prev,
+                                  [q.id]: JSON.stringify(currentArr),
+                                }));
+                              } else {
+                                setStudentAnswers((prev) => ({
+                                  ...prev,
+                                  [q.id]: opt,
+                                }));
+                              }
+                            };
+
+                            return (
+                              <div
+                                key={optIdx}
+                                onClick={handleOptionClick}
+                                className={`p-2 rounded-lg border text-xs cursor-pointer transition-all flex items-center gap-2 ${
+                                  isSelected
+                                    ? "border-primary bg-primary/10 font-semibold text-primary"
+                                    : "border-border hover:bg-muted/40 font-normal"
+                                }`}
+                              >
+                                <div
+                                  className={`h-4 w-4 rounded-${qType === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center shrink-0 ${
+                                    isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"
+                                  }`}
+                                >
+                                  {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                                </div>
+                                <span>{opt}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
                   <Button variant="outline" size="xs" onClick={() => setActiveTest(null)}>

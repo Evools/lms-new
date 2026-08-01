@@ -48,6 +48,7 @@ export interface TopicDTO {
 export interface TestQuestionDTO {
   id: string;
   testId: string;
+  type: "SINGLE" | "MULTIPLE" | "TEXT" | "TRUE_FALSE";
   questionText: string;
   options: string[]; // parsed array
   correctAnswer: string;
@@ -76,6 +77,8 @@ export interface TestDTO {
   title: string;
   description?: string | null;
   timeLimit?: number | null;
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
   isPublished: boolean;
   createdAt: string;
   questionsCount: number;
@@ -630,6 +633,7 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
         return {
           id: q.id,
           testId: q.testId,
+          type: (q.type as "SINGLE" | "MULTIPLE" | "TEXT" | "TRUE_FALSE") || "SINGLE",
           questionText: q.questionText,
           options: parsedOptions,
           correctAnswer: q.correctAnswer,
@@ -659,6 +663,8 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
         title: t.title,
         description: t.description,
         timeLimit: t.timeLimit,
+        shuffleQuestions: t.shuffleQuestions ?? false,
+        shuffleOptions: t.shuffleOptions ?? false,
         isPublished: t.isPublished,
         createdAt: t.createdAt.toISOString(),
         questionsCount: t.questions.length,
@@ -707,7 +713,10 @@ export async function createTestAction(data: {
   title: string;
   description?: string;
   timeLimit?: number;
+  shuffleQuestions?: boolean;
+  shuffleOptions?: boolean;
   questions: {
+    type?: "SINGLE" | "MULTIPLE" | "TEXT" | "TRUE_FALSE";
     questionText: string;
     options: string[];
     correctAnswer: string;
@@ -732,8 +741,11 @@ export async function createTestAction(data: {
         title: data.title.trim(),
         description: data.description?.trim() || null,
         timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
+        shuffleQuestions: !!data.shuffleQuestions,
+        shuffleOptions: !!data.shuffleOptions,
         questions: {
           create: data.questions.map((q, idx) => ({
+            type: q.type || "SINGLE",
             questionText: q.questionText.trim(),
             options: JSON.stringify(q.options.filter((o) => o.trim().length > 0)),
             correctAnswer: q.correctAnswer.trim(),
@@ -781,8 +793,34 @@ export async function submitTestAnswersAction(data: {
       const qPoints = q.points || 1;
       maxScore += qPoints;
       const studentAnswer = data.answers[q.id];
-      if (studentAnswer && studentAnswer.trim() === q.correctAnswer.trim()) {
-        userScore += qPoints;
+
+      if (!studentAnswer) return;
+
+      const qType = q.type || "SINGLE";
+
+      if (qType === "MULTIPLE") {
+        try {
+          const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim()).sort();
+          const studentArr: string[] = JSON.parse(studentAnswer).map((s: string) => s.trim()).sort();
+          if (
+            correctArr.length === studentArr.length &&
+            correctArr.every((val, index) => val === studentArr[index])
+          ) {
+            userScore += qPoints;
+          }
+        } catch {
+          if (studentAnswer.trim() === q.correctAnswer.trim()) {
+            userScore += qPoints;
+          }
+        }
+      } else if (qType === "TEXT") {
+        if (studentAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) {
+          userScore += qPoints;
+        }
+      } else {
+        if (studentAnswer.trim() === q.correctAnswer.trim()) {
+          userScore += qPoints;
+        }
       }
     });
 

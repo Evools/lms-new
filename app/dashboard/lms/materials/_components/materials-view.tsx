@@ -204,16 +204,11 @@ export function MaterialsView({
 
         <div className="flex items-center gap-2">
           {canCreate && (
-            <Button
-              size="xs"
-              onClick={() => {
-                setIsCreateOpen(true);
-                setNewTopicId(selectedTopicId || topics[0]?.id || "");
-              }}
-              className="h-8 text-xs gap-1.5 font-medium"
-            >
-              <Plus className="h-3.5 w-3.5" /> Добавить материал
-            </Button>
+            <Link href={`/dashboard/lms/materials/new?group=${selectedGroupId}&topic=${selectedTopicId}`}>
+              <Button size="xs" className="h-8 text-xs gap-1.5 font-medium">
+                <Plus className="h-3.5 w-3.5" /> Добавить материал
+              </Button>
+            </Link>
           )}
         </div>
       </div>

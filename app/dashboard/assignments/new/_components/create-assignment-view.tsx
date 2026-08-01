@@ -748,9 +748,9 @@ export function CreateAssignmentView({
         </div>
 
         {/* Right Column: Settings, Metadata & Attachments Sidebar */}
-        <div className="space-y-4">
+        <div className="space-y-3 sticky top-20 z-10 self-start">
           {/* Metadata Card */}
-          <Card className="border shadow-none p-4 space-y-3">
+          <div className="rounded-xl border bg-card p-3.5 space-y-2.5 text-xs shadow-xs">
             <CardHeader className="p-0 pb-2 border-b">
               <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <Building2 className="h-4 w-4 text-primary" /> Параметры публикации
@@ -818,7 +818,7 @@ export function CreateAssignmentView({
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
 
           {/* Attachments Card */}
           <Card className="border shadow-none p-4 space-y-3">

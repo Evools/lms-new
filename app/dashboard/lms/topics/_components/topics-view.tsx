@@ -176,16 +176,11 @@ export function TopicsView({
 
         <div className="flex items-center gap-2">
           {canCreate && (
-            <Button
-              size="xs"
-              onClick={() => {
-                setIsCreateOpen(true);
-                setNewGroupSubjectId(selectedGroupSubjectId || subjects[0]?.id || "");
-              }}
-              className="h-8 text-xs gap-1.5 font-medium"
-            >
-              <Plus className="h-3.5 w-3.5" /> Создать тему
-            </Button>
+            <Link href={`/dashboard/lms/topics/new?group=${selectedGroupId}&subject=${selectedGroupSubjectId}`}>
+              <Button size="xs" className="h-8 text-xs gap-1.5 font-medium">
+                <Plus className="h-3.5 w-3.5" /> Создать тему
+              </Button>
+            </Link>
           )}
         </div>
       </div>
