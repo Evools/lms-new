@@ -16,6 +16,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -28,6 +36,7 @@ import {
   Building2,
   BookOpen,
   Trash2,
+  Pencil,
   Link2,
   ExternalLink,
   CheckCircle2,
@@ -35,9 +44,17 @@ import {
   ChevronDown,
   ChevronRight,
   BookMarked,
-  ExternalLinkIcon,
+  Video,
 } from "lucide-react";
-import { GroupItemDTO, GroupSubjectDTO, MaterialDTO, createTopicAction, deleteMaterialAction } from "@/app/dashboard/lms/actions";
+import {
+  GroupItemDTO,
+  GroupSubjectDTO,
+  MaterialDTO,
+  createTopicAction,
+  updateTopicAction,
+  deleteTopicAction,
+  deleteMaterialAction,
+} from "@/app/dashboard/lms/actions";
 import { renderMarkdown } from "@/lib/markdown";
 
 export interface TopicWithMaterialsDTO {
@@ -86,10 +103,21 @@ export function MaterialsView({
     return initial;
   });
 
-  // Create Chapter (Topic) Quick Modal State
+  // Create Chapter (Topic) Modal State
   const [isCreateChapterOpen, setIsCreateChapterOpen] = useState(false);
   const [newChapterSubjectId, setNewChapterSubjectId] = useState(subjects[0]?.id || "");
   const [newChapterTitle, setNewChapterTitle] = useState("");
+
+  // Edit Chapter Modal State
+  const [editChapterTarget, setEditChapterTarget] = useState<TopicWithMaterialsDTO | null>(null);
+  const [editChapterTitle, setEditChapterTitle] = useState("");
+
+  // Delete Chapter Alert State
+  const [deleteChapterTarget, setDeleteChapterTarget] = useState<TopicWithMaterialsDTO | null>(null);
+
+  // Delete Material Alert State
+  const [deleteMaterialTarget, setDeleteMaterialTarget] = useState<MaterialDTO | null>(null);
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -104,6 +132,7 @@ export function MaterialsView({
     }));
   };
 
+  // Chapter Handlers
   const handleCreateChapter = () => {
     if (!newChapterTitle.trim() || !newChapterSubjectId) {
       setErrorMsg("Укажите дисциплину и название главы");
@@ -129,16 +158,65 @@ export function MaterialsView({
     });
   };
 
-  const handleDeleteMaterial = (id: string) => {
-    if (!confirm("Вы уверены, что хотите удалить этот учебный материал?")) return;
+  const handleOpenEditChapter = (topic: TopicWithMaterialsDTO) => {
+    setEditChapterTarget(topic);
+    setEditChapterTitle(topic.title);
+  };
 
+  const handleUpdateChapter = () => {
+    if (!editChapterTarget || !editChapterTitle.trim()) {
+      setErrorMsg("Укажите название главы");
+      return;
+    }
+
+    setErrorMsg(null);
     startTransition(async () => {
-      const res = await deleteMaterialAction(id);
+      const res = await updateTopicAction(editChapterTarget.id, {
+        title: editChapterTitle,
+      });
+
       if (res.success) {
-        setSuccessMsg("Материал удален");
-        if (activeMaterial?.id === id) {
-          setActiveMaterial(materials.find((m) => m.id !== id) || null);
+        setSuccessMsg("Глава успешно обновлена!");
+        setEditChapterTarget(null);
+        router.refresh();
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        setErrorMsg(res.error || "Ошибка при обновлении главы");
+      }
+    });
+  };
+
+  const handleDeleteChapter = () => {
+    if (!deleteChapterTarget) return;
+
+    setErrorMsg(null);
+    startTransition(async () => {
+      const res = await deleteTopicAction(deleteChapterTarget.id);
+
+      if (res.success) {
+        setSuccessMsg("Глава успешно удалена!");
+        setDeleteChapterTarget(null);
+        router.refresh();
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        setErrorMsg(res.error || "Ошибка при удалении главы");
+      }
+    });
+  };
+
+  // Material Handlers
+  const handleDeleteMaterial = () => {
+    if (!deleteMaterialTarget) return;
+
+    setErrorMsg(null);
+    startTransition(async () => {
+      const res = await deleteMaterialAction(deleteMaterialTarget.id);
+      if (res.success) {
+        setSuccessMsg("Материал удален!");
+        if (activeMaterial?.id === deleteMaterialTarget.id) {
+          setActiveMaterial(materials.find((m) => m.id !== deleteMaterialTarget.id) || null);
         }
+        setDeleteMaterialTarget(null);
         router.refresh();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
@@ -147,7 +225,7 @@ export function MaterialsView({
     });
   };
 
-  // Helper to extract YouTube video ID for embedded player
+  // Helper to extract YouTube video embed URL
   const getYouTubeEmbedUrl = (urlStr?: string | null) => {
     if (!urlStr) return null;
     try {
@@ -161,8 +239,50 @@ export function MaterialsView({
     }
   };
 
+  // Helper to parse multiple video URLs from linkUrl
+  const parseVideoUrls = (linkUrlStr?: string | null): string[] => {
+    if (!linkUrlStr) return [];
+    try {
+      const parsed = JSON.parse(linkUrlStr);
+      if (Array.isArray(parsed)) return parsed.filter(Boolean);
+    } catch {}
+    if (linkUrlStr.includes("youtube.com") || linkUrlStr.includes("youtu.be")) {
+      return [linkUrlStr];
+    }
+    return [];
+  };
+
+  // Helper to parse multiple resource links from fileUrl
+  const parseResourceLinks = (fileUrlStr?: string | null, linkUrlStr?: string | null): Array<{ title: string; url: string }> => {
+    const list: Array<{ title: string; url: string }> = [];
+
+    if (fileUrlStr) {
+      try {
+        const parsed = JSON.parse(fileUrlStr);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((item: any) => {
+            if (item && item.url) list.push({ title: item.title || "Файл / Ресурс", url: item.url });
+          });
+        } else {
+          list.push({ title: "Прикреплённый файл", url: fileUrlStr });
+        }
+      } catch {
+        list.push({ title: "Прикреплённый файл", url: fileUrlStr });
+      }
+    }
+
+    if (linkUrlStr && !linkUrlStr.startsWith("[")) {
+      if (!linkUrlStr.includes("youtube.com") && !linkUrlStr.includes("youtu.be")) {
+        list.push({ title: "Внешняя ссылка", url: linkUrlStr });
+      }
+    }
+
+    return list;
+  };
+
   const currentMat = activeMaterial || materials[0] || null;
-  const youtubeEmbedUrl = getYouTubeEmbedUrl(currentMat?.linkUrl || currentMat?.content);
+  const parsedVideos = parseVideoUrls(currentMat?.linkUrl);
+  const parsedResources = parseResourceLinks(currentMat?.fileUrl, currentMat?.linkUrl);
 
   const getMaterialTypeLabel = (t: MaterialType) => {
     switch (t) {
@@ -172,16 +292,8 @@ export function MaterialsView({
         return "Практика";
       case MaterialType.LAB:
         return "Лабораторная";
-      case MaterialType.VIDEO:
-        return "Видеоурок";
-      case MaterialType.PDF:
-        return "PDF Документ";
-      case MaterialType.DOCUMENT:
-        return "Методичка";
-      case MaterialType.LINK:
-        return "Внешняя ссылка";
       default:
-        return "Материал";
+        return "Урок";
     }
   };
 
@@ -251,8 +363,8 @@ export function MaterialsView({
 
           {/* Action Buttons */}
           {canCreate && (
-            <div className="space-y-1.5">
-              <Link href={`/dashboard/lms/materials/new?group=${selectedGroupId}`}>
+            <div className="space-y-2">
+              <Link href={`/dashboard/lms/materials/new?group=${selectedGroupId}`} className="block">
                 <Button size="xs" className="w-full h-8 text-xs gap-1.5 font-medium shadow-xs">
                   <Plus className="h-3.5 w-3.5" /> Добавить материал
                 </Button>
@@ -263,7 +375,7 @@ export function MaterialsView({
                 size="xs"
                 variant="outline"
                 onClick={() => setIsCreateChapterOpen(true)}
-                className="w-full h-7 text-xs gap-1.5 text-foreground hover:text-primary font-normal"
+                className="w-full h-8 text-xs gap-1.5 text-foreground hover:text-primary font-medium"
               >
                 <BookMarked className="h-3.5 w-3.5 text-primary" /> Создать главу
               </Button>
@@ -279,19 +391,52 @@ export function MaterialsView({
               return (
                 <div key={topic.id} className="space-y-0.5">
                   {/* Chapter Header Item */}
-                  <div
-                    onClick={() => toggleTopicExpand(topic.id)}
-                    className="p-2 rounded-lg hover:bg-muted/60 transition-colors flex items-center justify-between cursor-pointer group select-none"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-foreground">
+                  <div className="p-2 rounded-lg hover:bg-muted/60 transition-colors flex items-center justify-between group select-none">
+                    <div
+                      onClick={() => toggleTopicExpand(topic.id)}
+                      className="flex items-center gap-2 cursor-pointer flex-1 truncate"
+                    >
+                      <span className="text-xs font-bold text-foreground truncate">
                         {topicIdx + 1}. {topic.title}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-muted-foreground">{topicMats.length} ресурсов</span>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] text-muted-foreground mr-1">
+                        {topicMats.length} ресурсов
+                      </span>
+
+                      {canCreate && (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditChapter(topic);
+                            }}
+                            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                            title="Редактировать главу"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteChapterTarget(topic);
+                            }}
+                            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            title="Удалить главу"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+
                       <ChevronDown
-                        className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${
+                        onClick={() => toggleTopicExpand(topic.id)}
+                        className={`h-3.5 w-3.5 text-muted-foreground cursor-pointer transition-transform duration-200 ${
                           isExpanded ? "rotate-0" : "-rotate-90"
                         }`}
                       />
@@ -308,7 +453,7 @@ export function MaterialsView({
                           <div
                             key={mat.id}
                             onClick={() => setActiveMaterial(mat)}
-                            className={`p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all ${
+                            className={`p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat ${
                               isSelected
                                 ? "bg-primary/10 text-primary font-medium border-l-4 border-l-primary shadow-xs"
                                 : "text-foreground hover:bg-muted/40 font-normal"
@@ -320,9 +465,36 @@ export function MaterialsView({
                               </span>
                             </div>
 
-                            <span className="text-[10px] text-muted-foreground shrink-0">
-                              {mat.type === MaterialType.VIDEO ? "Видео" : "Урок"}
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {canCreate && (
+                                <div className="opacity-0 group-hover/mat:opacity-100 transition-opacity flex items-center gap-0.5">
+                                  <Link
+                                    href={`/dashboard/lms/materials/${mat.id}/edit?group=${selectedGroupId}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
+                                    title="Редактировать материал"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Link>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteMaterialTarget(mat);
+                                    }}
+                                    className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    title="Удалить материал"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+
+                              <span className="text-[10px] text-muted-foreground">
+                                {mat.type === MaterialType.VIDEO ? "Видео" : "Урок"}
+                              </span>
+                            </div>
                           </div>
                         );
                       })}
@@ -376,41 +548,52 @@ export function MaterialsView({
                   </span>
 
                   {canCreate && (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => handleDeleteMaterial(currentMat.id)}
-                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                      title="Удалить материал"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Link href={`/dashboard/lms/materials/${currentMat.id}/edit?group=${selectedGroupId}`}>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
+                          title="Редактировать материал"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Редактировать
+                        </Button>
+                      </Link>
+
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => setDeleteMaterialTarget(currentMat)}
+                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                        title="Удалить материал"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Video Player Section */}
-              {youtubeEmbedUrl ? (
-                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-sm border border-border">
-                  <iframe
-                    src={youtubeEmbedUrl}
-                    title={currentMat.title}
-                    className="w-full h-full border-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
+              {/* Multiple Video Players */}
+              {parsedVideos.length > 0 && (
+                <div className="space-y-3">
+                  {parsedVideos.map((vidUrl, idx) => {
+                    const embedUrl = getYouTubeEmbedUrl(vidUrl);
+                    if (!embedUrl) return null;
+                    return (
+                      <div key={idx} className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-sm border border-border">
+                        <iframe
+                          src={embedUrl}
+                          title={`${currentMat.title} - Видео ${idx + 1}`}
+                          className="w-full h-full border-0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
-              ) : currentMat.linkUrl && (currentMat.linkUrl.includes("youtube.com") || currentMat.linkUrl.includes("youtu.be")) ? (
-                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-sm border border-border">
-                  <iframe
-                    src={getYouTubeEmbedUrl(currentMat.linkUrl) || currentMat.linkUrl}
-                    title={currentMat.title}
-                    className="w-full h-full border-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              ) : null}
+              )}
 
               {/* RENDER WYSIWYG MARKDOWN CONTENT PROPERLY */}
               {currentMat.content && (
@@ -419,35 +602,31 @@ export function MaterialsView({
                 </div>
               )}
 
-              {/* External File & Resource Links */}
-              {(currentMat.fileUrl || currentMat.linkUrl) && (
-                <div className="p-3 rounded-xl border bg-muted/30 space-y-2 text-xs">
+              {/* Multiple Resources & Files */}
+              {parsedResources.length > 0 && (
+                <div className="p-3.5 rounded-xl border bg-muted/30 space-y-2 text-xs">
                   <div className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <ExternalLink className="h-3.5 w-3.5 text-primary" /> Ссылки и прикреплённые ресурсы:
+                    <ExternalLink className="h-3.5 w-3.5 text-primary" /> Ссылки и прикреплённые ресурсы ({parsedResources.length}):
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    {currentMat.linkUrl && (
+                  <div className="flex flex-col gap-2 pt-1">
+                    {parsedResources.map((resItem, idx) => (
                       <a
-                        href={currentMat.linkUrl}
+                        key={idx}
+                        href={resItem.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-primary hover:underline font-mono text-[11px] flex items-center gap-1.5"
+                        className="p-2 rounded-lg border bg-card hover:bg-muted/60 transition-colors text-primary font-medium text-xs flex items-center justify-between group"
                       >
-                        <Link2 className="h-3.5 w-3.5 shrink-0" /> {currentMat.linkUrl}
+                        <div className="flex items-center gap-2 truncate">
+                          <Link2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                          <span className="truncate">{resItem.title || resItem.url}</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-muted-foreground group-hover:underline truncate max-w-[220px] ml-2">
+                          {resItem.url}
+                        </span>
                       </a>
-                    )}
-
-                    {currentMat.fileUrl && (
-                      <a
-                        href={currentMat.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline font-mono text-[11px] flex items-center gap-1.5"
-                      >
-                        <FileText className="h-3.5 w-3.5 shrink-0" /> {currentMat.fileUrl}
-                      </a>
-                    )}
+                    ))}
                   </div>
                 </div>
               )}
@@ -462,7 +641,7 @@ export function MaterialsView({
         </div>
       </div>
 
-      {/* Modal: Quick Create Chapter (Topic) */}
+      {/* Modal 1: Quick Create Chapter (Topic) */}
       <Dialog open={isCreateChapterOpen} onOpenChange={setIsCreateChapterOpen}>
         <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
           <DialogHeader className="pb-2 border-b gap-1 text-left">
@@ -512,6 +691,102 @@ export function MaterialsView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal 2: Edit Chapter Modal */}
+      <Dialog open={editChapterTarget !== null} onOpenChange={(open) => !open && setEditChapterTarget(null)}>
+        {editChapterTarget && (
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+            <DialogHeader className="pb-2 border-b gap-1 text-left">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Pencil className="h-4 w-4 text-primary" /> Редактирование главы
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Изменение названия главы «{editChapterTarget.title}»
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-1 text-xs">
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Название главы *</label>
+                <Input
+                  value={editChapterTitle}
+                  onChange={(e) => setEditChapterTitle(e.target.value)}
+                  className="h-8 text-xs bg-background font-medium"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setEditChapterTarget(null)}>
+                Отмена
+              </Button>
+              <Button size="xs" disabled={isPending} onClick={handleUpdateChapter}>
+                Сохранить
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* Modal 3: Delete Chapter AlertDialog */}
+      <AlertDialog open={deleteChapterTarget !== null} onOpenChange={(open) => !open && setDeleteChapterTarget(null)}>
+        {deleteChapterTarget && (
+          <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+            <AlertDialogHeader className="place-items-start text-left gap-1">
+              <AlertDialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-destructive" /> Удалить главу?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                Вы действительно хотите удалить главу «{deleteChapterTarget.title}»? Все прикреплённые материалы будут также удалены.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setDeleteChapterTarget(null)}>
+                Отмена
+              </Button>
+              <Button
+                size="xs"
+                variant="destructive"
+                disabled={isPending}
+                onClick={handleDeleteChapter}
+              >
+                Удалить
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
+
+      {/* Modal 4: Delete Material AlertDialog */}
+      <AlertDialog open={deleteMaterialTarget !== null} onOpenChange={(open) => !open && setDeleteMaterialTarget(null)}>
+        {deleteMaterialTarget && (
+          <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+            <AlertDialogHeader className="place-items-start text-left gap-1">
+              <AlertDialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-destructive" /> Удалить материал?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                Вы действительно хотите удалить материал «{deleteMaterialTarget.title}»?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setDeleteMaterialTarget(null)}>
+                Отмена
+              </Button>
+              <Button
+                size="xs"
+                variant="destructive"
+                disabled={isPending}
+                onClick={handleDeleteMaterial}
+              >
+                Удалить
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
     </div>
   );
 }

@@ -25,21 +25,27 @@ import {
   Link2,
   ExternalLink,
   Trash2,
-  BookOpen,
+  Save,
 } from "lucide-react";
-import { GroupItemDTO, createMaterialAction } from "../../../actions";
+import { GroupItemDTO, updateMaterialAction } from "@/app/dashboard/lms/actions";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
+import { ResourceLinkItem } from "@/app/dashboard/lms/materials/new/_components/create-material-view";
 
-interface CreateMaterialViewProps {
-  groups: GroupItemDTO[];
-  topics: Array<{ id: string; title: string }>;
-  selectedGroupId: string;
-  selectedTopicId: string;
+export interface MaterialEditData {
+  id: string;
+  topicId: string;
+  groupId: string;
+  type: MaterialType;
+  title: string;
+  content: string;
+  fileUrl: string;
+  linkUrl: string;
 }
 
-export interface ResourceLinkItem {
-  title: string;
-  url: string;
+interface EditMaterialViewProps {
+  initialMaterial: MaterialEditData;
+  groups: GroupItemDTO[];
+  topics: Array<{ id: string; title: string }>;
 }
 
 const DEFAULT_TEMPLATES: WysiwygTemplate[] = [
@@ -48,40 +54,48 @@ const DEFAULT_TEMPLATES: WysiwygTemplate[] = [
     name: "Конспект лекции",
     content: `## Теория и ключевые понятия\nПодробное описание теоретического материала занятия.\n\n1. Раздел 1. Введение и базовые определения\n2. Раздел 2. Принципы работы и примеры\n3. Раздел 3. Анализ архитектуры\n\n> **Главный вывод:** Рассматриваемый подход обеспечивает масштабируемость и безопасность системы.\n\n\`\`\`javascript\n// Иллюстративный пример кода\nconst systemStatus = "active";\nconsole.log("Логирование загрузки системы:", systemStatus);\n\`\`\``,
   },
-  {
-    id: "practice_main",
-    name: "Практическое задание",
-    content: `## Цели практической работы\nЗакрепление навыков на практике и выполнение задания.\n\n### Пошаговая инструкция:\n- [ ] 1. Инициализировать репозиторий и настроить окружение\n- [ ] 2. Реализовать заданную бизнес-логику\n- [ ] 3. Провести тестирование и проверить типы\n\n> **Важно:** Сохраняйте историю коммитов в Git!`,
-  },
 ];
 
-export function CreateMaterialView({
+export function EditMaterialView({
+  initialMaterial,
   groups,
   topics,
-  selectedGroupId,
-  selectedTopicId,
-}: CreateMaterialViewProps) {
+}: EditMaterialViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [groupId, setGroupId] = useState(selectedGroupId);
-  const [topicId, setTopicId] = useState(selectedTopicId || topics[0]?.id || "");
-  const [type, setType] = useState<MaterialType>(MaterialType.LECTURE);
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const [groupId, setGroupId] = useState(initialMaterial.groupId);
+  const [topicId, setTopicId] = useState(initialMaterial.topicId);
+  const [type, setType] = useState<MaterialType>(initialMaterial.type);
+  const [title, setTitle] = useState(initialMaterial.title);
+  const [content, setContent] = useState(initialMaterial.content);
 
-  // Multiple Video URLs
-  const [videoUrls, setVideoUrls] = useState<string[]>([]);
+  // Parse Initial Multiple Videos
+  const [videoUrls, setVideoUrls] = useState<string[]>(() => {
+    if (!initialMaterial.linkUrl) return [];
+    try {
+      const parsed = JSON.parse(initialMaterial.linkUrl);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+    return [initialMaterial.linkUrl];
+  });
 
-  // Multiple File & Resource Links
-  const [resourceLinks, setResourceLinks] = useState<ResourceLinkItem[]>([]);
+  // Parse Initial Multiple Resource Links
+  const [resourceLinks, setResourceLinks] = useState<ResourceLinkItem[]>(() => {
+    if (!initialMaterial.fileUrl) return [];
+    try {
+      const parsed = JSON.parse(initialMaterial.fileUrl);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+    return [{ title: "Прикреплённый ресурс", url: initialMaterial.fileUrl }];
+  });
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const handleGroupChange = (val: string) => {
     setGroupId(val);
-    router.push(`/dashboard/lms/materials/new?group=${val}`);
+    router.push(`/dashboard/lms/materials/${initialMaterial.id}/edit?group=${val}`);
   };
 
   const handleAddVideoUrl = () => {
@@ -148,12 +162,10 @@ export function CreateMaterialView({
 
     setErrorMsg(null);
     startTransition(async () => {
-      // Serialize clean videos array into linkUrl
       const linkUrlData = cleanVideos.length > 0 ? JSON.stringify(cleanVideos) : null;
-      // Serialize clean resource links into fileUrl
       const fileUrlData = cleanResources.length > 0 ? JSON.stringify(cleanResources) : null;
 
-      const res = await createMaterialAction({
+      const res = await updateMaterialAction(initialMaterial.id, {
         topicId,
         type,
         title,
@@ -163,13 +175,13 @@ export function CreateMaterialView({
       });
 
       if (res.success) {
-        setSuccessMsg("Материал успешно опубликован!");
+        setSuccessMsg("Изменения в материале успешно сохранены!");
         setTimeout(() => {
           router.push(`/dashboard/lms/materials?group=${groupId}`);
           router.refresh();
         }, 1000);
       } else {
-        setErrorMsg(res.error || "Ошибка при публикации материала");
+        setErrorMsg(res.error || "Ошибка при обновлении материала");
       }
     });
   };
@@ -186,16 +198,16 @@ export function CreateMaterialView({
           </Link>
           <div>
             <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" /> Публикация нового материала
+              <FileText className="h-5 w-5 text-primary" /> Редактирование учебного материала
             </h1>
             <p className="text-xs text-muted-foreground">
-              Создайте урок, прикрепите видеозаписи, полезные файлы и ресурсы
+              Изменение привязки к главе, названия, конспекта, видеозаписей и ресурсов
             </p>
           </div>
         </div>
 
         <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 text-xs gap-1.5 font-medium">
-          Опубликовать материал
+          <Save className="h-3.5 w-3.5" /> Сохранить изменения
         </Button>
       </div>
 
@@ -223,14 +235,14 @@ export function CreateMaterialView({
             <div className="space-y-1">
               <label className="font-semibold text-foreground text-xs">Заголовок материала *</label>
               <Input
-                placeholder="Например: Введение в AutoLayout и адаптивный UI"
+                placeholder="Введите название материала..."
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="h-9 text-xs bg-background font-medium"
               />
             </div>
 
-            {/* Video Recordings Section (Multiple Video Links) */}
+            {/* Video Recordings Section */}
             <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
@@ -283,7 +295,7 @@ export function CreateMaterialView({
               )}
             </div>
 
-            {/* Attachments & Files Section (Multiple Resource Links) */}
+            {/* Attachments & Files Section */}
             <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
@@ -340,7 +352,7 @@ export function CreateMaterialView({
               value={content}
               onChange={setContent}
               label="Текст конспекта и содержание занятия"
-              placeholder="Введите теоретический материал лекции, инструкции к практике или конспект..."
+              placeholder="Введите подробный текст лекции, методические указания и примеры кода..."
               minHeight="280px"
               templates={DEFAULT_TEMPLATES}
               onSubmit={handleSubmit}
@@ -410,7 +422,7 @@ export function CreateMaterialView({
             {/* Submit Action Buttons */}
             <div className="pt-2 border-t space-y-1.5">
               <Button size="xs" disabled={isPending} onClick={handleSubmit} className="w-full h-8 text-xs gap-1.5 font-medium">
-                Опубликовать материал
+                <Save className="h-3.5 w-3.5" /> Сохранить изменения
               </Button>
 
               <Link href={`/dashboard/lms/materials?group=${groupId}`} className="block">

@@ -367,12 +367,42 @@ export async function deleteTopicAction(topicId: string) {
       where: { id: topicId },
     });
 
+    revalidatePath("/dashboard/lms/materials");
     revalidatePath("/dashboard/lms/topics");
     revalidatePath("/dashboard/lms");
     return { success: true };
   } catch (err) {
     console.error("deleteTopicAction error:", err);
-    return { success: false, error: "Ошибка при удалении темы" };
+    return { success: false, error: "Ошибка при удалении главы" };
+  }
+}
+
+export async function updateTopicAction(topicId: string, data: { title: string; description?: string }) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для редактирования главы" };
+    }
+
+    if (!data.title.trim()) {
+      return { success: false, error: "Укажите название главы" };
+    }
+
+    await prisma.topic.update({
+      where: { id: topicId },
+      data: {
+        title: data.title.trim(),
+        description: data.description?.trim() || null,
+      },
+    });
+
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+    return { success: true };
+  } catch (err) {
+    console.error("updateTopicAction error:", err);
+    return { success: false, error: "Ошибка при обновлении главы" };
   }
 }
 
@@ -562,6 +592,90 @@ export async function deleteMaterialAction(materialId: string) {
   } catch (err) {
     console.error("deleteMaterialAction error:", err);
     return { success: false, error: "Ошибка при удалении материала" };
+  }
+}
+
+export async function updateMaterialAction(
+  materialId: string,
+  data: {
+    topicId?: string;
+    type?: MaterialType;
+    title?: string;
+    content?: string;
+    fileUrl?: string;
+    linkUrl?: string;
+  }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для редактирования материала" };
+    }
+
+    if (!data.title?.trim()) {
+      return { success: false, error: "Укажите название материала" };
+    }
+
+    await prisma.material.update({
+      where: { id: materialId },
+      data: {
+        topicId: data.topicId,
+        type: data.type,
+        title: data.title.trim(),
+        content: data.content?.trim() || null,
+        fileUrl: data.fileUrl?.trim() || null,
+        linkUrl: data.linkUrl?.trim() || null,
+      },
+    });
+
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+    return { success: true };
+  } catch (err) {
+    console.error("updateMaterialAction error:", err);
+    return { success: false, error: "Ошибка при обновлении материала" };
+  }
+}
+
+export async function getMaterialForEditAction(materialId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав" };
+    }
+
+    const material = await prisma.material.findUnique({
+      where: { id: materialId },
+      include: {
+        topic: {
+          include: {
+            groupSubject: true,
+          },
+        },
+      },
+    });
+
+    if (!material) {
+      return { success: false, error: "Материал не найден" };
+    }
+
+    return {
+      success: true,
+      material: {
+        id: material.id,
+        topicId: material.topicId,
+        groupId: material.topic.groupSubject.groupId,
+        type: material.type,
+        title: material.title,
+        content: material.content || "",
+        fileUrl: material.fileUrl || "",
+        linkUrl: material.linkUrl || "",
+      },
+    };
+  } catch (err) {
+    console.error("getMaterialForEditAction error:", err);
+    return { success: false, error: "Ошибка при получении данных материала" };
   }
 }
 
