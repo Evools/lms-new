@@ -348,6 +348,55 @@ export async function createUserAction(data: {
   }
 }
 
+/** Admin: bulk create users from Excel / CSV */
+export async function createBulkUsersAction(
+  users: Array<{
+    name: string;
+    email: string;
+    role: "ADMIN" | "TEACHER" | "STUDENT";
+    phone?: string;
+    password?: string;
+  }>
+) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор" };
+  }
+  if (!users || users.length === 0) {
+    return { success: false, error: "Список пользователей пуст" };
+  }
+
+  try {
+    let createdCount = 0;
+    for (const u of users) {
+      if (!u.name?.trim() || !u.email?.trim()) continue;
+      const cleanEmail = u.email.trim().toLowerCase();
+
+      const exists = await prisma.user.findUnique({ where: { email: cleanEmail } });
+      if (exists) continue;
+
+      const rawPass = u.password && u.password.length >= 6 ? u.password : "Lms2026!";
+      const hashed = await bcrypt.hash(rawPass, 10);
+
+      await prisma.user.create({
+        data: {
+          name: u.name.trim(),
+          email: cleanEmail,
+          password: hashed,
+          role: u.role || "STUDENT",
+          phone: u.phone?.trim() || null,
+        },
+      });
+      createdCount++;
+    }
+
+    revalidatePath("/dashboard/settings");
+    return { success: true, count: createdCount };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Ошибка при массовом импорте" };
+  }
+}
+
 /** Admin: update academic year */
 export async function setCurrentAcademicYearAction(yearId: string) {
   const session = await auth();

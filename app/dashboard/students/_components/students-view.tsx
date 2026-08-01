@@ -71,6 +71,7 @@ export interface StudentRegistryItem {
   name: string;
   email: string;
   phone: string;
+  role?: "STUDENT" | "TEACHER" | "ADMIN";
   groupName: string;
   course: number;
   enrollmentType: "Бюджет" | "Контракт";
@@ -483,6 +484,18 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
                       <Badge
                         variant="outline"
                         className={
+                          st.role === "ADMIN"
+                            ? "bg-rose-500/10 text-rose-600 border-rose-200 text-[8px] px-1 py-0 font-medium"
+                            : st.role === "TEACHER"
+                            ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
+                            : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
+                        }
+                      >
+                        {st.role === "ADMIN" ? "Администратор" : st.role === "TEACHER" ? "Преподаватель" : "Студент"}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={
                           st.accountStatus === "Активен"
                             ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
                             : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
@@ -614,6 +627,22 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
               </div>
 
               <div className="pt-2 border-t space-y-1.5 text-[10px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Роль в системе:</span>
+                  <Badge
+                    variant="outline"
+                    className={
+                      st.role === "ADMIN"
+                        ? "bg-rose-500/10 text-rose-600 border-rose-200 text-[8px] px-1 py-0 font-medium"
+                        : st.role === "TEACHER"
+                        ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
+                        : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
+                    }
+                  >
+                    {st.role === "ADMIN" ? "Администратор" : st.role === "TEACHER" ? "Преподаватель" : "Студент"}
+                  </Badge>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Форма обучения:</span>
                   <Badge variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"} className="text-[8px] px-1 py-0 font-medium">

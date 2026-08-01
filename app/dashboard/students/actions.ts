@@ -19,6 +19,7 @@ export interface StudentDetailDTO {
   name: string;
   email: string;
   phone: string;
+  role: "STUDENT" | "TEACHER" | "ADMIN";
   groupName: string;
   enrollmentType: "Бюджет" | "Контракт";
 }
@@ -28,6 +29,7 @@ export interface StudentListItemDTO {
   name: string;
   email: string;
   phone: string;
+  role: "STUDENT" | "TEACHER" | "ADMIN";
   groupName: string;
   course: number;
   enrollmentType: "Бюджет" | "Контракт";
@@ -60,6 +62,7 @@ export async function getStudentsAction(): Promise<StudentListItemDTO[]> {
         name: user.name,
         email: user.email,
         phone: user.phone || "—",
+        role: (user.role as "STUDENT" | "TEACHER" | "ADMIN") || "STUDENT",
         groupName,
         course,
         enrollmentType: "Бюджет",
@@ -75,7 +78,7 @@ export async function getStudentsAction(): Promise<StudentListItemDTO[]> {
   }
 }
 
-export async function createStudentAction(input: CreateStudentInput) {
+export async function createStudentAction(input: CreateStudentInput & { role?: "STUDENT" | "TEACHER" | "ADMIN" }) {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -84,11 +87,11 @@ export async function createStudentAction(input: CreateStudentInput) {
 
     const role = session.user.role || "STUDENT";
     if (role !== "ADMIN" && role !== "TEACHER") {
-      return { success: false, error: "Недостаточно прав для регистрации студентов" };
+      return { success: false, error: "Недостаточно прав для регистрации пользователей" };
     }
 
     if (!input.name.trim() || !input.email.trim()) {
-      return { success: false, error: "Укажите ФИО и Email студента" };
+      return { success: false, error: "Укажите ФИО и Email" };
     }
 
     const cleanEmail = input.email.trim().toLowerCase();
@@ -113,7 +116,7 @@ export async function createStudentAction(input: CreateStudentInput) {
         email: cleanEmail,
         phone: input.phone?.trim() || null,
         password: hashedPassword,
-        role: "STUDENT",
+        role: input.role || "STUDENT",
         isActive: true,
       },
     });
@@ -138,11 +141,11 @@ export async function createStudentAction(input: CreateStudentInput) {
     return { success: true, studentId: student.id };
   } catch (error: any) {
     console.error("Error creating student in DB:", error);
-    return { success: false, error: error.message || "Ошибка при сохранении студента в БД" };
+    return { success: false, error: error.message || "Ошибка при сохранении в БД" };
   }
 }
 
-export async function createBulkStudentsAction(studentsList: CreateStudentInput[]) {
+export async function createBulkStudentsAction(studentsList: Array<CreateStudentInput & { role?: "STUDENT" | "TEACHER" | "ADMIN" }>) {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -194,6 +197,7 @@ export async function getStudentByIdAction(id: string): Promise<StudentDetailDTO
       name: student.name,
       email: student.email,
       phone: student.phone || "",
+      role: (student.role as "STUDENT" | "TEACHER" | "ADMIN") || "STUDENT",
       groupName,
       enrollmentType: "Бюджет",
     };
@@ -203,7 +207,10 @@ export async function getStudentByIdAction(id: string): Promise<StudentDetailDTO
   }
 }
 
-export async function updateStudentAction(id: string, input: Partial<CreateStudentInput>) {
+export async function updateStudentAction(
+  id: string,
+  input: Partial<CreateStudentInput> & { role?: "STUDENT" | "TEACHER" | "ADMIN" }
+) {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -217,7 +224,7 @@ export async function updateStudentAction(id: string, input: Partial<CreateStude
 
     const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) {
-      return { success: false, error: "Студент не найден в БД" };
+      return { success: false, error: "Пользователь не найден в БД" };
     }
 
     // Update User record in Prisma DB
@@ -227,6 +234,7 @@ export async function updateStudentAction(id: string, input: Partial<CreateStude
         name: input.name?.trim() || existing.name,
         email: input.email?.trim().toLowerCase() || existing.email,
         phone: input.phone !== undefined ? input.phone.trim() || null : existing.phone,
+        role: input.role || existing.role,
       },
     });
 

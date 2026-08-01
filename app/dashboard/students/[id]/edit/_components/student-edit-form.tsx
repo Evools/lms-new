@@ -61,6 +61,7 @@ export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEdi
   const [fullName, setFullName] = useState(student.name);
   const [email, setEmail] = useState(student.email);
   const [phone, setPhone] = useState(student.phone || "");
+  const [selectedRole, setSelectedRole] = useState<"STUDENT" | "TEACHER" | "ADMIN">(student.role || "STUDENT");
   const [gender, setGender] = useState<"Мужской" | "Женский">("Мужской");
   const [group, setGroup] = useState(student.groupName || "ИС-1-25");
   const [enrollmentType, setEnrollmentType] = useState<"Бюджет" | "Контракт">(student.enrollmentType || "Бюджет");
@@ -97,6 +98,7 @@ export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEdi
         name: fullName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
+        role: selectedRole,
         groupName: group,
         enrollmentType: enrollmentType,
       });
@@ -337,6 +339,24 @@ export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEdi
                   <SelectContent>
                     <SelectItem value="Бюджет" className="text-xs">Бюджетная основа</SelectItem>
                     <SelectItem value="Контракт" className="text-xs">Контрактная основа</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="sm:col-span-2 space-y-1">
+                <label className="font-medium text-foreground text-xs flex items-center gap-1.5 font-semibold">
+                  <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Роль пользователя в системе <span className="text-destructive">*</span>
+                </label>
+                <Select value={selectedRole} onValueChange={(val: "STUDENT" | "TEACHER" | "ADMIN") => setSelectedRole(val)}>
+                  <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                    <SelectValue>
+                      {selectedRole === "STUDENT" ? "Студент" : selectedRole === "TEACHER" ? "Преподаватель" : "Администратор"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="STUDENT" className="text-xs font-medium">Студент</SelectItem>
+                    <SelectItem value="TEACHER" className="text-xs font-medium">Преподаватель</SelectItem>
+                    <SelectItem value="ADMIN" className="text-xs font-medium">Администратор</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

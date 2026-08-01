@@ -30,9 +30,11 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import Link from "next/link";
 import {
   Settings,
   User,
+  UserCheck,
   Lock,
   Users,
   CalendarDays,
@@ -67,6 +69,7 @@ import {
   toggleUserActiveAction,
   changeUserRoleAction,
   createUserAction,
+  createBulkUsersAction,
   setCurrentAcademicYearAction,
   createAcademicYearAction,
   updateAcademicYearAction,
@@ -128,8 +131,68 @@ export function SettingsView({
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
-  const [newUserRole, setNewUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT">("STUDENT");
+  const [newUserRole, setNewUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT">("TEACHER");
   const [newUserPhone, setNewUserPhone] = useState("");
+
+  // User Creation & Import Dialog State
+  const [createUserMode, setCreateUserMode] = useState<"single" | "excel">("single");
+  const [bulkText, setBulkText] = useState("");
+  const [parsedUsers, setParsedUsers] = useState<
+    Array<{ name: string; email: string; role: "ADMIN" | "TEACHER" | "STUDENT"; phone?: string }>
+  >([]);
+
+  const handleGeneratePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
+    let pass = "Lms";
+    for (let i = 0; i < 6; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewUserPassword(pass);
+  };
+
+  const handleParseBulkText = (text: string) => {
+    setBulkText(text);
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    const parsed: Array<{ name: string; email: string; role: "ADMIN" | "TEACHER" | "STUDENT"; phone?: string }> = [];
+
+    for (const line of lines) {
+      const parts = line.split(/[,;\t]/).map((p) => p.trim());
+      if (parts.length >= 2) {
+        const name = parts[0];
+        const email = parts[1];
+        let roleInput = (parts[2] || "").toUpperCase();
+        let role: "ADMIN" | "TEACHER" | "STUDENT" = "STUDENT";
+        if (roleInput.includes("ADMIN") || roleInput.includes("АДМИН")) role = "ADMIN";
+        else if (roleInput.includes("TEACHER") || roleInput.includes("ПРЕПОД") || roleInput.includes("УЧИТЕЛЬ")) role = "TEACHER";
+
+        const phone = parts[3] || undefined;
+        if (name && email.includes("@")) {
+          parsed.push({ name, email, role, phone });
+        }
+      }
+    }
+    setParsedUsers(parsed);
+  };
+
+  const handleBulkImportSubmit = () => {
+    if (parsedUsers.length === 0) {
+      toast.add({ title: "Укажите хотя бы одного пользователя для импорта", type: "error" });
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await createBulkUsersAction(parsedUsers);
+      if (res.success) {
+        setIsCreateUserOpen(false);
+        setBulkText("");
+        setParsedUsers([]);
+        toast.add({ title: `Успешно импортировано пользователей: ${res.count}`, type: "success" });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка массового импорта", type: "error" });
+      }
+    });
+  };
 
   // Academic Year State
   const [isCreateYearOpen, setIsCreateYearOpen] = useState(false);
@@ -364,11 +427,22 @@ export function SettingsView({
     });
   };
 
-  const filteredUsers = allUsers.filter(
-    (u) =>
+  const [userRoleFilter, setUserRoleFilter] = useState<"STAFF" | "TEACHER" | "ADMIN" | "STUDENT" | "ALL">("STAFF");
+
+  const filteredUsers = allUsers.filter((u) => {
+    const matchesSearch =
       u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(userSearch.toLowerCase())
-  );
+      u.email.toLowerCase().includes(userSearch.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (userRoleFilter === "STAFF") return u.role === "TEACHER" || u.role === "ADMIN";
+    if (userRoleFilter === "TEACHER") return u.role === "TEACHER";
+    if (userRoleFilter === "ADMIN") return u.role === "ADMIN";
+    if (userRoleFilter === "STUDENT") return u.role === "STUDENT";
+
+    return true;
+  });
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { key: "system" as Tab, label: "Настройки системы", icon: <Globe className="h-3.5 w-3.5" />, adminOnly: true },
@@ -551,7 +625,26 @@ export function SettingsView({
       {/* Tab: Users Management (Admin Only) */}
       {activeTab === "users" && isAdmin && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="p-3 border rounded-xl bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="space-y-0.5">
+              <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <UserCheck className="h-4 w-4 text-primary" /> Сотрудники и преподаватели лицея
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Управление аккаунтами педагогов и администраторов. Зачисление студентов производится в разделе{" "}
+                <Link href="/dashboard/students/new" className="text-primary font-semibold hover:underline">
+                  Зачисление студентов
+                </Link>
+                .
+              </p>
+            </div>
+            <Button size="xs" className="h-8 gap-1.5 font-medium shrink-0" onClick={() => setIsCreateUserOpen(true)}>
+              <Plus className="h-3.5 w-3.5" /> Добавить преподавателя / сотрудника
+            </Button>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -561,17 +654,78 @@ export function SettingsView({
                 className="h-8 text-xs bg-card pl-8"
               />
             </div>
-            <Button size="xs" className="h-8 gap-1.5 font-medium" onClick={() => setIsCreateUserOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Добавить пользователя
-            </Button>
+
+            {/* Role Filter Tabs */}
+            <div className="flex items-center gap-1 p-1 bg-card border rounded-lg shadow-2xs overflow-x-auto text-xs">
+              <button
+                type="button"
+                onClick={() => setUserRoleFilter("STAFF")}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                  userRoleFilter === "STAFF"
+                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                }`}
+              >
+                💼 Сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setUserRoleFilter("TEACHER")}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                  userRoleFilter === "TEACHER"
+                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                }`}
+              >
+                👨‍🏫 Преподаватели ({allUsers.filter((u) => u.role === "TEACHER").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setUserRoleFilter("ADMIN")}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                  userRoleFilter === "ADMIN"
+                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                }`}
+              >
+                🛡️ Админы ({allUsers.filter((u) => u.role === "ADMIN").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setUserRoleFilter("STUDENT")}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                  userRoleFilter === "STUDENT"
+                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                }`}
+              >
+                🎓 Студенты ({allUsers.filter((u) => u.role === "STUDENT").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setUserRoleFilter("ALL")}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                  userRoleFilter === "ALL"
+                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                }`}
+              >
+                👥 Все ({allUsers.length})
+              </button>
+            </div>
           </div>
 
           <div className="bg-card border rounded-xl overflow-hidden shadow-xs">
             <div className="p-3.5 border-b flex items-center justify-between">
               <h2 className="font-bold text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" /> Все аккаунты системы
+                <Users className="h-4 w-4 text-primary" />
+                {userRoleFilter === "STAFF" && "Сотрудники и преподаватели"}
+                {userRoleFilter === "TEACHER" && "Преподавательский состав"}
+                {userRoleFilter === "ADMIN" && "Администраторы системы"}
+                {userRoleFilter === "STUDENT" && "Зачисленные студенты"}
+                {userRoleFilter === "ALL" && "Все аккаунты системы"}
               </h2>
-              <span className="text-[11px] text-muted-foreground">{filteredUsers.length} чел.</span>
+              <span className="text-[11px] text-muted-foreground font-medium">{filteredUsers.length} чел.</span>
             </div>
 
             <div className="overflow-x-auto">
@@ -717,51 +871,184 @@ export function SettingsView({
         </div>
       )}
 
-      {/* Modal: Create User */}
+      {/* Modal: Create User / Bulk Import */}
       <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
-        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
-          <DialogHeader className="pb-2 border-b gap-1 text-left">
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[650px]">
+          <DialogHeader className="pb-2 border-b gap-1.5 place-items-start text-left">
             <DialogTitle className="flex items-center gap-2 text-sm font-bold">
-              <Plus className="h-4 w-4 text-primary" /> Создать пользователя
+              <UserCheck className="h-4 w-4 text-primary" /> Регистрация преподавателя или сотрудника
             </DialogTitle>
-            <DialogDescription className="text-xs">Новый аккаунт в системе</DialogDescription>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Добавление преподавательского состава и администраторов системы
+            </DialogDescription>
+
+            {/* Mode Switcher Pills */}
+            <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs w-full mt-1">
+              <button
+                type="button"
+                onClick={() => setCreateUserMode("single")}
+                className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all ${
+                  createUserMode === "single"
+                    ? "bg-background text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Анкета одного сотрудника
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateUserMode("excel")}
+                className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all ${
+                  createUserMode === "excel"
+                    ? "bg-background text-primary shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Массовый импорт (Excel / CSV)
+              </button>
+            </div>
           </DialogHeader>
-          <div className="space-y-2.5 py-1">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1 col-span-2">
-                <label className="font-medium text-xs">Имя и фамилия *</label>
-                <Input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Иванов Иван" className="h-8 text-xs bg-background" />
-              </div>
-              <div className="space-y-1 col-span-2">
-                <label className="font-medium text-xs">Email *</label>
-                <Input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="user@lyceum.ru" className="h-8 text-xs bg-background" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-xs">Пароль *</label>
-                <Input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} className="h-8 text-xs bg-background" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-xs">Роль *</label>
-                <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as any)}>
-                  <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue>{ROLE_LABELS[newUserRole]}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="STUDENT" className="text-xs">Студент</SelectItem>
-                    <SelectItem value="TEACHER" className="text-xs">Преподаватель</SelectItem>
-                    <SelectItem value="ADMIN" className="text-xs">Администратор</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1 col-span-2">
-                <label className="font-medium text-xs">Телефон</label>
-                <Input value={newUserPhone} onChange={(e) => setNewUserPhone(e.target.value)} placeholder="+7..." className="h-8 text-xs bg-background" />
+
+          {/* Mode 1: Single User Form */}
+          {createUserMode === "single" && (
+            <div className="space-y-3 py-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="font-medium text-xs text-foreground font-semibold">ФИО сотрудника полностью *</label>
+                  <Input
+                    value={newUserName}
+                    onChange={(e) => setNewUserName(e.target.value)}
+                    placeholder="Петров Алексей Сергеевич"
+                    className="h-8 text-xs bg-background font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-foreground font-semibold">Email *</label>
+                  <Input
+                    type="email"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    placeholder="teacher@lyceum.ru"
+                    className="h-8 text-xs bg-background font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-foreground font-semibold">Роль в лицее *</label>
+                  <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as any)}>
+                    <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                      <SelectValue>{ROLE_LABELS[newUserRole]}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TEACHER" className="text-xs font-medium">Преподаватель</SelectItem>
+                      <SelectItem value="ADMIN" className="text-xs font-medium">Администратор</SelectItem>
+                      <SelectItem value="STUDENT" className="text-xs font-medium">Студент</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-medium text-xs text-foreground">Пароль *</label>
+                    <button
+                      type="button"
+                      onClick={handleGeneratePassword}
+                      className="text-[10px] text-primary hover:underline font-medium"
+                    >
+                      Сгенерировать ⚡
+                    </button>
+                  </div>
+                  <Input
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    placeholder="Минимум 6 символов"
+                    className="h-8 text-xs bg-background font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-medium text-xs text-foreground">Телефон</label>
+                  <Input
+                    value={newUserPhone}
+                    onChange={(e) => setNewUserPhone(e.target.value)}
+                    placeholder="+7 (999) 000-00-00"
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Mode 2: Bulk Import (Excel / CSV) */}
+          {createUserMode === "excel" && (
+            <div className="space-y-3 py-1">
+              <div className="p-3 rounded-lg border bg-muted/30 space-y-1 text-xs">
+                <div className="font-semibold text-foreground">Формат данных для импорта:</div>
+                <div className="text-[11px] text-muted-foreground font-mono">
+                  ФИО, Email, Роль (STUDENT/TEACHER/ADMIN), Телефон
+                </div>
+                <div className="text-[10px] text-muted-foreground pt-0.5">
+                  Скопируйте строки из Excel/таблицы и вставьте в поле ниже (каждая строчка с новой строки):
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-xs text-foreground">Вставьте строки из таблицы / CSV:</label>
+                <textarea
+                  rows={4}
+                  value={bulkText}
+                  onChange={(e) => handleParseBulkText(e.target.value)}
+                  placeholder={`Иванов Иван Иванович, ivanov@lyceum.ru, STUDENT, +79991112233\nПетрова Анна Сергеевна, petrova@lyceum.ru, TEACHER, +79992223344`}
+                  className="w-full p-2.5 rounded-lg border bg-background text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              {/* Parsed Preview Table */}
+              {parsedUsers.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-foreground">Распознано пользователей: {parsedUsers.length}</span>
+                    <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 font-semibold">
+                      Готовы к зачислению
+                    </Badge>
+                  </div>
+
+                  <div className="max-h-[160px] overflow-y-auto border rounded-lg bg-card divide-y text-xs">
+                    {parsedUsers.map((u, idx) => (
+                      <div key={idx} className="p-2 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-medium text-foreground truncate">{u.name}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono truncate">{u.email}</div>
+                        </div>
+                        <Badge variant="outline" className={`text-[9px] border shrink-0 ${ROLE_COLORS[u.role] || ""}`}>
+                          {ROLE_LABELS[u.role] || u.role}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
-            <Button variant="outline" size="xs" onClick={() => setIsCreateUserOpen(false)}>Отмена</Button>
-            <Button size="xs" disabled={isPending} onClick={handleCreateUser}>Создать</Button>
+            <Button variant="outline" size="xs" onClick={() => setIsCreateUserOpen(false)}>
+              Отмена
+            </Button>
+            {createUserMode === "single" ? (
+              <Button size="xs" disabled={isPending} onClick={handleCreateUser}>
+                Создать пользователя
+              </Button>
+            ) : (
+              <Button
+                size="xs"
+                disabled={isPending || parsedUsers.length === 0}
+                onClick={handleBulkImportSubmit}
+              >
+                Импортировать ({parsedUsers.length})
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

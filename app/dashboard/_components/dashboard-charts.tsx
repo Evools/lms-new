@@ -22,18 +22,27 @@ import { ChartContainer, ChartTooltipContent, ChartConfig } from "@/components/u
 // ADMIN CHARTS
 // -------------------------------------------------------------
 
-const adminGenderPieData = [
-  { name: "Юноши (58%)", value: 198, color: "var(--chart-1)" },
-  { name: "Девушки (42%)", value: 142, color: "var(--chart-4)" },
-];
+interface AdminGenderProps {
+  maleCount?: number;
+  femaleCount?: number;
+}
 
-export function AdminGenderDistributionChart() {
+export function AdminGenderDistributionChart({ maleCount = 0, femaleCount = 0 }: AdminGenderProps) {
+  const total = (maleCount + femaleCount) || 1;
+  const malePercent = Math.round((maleCount / total) * 100);
+  const femalePercent = 100 - malePercent;
+
+  const data = [
+    { name: `Юноши (${malePercent}%)`, value: maleCount || 1, color: "var(--chart-1)" },
+    { name: `Девушки (${femalePercent}%)`, value: femaleCount || 1, color: "var(--chart-4)" },
+  ];
+
   return (
     <div className="h-[250px] w-full flex items-center justify-center">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={adminGenderPieData}
+            data={data}
             cx="50%"
             cy="50%"
             innerRadius={55}
@@ -41,7 +50,7 @@ export function AdminGenderDistributionChart() {
             paddingAngle={4}
             dataKey="value"
           >
-            {adminGenderPieData.map((entry, index) => (
+            {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
             ))}
           </Pie>
@@ -61,12 +70,14 @@ export function AdminGenderDistributionChart() {
   );
 }
 
-const adminGroupData = [
+interface GroupPerfProps {
+  data?: Array<{ group: string; submitted: number }>;
+}
+
+const defaultAdminGroupData = [
   { group: "ИС-1-25", submitted: 94 },
   { group: "ИС-2-24", submitted: 88 },
   { group: "ПО-1-25", submitted: 96 },
-  { group: "ВЕБ-1-23", submitted: 82 },
-  { group: "ДИЗ-1-25", submitted: 90 },
 ];
 
 const adminGroupConfig: ChartConfig = {
@@ -76,10 +87,12 @@ const adminGroupConfig: ChartConfig = {
   },
 };
 
-export function AdminGroupPerformanceChart() {
+export function AdminGroupPerformanceChart({ data = defaultAdminGroupData }: GroupPerfProps) {
+  const chartData = data.length > 0 ? data : defaultAdminGroupData;
+
   return (
     <ChartContainer config={adminGroupConfig} className="h-[250px] w-full">
-      <BarChart data={adminGroupData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+      <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
         <XAxis dataKey="group" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[0, 100]} />
@@ -94,7 +107,11 @@ export function AdminGroupPerformanceChart() {
 // TEACHER CHARTS
 // -------------------------------------------------------------
 
-const teacherWeeklyData = [
+interface TeacherOverviewProps {
+  data?: Array<{ week: string; homeworks: number; checked: number }>;
+}
+
+const defaultTeacherWeeklyData = [
   { week: "Нед 1", homeworks: 32, checked: 30 },
   { week: "Нед 2", homeworks: 45, checked: 42 },
   { week: "Нед 3", homeworks: 28, checked: 28 },
@@ -113,10 +130,12 @@ const teacherWeeklyConfig: ChartConfig = {
   },
 };
 
-export function TeacherOverviewChart() {
+export function TeacherOverviewChart({ data = defaultTeacherWeeklyData }: TeacherOverviewProps) {
+  const chartData = data.length > 0 ? data : defaultTeacherWeeklyData;
+
   return (
     <ChartContainer config={teacherWeeklyConfig} className="h-[240px] w-full">
-      <BarChart data={teacherWeeklyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+      <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
         <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
@@ -128,20 +147,26 @@ export function TeacherOverviewChart() {
   );
 }
 
-const teacherGradePieData = [
-  { name: "Отлично (5)", value: 48, color: "var(--chart-2)" },
-  { name: "Хорошо (4)", value: 35, color: "var(--chart-1)" },
-  { name: "Удовл. (3)", value: 12, color: "var(--chart-3)" },
-  { name: "Доработка (2)", value: 5, color: "var(--chart-5)" },
-];
+interface TeacherGradeProps {
+  accepted?: number;
+  revision?: number;
+  pending?: number;
+}
 
-export function TeacherGradeDistributionChart() {
+export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pending = 0 }: TeacherGradeProps) {
+  const total = (accepted + revision + pending) || 1;
+  const data = [
+    { name: `Принято (${Math.round((accepted / total) * 100)}%)`, value: accepted || 1, color: "var(--chart-2)" },
+    { name: `На доработке (${Math.round((revision / total) * 100)}%)`, value: revision || 0, color: "var(--chart-5)" },
+    { name: `На проверке (${Math.round((pending / total) * 100)}%)`, value: pending || 0, color: "var(--chart-1)" },
+  ].filter((d) => d.value > 0);
+
   return (
     <div className="h-[240px] w-full flex items-center justify-center">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={teacherGradePieData}
+            data={data}
             cx="50%"
             cy="50%"
             innerRadius={50}
@@ -149,12 +174,12 @@ export function TeacherGradeDistributionChart() {
             paddingAngle={3}
             dataKey="value"
           >
-            {teacherGradePieData.map((entry, index) => (
+            {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
             ))}
           </Pie>
           <Tooltip
-            formatter={(value?: any) => [`${value ?? 0}% студентов`, "Доля"]}
+            formatter={(value?: any) => [`${value ?? 0} работ`, "Количество"]}
             contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "6px", border: "1px solid var(--border)" }}
           />
           <Legend
@@ -173,7 +198,11 @@ export function TeacherGradeDistributionChart() {
 // STUDENT CHARTS
 // -------------------------------------------------------------
 
-const studentProgressData = [
+interface StudentProgressProps {
+  data?: Array<{ subject: string; grade: number }>;
+}
+
+const defaultStudentProgressData = [
   { subject: "Модуль 1", grade: 4.2 },
   { subject: "Модуль 2", grade: 4.5 },
   { subject: "Модуль 3", grade: 4.6 },
@@ -188,10 +217,12 @@ const studentProgressConfig: ChartConfig = {
   },
 };
 
-export function StudentProgressChart() {
+export function StudentProgressChart({ data = defaultStudentProgressData }: StudentProgressProps) {
+  const chartData = data.length > 0 ? data : defaultStudentProgressData;
+
   return (
     <ChartContainer config={studentProgressConfig} className="h-[240px] w-full">
-      <AreaChart data={studentProgressData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <defs>
           <linearGradient id="studentProgressGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.25} />
@@ -200,7 +231,7 @@ export function StudentProgressChart() {
         </defs>
         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
         <XAxis dataKey="subject" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
-        <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[3.5, 5]} />
+        <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[3, 5]} />
         <Tooltip content={<ChartTooltipContent indicator="dot" />} />
         <Area
           type="monotone"
@@ -216,19 +247,25 @@ export function StudentProgressChart() {
   );
 }
 
-const studentAttendancePieData = [
-  { name: "Присутствовал", value: 92, color: "var(--chart-2)" },
-  { name: "Уважительная", value: 5, color: "var(--chart-1)" },
-  { name: "Пропуск", value: 3, color: "var(--chart-5)" },
-];
+interface StudentAttendanceProps {
+  presentCount?: number;
+  absentCount?: number;
+  lateCount?: number;
+}
 
-export function StudentAttendancePieChart() {
+export function StudentAttendancePieChart({ presentCount = 92, absentCount = 5, lateCount = 3 }: StudentAttendanceProps) {
+  const data = [
+    { name: "Присутствовал", value: presentCount, color: "var(--chart-2)" },
+    { name: "Опоздание", value: lateCount, color: "var(--chart-1)" },
+    { name: "Пропуск", value: absentCount, color: "var(--chart-5)" },
+  ].filter((d) => d.value > 0);
+
   return (
     <div className="h-[240px] w-full flex flex-col items-center justify-center">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={studentAttendancePieData}
+            data={data}
             cx="50%"
             cy="45%"
             innerRadius={45}
@@ -236,12 +273,12 @@ export function StudentAttendancePieChart() {
             paddingAngle={4}
             dataKey="value"
           >
-            {studentAttendancePieData.map((entry, index) => (
+            {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
             ))}
           </Pie>
           <Tooltip
-            formatter={(value?: any) => [`${value ?? 0}%`, "Процент"]}
+            formatter={(value?: any) => [`${value ?? 0}`, "Записей"]}
             contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "6px", border: "1px solid var(--border)" }}
           />
           <Legend
