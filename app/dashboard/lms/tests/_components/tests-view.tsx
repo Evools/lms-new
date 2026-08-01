@@ -499,33 +499,14 @@ export function TestsView({
                         <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Сдано
                       </Button>
                     ) : (
-                      <Button
-                        size="xs"
-                        onClick={() => {
-                          let questionsToUse = [...test.questions];
-
-                          if (test.shuffleQuestions) {
-                            questionsToUse = questionsToUse.sort(() => Math.random() - 0.5);
-                          }
-
-                          if (test.shuffleOptions) {
-                            questionsToUse = questionsToUse.map((q) => ({
-                              ...q,
-                              options: [...q.options].sort(() => Math.random() - 0.5),
-                            }));
-                          }
-
-                          setActiveTest({
-                            ...test,
-                            questions: questionsToUse,
-                          });
-                          setStudentAnswers({});
-                          setTestResult(null);
-                        }}
-                        className="h-7 text-xs gap-1.5 font-medium shadow-xs"
-                      >
-                        <Send className="h-3.5 w-3.5" /> Пройти тест
-                      </Button>
+                      <Link href={`/dashboard/lms/tests/${test.id}/take`}>
+                        <Button
+                          size="xs"
+                          className="h-7 text-xs gap-1.5 font-medium shadow-xs"
+                        >
+                          <Send className="h-3.5 w-3.5" /> Пройти тест
+                        </Button>
+                      </Link>
                     )}
                   </div>
                 )}

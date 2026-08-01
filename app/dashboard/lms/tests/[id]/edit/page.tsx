@@ -5,7 +5,7 @@ import { EditTestView } from "./_components/edit-test-view";
 
 interface EditTestPageProps {
   params: Promise<{
-    testId: string;
+    id: string;
   }>;
   searchParams: Promise<{
     group?: string;
@@ -16,7 +16,7 @@ export default async function EditTestPage({ params, searchParams }: EditTestPag
   const session = await auth();
 
   if (!session?.user?.id) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   const role = session.user.role;
@@ -24,10 +24,10 @@ export default async function EditTestPage({ params, searchParams }: EditTestPag
     redirect("/dashboard/lms/tests");
   }
 
-  const { testId } = await params;
+  const { id } = await params;
   const { group: groupQuery } = await searchParams;
 
-  const testRes = await getTestForEditAction(testId);
+  const testRes = await getTestForEditAction(id);
   if (!testRes.success || !testRes.test) {
     notFound();
   }

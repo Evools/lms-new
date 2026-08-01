@@ -1002,6 +1002,90 @@ export async function getTestForEditAction(testId: string) {
   }
 }
 
+export async function getTestForTakeAction(testId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Не авторизован" };
+    }
+
+    const test = await prisma.test.findUnique({
+      where: { id: testId },
+      include: {
+        groupSubject: {
+          include: {
+            subject: { select: { name: true } },
+            teacher: { select: { name: true } },
+          },
+        },
+        questions: {
+          orderBy: { order: "asc" },
+        },
+      },
+    });
+
+    if (!test) {
+      return { success: false, error: "Тест не найден" };
+    }
+
+    const existingSubmission = await prisma.testSubmission.findUnique({
+      where: {
+        testId_studentId: {
+          testId,
+          studentId: session.user.id,
+        },
+      },
+    });
+
+    let questionsToUse = test.questions.map((q) => {
+      let opts: string[] = [];
+      try {
+        opts = JSON.parse(q.options);
+      } catch {
+        opts = [];
+      }
+      return {
+        id: q.id,
+        type: (q.type as any) || "SINGLE",
+        questionText: q.questionText,
+        options: test.shuffleOptions ? [...opts].sort(() => Math.random() - 0.5) : opts,
+        points: q.points || 1,
+      };
+    });
+
+    if (test.shuffleQuestions) {
+      questionsToUse = questionsToUse.sort(() => Math.random() - 0.5);
+    }
+
+    return {
+      success: true,
+      test: {
+        id: test.id,
+        title: test.title,
+        description: test.description || "",
+        timeLimit: test.timeLimit,
+        subjectName: test.groupSubject.subject.name,
+        teacherName: test.groupSubject.teacher.name,
+        questions: questionsToUse,
+        userSubmission: existingSubmission
+          ? {
+              id: existingSubmission.id,
+              testId: existingSubmission.testId,
+              studentId: existingSubmission.studentId,
+              studentName: session.user.name || "",
+              score: existingSubmission.score,
+              maxScore: existingSubmission.maxScore,
+              submittedAt: existingSubmission.submittedAt.toISOString(),
+            }
+          : null,
+      },
+    };
+  } catch (err) {
+    console.error("getTestForTakeAction error:", err);
+    return { success: false, error: "Ошибка при загрузке теста" };
+  }
+}
+
 export async function updateTestAction(
   testId: string,
   data: {
