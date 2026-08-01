@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -25,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogCancel,
+  AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import {
   Select,
@@ -63,9 +62,7 @@ import {
   UserCheck,
   LayoutGrid,
   List,
-  Sparkles,
-  ShieldAlert,
-  Building2,
+  AlertTriangle,
 } from "lucide-react";
 import { deleteStudentsAction } from "../actions";
 
@@ -107,11 +104,24 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
       ...students.map((s) => s.groupName).filter(Boolean),
     ])
   ).sort();
+
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("Все статусы");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("Все формы");
 
-  // View Mode: Table vs Grid Cards
+  // View Mode: Table vs Grid Cards (with localStorage persistence)
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("students_view_mode");
+    if (saved === "table" || saved === "grid") {
+      setViewMode(saved);
+    }
+  }, []);
+
+  const handleSetViewMode = (mode: "table" | "grid") => {
+    setViewMode(mode);
+    localStorage.setItem("students_view_mode", mode);
+  };
 
   // Multi-select & Bulk delete state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -245,95 +255,76 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
   const totalStudentsCount = students.length;
   const activeCount = students.filter((s) => s.accountStatus === "Активен").length;
   const tempPassCount = students.filter((s) => s.accountStatus === "Временный пароль").length;
-  const groupsCount = new Set(students.map((s) => s.groupName)).size;
 
   return (
     <div className="w-full space-y-4 pb-20 text-xs">
-      {/* Top Header Bar - Compact */}
+      {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
+            <h1 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
               Студенты и зачисление
             </h1>
-            <Badge variant="secondary" className="font-mono text-[10px] px-2 py-0">
-              Всего: {totalStudentsCount}
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+              {totalStudentsCount} всего
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Управление личными карточками, зачислением в группы и аккаунтами учащихся
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Управление реестром учащихся, группами и учетными записями
           </p>
         </div>
 
         {isAdminOrTeacher && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/students/new" />}>
-              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Импорт из Excel
+              <FileSpreadsheet className="h-3.5 w-3.5 text-primary" /> Импорт из Excel
             </Button>
             <Button size="xs" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/students/new" />}>
-              <UserPlus className="h-3.5 w-3.5" /> Зарегистрировать студента
+              <UserPlus className="h-3.5 w-3.5" /> Добавить студента
             </Button>
           </div>
         )}
       </div>
 
-      {/* KPI Stats Overview Cards - Pure Shadcn Style */}
+      {/* Metric Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="shadow-none border">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-3.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">
-              Всего зачислено
-            </span>
-            <GraduationCap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="pb-3 px-3.5 pt-0">
-            <div className="text-lg font-bold tracking-tight text-foreground">
-              {totalStudentsCount} учащихся
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Учетные записи в базе Лицея
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+          <div className="space-y-0.5">
+            <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Всего зачислено</span>
+            <div className="text-lg font-bold text-foreground">{totalStudentsCount} чел.</div>
+            <p className="text-[10px] text-muted-foreground">В базе лицея</p>
+          </div>
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <GraduationCap className="h-4 w-4" />
+          </div>
+        </div>
 
-        <Card className="shadow-none border">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-3.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">
-              Активные аккаунты
-            </span>
-            <UserCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          </CardHeader>
-          <CardContent className="pb-3 px-3.5 pt-0">
-            <div className="text-lg font-bold tracking-tight text-foreground">
-              {activeCount} аккаунтов
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Подтвержденный вход в систему
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+          <div className="space-y-0.5">
+            <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Активные аккаунты</span>
+            <div className="text-lg font-bold text-foreground">{activeCount} чел.</div>
+            <p className="text-[10px] text-muted-foreground">Подтвердили вход</p>
+          </div>
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <UserCheck className="h-4 w-4" />
+          </div>
+        </div>
 
-        <Card className="shadow-none border">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-3.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">
-              Временные пароли
-            </span>
-            <KeyRound className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent className="pb-3 px-3.5 pt-0">
-            <div className="text-lg font-bold tracking-tight text-foreground">
-              {tempPassCount} аккаунтов
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Ожидают смены первого пароля
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
+          <div className="space-y-0.5">
+            <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Временные пароли</span>
+            <div className="text-lg font-bold text-foreground">{tempPassCount} чел.</div>
+            <p className="text-[10px] text-muted-foreground">Ожидают входа</p>
+          </div>
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <KeyRound className="h-4 w-4" />
+          </div>
+        </div>
       </div>
 
-      {/* Compact Filters Toolbar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-muted/20 p-2.5 rounded-xl border">
+      {/* Filters Toolbar & View Toggle */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-muted/20 p-2 rounded-xl border">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
@@ -357,7 +348,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
           {/* Group Filter */}
           <Select value={selectedGroupFilter} onValueChange={(val) => val && setSelectedGroupFilter(val)}>
             <SelectTrigger className="h-8 text-xs w-36 bg-background">
-              <SelectValue placeholder="Все группы">{selectedGroupFilter}</SelectValue>
+              <SelectValue>{selectedGroupFilter}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Все группы">Все группы</SelectItem>
@@ -373,7 +364,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
           {/* Status Filter */}
           <Select value={selectedStatusFilter} onValueChange={(val) => val && setSelectedStatusFilter(val)}>
             <SelectTrigger className="h-8 text-xs w-32 bg-background">
-              <SelectValue placeholder="Все статусы">{selectedStatusFilter}</SelectValue>
+              <SelectValue>{selectedStatusFilter}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Все статусы">Все статусы</SelectItem>
@@ -385,7 +376,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
           {/* Financing Filter */}
           <Select value={selectedTypeFilter} onValueChange={(val) => val && setSelectedTypeFilter(val)}>
             <SelectTrigger className="h-8 text-xs w-28 bg-background">
-              <SelectValue placeholder="Все формы">{selectedTypeFilter}</SelectValue>
+              <SelectValue>{selectedTypeFilter}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Все формы">Все формы</SelectItem>
@@ -406,283 +397,284 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
           )}
 
           {/* View Mode Switcher */}
-          <div className="flex items-center bg-muted/40 p-0.5 rounded-lg border ml-auto sm:ml-0">
-            <Button
-              size="xs"
-              variant={viewMode === "table" ? "default" : "ghost"}
-              onClick={() => setViewMode("table")}
-              className="h-7 px-2 gap-1 text-[11px]"
+          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border text-xs ml-auto sm:ml-0">
+            <button
+              type="button"
+              onClick={() => handleSetViewMode("table")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors font-medium ${
+                viewMode === "table"
+                  ? "bg-background border border-border shadow-2xs text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <List className="h-3 w-3" /> Таблица
-            </Button>
-            <Button
-              size="xs"
-              variant={viewMode === "grid" ? "default" : "ghost"}
-              onClick={() => setViewMode("grid")}
-              className="h-7 px-2 gap-1 text-[11px]"
+              <List className="h-3.5 w-3.5 shrink-0" />
+              <span>Таблица</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetViewMode("grid")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors font-medium ${
+                viewMode === "grid"
+                  ? "bg-background border border-border shadow-2xs text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <LayoutGrid className="h-3 w-3" /> Карточки
-            </Button>
+              <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
+              <span>Карточки</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Content: Table View vs Grid Cards View */}
+      {/* Main Content: Table View vs Grid Cards */}
       {viewMode === "table" ? (
-        <Card className="border shadow-none overflow-hidden">
-          <CardHeader className="py-2.5 px-4 border-b">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                {isAdminOrTeacher && filteredStudents.length > 0 && (
-                  <Checkbox
-                    checked={isAllSelected}
-                    onCheckedChange={handleToggleSelectAll}
-                    aria-label="Выбрать всех"
-                  />
-                )}
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  Приказная ведомость студентов
-                </CardTitle>
-              </div>
-
-              <Badge variant="outline" className="text-[10px]">
-                Записей: {filteredStudents.length}
-              </Badge>
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+            <div className="flex items-center gap-3">
+              {isAdminOrTeacher && filteredStudents.length > 0 && (
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={handleToggleSelectAll}
+                  aria-label="Выбрать всех"
+                />
+              )}
+              <span className="text-xs font-bold text-foreground flex items-center gap-2">
+                <Users className="h-3.5 w-3.5 text-primary" />
+                Ведомость студентов
+              </span>
             </div>
-          </CardHeader>
+            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-medium">
+              {filteredStudents.length} записей
+            </Badge>
+          </div>
 
-          <CardContent className="p-0">
-            <div className="divide-y text-xs">
-              {filteredStudents.map((st, idx) => (
-                <div
-                  key={st.id}
-                  className={`p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 hover:bg-muted/20 transition-colors ${
-                    selectedIds.includes(st.id) ? "bg-primary/5" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {isAdminOrTeacher && (
-                      <Checkbox
-                        checked={selectedIds.includes(st.id)}
-                        onCheckedChange={() => handleToggleSelectStudent(st.id)}
-                      />
-                    )}
-                    <span className="text-muted-foreground w-5 text-[11px] font-semibold text-center">{idx + 1}.</span>
-                    <Avatar className="h-8 w-8 border shrink-0">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-[11px]">
-                        {st.name.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-foreground text-xs flex items-center gap-1.5 flex-wrap">
-                        <Link href={`/dashboard/students/${st.id}/edit`} className="hover:underline hover:text-primary transition-colors truncate">
-                          {st.name}
-                        </Link>
-                        <Badge
-                          variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"}
-                          className="text-[9px] px-1.5 py-0"
-                        >
-                          {st.enrollmentType}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={
-                            st.accountStatus === "Активен"
-                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[9px] px-1.5 py-0"
-                              : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[9px] px-1.5 py-0"
-                          }
-                        >
-                          <Lock className="h-2.5 w-2.5 mr-0.5" />
-                          {st.accountStatus}
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground text-[11px] mt-0.5">
-                        <span className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" /> {st.email}
-                        </span>
-                        {st.phone && (
-                          <span className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" /> {st.phone}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2.5 pl-8 lg:pl-0 shrink-0">
-                    <div className="text-right">
-                      <div className="text-[10px] text-muted-foreground">Группа</div>
-                      <Badge variant="outline" className="text-[11px] font-medium px-1.5 py-0">
-                        {st.groupName}
+          <div className="divide-y text-xs">
+            {filteredStudents.map((st, idx) => (
+              <div
+                key={st.id}
+                className={`p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 hover:bg-muted/20 transition-colors ${
+                  selectedIds.includes(st.id) ? "bg-primary/5" : ""
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {isAdminOrTeacher && (
+                    <Checkbox
+                      checked={selectedIds.includes(st.id)}
+                      onCheckedChange={() => handleToggleSelectStudent(st.id)}
+                    />
+                  )}
+                  <span className="text-muted-foreground w-5 text-[10px] font-semibold text-center">{idx + 1}.</span>
+                  <Avatar className="h-7 w-7 border shrink-0">
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-[10px]">
+                      {st.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-xs text-foreground flex items-center gap-1.5 flex-wrap">
+                      <Link href={`/dashboard/students/${st.id}/edit`} className="hover:underline hover:text-primary transition-colors truncate">
+                        {st.name}
+                      </Link>
+                      <Badge
+                        variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"}
+                        className="text-[8px] px-1 py-0 font-medium"
+                      >
+                        {st.enrollmentType}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={
+                          st.accountStatus === "Активен"
+                            ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
+                            : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
+                        }
+                      >
+                        <Lock className="h-2.5 w-2.5 mr-0.5" />
+                        {st.accountStatus}
                       </Badge>
                     </div>
-
-                    <div className="text-right hidden sm:block">
-                      <div className="text-[10px] text-muted-foreground">Зачислен</div>
-                      <div className="font-medium text-foreground text-[11px]">{st.enrollmentDate}</div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground text-[10px] mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Mail className="h-3 w-3" /> {st.email}
+                      </span>
+                      {st.phone && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {st.phone}
+                        </span>
+                      )}
                     </div>
-
-                    {isAdminOrTeacher && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          render={<Link href={`/dashboard/students/${st.id}/edit`} />}
-                          className="text-[11px] h-7 px-2"
-                        >
-                          <Edit className="h-3 w-3 mr-1 text-primary" /> Изменить
-                        </Button>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground" />}>
-                            <MoreVertical className="h-3.5 w-3.5" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuGroup>
-                              <DropdownMenuLabel>Действия с аккаунтом</DropdownMenuLabel>
-                            </DropdownMenuGroup>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
-                              <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать данные
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
-                              <KeyRound className="h-3.5 w-3.5 mr-2 text-amber-500" /> Сбросить пароль
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setSingleDeleteTarget(st)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Удалить из БД
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    )}
                   </div>
                 </div>
-              ))}
 
-              {filteredStudents.length === 0 && (
-                <div className="p-8 text-center text-muted-foreground text-xs space-y-2">
-                  <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
-                  <div>Студенты не найдены</div>
-                  {isAnyFilterActive && (
-                    <Button size="xs" variant="outline" onClick={handleResetAllFilters} className="mt-1 text-xs">
-                      Сбросить фильтры
-                    </Button>
+                <div className="flex items-center gap-2.5 pl-8 lg:pl-0 shrink-0">
+                  <div className="text-right">
+                    <div className="text-[9px] text-muted-foreground">Группа</div>
+                    <Badge variant="outline" className="text-[10px] font-medium px-1.5 py-0">
+                      {st.groupName}
+                    </Badge>
+                  </div>
+
+                  <div className="text-right hidden sm:block">
+                    <div className="text-[9px] text-muted-foreground">Зачислен</div>
+                    <div className="font-medium text-foreground text-[10px]">{st.enrollmentDate}</div>
+                  </div>
+
+                  {isAdminOrTeacher && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        render={<Link href={`/dashboard/students/${st.id}/edit`} />}
+                        className="h-7 text-xs px-2"
+                      >
+                        <Edit className="h-3 w-3 mr-1 text-primary" /> Изменить
+                      </Button>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground" />}>
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuGroup>
+                            <DropdownMenuLabel>Управление аккаунтом</DropdownMenuLabel>
+                          </DropdownMenuGroup>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
+                            <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать данные
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
+                            <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setSingleDeleteTarget(st)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Удалить из базы
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            ))}
+
+            {filteredStudents.length === 0 && (
+              <div className="p-8 text-center text-muted-foreground text-xs space-y-2">
+                <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
+                <div>Студенты не найдены</div>
+                {isAnyFilterActive && (
+                  <Button size="xs" variant="outline" onClick={handleResetAllFilters} className="mt-1 text-xs">
+                    Сбросить фильтры
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       ) : (
         /* Grid Cards View */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredStudents.map((st) => (
-            <Card
+            <div
               key={st.id}
-              className={`border shadow-none hover:border-primary/40 transition-all ${
+              className={`rounded-xl border bg-card p-3 space-y-2.5 text-xs hover:border-primary/40 transition-all ${
                 selectedIds.includes(st.id) ? "border-primary/60 bg-primary/5" : ""
               }`}
             >
-              <CardContent className="p-3 space-y-2.5 text-xs">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {isAdminOrTeacher && (
-                      <Checkbox
-                        checked={selectedIds.includes(st.id)}
-                        onCheckedChange={() => handleToggleSelectStudent(st.id)}
-                      />
-                    )}
-                    <Avatar className="h-8 w-8 border shrink-0">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-[11px]">
-                        {st.name.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <Link
-                        href={`/dashboard/students/${st.id}/edit`}
-                        className="font-bold text-xs text-foreground hover:underline hover:text-primary transition-colors line-clamp-1"
-                      >
-                        {st.name}
-                      </Link>
-                      <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                        <Mail className="h-3 w-3" /> {st.email}
-                      </p>
-                    </div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {isAdminOrTeacher && (
+                    <Checkbox
+                      checked={selectedIds.includes(st.id)}
+                      onCheckedChange={() => handleToggleSelectStudent(st.id)}
+                    />
+                  )}
+                  <Avatar className="h-7 w-7 border shrink-0">
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-[10px]">
+                      {st.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <Link
+                      href={`/dashboard/students/${st.id}/edit`}
+                      className="font-bold text-xs text-foreground hover:underline hover:text-primary transition-colors line-clamp-1"
+                    >
+                      {st.name}
+                    </Link>
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                      <Mail className="h-3 w-3" /> {st.email}
+                    </p>
                   </div>
+                </div>
 
-                  <Badge variant="outline" className="text-[10px] font-semibold shrink-0">
-                    {st.groupName}
+                <Badge variant="outline" className="text-[9px] font-semibold shrink-0">
+                  {st.groupName}
+                </Badge>
+              </div>
+
+              <div className="pt-2 border-t space-y-1.5 text-[10px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Форма обучения:</span>
+                  <Badge variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"} className="text-[8px] px-1 py-0 font-medium">
+                    {st.enrollmentType}
                   </Badge>
                 </div>
 
-                <div className="pt-2 border-t space-y-1.5 text-[11px]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Форма обучения:</span>
-                    <Badge variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"} className="text-[9px] px-1.5 py-0">
-                      {st.enrollmentType}
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Статус аккаунта:</span>
-                    <Badge
-                      variant="outline"
-                      className={
-                        st.accountStatus === "Активен"
-                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[9px] px-1.5 py-0"
-                          : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[9px] px-1.5 py-0"
-                      }
-                    >
-                      <Lock className="h-2.5 w-2.5 mr-0.5" />
-                      {st.accountStatus}
-                    </Badge>
-                  </div>
-
-                  {st.phone && (
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Телефон:</span>
-                      <span className="font-medium text-foreground">{st.phone}</span>
-                    </div>
-                  )}
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Статус аккаунта:</span>
+                  <Badge
+                    variant="outline"
+                    className={
+                      st.accountStatus === "Активен"
+                        ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
+                        : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
+                    }
+                  >
+                    <Lock className="h-2.5 w-2.5 mr-0.5" />
+                    {st.accountStatus}
+                  </Badge>
                 </div>
 
-                {isAdminOrTeacher && (
-                  <div className="pt-2 border-t flex items-center justify-between gap-1.5">
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      render={<Link href={`/dashboard/students/${st.id}/edit`} />}
-                      className="flex-1 text-[11px] h-7"
-                    >
-                      <Edit className="h-3 w-3 mr-1" /> Изменить
-                    </Button>
-
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => handleOpenResetPassword(st)}
-                      className="text-[11px] h-7 text-amber-600 hover:text-amber-700"
-                    >
-                      <KeyRound className="h-3 w-3 mr-1" /> Пароль
-                    </Button>
-
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => setSingleDeleteTarget(st)}
-                      className="h-7 w-7 text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                {st.phone && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Телефон:</span>
+                    <span className="font-medium text-foreground">{st.phone}</span>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+
+              {isAdminOrTeacher && (
+                <div className="pt-2 border-t flex items-center justify-between gap-1.5">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    render={<Link href={`/dashboard/students/${st.id}/edit`} />}
+                    className="flex-1 text-xs h-7"
+                  >
+                    <Edit className="h-3 w-3 mr-1" /> Изменить
+                  </Button>
+
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => handleOpenResetPassword(st)}
+                    className="text-xs h-7"
+                  >
+                    <KeyRound className="h-3 w-3 mr-1" /> Пароль
+                  </Button>
+
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setSingleDeleteTarget(st)}
+                    className="h-7 w-7 text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -690,7 +682,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
       {/* Floating Sticky Dock for Bulk Selection Actions */}
       {selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card border shadow-xl rounded-xl px-4 py-2 flex items-center gap-3 animate-in slide-in-from-bottom-4 duration-200">
-          <Badge variant="secondary" className="font-mono text-[11px] px-2 py-0.5">
+          <Badge variant="secondary" className="font-mono text-[10px] px-2 py-0.5 font-medium">
             Выбрано: {selectedIds.length} чел.
           </Badge>
 
@@ -702,7 +694,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
             className="gap-1.5 h-7 text-xs"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            {isDeleting ? "Удаление..." : `Удалить из БД (${selectedIds.length})`}
+            {isDeleting ? "Удаление..." : `Удалить (${selectedIds.length})`}
           </Button>
 
           <Button
@@ -719,17 +711,17 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
       {/* Dialog for Resetting Password */}
       <Dialog open={resetTargetStudent !== null} onOpenChange={(open) => !open && setResetTargetStudent(null)}>
         {resetTargetStudent && (
-          <DialogContent className="sm:max-w-[420px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base">
-                <KeyRound className="h-4.5 w-4.5 text-primary" /> Сброс пароля студента
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+            <DialogHeader className="pb-2 border-b gap-1">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <KeyRound className="h-4 w-4 text-primary" /> Сброс пароля студента
               </DialogTitle>
               <DialogDescription className="text-xs">
                 Новый временный пароль для <strong>{resetTargetStudent.name}</strong>
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-3 py-1 text-xs">
               <div className="p-2.5 rounded-lg border bg-muted/20 space-y-1.5">
                 <div className="text-[10px] text-muted-foreground">Временный пароль:</div>
                 <div className="flex items-center justify-between bg-background p-2 rounded border">
@@ -763,19 +755,19 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
               </div>
             </div>
 
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline" size="xs" />}>
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setResetTargetStudent(null)}>
                 Отмена
-              </DialogClose>
+              </Button>
               <Button size="xs" onClick={handleConfirmPasswordReset}>
-                Подтвердить сброс
+                Подтвердить
               </Button>
             </DialogFooter>
           </DialogContent>
         )}
       </Dialog>
 
-      {/* Shadcn AlertDialog for Bulk or Single Delete Confirmation */}
+      {/* AlertDialog for Bulk or Single Delete Confirmation */}
       <AlertDialog
         open={isConfirmDeleteDialogOpen || singleDeleteTarget !== null}
         onOpenChange={(open) => {
@@ -785,20 +777,20 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
           }
         }}
       >
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="h-5 w-5" /> Подтверждение удаления
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="text-left place-items-start gap-1">
+            <AlertDialogTitle className="flex items-center gap-2 text-sm font-bold text-destructive">
+              <AlertTriangle className="h-4 w-4" /> Подтверждение удаления
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs">
+            <AlertDialogDescription className="text-xs text-muted-foreground">
               {singleDeleteTarget ? (
                 <>
-                  Вы действительно хотите безвозвратно удалить студента <strong>{singleDeleteTarget.name}</strong> из системы и базы данных?
+                  Вы действительно хотите безвозвратно удалить студента <strong>{singleDeleteTarget.name}</strong> из системы?
                 </>
               ) : (
                 <>
                   Вы действительно хотите безвозвратно удалить выбранных студентов (
-                  <strong>{selectedIds.length} чел.</strong>) из системы и базы данных?
+                  <strong>{selectedIds.length} чел.</strong>) из системы?
                 </>
               )}
             </AlertDialogDescription>
@@ -810,18 +802,18 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
             </div>
           )}
 
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting} size="sm">
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <AlertDialogCancel disabled={isDeleting} className="h-7 text-xs px-3">
               Отмена
             </AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               variant="destructive"
-              size="sm"
               onClick={handleConfirmBulkDelete}
               disabled={isDeleting}
+              className="h-7 text-xs px-3"
             >
-              {isDeleting ? "Удаление..." : "Удалить из БД"}
-            </Button>
+              {isDeleting ? "Удаление..." : "Удалить"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
