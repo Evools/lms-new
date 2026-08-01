@@ -368,7 +368,7 @@ export function MaterialsView({
       {/* MAIN LAYOUT MATCHING USER FIGMA SCREENSHOT (Sidebar + Content View) */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
         {/* LEFT SIDEBAR: CHAPTERS & MATERIALS TREE */}
-        <div className="md:col-span-4 lg:col-span-3 bg-card rounded-xl border p-3.5 space-y-3 shadow-xs">
+        <div className="md:col-span-4 lg:col-span-3 bg-card rounded-xl border p-3.5 space-y-3 shadow-xs sticky top-16 max-h-[calc(100vh-5rem)] overflow-y-auto z-10">
           {/* Header */}
           <div className="flex items-center justify-between border-b pb-2">
             <div>
@@ -399,7 +399,7 @@ export function MaterialsView({
           )}
 
           {/* Chapters Accordion List */}
-          <div className="space-y-1 pt-1 max-h-[600px] overflow-y-auto pr-1">
+          <div className="space-y-1 pt-1 overflow-y-auto pr-1">
             {topicsWithMaterials.map((topic, topicIdx) => {
               const isExpanded = expandedTopics[topic.id] ?? true;
               const topicMats = topic.materials || [];
