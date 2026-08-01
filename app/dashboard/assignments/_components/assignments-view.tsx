@@ -61,22 +61,18 @@ import {
 import { renderMarkdown } from "@/lib/markdown";
 import { Textarea } from "@/components/ui/textarea";
 
-interface AttachmentLink {
-  title: string;
-  url: string;
-}
-
-function parseAttachmentLinks(fileUrl?: string | null): AttachmentLink[] {
+function parseAttachmentLinks(fileUrl?: string | null): string[] {
   if (!fileUrl) return [];
   try {
     const parsed = JSON.parse(fileUrl);
     if (Array.isArray(parsed)) {
-      return parsed.filter((item) => item.url && item.url.trim() !== "");
+      return parsed
+        .map((item: any) => (typeof item === "string" ? item : item?.url || ""))
+        .filter(Boolean);
     }
-  } catch {
-    if (fileUrl.trim().startsWith("http://") || fileUrl.trim().startsWith("https://")) {
-      return [{ title: "Прикреплённый материал", url: fileUrl.trim() }];
-    }
+  } catch {}
+  if (fileUrl.trim().startsWith("http://") || fileUrl.trim().startsWith("https://")) {
+    return [fileUrl.trim()];
   }
   return [];
 }
@@ -112,9 +108,7 @@ export function AssignmentsView({
   const [newTitle, setNewTitle] = useState<string>("");
   const [newDescription, setNewDescription] = useState<string>("");
   const [newDueDate, setNewDueDate] = useState<string>("");
-  const [attachmentLinks, setAttachmentLinks] = useState<AttachmentLink[]>([
-    { title: "", url: "" },
-  ]);
+  const [attachmentUrls, setAttachmentUrls] = useState<string[]>([""]);
 
   // Modal 2: Student Submission Modal
   const [submitTargetAssignment, setSubmitTargetAssignment] = useState<AssignmentDTO | null>(null);
@@ -140,19 +134,19 @@ export function AssignmentsView({
     router.push(`/dashboard/assignments?group=${val}`);
   };
 
-  // Attachment Links Handlers
-  const handleAddAttachmentLink = () => {
-    setAttachmentLinks((prev) => [...prev, { title: "", url: "" }]);
+  // Attachment URL Handlers
+  const handleAddAttachmentUrl = () => {
+    setAttachmentUrls((prev) => [...prev, ""]);
   };
 
-  const handleRemoveAttachmentLink = (index: number) => {
-    setAttachmentLinks((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveAttachmentUrl = (index: number) => {
+    setAttachmentUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpdateAttachmentLink = (index: number, field: "title" | "url", value: string) => {
-    setAttachmentLinks((prev) => {
+  const handleUpdateAttachmentUrl = (index: number, value: string) => {
+    setAttachmentUrls((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
+      copy[index] = value;
       return copy;
     });
   };
@@ -163,7 +157,7 @@ export function AssignmentsView({
     setNewTitle("");
     setNewDescription("");
     setNewDueDate("");
-    setAttachmentLinks([{ title: "", url: "" }]);
+    setAttachmentUrls([""]);
   };
 
   // Create Assignment Submit
@@ -173,8 +167,8 @@ export function AssignmentsView({
       return;
     }
 
-    const validLinks = attachmentLinks.filter((l) => l.url.trim().length > 0);
-    const serializedFileUrl = validLinks.length > 0 ? JSON.stringify(validLinks) : undefined;
+    const validUrls = attachmentUrls.map((u) => u.trim()).filter(Boolean);
+    const serializedFileUrl = validUrls.length > 0 ? JSON.stringify(validUrls) : undefined;
 
     setErrorMsg(null);
     startTransition(async () => {
@@ -192,7 +186,7 @@ export function AssignmentsView({
         setNewTitle("");
         setNewDescription("");
         setNewDueDate("");
-        setAttachmentLinks([{ title: "", url: "" }]);
+        setAttachmentUrls([""]);
         router.refresh();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
@@ -465,7 +459,7 @@ export function AssignmentsView({
                 {attachmentLinksList.length > 0 && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
                     <Paperclip className="h-3 w-3 shrink-0" />
-                    {attachmentLinksList.length} {attachmentLinksList.length === 1 ? "файл" : "файла"}
+                    {attachmentLinksList.length} {attachmentLinksList.length === 1 ? "ссылка" : "ссылки"}
                   </span>
                 )}
               </div>
@@ -622,17 +616,17 @@ export function AssignmentsView({
                   <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                     <Paperclip className="h-3.5 w-3.5 text-primary" /> Прикреплённые ресурсы и ссылки:
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {parseAttachmentLinks(viewTargetAssignment.fileUrl).map((link, idx) => (
+                  <div className="flex flex-col gap-2">
+                    {parseAttachmentLinks(viewTargetAssignment.fileUrl).map((url, idx) => (
                       <a
                         key={idx}
-                        href={link.url}
+                        href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-md border border-primary/20 transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-mono bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-md border border-primary/20 transition-colors truncate"
                       >
                         <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                        <span>{link.title || link.url}</span>
+                        <span className="truncate">{url}</span>
                       </a>
                     ))}
                   </div>
@@ -715,7 +709,7 @@ export function AssignmentsView({
               />
             </div>
 
-            {/* Dynamic Attachment Links Section */}
+            {/* Dynamic Attachment URLs Section */}
             <div className="space-y-2 pt-2 border-t">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
@@ -725,7 +719,7 @@ export function AssignmentsView({
                   type="button"
                   size="xs"
                   variant="outline"
-                  onClick={handleAddAttachmentLink}
+                  onClick={handleAddAttachmentUrl}
                   className="h-6 px-2 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10"
                 >
                   <PlusCircle className="h-3 w-3" /> Добавить ссылку
@@ -733,31 +727,30 @@ export function AssignmentsView({
               </div>
 
               <div className="space-y-2">
-                {attachmentLinks.map((link, idx) => (
+                {attachmentUrls.map((url, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     <Input
-                      placeholder="Название (например: Презентация / Figma / PDF)"
-                      value={link.title}
-                      onChange={(e) => handleUpdateAttachmentLink(idx, "title", e.target.value)}
-                      className="h-8 text-xs bg-background w-1/3"
-                    />
-                    <Input
                       placeholder="https://..."
-                      value={link.url}
-                      onChange={(e) => handleUpdateAttachmentLink(idx, "url", e.target.value)}
+                      value={url}
+                      onChange={(e) => handleUpdateAttachmentUrl(idx, e.target.value)}
                       className="h-8 text-xs bg-background flex-1 font-mono"
                     />
-                    {attachmentLinks.length > 1 && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => handleRemoveAttachmentLink(idx)}
-                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 shrink-0"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                    {url.trim() && (
+                      <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
+                        <Button type="button" size="xs" variant="ghost" className="h-8 w-8 p-0">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                      </a>
                     )}
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => handleRemoveAttachmentUrl(idx)}
+                      className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 ))}
               </div>

@@ -72,10 +72,6 @@ interface CreateAssignmentViewProps {
   defaultGroupId?: string;
 }
 
-interface AttachmentLink {
-  title: string;
-  url: string;
-}
 
 const PRESET_TEMPLATES = [
   {
@@ -184,9 +180,7 @@ export function CreateAssignmentView({
   const [maxScore, setMaxScore] = useState<string>("100");
   const [mode, setMode] = useState<"EDIT" | "PREVIEW">("EDIT");
 
-  const [attachmentLinks, setAttachmentLinks] = useState<AttachmentLink[]>([
-    { title: "", url: "" },
-  ]);
+  const [attachmentUrls, setAttachmentUrls] = useState<string[]>([""]);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -379,23 +373,19 @@ export function CreateAssignmentView({
     }, 50);
   };
 
-  // Attachment Link Handlers
-  const handleAddAttachmentLink = () => {
-    setAttachmentLinks((prev) => [...prev, { title: "", url: "" }]);
+  // Attachment URL Handlers
+  const handleAddAttachmentUrl = () => {
+    setAttachmentUrls((prev) => [...prev, ""]);
   };
 
-  const handleRemoveAttachmentLink = (index: number) => {
-    setAttachmentLinks((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveAttachmentUrl = (index: number) => {
+    setAttachmentUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpdateAttachmentLink = (
-    index: number,
-    field: "title" | "url",
-    value: string
-  ) => {
-    setAttachmentLinks((prev) => {
+  const handleUpdateAttachmentUrl = (index: number, value: string) => {
+    setAttachmentUrls((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
+      copy[index] = value;
       return copy;
     });
   };
@@ -415,8 +405,8 @@ export function CreateAssignmentView({
       return;
     }
 
-    const validLinks = attachmentLinks.filter((l) => l.url.trim().length > 0);
-    const serializedFileUrl = validLinks.length > 0 ? JSON.stringify(validLinks) : undefined;
+    const validUrls = attachmentUrls.map((u) => u.trim()).filter(Boolean);
+    const serializedFileUrl = validUrls.length > 0 ? JSON.stringify(validUrls) : undefined;
 
     setErrorMsg(null);
     startTransition(async () => {
@@ -438,7 +428,7 @@ export function CreateAssignmentView({
   };
 
   return (
-    <div className="w-full space-y-4 pb-12 text-xs">
+    <div className="w-full space-y-3 pb-4 text-xs">
       {/* Navigation Topbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
         <div className="flex items-center gap-2">
@@ -485,10 +475,10 @@ export function CreateAssignmentView({
       )}
 
       {/* Full-width Grid: Left = Editor Canvas (2 cols), Right = Settings Panel (1 col) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Left Column: Title & Main WYSIWYG Editor Canvas */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="border shadow-none p-4 space-y-3">
+        <div className="lg:col-span-2 space-y-3">
+          <Card className="border shadow-none p-3 space-y-2.5">
             {/* Assignment Title Field */}
             <div className="space-y-1">
               <label className="font-medium text-muted-foreground text-[10px] uppercase tracking-wider">
@@ -503,7 +493,7 @@ export function CreateAssignmentView({
             </div>
 
             {/* WYSIWYG Visual Editor Controls */}
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2">
               <div className="bg-muted/40 p-2.5 rounded-lg border space-y-2">
                 {/* Top Control Bar: Mode Toggle & Templates Dropdown */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
@@ -706,7 +696,7 @@ export function CreateAssignmentView({
                     value={description}
                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className="text-xs bg-background min-h-[380px] font-mono leading-relaxed p-4 border focus:ring-primary shadow-none"
+                    className="text-xs bg-background min-h-[280px] font-mono leading-relaxed p-3 border focus:ring-primary shadow-none"
                   />
                   {/* Live Text Stats Bar */}
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
@@ -723,7 +713,7 @@ export function CreateAssignmentView({
                   </div>
                 </div>
               ) : (
-                <div className="min-h-[380px] p-5 border rounded-lg bg-card text-xs space-y-3 leading-relaxed">
+                <div className="min-h-[280px] p-4 border rounded-lg bg-card text-xs space-y-2 leading-relaxed">
                   {description ? (
                     renderMarkdown(description, (lineIndex) => {
                       const lines = description.split("\n");
@@ -748,16 +738,16 @@ export function CreateAssignmentView({
         </div>
 
         {/* Right Column: Settings, Metadata & Attachments Sidebar */}
-        <div className="space-y-3 sticky top-20 z-10 self-start">
+        <div className="space-y-2.5 sticky top-20 z-10 self-start">
           {/* Metadata Card */}
-          <div className="rounded-xl border bg-card p-3.5 space-y-2.5 text-xs shadow-xs">
-            <CardHeader className="p-0 pb-2 border-b">
+          <div className="rounded-xl border bg-card p-3 space-y-2 text-xs shadow-xs">
+            <CardHeader className="p-0 pb-1.5 border-b">
               <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <Building2 className="h-4 w-4 text-primary" /> Параметры публикации
               </CardTitle>
             </CardHeader>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-2 text-xs">
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Учебная группа</label>
                 <Select value={selectedGroupId} onValueChange={handleGroupChange}>
@@ -821,8 +811,8 @@ export function CreateAssignmentView({
           </div>
 
           {/* Attachments Card */}
-          <Card className="border shadow-none p-4 space-y-3">
-            <div className="flex items-center justify-between border-b pb-2">
+          <Card className="border shadow-none p-3 space-y-2.5">
+            <div className="flex items-center justify-between border-b pb-1.5">
               <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <Paperclip className="h-4 w-4 text-primary" /> Материалы & Ссылки
               </CardTitle>
@@ -830,7 +820,7 @@ export function CreateAssignmentView({
                 type="button"
                 size="xs"
                 variant="outline"
-                onClick={handleAddAttachmentLink}
+                onClick={handleAddAttachmentUrl}
                 className="h-6 px-2 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10 shadow-none font-medium"
               >
                 <PlusCircle className="h-3 w-3" /> Ссылка
@@ -838,47 +828,43 @@ export function CreateAssignmentView({
             </div>
 
             <div className="space-y-2">
-              {attachmentLinks.map((link, idx) => (
-                <div key={idx} className="p-2 border rounded-lg bg-muted/20 space-y-1.5">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[10px] font-medium text-muted-foreground">Ресурс #{idx + 1}</span>
-                    {attachmentLinks.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttachmentLink(idx)}
-                        className="text-destructive hover:text-destructive/80 p-0.5"
-                        title="Удалить ссылку"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                  <Input
-                    placeholder="Название (например: Файл PDF)"
-                    value={link.title}
-                    onChange={(e) => handleUpdateAttachmentLink(idx, "title", e.target.value)}
-                    className="h-7 text-xs bg-background shadow-none"
-                  />
+              {attachmentUrls.map((url, idx) => (
+                <div key={idx} className="flex items-center gap-2">
                   <Input
                     placeholder="https://..."
-                    value={link.url}
-                    onChange={(e) => handleUpdateAttachmentLink(idx, "url", e.target.value)}
-                    className="h-7 text-xs bg-background font-mono text-[11px] shadow-none"
+                    value={url}
+                    onChange={(e) => handleUpdateAttachmentUrl(idx, e.target.value)}
+                    className="h-7 text-xs bg-background shadow-none font-mono flex-1"
                   />
+                  {url.trim() && (
+                    <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
+                      <Button type="button" size="xs" variant="ghost" className="h-7 w-7 p-0 shadow-none">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttachmentUrl(idx)}
+                    className="text-destructive hover:text-destructive/80 p-0.5 shrink-0"
+                    title="Удалить ссылку"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
             </div>
           </Card>
 
           {/* Publishing Actions Card */}
-          <Card className="border shadow-none p-4 space-y-2">
+          <div className="flex flex-col gap-1.5">
             <Button
               size="xs"
               disabled={isPending}
               onClick={handleSubmit}
-              className="w-full h-9 text-xs gap-2 font-medium shadow-none"
+              className="w-full h-8 text-xs gap-1.5 font-medium shadow-none"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
               {isPending ? "Публикация..." : "Опубликовать задание"}
             </Button>
 
@@ -887,7 +873,7 @@ export function CreateAssignmentView({
                 Отмена и возврат
               </Button>
             </Link>
-          </Card>
+          </div>
         </div>
       </div>
     </div>
