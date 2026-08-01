@@ -766,6 +766,137 @@ export async function createTestAction(data: {
   }
 }
 
+export async function getTestForEditAction(testId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Не авторизован" };
+    }
+
+    const test = await prisma.test.findUnique({
+      where: { id: testId },
+      include: {
+        groupSubject: {
+          include: {
+            group: true,
+            subject: true,
+          },
+        },
+        questions: {
+          orderBy: { order: "asc" },
+        },
+      },
+    });
+
+    if (!test) {
+      return { success: false, error: "Тест не найден" };
+    }
+
+    const parsedQuestions = test.questions.map((q) => {
+      let opts: string[] = [];
+      try {
+        opts = JSON.parse(q.options);
+      } catch {
+        opts = [];
+      }
+      return {
+        id: q.id,
+        type: (q.type as any) || "SINGLE",
+        questionText: q.questionText,
+        options: opts,
+        correctAnswer: q.correctAnswer,
+        points: q.points,
+      };
+    });
+
+    return {
+      success: true,
+      test: {
+        id: test.id,
+        title: test.title,
+        description: test.description || "",
+        timeLimit: test.timeLimit,
+        shuffleQuestions: test.shuffleQuestions,
+        shuffleOptions: test.shuffleOptions,
+        groupId: test.groupSubject.groupId,
+        groupSubjectId: test.groupSubjectId,
+        topicId: test.topicId || "",
+        questions: parsedQuestions,
+      },
+    };
+  } catch (err) {
+    console.error("getTestForEditAction error:", err);
+    return { success: false, error: "Ошибка при получении теста" };
+  }
+}
+
+export async function updateTestAction(
+  testId: string,
+  data: {
+    groupSubjectId: string;
+    topicId?: string;
+    title: string;
+    description?: string;
+    timeLimit?: number;
+    shuffleQuestions?: boolean;
+    shuffleOptions?: boolean;
+    questions: Array<{
+      type?: string;
+      questionText: string;
+      options: string[];
+      correctAnswer: string;
+      points?: number;
+    }>;
+  }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Не авторизован" };
+    }
+
+    if (!data.groupSubjectId || !data.title.trim() || !data.questions || data.questions.length === 0) {
+      return { success: false, error: "Укажите дисциплину, название и добавьте хотя бы 1 вопрос" };
+    }
+
+    await prisma.test.update({
+      where: { id: testId },
+      data: {
+        groupSubjectId: data.groupSubjectId,
+        topicId: data.topicId || null,
+        title: data.title.trim(),
+        description: data.description?.trim() || null,
+        timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
+        shuffleQuestions: !!data.shuffleQuestions,
+        shuffleOptions: !!data.shuffleOptions,
+      },
+    });
+
+    await prisma.testQuestion.deleteMany({
+      where: { testId },
+    });
+
+    await prisma.testQuestion.createMany({
+      data: data.questions.map((q, idx) => ({
+        testId,
+        type: q.type || "SINGLE",
+        questionText: q.questionText.trim(),
+        options: JSON.stringify(q.options.filter((o) => o.trim().length > 0)),
+        correctAnswer: q.correctAnswer.trim(),
+        points: q.points ? Number(q.points) : 1,
+        order: idx,
+      })),
+    });
+
+    revalidatePath("/dashboard/lms/tests");
+    revalidatePath("/dashboard/lms");
+    return { success: true };
+  } catch (err) {
+    console.error("updateTestAction error:", err);
+    return { success: false, error: "Ошибка при обновлении теста" };
+  }
+}
+
 export async function submitTestAnswersAction(data: {
   testId: string;
   answers: Record<string, string>; // questionId -> selectedOption

@@ -42,6 +42,7 @@ import {
   Eye,
   FileText,
   Check,
+  Pencil,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -423,27 +424,40 @@ export function TestsView({
               <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
                 {canCreate ? (
                   /* Teacher / Admin Controls */
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => setViewSubmissionsTest(test)}
-                      className="h-7 text-xs gap-1.5 font-medium"
-                    >
-                      <FileText className="h-3.5 w-3.5 text-primary" />
-                      Результаты ({test.submissionsCount})
-                    </Button>
+                    <div className="flex items-center justify-between w-full gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => setViewSubmissionsTest(test)}
+                          className="h-7 text-xs gap-1.5 font-medium"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-primary" />
+                          Результаты ({test.submissionsCount})
+                        </Button>
 
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => handleDeleteTest(test.id)}
-                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                      title="Удалить тест"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                        <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                            title="Редактировать тест"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                      </div>
+
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => handleDeleteTest(test.id)}
+                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                        title="Удалить тест"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                 ) : (
                   /* Student Controls */
                   <div className="flex items-center justify-between w-full gap-2">
