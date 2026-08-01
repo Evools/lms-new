@@ -1190,13 +1190,31 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {group.studentsList
+                    {[...group.studentsList]
                       .filter((s) => !dutyModalDay.dutyStudents.some((ds) => ds.id === s.id))
-                      .map((st) => (
-                        <SelectItem key={st.id} value={st.id} className="text-xs">
-                          {st.name}
-                        </SelectItem>
-                      ))}
+                      .sort((a, b) => {
+                        const aOnDuty = weeklyDays.some((d) => d.dutyStudents.some((ds) => ds.id === a.id));
+                        const bOnDuty = weeklyDays.some((d) => d.dutyStudents.some((ds) => ds.id === b.id));
+                        if (aOnDuty !== bOnDuty) return aOnDuty ? 1 : -1;
+                        return a.name.localeCompare(b.name);
+                      })
+                      .map((st) => {
+                        const isAlreadyOnDutyThisWeek = weeklyDays.some(
+                          (d) => d.dutyStudents.some((ds) => ds.id === st.id)
+                        );
+                        return (
+                          <SelectItem key={st.id} value={st.id} className="text-xs">
+                            <div className="flex items-center justify-between w-full gap-2">
+                              <span>{st.name}</span>
+                              {isAlreadyOnDutyThisWeek && (
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">
+                                  (Уже дежурит на этой неделе)
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
                 </Select>
               </div>

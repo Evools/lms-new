@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Seeding database with hashed passwords...");
+  console.log("Seeding database with full student roster...");
 
   const hashedPassword = await bcrypt.hash("password123", 10);
 
@@ -44,34 +44,43 @@ async function main() {
     },
   });
 
-  // Student (Monitor)
-  const monitor = await prisma.user.upsert({
-    where: { email: "starosta@lyceum.edu" },
-    update: { password: hashedPassword },
-    create: {
-      email: "starosta@lyceum.edu",
-      password: hashedPassword,
-      name: "Петров Алексей",
-      role: Role.STUDENT,
-    },
-  });
+  // Roster of 12 Students
+  const studentRoster = [
+    { email: "starosta@lyceum.edu", name: "Петров Алексей (Староста)", role: Role.STUDENT },
+    { email: "student2@lyceum.edu", name: "Сидорова Анна", role: Role.STUDENT },
+    { email: "student3@lyceum.edu", name: "Абдрахманов Эльдар", role: Role.STUDENT },
+    { email: "student4@lyceum.edu", name: "Жаныбекова Асель", role: Role.STUDENT },
+    { email: "student5@lyceum.edu", name: "Токтосунов Адилет", role: Role.STUDENT },
+    { email: "student6@lyceum.edu", name: "Нурланова Динара", role: Role.STUDENT },
+    { email: "student7@lyceum.edu", name: "Эркинбеков Бекназар", role: Role.STUDENT },
+    { email: "student8@lyceum.edu", name: "Касымов Бактыбек", role: Role.STUDENT },
+    { email: "student9@lyceum.edu", name: "Саматова Алина", role: Role.STUDENT },
+    { email: "student10@lyceum.edu", name: "Асанов Марат", role: Role.STUDENT },
+    { email: "student11@lyceum.edu", name: "Бакиров Данияр", role: Role.STUDENT },
+    { email: "student12@lyceum.edu", name: "Сулайманова Айгерим", role: Role.STUDENT },
+  ];
 
-  // Student 2
-  const student2 = await prisma.user.upsert({
-    where: { email: "student2@lyceum.edu" },
-    update: { password: hashedPassword },
-    create: {
-      email: "student2@lyceum.edu",
-      password: hashedPassword,
-      name: "Сидорова Анна",
-      role: Role.STUDENT,
-    },
-  });
+  const createdStudents = [];
+  for (const st of studentRoster) {
+    const u = await prisma.user.upsert({
+      where: { email: st.email },
+      update: { password: hashedPassword, name: st.name },
+      create: {
+        email: st.email,
+        password: hashedPassword,
+        name: st.name,
+        role: st.role,
+      },
+    });
+    createdStudents.push(u);
+  }
+
+  const monitor = createdStudents[0];
 
   // Group
   const group = await prisma.group.upsert({
     where: { name: "ИС-1-25" },
-    update: {},
+    update: { curatorId: teacher.id, monitorId: monitor.id },
     create: {
       name: "ИС-1-25",
       academicYearId: academicYear.id,
@@ -80,34 +89,22 @@ async function main() {
     },
   });
 
-  // Group Students
-  await prisma.groupStudent.upsert({
-    where: {
-      groupId_studentId: {
-        groupId: group.id,
-        studentId: monitor.id,
+  // Link all 12 students to group
+  for (const st of createdStudents) {
+    await prisma.groupStudent.upsert({
+      where: {
+        groupId_studentId: {
+          groupId: group.id,
+          studentId: st.id,
+        },
       },
-    },
-    update: {},
-    create: {
-      groupId: group.id,
-      studentId: monitor.id,
-    },
-  });
-
-  await prisma.groupStudent.upsert({
-    where: {
-      groupId_studentId: {
+      update: {},
+      create: {
         groupId: group.id,
-        studentId: student2.id,
+        studentId: st.id,
       },
-    },
-    update: {},
-    create: {
-      groupId: group.id,
-      studentId: student2.id,
-    },
-  });
+    });
+  }
 
   // Subject
   const subject = await prisma.subject.upsert({
@@ -137,7 +134,12 @@ async function main() {
     },
   });
 
-  console.log("Seeding finished successfully with hashed passwords.");
+  // Clean old duty schedule to force fresh auto-generation with all 12 students
+  await prisma.dutySchedule.deleteMany({
+    where: { groupId: group.id },
+  });
+
+  console.log("Seeding finished successfully with 12 group students.");
 }
 
 main()

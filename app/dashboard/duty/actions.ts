@@ -34,11 +34,19 @@ export interface DayDutyGroupDTO {
   dutyStudents: DutyStudentDTO[];
 }
 
+export interface GroupStudentWithDutyInfo {
+  id: string;
+  name: string;
+  lastDutyDate?: string;
+  isRecentDuty?: boolean;
+  recentDutyNote?: string;
+}
+
 export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
   groups: { id: string; name: string }[];
   weeklyDays: DayDutyGroupDTO[];
   allSchedules: DutyItemDTO[];
-  groupStudents: { id: string; name: string }[];
+  groupStudents: GroupStudentWithDutyInfo[];
 }> {
   try {
     const groups = await prisma.group.findMany({
@@ -62,6 +70,33 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
     const endDate = new Date(monday);
     endDate.setDate(monday.getDate() + 7);
 
+    const fourteenDaysAgo = new Date(monday);
+    fourteenDaysAgo.setDate(monday.getDate() - 14);
+
+    const recentDutyRecords = targetGroupId
+      ? await prisma.dutySchedule.findMany({
+          where: {
+            groupId: targetGroupId,
+            date: { gte: fourteenDaysAgo, lt: endDate },
+            isLeader: false,
+          },
+          select: { studentId: true, date: true },
+          orderBy: { date: "desc" },
+        })
+      : [];
+
+    const recentDutyMap = new Map<string, { dateStr: string; isCurrentWeek: boolean }>();
+    recentDutyRecords.forEach((s) => {
+      if (!recentDutyMap.has(s.studentId)) {
+        const d = new Date(s.date);
+        const isCurrentWeek = d >= startDate;
+        recentDutyMap.set(s.studentId, {
+          dateStr: d.toLocaleDateString("ru-RU", { day: "numeric", month: "numeric" }),
+          isCurrentWeek,
+        });
+      }
+    });
+
     const dbSchedules = await prisma.dutySchedule.findMany({
       where: {
         date: { gte: startDate, lt: endDate },
@@ -74,7 +109,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       orderBy: { date: "asc" },
     });
 
-    let groupStudents: { id: string; name: string }[] = [];
+    let groupStudents: GroupStudentWithDutyInfo[] = [];
     let groupMonitorName = "";
     if (targetGroupId) {
       const g = await prisma.group.findUnique({
@@ -88,7 +123,18 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
         },
       });
       if (g) {
-        groupStudents = g.students.map((gs) => gs.student);
+        groupStudents = g.students.map((gs) => {
+          const rec = recentDutyMap.get(gs.student.id);
+          return {
+            id: gs.student.id,
+            name: gs.student.name,
+            lastDutyDate: rec?.dateStr,
+            isRecentDuty: !!rec,
+            recentDutyNote: rec
+              ? `Дежурил(а) ${rec.dateStr} (${rec.isCurrentWeek ? "тек. неделя" : "прошл. неделя"})`
+              : undefined,
+          };
+        });
         if (g.monitor) groupMonitorName = g.monitor.name;
       }
     }
@@ -324,12 +370,28 @@ export async function generateWeeklyDutyAction(groupId: string) {
     const studentIds = group.students.map((gs) => gs.student.id);
     const leaderId = group.monitor?.id || studentIds[0];
 
-    // 2 duty students per day if <6 students, 3 if ≥6
-    const perDay = studentIds.length >= 6 ? 3 : 2;
+    // Calculate perDay: 1 for small groups (<6), 2 for standard (6-17), 3 for large (≥18)
+    const perDay = studentIds.length < 6 ? 1 : studentIds.length < 18 ? 2 : 3;
 
-    // Smart no-repeat assignment:
-    // Track duty count per student; each day pick those with lowest count (prefer 0).
-    // This ensures everyone duties at most once per week when group is large enough.
+    // Check duty history from previous week (14 days ago up to Monday)
+    const fourteenDaysAgo = new Date(monday);
+    fourteenDaysAgo.setDate(monday.getDate() - 14);
+
+    const pastDuties = await prisma.dutySchedule.findMany({
+      where: {
+        groupId,
+        date: { gte: fourteenDaysAgo, lt: monday },
+        isLeader: false,
+      },
+      select: { studentId: true },
+    });
+
+    const pastDutyCount: Record<string, number> = {};
+    studentIds.forEach((id) => { pastDutyCount[id] = 0; });
+    pastDuties.forEach((d) => {
+      pastDutyCount[d.studentId] = (pastDutyCount[d.studentId] || 0) + 1;
+    });
+
     const dutyCount: Record<string, number> = {};
     studentIds.forEach((id) => { dutyCount[id] = 0; });
 
@@ -345,9 +407,11 @@ export async function generateWeeklyDutyAction(groupId: string) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
 
-      // Sort candidates: prefer students with 0 duties, then alphabetically (stable order)
+      // Sort candidates: prioritize students with lowest total past + current duties
       const candidates = [...studentIds].sort((a, b) => {
-        const diff = dutyCount[a] - dutyCount[b];
+        const scoreA = (pastDutyCount[a] || 0) * 10 + (dutyCount[a] || 0);
+        const scoreB = (pastDutyCount[b] || 0) * 10 + (dutyCount[b] || 0);
+        const diff = scoreA - scoreB;
         return diff !== 0 ? diff : studentIds.indexOf(a) - studentIds.indexOf(b);
       });
 
