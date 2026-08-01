@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -47,6 +46,7 @@ import {
   Paperclip,
   PlusCircle,
   Link2,
+  Eye,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -59,6 +59,7 @@ import {
   reviewSubmissionAction,
 } from "../actions";
 import { renderMarkdown } from "@/lib/markdown";
+import { Textarea } from "@/components/ui/textarea";
 
 interface AttachmentLink {
   title: string;
@@ -123,6 +124,14 @@ export function AssignmentsView({
   // Modal 3: Teacher Review Submissions Modal
   const [reviewTargetAssignment, setReviewTargetAssignment] = useState<AssignmentDTO | null>(null);
   const [reviewTeacherCommentMap, setReviewTeacherCommentMap] = useState<Record<string, string>>({});
+
+  // Full Assignment Details Modal & Card Expansion State
+  const [viewTargetAssignment, setViewTargetAssignment] = useState<AssignmentDTO | null>(null);
+  const [expandedAssignmentIds, setExpandedAssignmentIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpandAssignment = (id: string) => {
+    setExpandedAssignmentIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const currentGroupObj = groups.find((g) => g.id === currentGroupId);
 
@@ -404,72 +413,70 @@ export function AssignmentsView({
       )}
 
       {/* Assignments Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredAssignments.map((assignment) => {
           const userSub = assignment.userSubmission;
           const attachmentLinksList = parseAttachmentLinks(assignment.fileUrl);
 
-          return (
-            <Card key={assignment.id} className="p-4 border shadow-none hover:border-primary/40 transition-all space-y-3">
-              {/* Header: Subject & Due Date */}
-              <div className="flex items-start justify-between gap-2 border-b pb-2">
-                <div className="space-y-0.5">
-                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium">
-                    {assignment.subjectName}
-                  </Badge>
-                  <h3 className="text-sm font-semibold text-foreground line-clamp-1 pt-1">
-                    {assignment.title}
-                  </h3>
-                </div>
+          // Clean plain text description snippet for compact card view
+          const plainDescription = assignment.description
+            ? assignment.description.replace(/[#*`_~\-\[\]()]/g, " ").replace(/\s+/g, " ").trim()
+            : "";
 
-                {assignment.dueDate && (
-                  <Badge variant="secondary" className="text-[10px] gap-1 shrink-0 font-normal">
-                    <Clock className="h-3 w-3 text-primary" />
-                    До: {new Date(assignment.dueDate).toLocaleDateString("ru-RU")}
-                  </Badge>
+          return (
+            <Card
+              key={assignment.id}
+              onClick={() => setViewTargetAssignment(assignment)}
+              className="p-3.5 border shadow-none hover:border-primary/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between space-y-3 bg-card rounded-xl group cursor-pointer"
+            >
+              {/* Header: Subject & Due Date */}
+              <div className="flex items-center justify-between gap-2 border-b pb-2">
+                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium px-2 py-0.5 shrink-0">
+                  {assignment.subjectName}
+                </Badge>
+
+                {assignment.dueDate ? (
+                  <span className="text-[11px] text-muted-foreground font-normal flex items-center gap-1 shrink-0 bg-muted/60 px-2 py-0.5 rounded-md">
+                    <Clock className="h-3 w-3 text-primary shrink-0" />
+                    До {new Date(assignment.dueDate).toLocaleDateString("ru-RU")}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground italic">Без срока</span>
                 )}
               </div>
 
-              {/* Formatted Markdown Description */}
-              <div className="text-xs text-muted-foreground leading-relaxed line-clamp-6">
-                {renderMarkdown(assignment.description)}
+              {/* Title & Short Description Snippet */}
+              <div className="space-y-1 flex-1">
+                <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                  {assignment.title}
+                </h3>
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed font-normal">
+                  {plainDescription || "Нажмите, чтобы просмотреть подробности задания..."}
+                </p>
               </div>
 
-              {/* Multiple Attachment Links Badges */}
-              {attachmentLinksList.length > 0 && (
-                <div className="pt-1 space-y-1.5">
-                  <div className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
-                    <Paperclip className="h-3 w-3 text-primary" /> Прикрепленные материалы ({attachmentLinksList.length}):
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {attachmentLinksList.map((link, idx) => (
-                      <a
-                        key={idx}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[11px] text-primary hover:underline font-medium bg-primary/5 hover:bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20 transition-colors"
-                      >
-                        <ExternalLink className="h-3 w-3 shrink-0" />
-                        <span className="truncate max-w-[200px]">{link.title || link.url}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Author and Date info */}
-              <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1 border-t">
-                <span className="flex items-center gap-1">
-                  <User className="h-3 w-3 text-muted-foreground" /> {assignment.teacherName}
+              {/* Attachments Pill & Teacher Info */}
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/50">
+                <span className="flex items-center gap-1 font-normal">
+                  <User className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <span className="truncate max-w-[130px]">{assignment.teacherName}</span>
                 </span>
-                <span>Выдано: {new Date(assignment.createdAt).toLocaleDateString("ru-RU")}</span>
+
+                {attachmentLinksList.length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                    <Paperclip className="h-3 w-3 shrink-0" />
+                    {attachmentLinksList.length} {attachmentLinksList.length === 1 ? "файл" : "файла"}
+                  </span>
+                )}
               </div>
 
-              {/* Action & Status Row */}
-              <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                {/* Teacher / Admin Action Button */}
+              {/* Action & Status Row (stopPropagation to prevent card click conflict) */}
+              <div
+                className="flex items-center justify-between gap-2 pt-2 border-t border-border/50"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {canCreate ? (
+                  /* Teacher / Admin Controls */
                   <div className="flex items-center justify-between w-full gap-2">
                     <Button
                       size="xs"
@@ -482,65 +489,87 @@ export function AssignmentsView({
                         });
                         setReviewTeacherCommentMap(initialComments);
                       }}
-                      className="h-7 text-xs gap-1.5"
+                      className="h-7 text-xs gap-1.5 font-medium"
                     >
                       <FileCheck className="h-3.5 w-3.5 text-primary" />
-                      Проверка работ ({assignment.submissionsCount} / {assignment.totalStudents})
+                      Проверка ({assignment.submissionsCount} / {assignment.totalStudents})
                     </Button>
 
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => handleDeleteAssignment(assignment.id)}
-                      className="h-7 text-xs text-destructive hover:bg-destructive/10 p-1.5"
-                      title="Удалить задание"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => setViewTargetAssignment(assignment)}
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        title="Просмотр задания"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-primary" />
+                      </Button>
+
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => handleDeleteAssignment(assignment.id)}
+                        className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                        title="Удалить задание"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   /* Student Status & Action Button */
                   <div className="flex items-center justify-between w-full gap-2">
                     {userSub ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <Badge
-                          className={
+                          variant="outline"
+                          className={`text-[10px] font-normal border-0 ${
                             userSub.status === SubmissionStatus.ACCEPTED
-                              ? "bg-primary text-primary-foreground text-[10px]"
+                              ? "bg-primary/10 text-primary"
                               : userSub.status === SubmissionStatus.NEED_REVISION
-                              ? "bg-destructive text-white text-[10px]"
-                              : "bg-muted text-muted-foreground text-[10px]"
-                          }
+                                ? "bg-destructive/10 text-destructive"
+                                : "bg-muted text-muted-foreground"
+                          }`}
                         >
                           {userSub.status === SubmissionStatus.ACCEPTED
                             ? "Принято"
                             : userSub.status === SubmissionStatus.NEED_REVISION
-                            ? "На доработке"
-                            : "На проверке"}
+                              ? "На доработке"
+                              : "На проверке"}
                         </Badge>
-                        {userSub.teacherComment && (
-                          <span className="text-[10px] text-muted-foreground italic truncate max-w-[150px]">
-                            «{userSub.teacherComment}»
-                          </span>
-                        )}
                       </div>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground italic">Работа не сдана</span>
+                      <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground bg-muted/40 border-border/50">
+                        Не сдано
+                      </Badge>
                     )}
 
-                    <Button
-                      size="xs"
-                      variant={userSub?.status === SubmissionStatus.ACCEPTED ? "outline" : "default"}
-                      onClick={() => {
-                        setSubmitTargetAssignment(assignment);
-                        setSubmitFileUrl(userSub?.fileUrl || "");
-                        setSubmitComment(userSub?.comment || "");
-                      }}
-                      className="h-7 text-xs gap-1.5"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      {userSub ? "Пересдать работу" : "Сдать работу"}
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => setViewTargetAssignment(assignment)}
+                        className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                        title="Подробное описание"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-primary" /> Описание
+                      </Button>
+
+                      <Button
+                        size="xs"
+                        variant={userSub?.status === SubmissionStatus.ACCEPTED ? "outline" : "default"}
+                        onClick={() => {
+                          setSubmitTargetAssignment(assignment);
+                          setSubmitFileUrl(userSub?.fileUrl || "");
+                          setSubmitComment(userSub?.comment || "");
+                        }}
+                        className="h-7 text-xs gap-1.5 font-medium"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        {userSub ? "Пересдать" : "Сдать"}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -549,11 +578,76 @@ export function AssignmentsView({
         })}
 
         {filteredAssignments.length === 0 && (
-          <div className="col-span-full py-12 text-center text-muted-foreground text-xs bg-card border rounded-xl">
-            Задания не найдены
+          <div className="col-span-full py-12 text-center text-muted-foreground text-xs bg-card border rounded-xl space-y-2">
+            <ClipboardList className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+            <p className="font-semibold text-foreground">Задания не найдены</p>
+            <p className="text-[11px] text-muted-foreground">По выбранным фильтрам или для данной группы нет опубликованных домашних заданий</p>
           </div>
         )}
       </div>
+
+      {/* Modal 0: Full Assignment View Dialog */}
+      <Dialog open={viewTargetAssignment !== null} onOpenChange={(open) => !open && setViewTargetAssignment(null)}>
+        {viewTargetAssignment && (
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[650px] max-h-[85vh] overflow-y-auto">
+            <DialogHeader className="pb-2 border-b gap-1">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium">
+                  {viewTargetAssignment.subjectName}
+                </Badge>
+                {viewTargetAssignment.dueDate && (
+                  <Badge variant="secondary" className="text-[10px] gap-1 shrink-0 font-normal">
+                    <Clock className="h-3 w-3 text-primary" />
+                    До: {new Date(viewTargetAssignment.dueDate).toLocaleDateString("ru-RU")}
+                  </Badge>
+                )}
+              </div>
+              <DialogTitle className="text-base font-semibold text-foreground pt-1">
+                {viewTargetAssignment.title}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 pt-0.5">
+                <span>Преподаватель: {viewTargetAssignment.teacherName}</span>
+                <span>•</span>
+                <span>Выдано: {new Date(viewTargetAssignment.createdAt).toLocaleDateString("ru-RU")}</span>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-2 text-xs space-y-4 leading-relaxed">
+              <div className="p-3 border rounded-lg bg-card text-foreground">
+                {renderMarkdown(viewTargetAssignment.description)}
+              </div>
+
+              {parseAttachmentLinks(viewTargetAssignment.fileUrl).length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t">
+                  <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5 text-primary" /> Прикреплённые ресурсы и ссылки:
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {parseAttachmentLinks(viewTargetAssignment.fileUrl).map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-md border border-primary/20 transition-colors"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                        <span>{link.title || link.url}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setViewTargetAssignment(null)}>
+                Закрыть
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
 
       {/* Modal 1: Spacious Rich Create Assignment Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -759,15 +853,15 @@ export function AssignmentsView({
                         sub.status === SubmissionStatus.ACCEPTED
                           ? "bg-primary text-primary-foreground text-[9px]"
                           : sub.status === SubmissionStatus.NEED_REVISION
-                          ? "bg-destructive text-white text-[9px]"
-                          : "bg-muted text-muted-foreground text-[9px]"
+                            ? "bg-destructive text-white text-[9px]"
+                            : "bg-muted text-muted-foreground text-[9px]"
                       }
                     >
                       {sub.status === SubmissionStatus.ACCEPTED
                         ? "Принято"
                         : sub.status === SubmissionStatus.NEED_REVISION
-                        ? "На доработке"
-                        : "На проверке"}
+                          ? "На доработке"
+                          : "На проверке"}
                     </Badge>
                   </div>
 
