@@ -33,11 +33,13 @@ import {
   UserPlus,
   RefreshCw,
   ChevronLeft,
+  X,
 } from "lucide-react";
 import {
   DayDutyGroupDTO,
   generateWeeklyDutyAction,
   addDutyStudentAction,
+  removeDutyStudentAction,
   replaceDutyStudentAction,
 } from "../actions";
 
@@ -93,6 +95,19 @@ export function DutyScheduleView({
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
         setErrorMsg(res.error || "Ошибка при генерации ротации");
+      }
+    });
+  };
+
+  const handleRemoveDuty = (studentId: string, dateStr: string) => {
+    setErrorMsg(null);
+    startTransition(async () => {
+      const res = await removeDutyStudentAction(currentGroupId, studentId, dateStr);
+      if (res.success) {
+        setSuccessMsg("Студент убран из дежурства.");
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        setErrorMsg(res.error || "Ошибка удаления из дежурства");
       }
     });
   };
@@ -427,13 +442,13 @@ export function DutyScheduleView({
                               <RefreshCw className="h-2.5 w-2.5" />
                             </button>
                           )}
-                          {!absent && isAdminOrTeacher && day.isToday && (
+                          {isAdminOrTeacher && (
                             <button
-                              onClick={() => handleMarkAbsent(st.id, day.fullDate)}
-                              className="text-muted-foreground/40 hover:text-destructive transition-colors"
-                              title="Отметить отсутствие"
+                              onClick={() => handleRemoveDuty(st.id, day.fullDate)}
+                              className="text-muted-foreground/40 hover:text-destructive transition-colors ml-0.5"
+                              title="Убрать дежурного"
                             >
-                              <UserX className="h-2.5 w-2.5" />
+                              <X className="h-3 w-3" />
                             </button>
                           )}
                         </div>

@@ -94,6 +94,12 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
     }
 
     const weeklyDays: DayDutyGroupDTO[] = [];
+    const fallbackDutyCount: Record<string, number> = {};
+    if (groupStudents.length > 0) {
+      groupStudents.forEach((s) => { fallbackDutyCount[s.id] = 0; });
+    }
+
+    const hasAnyDbSchedule = dbSchedules.length > 0;
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
@@ -120,23 +126,24 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
         isLeader: false,
       }));
 
-      // Fallback: compute rotation if no DB schedule yet
-      if (!isSunday && dutyStudents.length === 0 && groupStudents.length > 0) {
-        const perDay = groupStudents.length >= 6 ? 3 : 2;
-        const startIdx = (i * perDay) % groupStudents.length;
+      // Fallback: compute fair rotation ONLY if no DB schedule exists at all for this week
+      if (!hasAnyDbSchedule && !isSunday && dutyStudents.length === 0 && groupStudents.length > 0) {
+        const perDay = Math.min(groupStudents.length, groupStudents.length >= 6 ? 3 : 2);
+        const candidates = [...groupStudents].sort((a, b) => {
+          const diff = (fallbackDutyCount[a.id] || 0) - (fallbackDutyCount[b.id] || 0);
+          return diff !== 0 ? diff : groupStudents.indexOf(a) - groupStudents.indexOf(b);
+        });
+
         for (let k = 0; k < perDay; k++) {
-          const candidate = groupStudents[(startIdx + k) % groupStudents.length];
+          const candidate = candidates[k];
           if (candidate) {
             dutyStudents.push({ id: candidate.id, name: candidate.name, isLeader: false });
+            fallbackDutyCount[candidate.id] = (fallbackDutyCount[candidate.id] || 0) + 1;
           }
         }
-        // Deduplicate
-        dutyStudents = dutyStudents.filter(
-          (s, idx, arr) => arr.findIndex((x) => x.id === s.id) === idx
-        );
       }
 
-      if (!isSunday && !leaderObj && groupStudents.length > 0) {
+      if (!hasAnyDbSchedule && !isSunday && !leaderObj && groupStudents.length > 0) {
         const leaderCandidate =
           groupStudents.find((s) => s.name === groupMonitorName) || groupStudents[0];
         if (leaderCandidate) {
@@ -202,6 +209,40 @@ export async function addDutyStudentAction(
       data: { groupId, studentId, date, isLeader: false },
     });
     revalidatePath("/dashboard/duty");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/** Manually remove a student from a duty day */
+export async function removeDutyStudentAction(
+  groupId: string,
+  studentId: string,
+  dateStr: string
+) {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+  ) {
+    return { success: false, error: "Недостаточно прав" };
+  }
+  try {
+    const date = new Date(dateStr);
+    const nextDay = new Date(date);
+    nextDay.setDate(date.getDate() + 1);
+
+    await prisma.dutySchedule.deleteMany({
+      where: {
+        groupId,
+        studentId,
+        date: { gte: date, lt: nextDay },
+      },
+    });
+
+    revalidatePath("/dashboard/duty");
+    revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
