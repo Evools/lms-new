@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 import {
   Dialog,
   DialogContent,
@@ -127,6 +128,9 @@ export function DocumentsView({ documents, canManage }: DocumentsViewProps) {
   const showSuccess = (msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(null), 3000);
+    try {
+      toast.add({ title: msg, type: "success" });
+    } catch {}
   };
 
   const handleCreate = () => {

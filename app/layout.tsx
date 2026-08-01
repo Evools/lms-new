@@ -4,6 +4,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { cn } from "@/lib/utils";
 
+import { Toaster } from "@/components/ui/toast";
+
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 const fontMono = Geist_Mono({
@@ -24,7 +26,10 @@ export default function RootLayout({
     >
       <body>
         <SessionProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            {children}
+            <Toaster />
+          </ThemeProvider>
         </SessionProvider>
       </body>
     </html>

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/toast";
 import {
   Dialog,
   DialogContent,
@@ -177,10 +178,16 @@ export function SettingsView({ profile, allUsers, academicYears, systemStats, sy
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(null), 3500);
     setErrorMsg(null);
+    try {
+      toast.add({ title: msg, type: "success" });
+    } catch {}
   };
   const showError = (msg: string) => {
     setErrorMsg(msg);
     setTimeout(() => setErrorMsg(null), 4000);
+    try {
+      toast.add({ title: msg, type: "error" });
+    } catch {}
   };
 
   const handleUpdateProfile = () => {
