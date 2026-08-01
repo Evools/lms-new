@@ -255,27 +255,28 @@ export function MaterialsView({
   };
 
   // Helper to parse multiple resource links from fileUrl
-  const parseResourceLinks = (fileUrlStr?: string | null, linkUrlStr?: string | null): Array<{ title: string; url: string }> => {
-    const list: Array<{ title: string; url: string }> = [];
+  const parseResourceLinks = (fileUrlStr?: string | null, linkUrlStr?: string | null): string[] => {
+    const list: string[] = [];
 
     if (fileUrlStr) {
       try {
         const parsed = JSON.parse(fileUrlStr);
         if (Array.isArray(parsed)) {
           parsed.forEach((item: any) => {
-            if (item && item.url) list.push({ title: item.title || "Файл / Ресурс", url: item.url });
+            if (typeof item === "string" && item.trim()) list.push(item.trim());
+            else if (item && item.url) list.push(item.url);
           });
-        } else {
-          list.push({ title: "Прикреплённый файл", url: fileUrlStr });
+        } else if (typeof fileUrlStr === "string") {
+          list.push(fileUrlStr);
         }
       } catch {
-        list.push({ title: "Прикреплённый файл", url: fileUrlStr });
+        list.push(fileUrlStr);
       }
     }
 
     if (linkUrlStr && !linkUrlStr.startsWith("[")) {
       if (!linkUrlStr.includes("youtube.com") && !linkUrlStr.includes("youtu.be")) {
-        list.push({ title: "Внешняя ссылка", url: linkUrlStr });
+        list.push(linkUrlStr);
       }
     }
 
@@ -627,21 +628,19 @@ export function MaterialsView({
                   </div>
 
                   <div className="flex flex-col gap-2 pt-1">
-                    {parsedResources.map((resItem, idx) => (
+                    {parsedResources.map((url, idx) => (
                       <a
                         key={idx}
-                        href={resItem.url}
+                        href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-2 rounded-lg border bg-card hover:bg-muted/60 transition-colors text-primary font-medium text-xs flex items-center justify-between group"
+                        className="p-2 rounded-lg border bg-card hover:bg-muted/60 transition-colors text-primary font-mono text-xs flex items-center justify-between group truncate"
                       >
                         <div className="flex items-center gap-2 truncate">
                           <Link2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          <span className="truncate">{resItem.title || resItem.url}</span>
+                          <span className="truncate">{url}</span>
                         </div>
-                        <span className="font-mono text-[10px] text-muted-foreground group-hover:underline truncate max-w-[220px] ml-2">
-                          {resItem.url}
-                        </span>
+                        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary transition-colors ml-2" />
                       </a>
                     ))}
                   </div>

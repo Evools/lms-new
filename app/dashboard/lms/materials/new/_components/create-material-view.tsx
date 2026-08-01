@@ -4,7 +4,6 @@ import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MaterialType } from "@prisma/client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,11 +38,6 @@ interface CreateMaterialViewProps {
   selectedTopicId: string;
 }
 
-export interface ResourceLinkItem {
-  title: string;
-  url: string;
-}
-
 const DEFAULT_TEMPLATES: WysiwygTemplate[] = [
   {
     id: "lecture_main",
@@ -75,8 +69,8 @@ export function CreateMaterialView({
   // Multiple Video URLs
   const [videoUrls, setVideoUrls] = useState<string[]>([]);
 
-  // Multiple File & Resource Links
-  const [resourceLinks, setResourceLinks] = useState<ResourceLinkItem[]>([]);
+  // Multiple File & Resource URLs
+  const [resourceUrls, setResourceUrls] = useState<string[]>([]);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -102,20 +96,20 @@ export function CreateMaterialView({
     setVideoUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddResourceLink = () => {
-    setResourceLinks((prev) => [...prev, { title: "", url: "" }]);
+  const handleAddResourceUrl = () => {
+    setResourceUrls((prev) => [...prev, ""]);
   };
 
-  const handleUpdateResourceLink = (index: number, field: "title" | "url", val: string) => {
-    setResourceLinks((prev) => {
+  const handleUpdateResourceUrl = (index: number, val: string) => {
+    setResourceUrls((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], [field]: val };
+      next[index] = val;
       return next;
     });
   };
 
-  const handleRemoveResourceLink = (index: number) => {
-    setResourceLinks((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveResourceUrl = (index: number) => {
+    setResourceUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   const getTypeLabel = (t: MaterialType) => {
@@ -126,14 +120,6 @@ export function CreateMaterialView({
         return "Практическая работа";
       case MaterialType.LAB:
         return "Лабораторная работа";
-      case MaterialType.VIDEO:
-        return "Видеоурок";
-      case MaterialType.PDF:
-        return "PDF Документ";
-      case MaterialType.DOCUMENT:
-        return "Методичка";
-      case MaterialType.LINK:
-        return "Внешняя ссылка";
       default:
         return "Материал";
     }
@@ -146,13 +132,11 @@ export function CreateMaterialView({
     }
 
     const cleanVideos = videoUrls.map((v) => v.trim()).filter(Boolean);
-    const cleanResources = resourceLinks.map((r) => ({ title: r.title.trim(), url: r.url.trim() })).filter((r) => Boolean(r.url));
+    const cleanResources = resourceUrls.map((r) => r.trim()).filter(Boolean);
 
     setErrorMsg(null);
     startTransition(async () => {
-      // Serialize clean videos array into linkUrl
       const linkUrlData = cleanVideos.length > 0 ? JSON.stringify(cleanVideos) : null;
-      // Serialize clean resource links into fileUrl
       const fileUrlData = cleanResources.length > 0 ? JSON.stringify(cleanResources) : null;
 
       const res = await createMaterialAction({
@@ -232,7 +216,7 @@ export function CreateMaterialView({
               />
             </div>
 
-            {/* Video Recordings Section (Multiple Video Links) */}
+            {/* Video Recordings Section */}
             <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
@@ -285,7 +269,7 @@ export function CreateMaterialView({
               )}
             </div>
 
-            {/* Attachments & Files Section (Multiple Resource Links) */}
+            {/* Attachments & Files Section */}
             <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
@@ -295,35 +279,36 @@ export function CreateMaterialView({
                   type="button"
                   size="xs"
                   variant="outline"
-                  onClick={handleAddResourceLink}
+                  onClick={handleAddResourceUrl}
                   className="h-7 text-[11px] gap-1 text-primary hover:text-primary"
                 >
                   <Plus className="h-3 w-3" /> Добавить ссылку / файл
                 </Button>
               </div>
 
-              {resourceLinks.length > 0 ? (
+              {resourceUrls.length > 0 ? (
                 <div className="space-y-2">
-                  {resourceLinks.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                      <Input
-                        placeholder="Название ссылки (например, Макет Figma)"
-                        value={item.title}
-                        onChange={(e) => handleUpdateResourceLink(idx, "title", e.target.value)}
-                        className="sm:col-span-5 h-8 text-xs bg-background"
-                      />
+                  {resourceUrls.map((url, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
                       <Input
                         placeholder="https://..."
-                        value={item.url}
-                        onChange={(e) => handleUpdateResourceLink(idx, "url", e.target.value)}
-                        className="sm:col-span-6 h-8 text-xs bg-background font-mono"
+                        value={url}
+                        onChange={(e) => handleUpdateResourceUrl(idx, e.target.value)}
+                        className="h-8 text-xs bg-background font-mono flex-1"
                       />
+                      {url.trim() && (
+                        <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
+                          <Button type="button" size="xs" variant="ghost" className="h-8 text-[11px] gap-1">
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        </a>
+                      )}
                       <Button
                         type="button"
                         size="xs"
                         variant="ghost"
-                        onClick={() => handleRemoveResourceLink(idx)}
-                        className="sm:col-span-1 h-8 w-8 p-0 text-destructive hover:bg-destructive/10 shrink-0 justify-self-end"
+                        onClick={() => handleRemoveResourceUrl(idx)}
+                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 shrink-0"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
