@@ -237,7 +237,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
               <Input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+7 (XXX) XXX-XX-XX"
+                placeholder="+996 (555) 00-00-00"
                 className="h-8 text-xs bg-background"
               />
             </div>

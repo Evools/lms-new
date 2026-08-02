@@ -143,19 +143,18 @@ export function SettingsView({
   const [bulkText, setBulkText] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [parsedUsers, setParsedUsers] = useState<
-    Array<{ name: string; email: string; role: "ADMIN" | "TEACHER" | "STUDENT"; phone?: string }>
+    Array<{ name: string; email: string; role: "ADMIN" | "TEACHER"; phone?: string }>
   >([]);
 
   const handleDownloadTemplate = () => {
     const headers = "ФИО,Email,Роль,Телефон\n";
-    const row1 = "Иванов Иван Иванович,ivanov@lyceum.ru,STUDENT,+7 (999) 111-22-33\n";
-    const row2 = "Петрова Анна Сергеевна,petrova@lyceum.ru,TEACHER,+7 (999) 222-33-44\n";
-    const row3 = "Сидоров Алексей Владимирович,sidorov@lyceum.ru,ADMIN,+7 (999) 333-44-55\n";
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(headers + row1 + row2 + row3);
+    const row1 = "Петрова Анна Сергеевна,petrova@lyceum.ru,TEACHER,+996 (700) 222-334\n";
+    const row2 = "Сидоров Алексей Владимирович,sidorov@lyceum.ru,ADMIN,+996 (770) 333-445\n";
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(headers + row1 + row2);
 
     const link = document.createElement("a");
     link.setAttribute("href", csvContent);
-    link.setAttribute("download", "shablon_importa_polzovatelei.csv");
+    link.setAttribute("download", "shablon_importa_sotrudnikov.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -186,7 +185,7 @@ export function SettingsView({
   const handleParseBulkText = (text: string) => {
     setBulkText(text);
     const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-    const parsed: Array<{ name: string; email: string; role: "ADMIN" | "TEACHER" | "STUDENT"; phone?: string }> = [];
+    const parsed: Array<{ name: string; email: string; role: "ADMIN" | "TEACHER"; phone?: string }> = [];
 
     for (const line of lines) {
       const parts = line.split(/[,;\t]/).map((p) => p.trim());
@@ -197,9 +196,8 @@ export function SettingsView({
           continue; // Skip CSV Header Row
         }
         let roleInput = (parts[2] || "").toUpperCase();
-        let role: "ADMIN" | "TEACHER" | "STUDENT" = "STUDENT";
+        let role: "ADMIN" | "TEACHER" = "TEACHER";
         if (roleInput.includes("ADMIN") || roleInput.includes("АДМИН")) role = "ADMIN";
-        else if (roleInput.includes("TEACHER") || roleInput.includes("ПРЕПОД") || roleInput.includes("УЧИТЕЛЬ")) role = "TEACHER";
 
         const phone = parts[3] || undefined;
         if (name && email.includes("@")) {
@@ -604,11 +602,11 @@ export function SettingsView({
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Телефон связи</label>
-                <Input value={instPhone} onChange={(e) => setInstPhone(e.target.value)} placeholder="+7 (495) 123-45-67" className="h-8 text-xs bg-background" />
+                <Input value={instPhone} onChange={(e) => setInstPhone(e.target.value)} placeholder="+996 (312) 00-00-00" className="h-8 text-xs bg-background" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Физический адрес</label>
-                <Input value={instAddress} onChange={(e) => setInstAddress(e.target.value)} placeholder="г. Москва, ул..." className="h-8 text-xs bg-background" />
+                <Input value={instAddress} onChange={(e) => setInstAddress(e.target.value)} placeholder="г. Бишкек, ул..." className="h-8 text-xs bg-background" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Макс. балл за ДЗ по умолчанию</label>
@@ -982,7 +980,7 @@ export function SettingsView({
                   <Input
                     value={newUserPhone}
                     onChange={(e) => setNewUserPhone(e.target.value)}
-                    placeholder="+7 (999) 000-00-00"
+                    placeholder="+996 (555) 00-00-00"
                     className="h-8 text-xs bg-background"
                   />
                 </div>
@@ -1001,7 +999,7 @@ export function SettingsView({
                       <FileSpreadsheet className="h-4 w-4 text-primary" /> Файл шаблона для импорта
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      Заполните таблицу по образцу (Столбцы: ФИО, Email, Роль, Телефон)
+                      Заполните таблицу сотрудников (Столбцы: ФИО, Email, Роль: TEACHER/ADMIN, Телефон)
                     </div>
                   </div>
 

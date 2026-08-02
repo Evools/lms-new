@@ -55,8 +55,8 @@ export interface SystemConfigDTO {
 const DEFAULT_CONFIG: SystemConfigDTO = {
   institutionName: "Лицей LMS",
   supportEmail: "support@lyceum.ru",
-  supportPhone: "+7 (495) 123-45-67",
-  address: "г. Москва, ул. Академика Королева, д. 12",
+  supportPhone: "+996 (312) 12-34-56",
+  address: "г. Бишкек, ул. Ибраимова, д. 115",
   defaultMaxScore: "100",
   lessonDurationMinutes: "45",
   allowLateSubmissions: true,
