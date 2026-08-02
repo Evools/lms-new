@@ -116,7 +116,8 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
   const [dutySubTab, setDutySubTab] = useState<"SCHEDULE" | "SETTINGS">("SCHEDULE");
   const [dutyPerDaySetting, setDutyPerDaySetting] = useState<number>(0); // 0 = Auto
   const [activeDutyDays, setActiveDutyDays] = useState<number[]>([0, 1, 2, 3, 4, 5]); // Mon-Sat
-  const [includeLeader, setIncludeLeader] = useState<boolean>(true);
+  const [responsibleMode, setResponsibleMode] = useState<"NONE" | "MONITOR" | "DEPUTY" | "CUSTOM">("MONITOR");
+  const [customResponsibleStudentId, setCustomResponsibleStudentId] = useState<string>("");
   const [dutyAlgorithm, setDutyAlgorithm] = useState<"FAIR" | "ALPHABETICAL" | "RANDOM">("FAIR");
   const [excludedStudentIds, setExcludedStudentIds] = useState<string[]>([]);
   const [exemptionSearch, setExemptionSearch] = useState<string>("");
@@ -129,7 +130,9 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
       const res = await generateWeeklyDutyAction(group.id, {
         perDay: dutyPerDaySetting > 0 ? dutyPerDaySetting : undefined,
         activeDays: activeDutyDays,
-        includeLeader,
+        includeLeader: responsibleMode !== "NONE",
+        responsibleMode,
+        customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
         algorithm: dutyAlgorithm,
         excludedStudentIds,
       });
@@ -1158,20 +1161,59 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                       </div>
                     </div>
 
-                    {/* 4. Monitor / Leader Options */}
-                    <div className="p-3 rounded-xl border bg-muted/20 flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <div className="font-semibold text-foreground flex items-center gap-1.5">
-                          <Crown className="h-4 w-4 text-amber-500" /> Назначать старосту старшим
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          Староста группы автоматически ставится ответственным дежурным на каждый день
-                        </div>
+                    {/* 4. Responsible / Senior Duty Person Options */}
+                    <div className="space-y-2 p-3 rounded-xl border bg-muted/10">
+                      <label className="font-semibold text-foreground flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Crown className="h-4 w-4 text-amber-500" /> Ответственный (Старший дежурный):
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">Ежедневно</span>
+                      </label>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                        {[
+                          { id: "NONE", label: "Без старшего" },
+                          { id: "MONITOR", label: "Староста" },
+                          { id: "DEPUTY", label: "Зам. старосты" },
+                          { id: "CUSTOM", label: "Другой студент" },
+                        ].map((mode) => (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            onClick={() => setResponsibleMode(mode.id as any)}
+                            className={`py-1.5 px-1 rounded-md transition-colors text-[11px] truncate ${
+                              responsibleMode === mode.id
+                                ? "bg-background border border-border text-primary shadow-2xs font-semibold"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
                       </div>
-                      <Checkbox
-                        checked={includeLeader}
-                        onCheckedChange={(val) => setIncludeLeader(!!val)}
-                      />
+
+                      {responsibleMode === "CUSTOM" && (
+                        <div className="pt-1.5">
+                          <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                            Выберите ответственного студента из списка группы:
+                          </label>
+                          <Select
+                            value={customResponsibleStudentId}
+                            onValueChange={(val) => val && setCustomResponsibleStudentId(val)}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-background">
+                              <SelectValue placeholder="Выберите ответственного..." />
+                            </SelectTrigger>
+                            <SelectContent className="text-xs">
+                              {group.studentsList.map((st) => (
+                                <SelectItem key={st.id} value={st.id} className="text-xs">
+                                  {st.name} {st.roleInGroup === "MONITOR" ? "(Староста)" : st.roleInGroup === "DEPUTY_MONITOR" ? "(Зам. старосты)" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
                   </div>
 

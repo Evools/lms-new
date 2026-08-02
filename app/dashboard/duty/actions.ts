@@ -452,6 +452,8 @@ export interface DutySettingsOptions {
   perDay?: number; // 1 | 2 | 3 | 4 | 5
   activeDays?: number[]; // 0 = Mon, 1 = Tue, 2 = Wed, 3 = Thu, 4 = Fri, 5 = Sat
   includeLeader?: boolean;
+  responsibleMode?: "NONE" | "MONITOR" | "DEPUTY" | "CUSTOM";
+  customResponsibleStudentId?: string;
   algorithm?: "FAIR" | "ALPHABETICAL" | "RANDOM";
   excludedStudentIds?: string[];
 }
@@ -480,6 +482,7 @@ export async function generateWeeklyDutyAction(
       where: { id: groupId },
       include: {
         monitor: { select: { id: true } },
+        deputyMonitor: { select: { id: true } },
         students: {
           include: { student: { select: { id: true, name: true } } },
           orderBy: { student: { name: "asc" } },
@@ -507,7 +510,17 @@ export async function generateWeeklyDutyAction(
       return { success: false, error: "Все студенты группы исключены из дежурства" };
     }
 
-    const leaderId = group.monitor?.id || group.students[0]?.student.id;
+    // Determine responsible / senior duty student ID
+    let leaderIdToAssign: string | null = null;
+    if (opts.responsibleMode === "NONE") {
+      leaderIdToAssign = null;
+    } else if (opts.responsibleMode === "DEPUTY") {
+      leaderIdToAssign = group.deputyMonitor?.id || group.monitor?.id || group.students[0]?.student.id || null;
+    } else if (opts.responsibleMode === "CUSTOM" && opts.customResponsibleStudentId) {
+      leaderIdToAssign = opts.customResponsibleStudentId;
+    } else if (opts.responsibleMode === "MONITOR" || includeLeader) {
+      leaderIdToAssign = group.monitor?.id || group.students[0]?.student.id || null;
+    }
 
     // Calculate perDay: perDayOverride if explicitly provided, otherwise auto (1 for <6, 2 for <18, 3 for ≥18)
     const perDay = perDayOverride && perDayOverride > 0
@@ -583,10 +596,10 @@ export async function generateWeeklyDutyAction(
         });
       }
 
-      // Create leader entry (always the monitor, if enabled)
-      if (includeLeader && leaderId && !dayStudentIds.includes(leaderId)) {
+      // Create leader/responsible entry if configured
+      if (leaderIdToAssign && !dayStudentIds.includes(leaderIdToAssign)) {
         await prisma.dutySchedule.create({
-          data: { groupId, studentId: leaderId, date: d, isLeader: true },
+          data: { groupId, studentId: leaderIdToAssign, date: d, isLeader: true },
         });
       }
     }
