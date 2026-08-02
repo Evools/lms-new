@@ -509,7 +509,7 @@ export function CreateTestView({
                               </div>
                               {isCorrect && (
                                 <Badge className="bg-primary text-primary-foreground text-[9px] font-normal">
-                                  Верный ответ ✓
+                                  Верный ответ
                                 </Badge>
                               )}
                             </div>

@@ -1108,7 +1108,7 @@ export function TestsView({
                               onClick={() => handleSetCorrectAnswer(qIdx, opt)}
                               className="h-7 text-[10px] px-2 shrink-0 font-medium"
                             >
-                              {isCorrect ? "Верно ✓" : "Выбор"}
+                              {isCorrect ? "Верно" : "Выбор"}
                             </Button>
                           </div>
                         );
