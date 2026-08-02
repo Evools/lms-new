@@ -183,7 +183,7 @@ export async function updateGroupAction(
       where: { id: groupId },
       data: {
         name: data.name.trim(),
-        curatorId: !data.curatorId || data.curatorId === "none" ? null : data.curatorId,
+        curatorId: !data.curatorId || data.curatorId === "none" || data.curatorId === "unassigned" ? null : data.curatorId,
       },
     });
 

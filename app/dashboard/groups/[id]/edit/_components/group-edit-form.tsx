@@ -57,7 +57,7 @@ export function GroupEditForm({ group, userRole, teachersList = [] }: GroupEditF
   const [groupName, setGroupName] = useState(group.name);
   const [course, setCourse] = useState(String(group.course || 1));
   const [specialty, setSpecialty] = useState(group.specialty || "Информационные системы и программирование");
-  const [curatorId, setCuratorId] = useState<string>(group.curatorId || "none");
+  const [curatorId, setCuratorId] = useState<string>(group.curatorId || "unassigned");
   const [academicYear, setAcademicYear] = useState(group.academicYear || "2025-2026");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,7 +75,7 @@ export function GroupEditForm({ group, userRole, teachersList = [] }: GroupEditF
 
     const res = await updateGroupAction(group.id, {
       name: groupName.trim(),
-      curatorId: curatorId === "none" ? undefined : curatorId,
+      curatorId: !curatorId || curatorId === "unassigned" || curatorId === "none" ? undefined : curatorId,
       academicYearName: academicYear,
     });
 
@@ -247,7 +247,7 @@ export function GroupEditForm({ group, userRole, teachersList = [] }: GroupEditF
                       <SelectValue placeholder="Выберите куратора" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Не назначен (Без куратора)</SelectItem>
+                      <SelectItem value="unassigned" className="text-xs">Не назначен</SelectItem>
                       {teachersList.map((teacher) => (
                         <SelectItem key={teacher.id} value={teacher.id}>
                           {teacher.name} ({teacher.email})

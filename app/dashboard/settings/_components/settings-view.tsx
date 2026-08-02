@@ -56,6 +56,10 @@ import {
   Building2,
   FileText,
   ClipboardList,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  X,
 } from "lucide-react";
 import type {
   UserProfileDTO,
@@ -137,9 +141,38 @@ export function SettingsView({
   // User Creation & Import Dialog State
   const [createUserMode, setCreateUserMode] = useState<"single" | "excel">("single");
   const [bulkText, setBulkText] = useState("");
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [parsedUsers, setParsedUsers] = useState<
     Array<{ name: string; email: string; role: "ADMIN" | "TEACHER" | "STUDENT"; phone?: string }>
   >([]);
+
+  const handleDownloadTemplate = () => {
+    const headers = "ФИО,Email,Роль,Телефон\n";
+    const row1 = "Иванов Иван Иванович,ivanov@lyceum.ru,STUDENT,+7 (999) 111-22-33\n";
+    const row2 = "Петрова Анна Сергеевна,petrova@lyceum.ru,TEACHER,+7 (999) 222-33-44\n";
+    const row3 = "Сидоров Алексей Владимирович,sidorov@lyceum.ru,ADMIN,+7 (999) 333-44-55\n";
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(headers + row1 + row2 + row3);
+
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", "shablon_importa_polzovatelei.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedFileName(file.name);
+
+    try {
+      const text = await file.text();
+      handleParseBulkText(text);
+    } catch (err) {
+      toast.add({ title: "Не удалось прочитать файл", type: "error" });
+    }
+  };
 
   const handleGeneratePassword = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
@@ -160,6 +193,9 @@ export function SettingsView({
       if (parts.length >= 2) {
         const name = parts[0];
         const email = parts[1];
+        if (name.toLowerCase().includes("фио") || email.toLowerCase().includes("email")) {
+          continue; // Skip CSV Header Row
+        }
         let roleInput = (parts[2] || "").toUpperCase();
         let role: "ADMIN" | "TEACHER" | "STUDENT" = "STUDENT";
         if (roleInput.includes("ADMIN") || roleInput.includes("АДМИН")) role = "ADMIN";
@@ -666,7 +702,7 @@ export function SettingsView({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                💼 Сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN").length})
+                Сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN").length})
               </button>
               <button
                 type="button"
@@ -677,7 +713,7 @@ export function SettingsView({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                👨‍🏫 Преподаватели ({allUsers.filter((u) => u.role === "TEACHER").length})
+                Преподаватели ({allUsers.filter((u) => u.role === "TEACHER").length})
               </button>
               <button
                 type="button"
@@ -688,7 +724,7 @@ export function SettingsView({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                🛡️ Админы ({allUsers.filter((u) => u.role === "ADMIN").length})
+                Админы ({allUsers.filter((u) => u.role === "ADMIN").length})
               </button>
               <button
                 type="button"
@@ -699,7 +735,7 @@ export function SettingsView({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                🎓 Студенты ({allUsers.filter((u) => u.role === "STUDENT").length})
+                Студенты ({allUsers.filter((u) => u.role === "STUDENT").length})
               </button>
               <button
                 type="button"
@@ -710,7 +746,7 @@ export function SettingsView({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                👥 Все ({allUsers.length})
+                Все ({allUsers.length})
               </button>
             </div>
           </div>
@@ -956,7 +992,7 @@ export function SettingsView({
                       onClick={handleGeneratePassword}
                       className="text-[10px] text-primary hover:underline font-medium"
                     >
-                      Сгенерировать ⚡
+                      Сгенерировать
                     </button>
                   </div>
                   <Input
@@ -983,34 +1019,69 @@ export function SettingsView({
           {/* Mode 2: Bulk Import (Excel / CSV) */}
           {createUserMode === "excel" && (
             <div className="space-y-3 py-1">
-              <div className="p-3 rounded-lg border bg-muted/30 space-y-1 text-xs">
-                <div className="font-semibold text-foreground">Формат данных для импорта:</div>
-                <div className="text-[11px] text-muted-foreground font-mono">
-                  ФИО, Email, Роль (STUDENT/TEACHER/ADMIN), Телефон
-                </div>
-                <div className="text-[10px] text-muted-foreground pt-0.5">
-                  Скопируйте строки из Excel/таблицы и вставьте в поле ниже (каждая строчка с новой строки):
+              {/* Template Download & Instruction Card */}
+              <div className="p-3 rounded-xl border bg-muted/20 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="space-y-0.5">
+                    <div className="font-semibold text-foreground flex items-center gap-1.5">
+                      <FileSpreadsheet className="h-4 w-4 text-primary" /> Файл шаблона для импорта
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Заполните таблицу по образцу (Столбцы: ФИО, Email, Роль, Телефон)
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={handleDownloadTemplate}
+                    className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10 font-medium px-3 shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Скачать шаблон (.csv)
+                  </Button>
                 </div>
               </div>
 
+              {/* Drag & Drop File Upload Area */}
               <div className="space-y-1">
-                <label className="font-medium text-xs text-foreground">Вставьте строки из таблицы / CSV:</label>
-                <textarea
-                  rows={4}
-                  value={bulkText}
-                  onChange={(e) => handleParseBulkText(e.target.value)}
-                  placeholder={`Иванов Иван Иванович, ivanov@lyceum.ru, STUDENT, +79991112233\nПетрова Анна Сергеевна, petrova@lyceum.ru, TEACHER, +79992223344`}
-                  className="w-full p-2.5 rounded-lg border bg-background text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+                <label className="font-semibold text-xs text-foreground">Загрузить готовый файл</label>
+                <label className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all bg-card text-center relative">
+                  <input
+                    type="file"
+                    accept=".csv,.txt,.tsv,.xlsx,.xls"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Upload className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-xs text-foreground">
+                      {uploadedFileName ? (
+                        <span className="text-primary font-bold flex items-center gap-1">
+                          <FileSpreadsheet className="h-3.5 w-3.5" /> {uploadedFileName}
+                        </span>
+                      ) : (
+                        "Выберите или перетащите файл (.csv, .xlsx, .txt)"
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground pt-0.5">
+                      {uploadedFileName ? "Файл выбран и готов к обработке" : "Нажмите для выбора сохраненного файла с компьютера"}
+                    </div>
+                  </div>
+                </label>
               </div>
 
               {/* Parsed Preview Table */}
-              {parsedUsers.length > 0 && (
+              {parsedUsers.length > 0 ? (
                 <div className="space-y-1.5 pt-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-foreground">Распознано пользователей: {parsedUsers.length}</span>
+                    <span className="font-bold text-foreground flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5 text-primary" /> Распознано пользователей: {parsedUsers.length}
+                    </span>
                     <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 font-semibold">
-                      Готовы к зачислению
+                      Готовы к импорту
                     </Badge>
                   </div>
 
@@ -1019,7 +1090,7 @@ export function SettingsView({
                       <div key={idx} className="p-2 flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="font-medium text-foreground truncate">{u.name}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono truncate">{u.email}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono truncate">{u.email} {u.phone && `• ${u.phone}`}</div>
                         </div>
                         <Badge variant="outline" className={`text-[9px] border shrink-0 ${ROLE_COLORS[u.role] || ""}`}>
                           {ROLE_LABELS[u.role] || u.role}
@@ -1027,6 +1098,10 @@ export function SettingsView({
                       </div>
                     ))}
                   </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg border border-dashed bg-muted/10 text-center text-muted-foreground text-[11px]">
+                  Выберите файл шаблона выше. Список распознанных пользователей появится здесь.
                 </div>
               )}
             </div>
