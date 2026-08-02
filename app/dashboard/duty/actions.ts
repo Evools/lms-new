@@ -448,7 +448,18 @@ export async function replaceDutyStudentAction(
   }
 }
 
-export async function generateWeeklyDutyAction(groupId: string) {
+export interface DutySettingsOptions {
+  perDay?: number; // 1 | 2 | 3 | 4 | 5
+  activeDays?: number[]; // 0 = Mon, 1 = Tue, 2 = Wed, 3 = Thu, 4 = Fri, 5 = Sat
+  includeLeader?: boolean;
+  algorithm?: "FAIR" | "ALPHABETICAL" | "RANDOM";
+  excludedStudentIds?: string[];
+}
+
+export async function generateWeeklyDutyAction(
+  groupId: string,
+  options?: number | DutySettingsOptions
+) {
   const session = await auth();
   if (
     !session?.user ||
@@ -458,6 +469,13 @@ export async function generateWeeklyDutyAction(groupId: string) {
   }
 
   try {
+    const opts: DutySettingsOptions = typeof options === "number" ? { perDay: options } : (options || {});
+    const perDayOverride = opts.perDay;
+    const activeDays = opts.activeDays || [0, 1, 2, 3, 4, 5];
+    const includeLeader = opts.includeLeader ?? true;
+    const algorithm = opts.algorithm || "FAIR";
+    const excludedIds = new Set(opts.excludedStudentIds || []);
+
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
@@ -481,11 +499,20 @@ export async function generateWeeklyDutyAction(groupId: string) {
     monday.setDate(now.getDate() + distanceToMonday);
     monday.setHours(0, 0, 0, 0);
 
-    const studentIds = group.students.map((gs) => gs.student.id);
-    const leaderId = group.monitor?.id || studentIds[0];
+    // Eligible candidates (excluding exempted students)
+    const eligibleStudents = group.students.filter((gs) => !excludedIds.has(gs.student.id));
+    const candidateIds = eligibleStudents.map((gs) => gs.student.id);
 
-    // Calculate perDay: 1 for small groups (<6), 2 for standard (6-17), 3 for large (≥18)
-    const perDay = studentIds.length < 6 ? 1 : studentIds.length < 18 ? 2 : 3;
+    if (candidateIds.length === 0) {
+      return { success: false, error: "Все студенты группы исключены из дежурства" };
+    }
+
+    const leaderId = group.monitor?.id || group.students[0]?.student.id;
+
+    // Calculate perDay: perDayOverride if explicitly provided, otherwise auto (1 for <6, 2 for <18, 3 for ≥18)
+    const perDay = perDayOverride && perDayOverride > 0
+      ? perDayOverride
+      : (candidateIds.length < 6 ? 1 : candidateIds.length < 18 ? 2 : 3);
 
     // Check duty history from previous week (14 days ago up to Monday)
     const fourteenDaysAgo = new Date(monday);
@@ -501,13 +528,15 @@ export async function generateWeeklyDutyAction(groupId: string) {
     });
 
     const pastDutyCount: Record<string, number> = {};
-    studentIds.forEach((id) => { pastDutyCount[id] = 0; });
+    candidateIds.forEach((id) => { pastDutyCount[id] = 0; });
     pastDuties.forEach((d) => {
-      pastDutyCount[d.studentId] = (pastDutyCount[d.studentId] || 0) + 1;
+      if (pastDutyCount[d.studentId] !== undefined) {
+        pastDutyCount[d.studentId] = (pastDutyCount[d.studentId] || 0) + 1;
+      }
     });
 
     const dutyCount: Record<string, number> = {};
-    studentIds.forEach((id) => { dutyCount[id] = 0; });
+    candidateIds.forEach((id) => { dutyCount[id] = 0; });
 
     const startDate = new Date(monday);
     const endDate = new Date(monday);
@@ -518,16 +547,25 @@ export async function generateWeeklyDutyAction(groupId: string) {
     });
 
     for (let i = 0; i < 6; i++) {
+      if (!activeDays.includes(i)) continue;
+
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
 
-      // Sort candidates: prioritize students with lowest total past + current duties
-      const candidates = [...studentIds].sort((a, b) => {
-        const scoreA = (pastDutyCount[a] || 0) * 10 + (dutyCount[a] || 0);
-        const scoreB = (pastDutyCount[b] || 0) * 10 + (dutyCount[b] || 0);
-        const diff = scoreA - scoreB;
-        return diff !== 0 ? diff : studentIds.indexOf(a) - studentIds.indexOf(b);
-      });
+      let candidates = [...candidateIds];
+
+      if (algorithm === "FAIR") {
+        candidates.sort((a, b) => {
+          const scoreA = (pastDutyCount[a] || 0) * 10 + (dutyCount[a] || 0);
+          const scoreB = (pastDutyCount[b] || 0) * 10 + (dutyCount[b] || 0);
+          const diff = scoreA - scoreB;
+          return diff !== 0 ? diff : candidateIds.indexOf(a) - candidateIds.indexOf(b);
+        });
+      } else if (algorithm === "RANDOM") {
+        candidates.sort(() => Math.random() - 0.5);
+      } else if (algorithm === "ALPHABETICAL") {
+        // Already sorted alphabetically
+      }
 
       const dayStudentIds: string[] = [];
       for (const id of candidates) {
@@ -545,8 +583,8 @@ export async function generateWeeklyDutyAction(groupId: string) {
         });
       }
 
-      // Create leader entry (always the monitor, not counted in perDay)
-      if (leaderId && !dayStudentIds.includes(leaderId)) {
+      // Create leader entry (always the monitor, if enabled)
+      if (includeLeader && leaderId && !dayStudentIds.includes(leaderId)) {
         await prisma.dutySchedule.create({
           data: { groupId, studentId: leaderId, date: d, isLeader: true },
         });

@@ -129,12 +129,16 @@ export function DutyScheduleView({
     router.push(`/dashboard/duty?group=${groupId}`);
   };
 
+  // Duty count per day setting
+  const [dutyCountPerDay, setDutyCountPerDay] = useState<string>("auto");
+
   // Generate auto-rotation
   const handleAutoRotation = () => {
     if (!currentGroupId) return;
     setErrorMsg(null);
     startTransition(async () => {
-      const res = await generateWeeklyDutyAction(currentGroupId);
+      const countParam = dutyCountPerDay === "auto" ? undefined : Number(dutyCountPerDay);
+      const res = await generateWeeklyDutyAction(currentGroupId, countParam);
       if (res.success) {
         setSuccessMsg("Честная авто-ротация успешно сформирована!");
         router.refresh();
@@ -354,6 +358,27 @@ export function DutyScheduleView({
             <Printer className="h-3.5 w-3.5" /> Печать (A4)
           </Button>
 
+          {isAdminOrTeacher && (
+            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">Дежурных в день:</span>
+              <Select
+                value={dutyCountPerDay}
+                onValueChange={(val) => val && setDutyCountPerDay(val)}
+              >
+                <SelectTrigger className="h-6 text-xs w-28 border-0 bg-transparent p-0 shadow-none focus:ring-0">
+                  <SelectValue>{dutyCountPerDay === "auto" ? "Авторасчет" : `${dutyCountPerDay} чел.`}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Авторасчет</SelectItem>
+                  <SelectItem value="1">1 человек</SelectItem>
+                  <SelectItem value="2">2 человека</SelectItem>
+                  <SelectItem value="3">3 человека</SelectItem>
+                  <SelectItem value="4">4 человека</SelectItem>
+                  <SelectItem value="5">5 человек</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {isAdminOrTeacher && (
             <Button
               size="xs"
