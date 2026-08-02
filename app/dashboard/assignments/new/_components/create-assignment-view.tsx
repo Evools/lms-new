@@ -430,27 +430,27 @@ export function CreateAssignmentView({
   return (
     <div className="w-full space-y-3 pb-4 text-xs">
       {/* Navigation Topbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-xs">
         <div className="flex items-center gap-2">
           <Link
             href={`/dashboard/assignments?group=${selectedGroupId}`}
-            className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md hover:bg-muted"
+            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
           >
             <ChevronLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-primary" /> Кабинет публикации задания
+            <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-primary" /> Создание домашнего задания
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Профессиональная студия составления домашних заданий с WYSIWYG-редактором
+            <p className="text-[11px] text-muted-foreground">
+              Составление задания, требования к оформлению и прикрепление материалов
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Link href={`/dashboard/assignments?group=${selectedGroupId}`}>
-            <Button variant="outline" size="xs" className="h-8 text-xs font-medium">
+            <Button variant="outline" size="xs" className="h-7 text-xs font-medium">
               Отмена
             </Button>
           </Link>
