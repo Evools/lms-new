@@ -892,9 +892,6 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                       {isPending ? "Расчет..." : "Сформировать график"}
                     </Button>
                   )}
-                  <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5" render={<Link href={`/dashboard/duty?group=${group.id}`} />}>
-                    <Clock className="h-3.5 w-3.5" /> Общий реестр
-                  </Button>
                 </div>
               )}
             </div>
