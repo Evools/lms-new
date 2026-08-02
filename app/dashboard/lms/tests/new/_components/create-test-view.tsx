@@ -362,21 +362,21 @@ export function CreateTestView({
   };
 
   return (
-    <div className="space-y-4 w-full">
+    <div className="space-y-3 w-full">
       {/* Header Bar */}
-      <div className="flex items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-xs">
+        <div className="flex items-center gap-2.5">
           <Link href={`/dashboard/lms/tests?group=${groupId}`}>
-            <Button size="xs" variant="outline" className="h-8 w-8 p-0">
+            <Button size="xs" variant="outline" className="h-7 w-7 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-              <FileCheck2 className="h-5 w-5 text-primary" /> Полноценная система тестирования LMS
+            <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <FileCheck2 className="h-4 w-4 text-primary" /> Конструктор теста LMS
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Создание тестов с вариативностью (один выбор, множественный выбор, текстовый ввод, верно/неверно)
+            <p className="text-[11px] text-muted-foreground">
+              Создание вопросов с вариантами ответов (выбор, текстовый ввод, верно/неверно)
             </p>
           </div>
         </div>
@@ -386,12 +386,12 @@ export function CreateTestView({
             size="xs"
             variant="outline"
             onClick={() => setIsPreview(!isPreview)}
-            className="h-8 text-xs gap-1.5"
+            className="h-7 text-xs gap-1.5"
           >
             <Eye className="h-3.5 w-3.5 text-primary" /> {isPreview ? "Редактор" : "Предпросмотр"}
           </Button>
 
-          <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 text-xs gap-1.5 font-medium">
+          <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-7 text-xs gap-1.5 font-medium px-3">
             <Plus className="h-3.5 w-3.5" /> Опубликовать тест
           </Button>
         </div>
@@ -399,24 +399,24 @@ export function CreateTestView({
 
       {/* Alerts */}
       {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
+        <div className="p-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
           <span>{successMsg}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
+        <div className="p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
         {/* Left Column: Form & Questions Builder */}
-        <div className="md:col-span-2 space-y-3">
-          <div className="p-3.5 border rounded-xl bg-card space-y-2.5 text-xs shadow-xs">
+        <div className="md:col-span-2 space-y-2.5">
+          <div className="p-3 border rounded-xl bg-card space-y-2 text-xs shadow-xs">
             <div className="space-y-1">
               <label className="font-semibold text-foreground text-xs">Название теста *</label>
               <Input
@@ -433,7 +433,7 @@ export function CreateTestView({
                 placeholder="Укажите правила сдачи теста, критерии оценивания и особенности вопросов..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="text-xs bg-background min-h-[60px] leading-relaxed font-sans"
+                className="text-xs bg-background min-h-[50px] leading-relaxed font-sans"
               />
             </div>
           </div>

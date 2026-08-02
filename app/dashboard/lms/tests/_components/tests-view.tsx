@@ -43,6 +43,12 @@ import {
   FileText,
   Check,
   Pencil,
+  LayoutGrid,
+  List,
+  Sparkles,
+  BarChart3,
+  Users,
+  Percent,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -86,6 +92,8 @@ export function TestsView({
   const [isPending, startTransition] = useTransition();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -94,10 +102,11 @@ export function TestsView({
   const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>({});
   const [testResult, setTestResult] = useState<{ score: number; maxScore: number } | null>(null);
 
-  // Teacher Submissions View Modal
+  // Teacher Submissions View Modal State
   const [viewSubmissionsTest, setViewSubmissionsTest] = useState<TestDTO | null>(null);
+  const [submissionSearch, setSubmissionSearch] = useState("");
 
-  // Create Test Builder State
+  // Quick Create Test Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newGroupSubjectId, setNewGroupSubjectId] = useState(subjects[0]?.id || "");
   const [newTopicId, setNewTopicId] = useState<string>("");
@@ -156,7 +165,6 @@ export function TestsView({
       const oldVal = copy[qIdx].options[optIdx];
       copy[qIdx].options[optIdx] = text;
 
-      // if correctAnswer was set to this old option, update it
       if (copy[qIdx].correctAnswer === oldVal) {
         copy[qIdx].correctAnswer = text;
       }
@@ -261,45 +269,109 @@ export function TestsView({
     });
   };
 
+  // Filtered Tests
   const filteredTests = tests.filter((t) => {
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return true;
-    return t.title.toLowerCase().includes(query) || t.subjectName.toLowerCase().includes(query);
+    const matchesQuery =
+      !query ||
+      t.title.toLowerCase().includes(query) ||
+      t.subjectName.toLowerCase().includes(query) ||
+      (t.topicTitle && t.topicTitle.toLowerCase().includes(query));
+
+    const matchesSubject = subjectFilter === "all" || t.groupSubjectId === subjectFilter;
+
+    return matchesQuery && matchesSubject;
   });
 
+  // Calculate Overall Statistics for Header Metrics
+  const totalTests = tests.length;
+  const totalSubmissions = tests.reduce((acc, t) => acc + t.submissionsCount, 0);
+  const totalGradedSubmissions = tests.flatMap((t) => t.submissions);
+  const avgPassRate =
+    totalGradedSubmissions.length > 0
+      ? Math.round(
+          (totalGradedSubmissions.reduce(
+            (acc, s) => acc + (s.maxScore > 0 ? s.score / s.maxScore : 0),
+            0
+          ) /
+            totalGradedSubmissions.length) *
+            100
+        )
+      : 0;
+
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-xs">
-        <div className="space-y-0.5">
-          <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-            <FileCheck2 className="h-5 w-5 text-primary" /> Тесты и Онлайн-Опросы LMS
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Автоматическая система проверки знаний студента, мгновенный подсчёт баллов и статистика
+    <div className="space-y-3">
+      {/* Top Banner & KPI Stat Summary */}
+      <div className="bg-card p-3 rounded-xl border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="space-y-0.5 min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <FileCheck2 className="h-4 w-4" />
+            </div>
+            <h1 className="text-sm font-bold text-foreground flex items-center gap-2 truncate">
+              Тесты и аттестация LMS
+            </h1>
+            <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold px-2 py-0">
+              {currentGroupObj?.name || "Все группы"}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-tight">
+            Автоматическая проверка знаний, конструктор вариантов и сводные ведомости результатов
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Quick KPI Stat Chips */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
+            <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-muted-foreground">Тестов:</span>
+            <span className="font-bold text-foreground">{totalTests}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
+            <Users className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-muted-foreground">Сдано работ:</span>
+            <span className="font-bold text-foreground">{totalSubmissions}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-[11px]">
+            <Percent className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-primary font-medium">Успеваемость:</span>
+            <span className="font-bold text-primary">{avgPassRate}%</span>
+          </div>
+
           {canCreate && (
-            <Link href={`/dashboard/lms/tests/new?group=${selectedGroupId}&topic=${selectedTopicId}`}>
-              <Button size="xs" className="h-8 text-xs gap-1.5 font-medium">
-                <Plus className="h-3.5 w-3.5" /> Конструктор тестов
+            <div className="flex items-center gap-1.5">
+              <Link href={`/dashboard/lms/tests/new?group=${selectedGroupId}&topic=${selectedTopicId}`}>
+                <Button size="xs" className="h-8 text-xs gap-1.5 font-medium px-3">
+                  <Plus className="h-3.5 w-3.5" /> Конструктор
+                </Button>
+              </Link>
+
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => setIsCreateOpen(true)}
+                className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 font-medium px-2.5"
+                title="Быстрое создание теста"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Быстрый тест
               </Button>
-            </Link>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-card p-3 rounded-xl border items-center">
-        <div className="space-y-1">
-          <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-            <Building2 className="h-3.5 w-3.5 text-primary" /> Группа
-          </label>
+      {/* Control & Filters Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center">
+        {/* Group Selector */}
+        <div className="lg:col-span-3">
           <Select value={selectedGroupId} onValueChange={handleGroupChange}>
-            <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-              <SelectValue>{currentGroupObj?.name || "Выберите группу"}</SelectValue>
+            <SelectTrigger className="h-8 text-xs bg-background font-medium">
+              <div className="flex items-center gap-1.5 truncate">
+                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                <SelectValue>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
+              </div>
             </SelectTrigger>
             <SelectContent>
               {groups.map((g) => (
@@ -311,15 +383,42 @@ export function TestsView({
           </Select>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-            <FolderKanban className="h-3.5 w-3.5 text-primary" /> Тема
-          </label>
+        {/* Subject Filter */}
+        <div className="lg:col-span-3">
+          <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+            <SelectTrigger className="h-8 text-xs bg-background font-medium">
+              <div className="flex items-center gap-1.5 truncate">
+                <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                <SelectValue>
+                  {subjectFilter === "all"
+                    ? "Все предметы"
+                    : subjects.find((s) => s.id === subjectFilter)?.subjectName || "Все предметы"}
+                </SelectValue>
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs font-medium">
+                Все предметы
+              </SelectItem>
+              {subjects.map((s) => (
+                <SelectItem key={s.id} value={s.id} className="text-xs">
+                  {s.subjectName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Topic Filter */}
+        <div className="lg:col-span-3">
           <Select value={selectedTopicId || "all"} onValueChange={handleTopicChange}>
-            <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-              <SelectValue>
-                {topics.find((t) => t.id === selectedTopicId)?.title || "Все темы"}
-              </SelectValue>
+            <SelectTrigger className="h-8 text-xs bg-background font-medium">
+              <div className="flex items-center gap-1.5 truncate">
+                <FolderKanban className="h-3.5 w-3.5 text-primary shrink-0" />
+                <SelectValue>
+                  {topics.find((t) => t.id === selectedTopicId)?.title || "Все темы"}
+                </SelectValue>
+              </div>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="text-xs font-medium">
@@ -334,214 +433,396 @@ export function TestsView({
           </Select>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[11px] font-medium text-muted-foreground">Поиск по названию</label>
-          <div className="relative">
+        {/* Search & View Mode Switcher */}
+        <div className="lg:col-span-3 flex items-center gap-2">
+          <div className="relative flex-1">
             <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
             <Input
-              placeholder="Название теста..."
+              placeholder="Поиск по названию..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-8 text-xs pl-8 bg-background"
             />
+          </div>
+
+          <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border shrink-0">
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => setViewMode("table")}
+              className={`h-7 w-7 p-0 rounded-md ${
+                viewMode === "table" ? "bg-background text-primary shadow-xs" : "text-muted-foreground"
+              }`}
+              title="Табличный вид"
+            >
+              <List className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => setViewMode("grid")}
+              className={`h-7 w-7 p-0 rounded-md ${
+                viewMode === "grid" ? "bg-background text-primary shadow-xs" : "text-muted-foreground"
+              }`}
+              title="Вид карточек"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Alerts */}
       {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
+        <div className="p-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
           <span>{successMsg}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
+        <div className="p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
           <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Tests Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-        {filteredTests.map((test) => {
-          const userSub = test.userSubmission;
-          const userPercent = userSub && userSub.maxScore > 0
-            ? Math.round((userSub.score / userSub.maxScore) * 100)
-            : 0;
+      {/* VIEW MODE 1: Compact Table View (Default) */}
+      {viewMode === "table" ? (
+        <div className="bg-card rounded-xl border shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b bg-muted/40 text-[11px] text-muted-foreground font-semibold">
+                  <th className="py-2.5 px-3">Название теста / Тема</th>
+                  <th className="py-2.5 px-3">Дисциплина / Преподаватель</th>
+                  <th className="py-2.5 px-3 text-center">Вопросы & Баллы</th>
+                  <th className="py-2.5 px-3 text-center">Таймер</th>
+                  <th className="py-2.5 px-3 text-center">Результаты</th>
+                  <th className="py-2.5 px-3 text-right">Действия</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredTests.map((test) => {
+                  const userSub = test.userSubmission;
+                  const userPercent =
+                    userSub && userSub.maxScore > 0
+                      ? Math.round((userSub.score / userSub.maxScore) * 100)
+                      : 0;
 
-          return (
-            <Card
-              key={test.id}
-              className="p-4 border shadow-none hover:border-primary/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between space-y-3.5 bg-card rounded-xl group relative overflow-hidden"
-            >
-              {/* Header: Subject & Time */}
-              <div className="flex items-center justify-between gap-2 border-b pb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                    <FileCheck2 className="h-3.5 w-3.5" />
-                  </div>
-                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold px-2 py-0.5 truncate max-w-[140px]">
-                    {test.subjectName}
-                  </Badge>
-                </div>
+                  return (
+                    <tr key={test.id} className="hover:bg-muted/30 transition-colors">
+                      {/* Title & Topic */}
+                      <td className="py-2.5 px-3 max-w-[280px]">
+                        <div className="font-bold text-foreground text-xs truncate flex items-center gap-1.5">
+                          <FileCheck2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span className="truncate">{test.title}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate pt-0.5">
+                          {test.topicTitle ? `Тема: ${test.topicTitle}` : test.description || "Без привязки к теме"}
+                        </div>
+                      </td>
 
-                {test.timeLimit ? (
-                  <span className="text-[10px] font-semibold text-foreground bg-muted/60 px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1 border">
-                    <Clock className="h-3 w-3 text-primary shrink-0" /> {test.timeLimit} мин.
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground font-medium italic shrink-0">Без ограничений</span>
+                      {/* Subject & Teacher */}
+                      <td className="py-2.5 px-3 max-w-[200px]">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium px-1.5 py-0 truncate"
+                        >
+                          {test.subjectName}
+                        </Badge>
+                        <div className="text-[10px] text-muted-foreground truncate pt-0.5 flex items-center gap-1">
+                          <User className="h-3 w-3 shrink-0" /> {test.teacherName}
+                        </div>
+                      </td>
+
+                      {/* Questions & Total Points */}
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="font-medium text-foreground text-xs">
+                          {test.questionsCount} вопр.
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-semibold">
+                          {test.totalPoints} б.
+                        </div>
+                      </td>
+
+                      {/* Time Limit */}
+                      <td className="py-2.5 px-3 text-center">
+                        {test.timeLimit ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-foreground bg-muted/60 px-2 py-0.5 rounded-md border">
+                            <Clock className="h-3 w-3 text-primary shrink-0" /> {test.timeLimit} мин.
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground italic">Без лимита</span>
+                        )}
+                      </td>
+
+                      {/* Results / Submissions Badge */}
+                      <td className="py-2.5 px-3 text-center">
+                        {canCreate ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setViewSubmissionsTest(test);
+                              setSubmissionSearch("");
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-bold text-[11px] hover:bg-primary/20 transition-colors"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>{test.submissionsCount} работ</span>
+                          </button>
+                        ) : userSub ? (
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary/10 text-primary font-bold text-[10px]">
+                            <CheckCircle2 className="h-3 w-3 shrink-0" />
+                            <span>{userSub.score}/{userSub.maxScore} б. ({userPercent}%)</span>
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal">
+                            Не пройден
+                          </Badge>
+                        )}
+                      </td>
+
+                      {/* Action buttons */}
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {canCreate ? (
+                            <>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => {
+                                  setViewSubmissionsTest(test);
+                                  setSubmissionSearch("");
+                                }}
+                                className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
+                                title="Сданные работы"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                <span className="hidden md:inline">Работы</span>
+                              </Button>
+
+                              <Link href={`/dashboard/lms/tests/${test.id}/take`}>
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                                  title="Просмотр теста"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                              </Link>
+
+                              <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                                  title="Редактировать тест"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </Link>
+
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleDeleteTest(test.id)}
+                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                title="Удалить тест"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          ) : (
+                            <Link href={`/dashboard/lms/tests/${test.id}/take`}>
+                              <Button size="xs" className="h-7 text-xs gap-1.5 font-medium px-2.5">
+                                {userSub ? (
+                                  <>
+                                    <Eye className="h-3.5 w-3.5" /> Результат
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="h-3.5 w-3.5" /> Пройти тест
+                                  </>
+                                )}
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {filteredTests.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-muted-foreground text-xs bg-muted/10 space-y-1">
+                      <FileCheck2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                      <p className="font-semibold text-foreground">Тесты не найдены</p>
+                      <p className="text-[11px] text-muted-foreground">Измените критерии поиска или добавьте новый тест</p>
+                    </td>
+                  </tr>
                 )}
-              </div>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* VIEW MODE 2: Compact Card Grid */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {filteredTests.map((test) => {
+            const userSub = test.userSubmission;
+            const userPercent =
+              userSub && userSub.maxScore > 0
+                ? Math.round((userSub.score / userSub.maxScore) * 100)
+                : 0;
 
-              {/* Title & Description */}
-              <div className="space-y-1.5 flex-1">
-                <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                  {test.title}
-                </h3>
-                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed font-normal">
-                  {test.description || "Тестовые вопросы для самостоятельной проверки знаний и аттестации..."}
-                </p>
-
-                {/* Key Metrics Chips */}
-                <div className="flex items-center gap-2 text-[11px] pt-1.5">
-                  <div className="flex items-center gap-1 font-medium text-foreground bg-muted/40 px-2 py-0.5 rounded-md border">
-                    <HelpCircle className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>{test.questionsCount} {test.questionsCount === 1 ? "вопрос" : "вопросов"}</span>
-                  </div>
-                  <div className="flex items-center gap-1 font-medium text-foreground bg-muted/40 px-2 py-0.5 rounded-md border">
-                    <Award className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>{test.totalPoints} {test.totalPoints === 1 ? "балл" : "баллов"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Teacher Info Bar */}
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t pt-2.5">
-                <span className="flex items-center gap-1 truncate max-w-[160px]">
-                  <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {test.teacherName}
-                </span>
-
-                {test.topicTitle && (
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[130px]">
-                    Тема: {test.topicTitle}
-                  </span>
-                )}
-              </div>
-
-              {/* Action Footer */}
-              <div className="flex items-center justify-between gap-2 border-t pt-2.5">
-                {canCreate ? (
-                  /* Teacher / Admin Controls */
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <Button
-                      size="xs"
+            return (
+              <Card
+                key={test.id}
+                className="p-3 border shadow-none hover:border-primary/50 transition-all duration-200 flex flex-col justify-between space-y-2.5 bg-card rounded-xl group relative"
+              >
+                {/* Subject & Time */}
+                <div className="flex items-center justify-between gap-2 border-b pb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                      <FileCheck2 className="h-3.5 w-3.5" />
+                    </div>
+                    <Badge
                       variant="outline"
-                      onClick={() => setViewSubmissionsTest(test)}
-                      className="h-7 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
+                      className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold px-1.5 py-0 truncate"
                     >
-                      <FileText className="h-3.5 w-3.5 text-primary" />
-                      Работы ({test.submissionsCount})
-                    </Button>
+                      {test.subjectName}
+                    </Badge>
+                  </div>
 
-                    <div className="flex items-center gap-1">
-                      <Link href={`/dashboard/lms/tests/${test.id}/take`}>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                          title="Просмотр теста"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
+                  {test.timeLimit ? (
+                    <span className="text-[10px] font-medium text-foreground bg-muted/60 px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-1 border">
+                      <Clock className="h-3 w-3 text-primary shrink-0" /> {test.timeLimit} мин.
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground italic shrink-0">Без лимита</span>
+                  )}
+                </div>
 
-                      <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                          title="Редактировать тест"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
+                {/* Title & Stats */}
+                <div className="space-y-1 flex-1">
+                  <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                    {test.title}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight">
+                    {test.description || "Тестовые вопросы для проверки знаний по теме..."}
+                  </p>
 
+                  <div className="flex items-center gap-2 text-[10px] pt-1">
+                    <span className="font-medium text-foreground bg-muted/40 px-2 py-0.5 rounded-md border">
+                      {test.questionsCount} вопр.
+                    </span>
+                    <span className="font-medium text-foreground bg-muted/40 px-2 py-0.5 rounded-md border">
+                      {test.totalPoints} баллов
+                    </span>
+                    {test.topicTitle && (
+                      <span className="text-muted-foreground truncate max-w-[110px]">
+                        Тема: {test.topicTitle}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="flex items-center justify-between gap-2 border-t pt-2">
+                  {canCreate ? (
+                    <div className="flex items-center justify-between w-full gap-2">
                       <Button
                         size="xs"
-                        variant="ghost"
-                        onClick={() => handleDeleteTest(test.id)}
-                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                        title="Удалить тест"
+                        variant="outline"
+                        onClick={() => {
+                          setViewSubmissionsTest(test);
+                          setSubmissionSearch("");
+                        }}
+                        className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <FileText className="h-3.5 w-3.5 text-primary" />
+                        Работы ({test.submissionsCount})
                       </Button>
-                    </div>
-                  </div>
-                ) : (
-                  /* Student Controls */
-                  <div className="flex items-center justify-between w-full gap-2">
-                    {userSub ? (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold text-[11px]">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span>Результат: {userSub.score} / {userSub.maxScore} б. ({userPercent}%)</span>
+
+                      <div className="flex items-center gap-1">
+                        <Link href={`/dashboard/lms/tests/${test.id}/take`}>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                            title="Просмотр"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                        <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                            title="Редактировать"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => handleDeleteTest(test.id)}
+                          className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                          title="Удалить"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground bg-muted/30 border-border/50 px-2 py-0.5">
-                        Не пройден
-                      </Badge>
-                    )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between w-full gap-2">
+                      {userSub ? (
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary/10 text-primary font-bold text-[10px]">
+                          <CheckCircle2 className="h-3 w-3 shrink-0" />
+                          <span>{userSub.score}/{userSub.maxScore} б. ({userPercent}%)</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground italic">Не пройден</span>
+                      )}
 
-                    {userSub ? (
                       <Link href={`/dashboard/lms/tests/${test.id}/take`}>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          className="h-7 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
-                        >
-                          <Eye className="h-3.5 w-3.5 text-primary" /> Результат
+                        <Button size="xs" className="h-7 text-xs gap-1 font-medium px-2.5">
+                          {userSub ? "Результат" : "Пройти тест"}
                         </Button>
                       </Link>
-                    ) : (
-                      <Link href={`/dashboard/lms/tests/${test.id}/take`}>
-                        <Button
-                          size="xs"
-                          className="h-7 text-xs gap-1.5 font-medium shadow-xs"
-                        >
-                          <Send className="h-3.5 w-3.5" /> Пройти тест
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Card>
-          );
-        })}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
 
-        {filteredTests.length === 0 && (
-          <div className="col-span-full py-12 text-center text-muted-foreground text-xs bg-card border rounded-xl space-y-2">
-            <FileCheck2 className="h-8 w-8 text-muted-foreground/40 mx-auto" />
-            <p className="font-semibold text-foreground">Тесты не найдены</p>
-            <p className="text-[11px] text-muted-foreground">По выбранной группе или теме пока нет опубликованных тестов</p>
-          </div>
-        )}
-      </div>
+          {filteredTests.length === 0 && (
+            <div className="col-span-full py-10 text-center text-muted-foreground text-xs bg-card border rounded-xl space-y-1">
+              <FileCheck2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+              <p className="font-semibold text-foreground">Тесты не найдены</p>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Modal 1: Student Interactive Test Dialog */}
+      {/* Modal 1: Student Interactive Test Taking Dialog */}
       <Dialog open={activeTest !== null} onOpenChange={(open) => !open && setActiveTest(null)}>
         {activeTest && (
-          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[620px] max-h-[85vh] overflow-y-auto">
-            <DialogHeader className="pb-2 border-b gap-1">
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+            <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium">
                   {activeTest.subjectName}
                 </Badge>
                 {activeTest.timeLimit && (
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium bg-muted/60 px-2 py-0.5 rounded-md">
-                    <Clock className="h-3 w-3 text-primary" /> Срок: {activeTest.timeLimit} мин.
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium bg-muted/60 px-2 py-0.5 rounded-md border">
+                    <Clock className="h-3 w-3 text-primary" /> Таймер: {activeTest.timeLimit} мин.
                   </span>
                 )}
               </div>
@@ -554,26 +835,21 @@ export function TestsView({
             </DialogHeader>
 
             {testResult ? (
-              /* Test Completed Result View */
               <div className="py-6 text-center space-y-3">
                 <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
                   <Award className="h-6 w-6" />
                 </div>
-                <h3 className="text-base font-bold text-foreground">Тест успешно завершён!</h3>
-                <div className="text-sm font-semibold text-primary">
+                <h3 className="text-sm font-bold text-foreground">Тест успешно завершён!</h3>
+                <div className="text-xs font-semibold text-primary">
                   Ваш результат: {testResult.score} из {testResult.maxScore} баллов (
                   {Math.round((testResult.score / (testResult.maxScore || 1)) * 100)}%)
                 </div>
-                <p className="text-xs text-muted-foreground">Результат автоматически сохранён в вашей успеваемости</p>
-                <div className="pt-2">
-                  <Button size="xs" onClick={() => setActiveTest(null)} className="h-8 px-4 text-xs font-medium">
-                    Отлично, закрыть
-                  </Button>
-                </div>
+                <Button size="xs" onClick={() => setActiveTest(null)} className="h-7 px-4 text-xs font-medium">
+                  Отлично, закрыть
+                </Button>
               </div>
             ) : (
-              /* Question list for student */
-              <div className="space-y-4 py-1 text-xs">
+              <div className="space-y-3 py-1 text-xs">
                 {activeTest.questions.map((q: TestQuestionDTO, idx: number) => {
                   const qType = q.type || "SINGLE";
 
@@ -581,15 +857,6 @@ export function TestsView({
                     <div key={q.id} className="p-3 border rounded-xl bg-card space-y-2">
                       <div className="flex items-start justify-between gap-2 border-b pb-1.5">
                         <div className="space-y-0.5">
-                          <Badge variant="outline" className="text-[9px] border-primary/30 text-primary">
-                            {qType === "SINGLE"
-                              ? "Один выбор"
-                              : qType === "MULTIPLE"
-                                ? "Множественный выбор"
-                                : qType === "TEXT"
-                                  ? "Текстовый ответ"
-                                  : "Верно/Неверно"}
-                          </Badge>
                           <span className="font-bold text-foreground text-xs block">
                             Вопрос #{idx + 1}: {q.questionText}
                           </span>
@@ -601,7 +868,6 @@ export function TestsView({
 
                       {qType === "TEXT" ? (
                         <div className="space-y-1 pt-1">
-                          <label className="text-[10px] text-muted-foreground font-medium">Введите ваш ответ:</label>
                           <Input
                             placeholder="Ваш ответ..."
                             value={studentAnswers[q.id] || ""}
@@ -615,7 +881,7 @@ export function TestsView({
                           />
                         </div>
                       ) : (
-                        <div className="space-y-1.5 pt-1">
+                        <div className="space-y-1 pt-1">
                           {q.options.map((opt: string, optIdx: number) => {
                             let isSelected = false;
 
@@ -664,16 +930,16 @@ export function TestsView({
                                 onClick={handleOptionClick}
                                 className={`p-2 rounded-lg border text-xs cursor-pointer transition-all flex items-center gap-2 ${
                                   isSelected
-                                    ? "border-primary bg-primary/10 font-semibold text-primary"
+                                    ? "border-primary bg-primary/10 text-primary font-medium"
                                     : "border-border hover:bg-muted/40 font-normal"
                                 }`}
                               >
                                 <div
-                                  className={`h-4 w-4 rounded-${qType === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center shrink-0 ${
+                                  className={`h-3.5 w-3.5 rounded-${qType === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center shrink-0 ${
                                     isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"
                                   }`}
                                 >
-                                  {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                                  {isSelected && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                                 </div>
                                 <span>{opt}</span>
                               </div>
@@ -690,7 +956,7 @@ export function TestsView({
                     Отмена
                   </Button>
                   <Button size="xs" disabled={isPending} onClick={handleStudentSubmitTest}>
-                    Завершить и отправить ответы
+                    Завершить и отправить
                   </Button>
                 </DialogFooter>
               </div>
@@ -699,20 +965,20 @@ export function TestsView({
         )}
       </Dialog>
 
-      {/* Modal 2: Teacher Create Test Builder */}
+      {/* Modal 2: Quick Test Builder Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="pb-2 border-b gap-1">
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[620px] max-h-[88vh] overflow-y-auto">
+          <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
             <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <Plus className="h-4 w-4 text-primary" /> Конструктор онлайного теста
+              <Plus className="h-4 w-4 text-primary" /> Экспресс-конструктор теста
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Заполните заголовок, установите таймер и составьте вопросы с вариантами ответов
+              Быстрое создание теста без перехода на отдельную страницу
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-1 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Дисциплина</label>
                 <Select value={newGroupSubjectId} onValueChange={setNewGroupSubjectId}>
@@ -722,7 +988,7 @@ export function TestsView({
                   <SelectContent>
                     {subjects.map((s) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">
-                        {s.subjectName} ({s.teacherName})
+                        {s.subjectName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -730,14 +996,14 @@ export function TestsView({
               </div>
 
               <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Тема (опционально)</label>
+                <label className="font-medium text-foreground text-xs">Тема</label>
                 <Select value={newTopicId} onValueChange={setNewTopicId}>
                   <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue>{topics.find((t) => t.id === newTopicId)?.title || "Не привязано"}</SelectValue>
+                    <SelectValue>{topics.find((t) => t.id === newTopicId)?.title || "Без темы"}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none" className="text-xs">
-                      Не привязано
+                      Без темы
                     </SelectItem>
                     {topics.map((t) => (
                       <SelectItem key={t.id} value={t.id} className="text-xs">
@@ -749,7 +1015,7 @@ export function TestsView({
               </div>
 
               <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Таймер (минуты)</label>
+                <label className="font-medium text-foreground text-xs">Таймер (мин)</label>
                 <Input
                   type="number"
                   placeholder="15"
@@ -763,18 +1029,18 @@ export function TestsView({
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs">Название теста</label>
               <Input
-                placeholder="Например: Итоговый тест по модулю 'Алгоритмы'"
+                placeholder="Например: Проверочный тест по модулю №1"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 className="h-8 text-xs bg-background font-medium"
               />
             </div>
 
-            {/* Questions Builder list */}
-            <div className="space-y-3 pt-2 border-t">
+            {/* Question Drafts */}
+            <div className="space-y-2.5 pt-2 border-t">
               <div className="flex items-center justify-between">
                 <label className="font-semibold text-foreground text-xs flex items-center gap-1">
-                  <HelpCircle className="h-3.5 w-3.5 text-primary" /> Вопросы теста ({questionDrafts.length})
+                  Вопросы ({questionDrafts.length})
                 </label>
 
                 <Button
@@ -789,7 +1055,7 @@ export function TestsView({
               </div>
 
               {questionDrafts.map((q, qIdx) => (
-                <div key={qIdx} className="p-3 border rounded-xl bg-card space-y-2">
+                <div key={qIdx} className="p-2.5 border rounded-xl bg-card space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold text-xs text-foreground">Вопрос #{qIdx + 1}</span>
                     {questionDrafts.length > 1 && (
@@ -812,29 +1078,28 @@ export function TestsView({
                     className="h-8 text-xs bg-background font-medium"
                   />
 
-                  {/* Options List */}
-                  <div className="space-y-1.5 pt-1">
-                    <div className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
-                      <span>Варианты ответов (нажмите на один для выбора правильного):</span>
+                  <div className="space-y-1 pt-0.5">
+                    <div className="text-[10px] text-muted-foreground font-medium flex items-center justify-between">
+                      <span>Варианты ответов (нажмите для отметки правильного):</span>
                       <button
                         type="button"
                         onClick={() => handleAddOption(qIdx)}
                         className="text-primary hover:underline text-[10px] font-medium"
                       >
-                        + Добавить вариант
+                        + Вариант
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                       {q.options.map((opt, optIdx) => {
                         const isCorrect = q.correctAnswer === opt;
 
                         return (
-                          <div key={optIdx} className="flex items-center gap-1.5">
+                          <div key={optIdx} className="flex items-center gap-1">
                             <Input
                               value={opt}
                               onChange={(e) => handleUpdateOption(qIdx, optIdx, e.target.value)}
-                              className={`h-7 text-xs bg-background ${isCorrect ? "border-primary font-semibold text-primary" : ""}`}
+                              className={`h-7 text-xs bg-background ${isCorrect ? "border-primary font-medium text-primary" : ""}`}
                             />
                             <Button
                               type="button"
@@ -842,9 +1107,8 @@ export function TestsView({
                               variant={isCorrect ? "default" : "outline"}
                               onClick={() => handleSetCorrectAnswer(qIdx, opt)}
                               className="h-7 text-[10px] px-2 shrink-0 font-medium"
-                              title="Отметить как верный ответ"
                             >
-                              {isCorrect ? "Верный ✓" : "Выбрать"}
+                              {isCorrect ? "Верно ✓" : "Выбор"}
                             </Button>
                           </div>
                         );
@@ -861,34 +1125,34 @@ export function TestsView({
               Отмена
             </Button>
             <Button size="xs" disabled={isPending} onClick={handleCreateTest}>
-              Опубликовать тест
+              Опубликовать
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal 3: Teacher View Submissions Dialog */}
+      {/* Modal 3: Teacher View Submissions & Detailed Results Dialog */}
       <Dialog open={viewSubmissionsTest !== null} onOpenChange={(open) => !open && setViewSubmissionsTest(null)}>
         {viewSubmissionsTest && (
-          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[720px]">
-            <DialogHeader className="pb-3 border-b gap-1.5 place-items-start text-left">
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[700px] max-h-[88vh] overflow-y-auto">
+            <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
               <div className="flex items-center justify-between w-full">
                 <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold">
                   {viewSubmissionsTest.subjectName}
                 </Badge>
                 <span className="text-[11px] text-muted-foreground">
-                  Вопросов: {viewSubmissionsTest.questionsCount} • Всего {viewSubmissionsTest.totalPoints} баллов
+                  {viewSubmissionsTest.questionsCount} вопросов • Макс. {viewSubmissionsTest.totalPoints} баллов
                 </span>
               </div>
-              <DialogTitle className="text-sm font-bold text-foreground">
-                Результаты теста: {viewSubmissionsTest.title}
+              <DialogTitle className="text-sm font-bold text-foreground pt-0.5">
+                Ведомость сдачи: {viewSubmissionsTest.title}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Список студентов группы, прошедших тестирование
+                Результаты и оценки студентов по данному тестированию
               </DialogDescription>
             </DialogHeader>
 
-            {/* Quick Summary Stats Bar */}
+            {/* Quick Summary KPI Cards */}
             {viewSubmissionsTest.submissions.length > 0 && (
               <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-muted/40 border text-center">
                 <div className="space-y-0.5">
@@ -923,59 +1187,77 @@ export function TestsView({
               </div>
             )}
 
-            {/* Submissions Table / Cards */}
-            <div className="space-y-2 py-1 text-xs max-h-[400px] overflow-y-auto pr-1">
-              {viewSubmissionsTest.submissions.map((sub: TestSubmissionDTO) => {
-                const percent = sub.maxScore > 0 ? Math.round((sub.score / sub.maxScore) * 100) : 0;
+            {/* Student Search Filter */}
+            {viewSubmissionsTest.submissions.length > 0 && (
+              <div className="relative pt-1">
+                <Search className="h-3.5 w-3.5 absolute left-2.5 top-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Поиск по имени студента..."
+                  value={submissionSearch}
+                  onChange={(e) => setSubmissionSearch(e.target.value)}
+                  className="h-8 text-xs pl-8 bg-background"
+                />
+              </div>
+            )}
 
-                return (
-                  <div
-                    key={sub.id}
-                    className="p-3 rounded-xl border bg-card hover:border-primary/40 transition-colors flex items-center justify-between gap-3 shadow-xs"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                        {sub.studentName ? sub.studentName[0].toUpperCase() : "С"}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-bold text-foreground text-xs truncate">{sub.studentName}</div>
-                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span>Сдано: {new Date(sub.submittedAt).toLocaleString("ru-RU")}</span>
+            {/* Submissions List */}
+            <div className="space-y-2 py-1 text-xs max-h-[360px] overflow-y-auto pr-1">
+              {viewSubmissionsTest.submissions
+                .filter((sub) =>
+                  !submissionSearch ||
+                  sub.studentName.toLowerCase().includes(submissionSearch.toLowerCase())
+                )
+                .map((sub: TestSubmissionDTO) => {
+                  const percent = sub.maxScore > 0 ? Math.round((sub.score / sub.maxScore) * 100) : 0;
+
+                  return (
+                    <div
+                      key={sub.id}
+                      className="p-2.5 rounded-xl border bg-card hover:border-primary/40 transition-colors flex items-center justify-between gap-3 shadow-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                          {sub.studentName ? sub.studentName[0].toUpperCase() : "С"}
                         </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-foreground text-xs truncate">{sub.studentName}</div>
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            <span>{new Date(sub.submittedAt).toLocaleString("ru-RU")}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right space-y-0.5">
+                          <div className="text-xs font-bold text-foreground">
+                            {sub.score} / {sub.maxScore} б.
+                          </div>
+                          <div className="text-[10px] text-muted-foreground font-medium">
+                            {percent}% выполнения
+                          </div>
+                        </div>
+
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-semibold border px-2 py-0.5 ${
+                            percent >= 75
+                              ? "bg-primary/15 text-primary border-primary/30"
+                              : percent >= 50
+                                ? "bg-primary/10 text-primary border-primary/20"
+                                : "bg-destructive/10 text-destructive border-destructive/30"
+                          }`}
+                        >
+                          {percent >= 75 ? "Отлично" : percent >= 50 ? "Зачтено" : "Незачёт"}
+                        </Badge>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right space-y-0.5">
-                        <div className="text-xs font-bold text-foreground">
-                          {sub.score} / {sub.maxScore} баллов
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-medium">
-                          {percent}% выполнения
-                        </div>
-                      </div>
-
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] font-bold border ${
-                          percent >= 75
-                            ? "bg-primary/15 text-primary border-primary/30"
-                            : percent >= 50
-                              ? "bg-primary/10 text-primary border-primary/20"
-                              : "bg-destructive/10 text-destructive border-destructive/30"
-                        }`}
-                      >
-                        {percent >= 75 ? "Отлично" : percent >= 50 ? "Зачтено" : "Незачёт"}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
               {viewSubmissionsTest.submissions.length === 0 && (
-                <div className="py-10 text-center text-muted-foreground text-xs space-y-1 bg-muted/20 border rounded-xl">
-                  <FileCheck2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                <div className="py-8 text-center text-muted-foreground text-xs space-y-1 bg-muted/20 border rounded-xl">
+                  <FileCheck2 className="h-7 w-7 text-muted-foreground/30 mx-auto" />
                   <p className="font-semibold text-foreground">Пока нет сданных работ</p>
                   <p className="text-[11px]">Студенты вашей группы ещё не проходили данный тест</p>
                 </div>
