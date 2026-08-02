@@ -293,33 +293,30 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
         <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
           <div className="space-y-0.5">
             <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Всего зачислено</span>
-            <div className="text-lg font-bold text-foreground">{totalStudentsCount} чел.</div>
-            <p className="text-[10px] text-muted-foreground">В базе лицея</p>
+            <div className="text-base font-bold text-foreground">{totalStudentsCount} чел.</div>
           </div>
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <GraduationCap className="h-4 w-4" />
+          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+            <GraduationCap className="h-3.5 w-3.5" />
           </div>
         </div>
 
         <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
           <div className="space-y-0.5">
             <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Активные аккаунты</span>
-            <div className="text-lg font-bold text-foreground">{activeCount} чел.</div>
-            <p className="text-[10px] text-muted-foreground">Подтвердили вход</p>
+            <div className="text-base font-bold text-foreground">{activeCount} чел.</div>
           </div>
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <UserCheck className="h-4 w-4" />
+          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+            <UserCheck className="h-3.5 w-3.5" />
           </div>
         </div>
 
         <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
           <div className="space-y-0.5">
             <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Временные пароли</span>
-            <div className="text-lg font-bold text-foreground">{tempPassCount} чел.</div>
-            <p className="text-[10px] text-muted-foreground">Ожидают входа</p>
+            <div className="text-base font-bold text-foreground">{tempPassCount} чел.</div>
           </div>
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <KeyRound className="h-4 w-4" />
+          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+            <KeyRound className="h-3.5 w-3.5" />
           </div>
         </div>
       </div>
@@ -430,160 +427,143 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
       {/* Main Content: Table View vs Grid Cards */}
       {viewMode === "table" ? (
         <div className="rounded-xl border bg-card overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-            <div className="flex items-center gap-3">
-              {isAdminOrTeacher && filteredStudents.length > 0 && (
-                <Checkbox
-                  checked={isAllSelected}
-                  onCheckedChange={handleToggleSelectAll}
-                  aria-label="Выбрать всех"
-                />
-              )}
-              <span className="text-xs font-bold text-foreground flex items-center gap-2">
-                <Users className="h-3.5 w-3.5 text-primary" />
-                Ведомость студентов
-              </span>
-            </div>
-            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-medium">
-              {filteredStudents.length} записей
-            </Badge>
-          </div>
-
-          <div className="divide-y text-xs">
-            {filteredStudents.map((st, idx) => (
-              <div
-                key={st.id}
-                className={`p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 hover:bg-muted/20 transition-colors ${
-                  selectedIds.includes(st.id) ? "bg-primary/5" : ""
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
+          <div className="border-b overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-muted/40 border-b text-[11px] font-semibold text-muted-foreground">
+                <tr>
                   {isAdminOrTeacher && (
-                    <Checkbox
-                      checked={selectedIds.includes(st.id)}
-                      onCheckedChange={() => handleToggleSelectStudent(st.id)}
-                    />
+                    <th className="py-2.5 px-3 text-center w-8">
+                      <Checkbox
+                        checked={isAllSelected}
+                        onCheckedChange={handleToggleSelectAll}
+                        aria-label="Выбрать всех"
+                      />
+                    </th>
                   )}
-                  <span className="text-muted-foreground w-5 text-[10px] font-semibold text-center">{idx + 1}.</span>
-                  <Avatar className="h-7 w-7 border shrink-0">
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-[10px]">
-                      {st.name.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <div className="font-semibold text-xs text-foreground flex items-center gap-1.5 flex-wrap">
-                      <Link href={`/dashboard/students/${st.id}/edit`} className="hover:underline hover:text-primary transition-colors truncate">
-                        {st.name}
-                      </Link>
+                  <th className="py-2.5 px-2.5 text-center w-8">№</th>
+                  <th className="py-2.5 px-3 min-w-[200px]">Студент</th>
+                  <th className="py-2.5 px-3 min-w-[100px]">Группа</th>
+                  <th className="py-2.5 px-3 min-w-[100px]">Форма</th>
+                  <th className="py-2.5 px-3 min-w-[120px]">Телефон</th>
+                  <th className="py-2.5 px-3 min-w-[120px]">Статус</th>
+                  {isAdminOrTeacher && <th className="py-2.5 px-3 text-right min-w-[90px]"></th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y text-xs">
+                {filteredStudents.map((st, idx) => (
+                  <tr
+                    key={st.id}
+                    className={`hover:bg-muted/20 transition-colors ${
+                      selectedIds.includes(st.id) ? "bg-primary/5" : ""
+                    }`}
+                  >
+                    {isAdminOrTeacher && (
+                      <td className="py-2.5 px-3 text-center">
+                        <Checkbox
+                          checked={selectedIds.includes(st.id)}
+                          onCheckedChange={() => handleToggleSelectStudent(st.id)}
+                        />
+                      </td>
+                    )}
+                    <td className="py-2.5 px-2.5 text-center text-muted-foreground font-mono text-[10px]">{idx + 1}</td>
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Avatar className="h-6 w-6 border shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary font-bold text-[9px]">
+                            {st.name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <Link href={`/dashboard/students/${st.id}/edit`} className="font-semibold text-xs text-foreground hover:underline hover:text-primary transition-colors block truncate">
+                            {st.name}
+                          </Link>
+                          <div className="text-[10px] text-muted-foreground font-mono truncate">{st.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0">
+                        {st.groupName}
+                      </Badge>
+                    </td>
+                    <td className="py-2.5 px-3">
                       <Badge
                         variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"}
-                        className="text-[8px] px-1 py-0 font-medium"
+                        className="text-[9px] px-1.5 py-0 font-medium"
                       >
                         {st.enrollmentType}
                       </Badge>
-                      <Badge
-                        variant="outline"
-                        className={
-                          st.role === "ADMIN"
-                            ? "bg-rose-500/10 text-rose-600 border-rose-200 text-[8px] px-1 py-0 font-medium"
-                            : st.role === "TEACHER"
-                            ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
-                            : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
-                        }
-                      >
-                        {st.role === "ADMIN" ? "Администратор" : st.role === "TEACHER" ? "Преподаватель" : "Студент"}
-                      </Badge>
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-muted-foreground">
+                      {st.phone || "—"}
+                    </td>
+                    <td className="py-2.5 px-3">
                       <Badge
                         variant="outline"
                         className={
                           st.accountStatus === "Активен"
-                            ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
-                            : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
+                            ? "bg-primary/10 text-primary border-primary/20 text-[9px] px-1.5 py-0 font-medium"
+                            : "bg-muted text-muted-foreground text-[9px] px-1.5 py-0 font-medium"
                         }
                       >
-                        <Lock className="h-2.5 w-2.5 mr-0.5" />
                         {st.accountStatus}
                       </Badge>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground text-[10px] mt-0.5">
-                      <span className="flex items-center gap-1">
-                        <Mail className="h-3 w-3" /> {st.email}
-                      </span>
-                      {st.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {st.phone}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2.5 pl-8 lg:pl-0 shrink-0">
-                  <div className="text-right">
-                    <div className="text-[9px] text-muted-foreground">Группа</div>
-                    <Badge variant="outline" className="text-[10px] font-medium px-1.5 py-0">
-                      {st.groupName}
-                    </Badge>
-                  </div>
-
-                  <div className="text-right hidden sm:block">
-                    <div className="text-[9px] text-muted-foreground">Зачислен</div>
-                    <div className="font-medium text-foreground text-[10px]">{st.enrollmentDate}</div>
-                  </div>
-
-                  {isAdminOrTeacher && (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        render={<Link href={`/dashboard/students/${st.id}/edit`} />}
-                        className="h-7 text-xs px-2"
-                      >
-                        <Edit className="h-3 w-3 mr-1 text-primary" /> Изменить
-                      </Button>
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground" />}>
-                          <MoreVertical className="h-3.5 w-3.5" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuGroup>
-                            <DropdownMenuLabel>Управление аккаунтом</DropdownMenuLabel>
-                          </DropdownMenuGroup>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
-                            <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать данные
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
-                            <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => setSingleDeleteTarget(st)}
-                            className="text-destructive focus:text-destructive"
+                    </td>
+                    {isAdminOrTeacher && (
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            render={<Link href={`/dashboard/students/${st.id}/edit`} />}
+                            className="h-6 w-6 text-muted-foreground hover:text-primary"
                           >
-                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Удалить из базы
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {filteredStudents.length === 0 && (
-              <div className="p-8 text-center text-muted-foreground text-xs space-y-2">
-                <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
-                <div>Студенты не найдены</div>
-                {isAnyFilterActive && (
-                  <Button size="xs" variant="outline" onClick={handleResetAllFilters} className="mt-1 text-xs">
-                    Сбросить фильтры
-                  </Button>
-                )}
-              </div>
-            )}
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-6 w-6 text-muted-foreground" />}>
+                              <MoreVertical className="h-3 w-3" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuGroup>
+                                <DropdownMenuLabel>Управление аккаунтом</DropdownMenuLabel>
+                              </DropdownMenuGroup>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
+                                <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать данные
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
+                                <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setSingleDeleteTarget(st)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Удалить из базы
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+
+          {filteredStudents.length === 0 && (
+            <div className="p-8 text-center text-muted-foreground text-xs space-y-2">
+              <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
+              <div>Студенты не найдены</div>
+              {isAnyFilterActive && (
+                <Button size="xs" variant="outline" onClick={handleResetAllFilters} className="mt-1 text-xs">
+                  Сбросить фильтры
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         /* Grid Cards View */
