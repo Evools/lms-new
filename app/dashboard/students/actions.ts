@@ -12,6 +12,10 @@ export interface CreateStudentInput {
   password?: string;
   groupName?: string;
   enrollmentType?: string;
+  nationalId?: string;
+  gender?: string;
+  telegram?: string;
+  birthDate?: string;
 }
 
 export interface StudentDetailDTO {

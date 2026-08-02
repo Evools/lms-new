@@ -66,13 +66,15 @@ interface StudentRegistrationFormProps {
 export interface ImportedStudentRow {
   id: string;
   fullName: string;
+  nationalId?: string;
+  gender?: string;
+  phone?: string;
+  telegram?: string;
+  birthDate?: string;
   email: string;
-  phone: string;
   password?: string;
   group: string;
   enrollmentType: "Бюджет" | "Контракт";
-  status: "VALID" | "WARNING";
-  statusText: string;
 }
 
 export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegistrationFormProps) {
@@ -150,24 +152,8 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
 
   const handleNameChange = (val: string) => {
     setFullName(val);
-    if (!email || email.endsWith("@lyceum.edu")) {
-      const latinName = val
-        .trim()
-        .toLowerCase()
-        .replace(/а/g, "a").replace(/б/g, "b").replace(/в/g, "v").replace(/г/g, "g")
-        .replace(/д/g, "d").replace(/е/g, "e").replace(/ё/g, "yo").replace(/ж/g, "zh")
-        .replace(/з/g, "z").replace(/и/g, "i").replace(/й/g, "y").replace(/к/g, "k")
-        .replace(/л/g, "l").replace(/м/g, "m").replace(/н/g, "n").replace(/о/g, "o")
-        .replace(/п/g, "p").replace(/р/g, "r").replace(/с/g, "s").replace(/т/g, "t")
-        .replace(/у/g, "u").replace(/ф/g, "f").replace(/х/g, "kh").replace(/ц/g, "ts")
-        .replace(/ч/g, "ch").replace(/ш/g, "sh").replace(/щ/g, "shch").replace(/ъ/g, "")
-        .replace(/ы/g, "y").replace(/ь/g, "").replace(/э/g, "e").replace(/ю/g, "yu")
-        .replace(/я/g, "ya");
-
-      const firstWord = latinName.split(" ")[0];
-      if (firstWord) {
-        setEmail(`${firstWord}@lyceum.edu`);
-      }
+    if (!email || email.endsWith("@lyceum.edu") || email.endsWith("@student.lyceum.kg")) {
+      setEmail(generateEmailFromName(val));
     }
   };
 
@@ -186,6 +172,10 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
         password: password || undefined,
         groupName: group,
         enrollmentType: enrollmentType,
+        nationalId: nationalId.trim() || undefined,
+        gender: gender,
+        telegram: telegram.trim() || undefined,
+        birthDate: birthDate || undefined,
       });
 
       setIsSubmitting(false);
@@ -238,10 +228,8 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
     return rawPhone;
   };
 
-  const generateEmailFromName = (fullName: string, pin?: string) => {
-    if (pin && pin.length === 14) {
-      return `${pin}@student.lyceum.kg`;
-    }
+  const generateEmailFromName = (fullName: string) => {
+    if (!fullName.trim()) return "student@lyceum.edu";
     const latin = fullName
       .trim()
       .toLowerCase()
@@ -253,34 +241,48 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
       .replace(/у/g, "u").replace(/ф/g, "f").replace(/х/g, "kh").replace(/ц/g, "ts")
       .replace(/ч/g, "ch").replace(/ш/g, "sh").replace(/щ/g, "shch").replace(/ъ/g, "")
       .replace(/ы/g, "y").replace(/ь/g, "").replace(/э/g, "e").replace(/ю/g, "yu")
-      .replace(/я/g, "ya");
+      .replace(/я/g, "ya")
+      .replace(/[^a-z0-9\s]/g, "");
+
     const parts = latin.split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
-      return `${parts[1]}.${parts[0]}@lyceum.edu`;
+      const surname = parts[0];
+      const firstname = parts[1];
+      return `${firstname}.${surname}@lyceum.edu`;
     }
     return `${parts[0] || "student"}@lyceum.edu`;
   };
 
   const parseStudentTableText = (text: string) => {
-    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
 
-    let headerIndices = { name: -1, pin: -1, phone: -1, email: -1 };
+    let headerIndices = {
+      index: -1,
+      name: -1,
+      pin: -1,
+      gender: -1,
+      phone: -1,
+      telegram: -1,
+      birthDate: -1,
+    };
 
-    // Check header row
     const firstLineParts = lines[0].split(/[\t,;]/).map((p) => p.trim().toLowerCase());
     const hasHeader = firstLineParts.some((p) =>
-      p.includes("фио") || p.includes("студент") || p.includes("пин") || p.includes("телефон") || p.includes("имя")
+      p.includes("фио") || p.includes("студент") || p.includes("пин") || p.includes("телефон") || p.includes("пол") || p.includes("дата") || p.includes("telegram")
     );
 
     let startLine = 0;
     if (hasHeader) {
       startLine = 1;
       firstLineParts.forEach((p, idx) => {
-        if (p.includes("фио") || p.includes("студент") || p.includes("имя")) headerIndices.name = idx;
+        if (p.includes("№") || p === "no" || p === "n") headerIndices.index = idx;
+        else if (p.includes("фио") || p.includes("студент") || p.includes("имя")) headerIndices.name = idx;
         else if (p.includes("пин") || p.includes("инн")) headerIndices.pin = idx;
+        else if (p.includes("пол") && !p.includes("телефон")) headerIndices.gender = idx;
         else if (p.includes("тел") || p.includes("телефон") || p.includes("мобильн")) headerIndices.phone = idx;
-        else if (p.includes("email") || p.includes("почта") || p.includes("логин")) headerIndices.email = idx;
+        else if (p.includes("telegram") || p.includes("whatsapp") || p.includes("мессенджер") || p.includes("телеграм")) headerIndices.telegram = idx;
+        else if (p.includes("рождения") || p.includes("д.р") || p.includes("дата")) headerIndices.birthDate = idx;
       });
     }
 
@@ -292,46 +294,49 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
 
       let name = "";
       let pin = "";
+      let gender = "";
       let phone = "";
+      let telegram = "";
+      let birthDate = "";
       let email = "";
 
       if (hasHeader) {
         if (headerIndices.name !== -1) name = parts[headerIndices.name] || "";
         if (headerIndices.pin !== -1) pin = parts[headerIndices.pin] || "";
+        if (headerIndices.gender !== -1) gender = parts[headerIndices.gender] || "";
         if (headerIndices.phone !== -1) phone = parts[headerIndices.phone] || "";
-        if (headerIndices.email !== -1) email = parts[headerIndices.email] || "";
+        if (headerIndices.telegram !== -1) telegram = parts[headerIndices.telegram] || "";
+        if (headerIndices.birthDate !== -1) birthDate = parts[headerIndices.birthDate] || "";
       } else {
-        let startIndex = 0;
-        if (/^\d{1,3}$/.test(parts[0])) startIndex = 1;
+        let idx = 0;
+        if (/^\d{1,3}$/.test(parts[0])) idx = 1;
 
-        name = parts[startIndex] || "";
-        if (parts[startIndex + 1] && /^\d{14}$/.test(parts[startIndex + 1])) {
-          pin = parts[startIndex + 1];
-          phone = parts[startIndex + 2] || "";
-        } else if (parts[startIndex + 1] && parts[startIndex + 1].includes("@")) {
-          email = parts[startIndex + 1];
-          phone = parts[startIndex + 2] || "";
-        } else {
-          phone = parts[startIndex + 1] || "";
-        }
+        name = parts[idx] || "";
+        pin = parts[idx + 1] || "";
+        gender = parts[idx + 2] || "";
+        phone = parts[idx + 3] || "";
+        telegram = parts[idx + 4] || "";
+        birthDate = parts[idx + 5] || "";
       }
 
       if (!name || name.toLowerCase().includes("фио") || name.toLowerCase().includes("студент")) continue;
 
       const formattedPhone = normalizeKyrgyzPhone(phone);
-      const finalEmail = email.includes("@") ? email : generateEmailFromName(name, pin);
+      const finalEmail = generateEmailFromName(name);
       const autoPassword = "Lms" + (Math.floor(100000 + Math.random() * 900000)).toString();
 
       parsedRows.push({
         id: `imp-${i}-${Date.now()}`,
         fullName: name,
-        email: finalEmail,
+        nationalId: pin,
+        gender: gender || (name.endsWith("вна") || name.endsWith("ева") || name.endsWith("ова") || name.endsWith("кызы") ? "Женский" : "Мужской"),
         phone: formattedPhone,
+        telegram: telegram !== "—" ? telegram : "",
+        birthDate: birthDate,
+        email: finalEmail,
         password: autoPassword,
         group: defaultImportGroup,
         enrollmentType: defaultImportType,
-        status: "VALID",
-        statusText: "Готов к зачислению",
       });
     }
 
@@ -355,9 +360,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
 
   const handleDownloadPasswordsCSV = () => {
     if (importedStudents.length === 0) return;
-    let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Телефон,Временный Пароль,Группа\n";
+    let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Временный Пароль\n";
     importedStudents.forEach((st, idx) => {
-      csvContent += `${idx + 1},"${st.fullName}","${st.email}","${st.phone}","${st.password || 'Lms123456'}","${st.group}"\n`;
+      csvContent += `${idx + 1},"${st.fullName}","${st.email}","${st.password || 'Lms123456'}"\n`;
     });
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -373,9 +378,10 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
   const handleDownloadTemplate = () => {
     const csvContent =
       "\uFEFF" +
-      "ФИО Студента,ПИН КР,Телефон,Дата рождения,Статус\n" +
-      "Абдыкадыров Бекзат Дурусбекович,20707200900462,+996 703 070 029,07.07.2009,Одобрен\n" +
-      "Алмазбеков Асылбек Алмазбекович,22502200900165,+996 225 547 154,25.02.2009,Одобрен\n";
+      "№,ФИО Студента,ПИН КР,Пол,Телефон,Telegram / WhatsApp,Дата рождения\n" +
+      '1,"Абдыкадыров Бекзат Дурусбекович","20707200900462","Мужской","+996 703 070 029","703070029","07.07.2009"\n' +
+      '2,"Алмазбеков Асылбек Алмазбекович","22502200900165","Мужской","+996 225 547 154","+996 225 547 154","25.02.2009"\n' +
+      '3,"Анарбаев Каниет Рустамович","21705201100139","Мужской","0703 032 335","—","17.05.2011"\n';
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -390,9 +396,12 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
   const handleLoadDemoData = () => {
     setExcelFileName("spisok_kursantov_2026.xlsx");
     setImportedStudents([
-      { id: "imp-1", fullName: "Абдыкадыров Бекзат Дурусбекович", email: "20707200900462@student.lyceum.kg", phone: "+996 (703) 070-029", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к зачислению" },
-      { id: "imp-2", fullName: "Алмазбеков Асылбек Алмазбекович", email: "22502200900165@student.lyceum.kg", phone: "+996 (225) 547-154", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к зачислению" },
-      { id: "imp-3", fullName: "Анарбаев Каниет Рустамович", email: "21705201100139@student.lyceum.kg", phone: "+996 (703) 032-335", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к зачислению" },
+      { id: "imp-1", fullName: "Абдыкадыров Бекзат Дурусбекович", nationalId: "20707200900462", gender: "Мужской", phone: "+996 703 070 029", telegram: "703070029", birthDate: "07.07.2009", email: "bekzat.abdykadyrov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-2", fullName: "Алмазбеков Асылбек Алмазбекович", nationalId: "22502200900165", gender: "Мужской", phone: "+996 225 547 154", telegram: "+996 225 547 154", birthDate: "25.02.2009", email: "asylbek.almazbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-3", fullName: "Анарбаев Каниет Рустамович", nationalId: "21705201100139", gender: "Мужской", phone: "0703 032 335", telegram: "—", birthDate: "17.05.2011", email: "kaniet.anarbaev@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-4", fullName: "Анарбеков Шернияз Алтынбекович", nationalId: "21208201000077", gender: "Мужской", phone: "—", telegram: "—", birthDate: "12.08.2010", email: "sherniyaz.anarbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-5", fullName: "Арстанбеков Асылбек", nationalId: "20401201101004", gender: "Мужской", phone: "+996 221 262 711", telegram: "@Asyl_prog", birthDate: "04.01.2011", email: "asylbek.arstanbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-6", fullName: "Арынбаева Бегимай Манасбековна", nationalId: "10306200950246", gender: "Женский", phone: "0507 924 223", telegram: "0709 699 705", birthDate: "03.06.2009", email: "begimay.arynbaeva@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
     ]);
   };
 
@@ -413,6 +422,10 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
         password: st.password,
         groupName: st.group,
         enrollmentType: st.enrollmentType,
+        nationalId: st.nationalId,
+        gender: st.gender,
+        telegram: st.telegram,
+        birthDate: st.birthDate,
       }));
 
       const res = await createBulkStudentsAction(payload);
@@ -627,9 +640,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-medium text-foreground text-xs">Мессенджер</label>
+                  <label className="font-medium text-foreground text-xs">Telegram / WhatsApp (Соцсети)</label>
                   <Input
-                    placeholder="@username"
+                    placeholder="@username или +996 703 070 029"
                     value={telegram}
                     onChange={(e) => setTelegram(e.target.value)}
                     className="h-8 text-xs"
@@ -810,9 +823,14 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
               </p>
             </div>
 
-            <Button size="xs" variant="outline" onClick={handleDownloadTemplate} className="h-8 text-xs gap-1.5">
-              Скачать шаблон CSV
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="xs" variant="ghost" onClick={handleLoadDemoData} className="h-8 text-xs gap-1 text-primary hover:bg-primary/10 font-medium">
+                <Sparkles className="h-3.5 w-3.5" /> Пример данных
+              </Button>
+              <Button size="xs" variant="outline" onClick={handleDownloadTemplate} className="h-8 text-xs gap-1.5">
+                <Download className="h-3.5 w-3.5" /> Скачать шаблон CSV
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -870,7 +888,7 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                     )}
                   </div>
                   <div className="text-[10px] text-muted-foreground pt-0.5">
-                    Автоматически распознает столбцы: ФИО Студента, ПИН КР, Телефон, Дата рождения, Статус
+                    Автоматически распознает столбцы: №, ФИО Студента, ПИН КР, Пол, Телефон, Telegram / WhatsApp, Дата рождения
                   </div>
                 </div>
               </label>
@@ -895,33 +913,53 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                 </span>
               </div>
 
-              <div className="divide-y border rounded-lg overflow-hidden bg-background">
-                {importedStudents.map((st, idx) => (
-                  <div key={st.id} className="p-2.5 flex items-center justify-between gap-2 hover:bg-muted/20">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-muted-foreground w-4 text-[10px]">{idx + 1}.</span>
-                      <span className="font-medium text-xs text-foreground truncate">{st.fullName}</span>
-                      <span className="text-[10px] text-muted-foreground truncate">{st.email}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline" className="text-[9px]">
-                        {st.group}
-                      </Badge>
-                      <Badge variant="outline" className="text-[9px] font-mono border-primary/30 text-primary bg-primary/5">
-                        Пароль: {st.password || "Lms123456"}
-                      </Badge>
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        onClick={() => handleRemoveImportRow(st.id)}
-                        className="text-muted-foreground hover:text-destructive h-6 w-6"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              <div className="border rounded-lg overflow-x-auto bg-background">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-muted/40 border-b text-[11px] font-semibold text-muted-foreground">
+                    <tr>
+                      <th className="py-2 px-2.5 text-center w-8">№</th>
+                      <th className="py-2 px-2.5 min-w-[180px]">ФИО Студента</th>
+                      <th className="py-2 px-2.5 min-w-[120px]">ПИН КР</th>
+                      <th className="py-2 px-2.5">Пол</th>
+                      <th className="py-2 px-2.5 min-w-[120px]">Телефон</th>
+                      <th className="py-2 px-2.5 min-w-[120px]">Telegram / WhatsApp</th>
+                      <th className="py-2 px-2.5">Дата рождения</th>
+                      <th className="py-2 px-2.5">Пароль</th>
+                      <th className="py-2 px-2.5 text-right"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y text-xs">
+                    {importedStudents.map((st, idx) => (
+                      <tr key={st.id} className="hover:bg-muted/20">
+                        <td className="py-2 px-2.5 text-center text-muted-foreground font-mono text-[10px]">{idx + 1}</td>
+                        <td className="py-2 px-2.5 font-medium text-foreground">
+                          {st.fullName}
+                          <div className="text-[10px] text-muted-foreground font-mono">{st.email}</div>
+                        </td>
+                        <td className="py-2 px-2.5 font-mono text-[11px] text-muted-foreground">{st.nationalId || "—"}</td>
+                        <td className="py-2 px-2.5 text-muted-foreground">{st.gender || "—"}</td>
+                        <td className="py-2 px-2.5 font-mono text-[11px]">{st.phone || "—"}</td>
+                        <td className="py-2 px-2.5 text-muted-foreground">{st.telegram || "—"}</td>
+                        <td className="py-2 px-2.5 text-muted-foreground font-mono text-[11px]">{st.birthDate || "—"}</td>
+                        <td className="py-2 px-2.5">
+                          <Badge variant="outline" className="text-[9px] font-mono border-primary/30 text-primary bg-primary/5">
+                            {st.password || "Lms123456"}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-2.5 text-right">
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            onClick={() => handleRemoveImportRow(st.id)}
+                            className="text-muted-foreground hover:text-destructive h-6 w-6"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               <div className="flex items-center justify-between gap-2 pt-2">
