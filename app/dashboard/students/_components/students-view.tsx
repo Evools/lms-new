@@ -63,6 +63,10 @@ import {
   LayoutGrid,
   List,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { deleteStudentsAction } from "../actions";
 
@@ -109,21 +113,6 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("Все статусы");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("Все формы");
 
-  // View Mode: Table vs Grid Cards (with localStorage persistence)
-  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
-
-  useEffect(() => {
-    const saved = localStorage.getItem("students_view_mode");
-    if (saved === "table" || saved === "grid") {
-      setViewMode(saved);
-    }
-  }, []);
-
-  const handleSetViewMode = (mode: "table" | "grid") => {
-    setViewMode(mode);
-    localStorage.setItem("students_view_mode", mode);
-  };
-
   // Multi-select & Bulk delete state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -132,6 +121,15 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
 
   // Single item deletion state for dialog
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<StudentRegistryItem | null>(null);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+
+  // Reset page to 1 when filters or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedGroupFilter, selectedStatusFilter, selectedTypeFilter, pageSize]);
 
   // Filter students
   const filteredStudents = students.filter((s) => {
@@ -152,6 +150,10 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
 
     return matchesSearch && matchesGroup && matchesStatus && matchesType;
   });
+
+  const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedStudents = filteredStudents.slice(startIndex, startIndex + pageSize);
 
   const isAllSelected =
     filteredStudents.length > 0 &&
@@ -393,298 +395,228 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
               <RotateCcw className="h-3 w-3 mr-1" /> Сброс
             </Button>
           )}
-
-          {/* View Mode Switcher */}
-          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border text-xs ml-auto sm:ml-0">
-            <button
-              type="button"
-              onClick={() => handleSetViewMode("table")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors font-medium ${
-                viewMode === "table"
-                  ? "bg-background border border-border shadow-2xs text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <List className="h-3.5 w-3.5 shrink-0" />
-              <span>Таблица</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSetViewMode("grid")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors font-medium ${
-                viewMode === "grid"
-                  ? "bg-background border border-border shadow-2xs text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
-              <span>Карточки</span>
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Main Content: Table View vs Grid Cards */}
-      {viewMode === "table" ? (
-        <div className="rounded-xl border bg-card overflow-hidden">
-          <div className="border-b overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-muted/40 border-b text-[11px] font-semibold text-muted-foreground">
-                <tr>
+      {/* Main Content: Table View */}
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="border-b overflow-x-auto">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-muted/40 border-b text-[11px] font-semibold text-muted-foreground">
+              <tr>
+                {isAdminOrTeacher && (
+                  <th className="py-2.5 px-3 text-center w-8">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleToggleSelectAll}
+                      aria-label="Выбрать всех"
+                    />
+                  </th>
+                )}
+                <th className="py-2.5 px-2.5 text-center w-8">№</th>
+                <th className="py-2.5 px-3 min-w-[200px]">Студент</th>
+                <th className="py-2.5 px-3 min-w-[100px]">Группа</th>
+                <th className="py-2.5 px-3 min-w-[100px]">Форма</th>
+                <th className="py-2.5 px-3 min-w-[120px]">Телефон</th>
+                <th className="py-2.5 px-3 min-w-[120px]">Статус</th>
+                {isAdminOrTeacher && <th className="py-2.5 px-3 text-right min-w-[90px]"></th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y text-xs">
+              {paginatedStudents.map((st, idx) => (
+                <tr
+                  key={st.id}
+                  className={`hover:bg-muted/20 transition-colors ${
+                    selectedIds.includes(st.id) ? "bg-primary/5" : ""
+                  }`}
+                >
                   {isAdminOrTeacher && (
-                    <th className="py-2.5 px-3 text-center w-8">
+                    <td className="py-2.5 px-3 text-center">
                       <Checkbox
-                        checked={isAllSelected}
-                        onCheckedChange={handleToggleSelectAll}
-                        aria-label="Выбрать всех"
+                        checked={selectedIds.includes(st.id)}
+                        onCheckedChange={() => handleToggleSelectStudent(st.id)}
                       />
-                    </th>
+                    </td>
                   )}
-                  <th className="py-2.5 px-2.5 text-center w-8">№</th>
-                  <th className="py-2.5 px-3 min-w-[200px]">Студент</th>
-                  <th className="py-2.5 px-3 min-w-[100px]">Группа</th>
-                  <th className="py-2.5 px-3 min-w-[100px]">Форма</th>
-                  <th className="py-2.5 px-3 min-w-[120px]">Телефон</th>
-                  <th className="py-2.5 px-3 min-w-[120px]">Статус</th>
-                  {isAdminOrTeacher && <th className="py-2.5 px-3 text-right min-w-[90px]"></th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y text-xs">
-                {filteredStudents.map((st, idx) => (
-                  <tr
-                    key={st.id}
-                    className={`hover:bg-muted/20 transition-colors ${
-                      selectedIds.includes(st.id) ? "bg-primary/5" : ""
-                    }`}
-                  >
-                    {isAdminOrTeacher && (
-                      <td className="py-2.5 px-3 text-center">
-                        <Checkbox
-                          checked={selectedIds.includes(st.id)}
-                          onCheckedChange={() => handleToggleSelectStudent(st.id)}
-                        />
-                      </td>
-                    )}
-                    <td className="py-2.5 px-2.5 text-center text-muted-foreground font-mono text-[10px]">{idx + 1}</td>
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Avatar className="h-6 w-6 border shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary font-bold text-[9px]">
-                            {st.name.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <Link href={`/dashboard/students/${st.id}/edit`} className="font-semibold text-xs text-foreground hover:underline hover:text-primary transition-colors block truncate">
-                            {st.name}
-                          </Link>
-                          <div className="text-[10px] text-muted-foreground font-mono truncate">{st.email}</div>
-                        </div>
+                  <td className="py-2.5 px-2.5 text-center text-muted-foreground font-mono text-[10px]">{startIndex + idx + 1}</td>
+                  <td className="py-2.5 px-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className="h-6 w-6 border shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-[9px]">
+                          {st.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <Link href={`/dashboard/students/${st.id}/edit`} className="font-semibold text-xs text-foreground hover:underline hover:text-primary transition-colors block truncate">
+                          {st.name}
+                        </Link>
+                        <div className="text-[10px] text-muted-foreground font-mono truncate">{st.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0">
+                      {st.groupName}
+                    </Badge>
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <Badge
+                      variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"}
+                      className="text-[9px] px-1.5 py-0 font-medium"
+                    >
+                      {st.enrollmentType}
+                    </Badge>
+                  </td>
+                  <td className="py-2.5 px-3 font-mono text-[11px] text-muted-foreground">
+                    {st.phone || "—"}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <Badge
+                      variant="outline"
+                      className={
+                        st.accountStatus === "Активен"
+                          ? "bg-primary/10 text-primary border-primary/20 text-[9px] px-1.5 py-0 font-medium"
+                          : "bg-muted text-muted-foreground text-[9px] px-1.5 py-0 font-medium"
+                      }
+                    >
+                      {st.accountStatus}
+                    </Badge>
+                  </td>
+                  {isAdminOrTeacher && (
+                    <td className="py-2.5 px-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          render={<Link href={`/dashboard/students/${st.id}/edit`} />}
+                          className="h-6 w-6 text-muted-foreground hover:text-primary"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-6 w-6 text-muted-foreground" />}>
+                            <MoreVertical className="h-3 w-3" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuGroup>
+                              <DropdownMenuLabel>Управление аккаунтом</DropdownMenuLabel>
+                            </DropdownMenuGroup>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
+                              <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать данные
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
+                              <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setSingleDeleteTarget(st)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Удалить из базы
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
-                    <td className="py-2.5 px-3">
-                      <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0">
-                        {st.groupName}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <Badge
-                        variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"}
-                        className="text-[9px] px-1.5 py-0 font-medium"
-                      >
-                        {st.enrollmentType}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-muted-foreground">
-                      {st.phone || "—"}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <Badge
-                        variant="outline"
-                        className={
-                          st.accountStatus === "Активен"
-                            ? "bg-primary/10 text-primary border-primary/20 text-[9px] px-1.5 py-0 font-medium"
-                            : "bg-muted text-muted-foreground text-[9px] px-1.5 py-0 font-medium"
-                        }
-                      >
-                        {st.accountStatus}
-                      </Badge>
-                    </td>
-                    {isAdminOrTeacher && (
-                      <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            render={<Link href={`/dashboard/students/${st.id}/edit`} />}
-                            className="h-6 w-6 text-muted-foreground hover:text-primary"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-6 w-6 text-muted-foreground" />}>
-                              <MoreVertical className="h-3 w-3" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuGroup>
-                                <DropdownMenuLabel>Управление аккаунтом</DropdownMenuLabel>
-                              </DropdownMenuGroup>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
-                                <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать данные
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
-                                <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => setSingleDeleteTarget(st)}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Удалить из базы
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredStudents.length === 0 && (
+          <div className="p-8 text-center text-muted-foreground text-xs space-y-2">
+            <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
+            <div>Студенты не найдены</div>
+            {isAnyFilterActive && (
+              <Button size="xs" variant="outline" onClick={handleResetAllFilters} className="mt-1 text-xs">
+                Сбросить фильтры
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Pagination Controls Footer */}
+      {filteredStudents.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 px-1 border-t text-xs text-muted-foreground">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span>
+              Показано{" "}
+              <strong className="font-semibold text-foreground">
+                {startIndex + 1}–{Math.min(startIndex + pageSize, filteredStudents.length)}
+              </strong>{" "}
+              из <strong className="font-semibold text-foreground">{filteredStudents.length}</strong> записей
+            </span>
+
+            <div className="flex items-center gap-1.5 pl-2 border-l">
+              <span className="text-[11px]">На странице:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(val) => val && setPageSize(Number(val))}
+              >
+                <SelectTrigger className="h-7 text-xs w-20 bg-background px-2.5">
+                  <SelectValue>{pageSize}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {filteredStudents.length === 0 && (
-            <div className="p-8 text-center text-muted-foreground text-xs space-y-2">
-              <Users className="h-7 w-7 mx-auto text-muted-foreground/40" />
-              <div>Студенты не найдены</div>
-              {isAnyFilterActive && (
-                <Button size="xs" variant="outline" onClick={handleResetAllFilters} className="mt-1 text-xs">
-                  Сбросить фильтры
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
-        /* Grid Cards View */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredStudents.map((st) => (
-            <div
-              key={st.id}
-              className={`rounded-xl border bg-card p-3 space-y-2.5 text-xs hover:border-primary/40 transition-all ${
-                selectedIds.includes(st.id) ? "border-primary/60 bg-primary/5" : ""
-              }`}
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon-xs"
+              variant="outline"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="h-7 w-7"
+              title="Первая страница"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {isAdminOrTeacher && (
-                    <Checkbox
-                      checked={selectedIds.includes(st.id)}
-                      onCheckedChange={() => handleToggleSelectStudent(st.id)}
-                    />
-                  )}
-                  <Avatar className="h-7 w-7 border shrink-0">
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-[10px]">
-                      {st.name.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <Link
-                      href={`/dashboard/students/${st.id}/edit`}
-                      className="font-bold text-xs text-foreground hover:underline hover:text-primary transition-colors line-clamp-1"
-                    >
-                      {st.name}
-                    </Link>
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                      <Mail className="h-3 w-3" /> {st.email}
-                    </p>
-                  </div>
-                </div>
+              <ChevronsLeft className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="outline"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="h-7 w-7"
+              title="Предыдущая страница"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
 
-                <Badge variant="outline" className="text-[9px] font-semibold shrink-0">
-                  {st.groupName}
-                </Badge>
-              </div>
+            <span className="px-2 text-[11px] font-medium text-foreground">
+              Стр. {currentPage} из {totalPages}
+            </span>
 
-              <div className="pt-2 border-t space-y-1.5 text-[10px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Роль в системе:</span>
-                  <Badge
-                    variant="outline"
-                    className={
-                      st.role === "ADMIN"
-                        ? "bg-rose-500/10 text-rose-600 border-rose-200 text-[8px] px-1 py-0 font-medium"
-                        : st.role === "TEACHER"
-                        ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
-                        : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
-                    }
-                  >
-                    {st.role === "ADMIN" ? "Администратор" : st.role === "TEACHER" ? "Преподаватель" : "Студент"}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Форма обучения:</span>
-                  <Badge variant={st.enrollmentType === "Бюджет" ? "default" : "secondary"} className="text-[8px] px-1 py-0 font-medium">
-                    {st.enrollmentType}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Статус аккаунта:</span>
-                  <Badge
-                    variant="outline"
-                    className={
-                      st.accountStatus === "Активен"
-                        ? "bg-primary/10 text-primary border-primary/20 text-[8px] px-1 py-0 font-medium"
-                        : "bg-muted text-muted-foreground text-[8px] px-1 py-0 font-medium"
-                    }
-                  >
-                    <Lock className="h-2.5 w-2.5 mr-0.5" />
-                    {st.accountStatus}
-                  </Badge>
-                </div>
-
-                {st.phone && (
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Телефон:</span>
-                    <span className="font-medium text-foreground">{st.phone}</span>
-                  </div>
-                )}
-              </div>
-
-              {isAdminOrTeacher && (
-                <div className="pt-2 border-t flex items-center justify-between gap-1.5">
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    render={<Link href={`/dashboard/students/${st.id}/edit`} />}
-                    className="flex-1 text-xs h-7"
-                  >
-                    <Edit className="h-3 w-3 mr-1" /> Изменить
-                  </Button>
-
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => handleOpenResetPassword(st)}
-                    className="text-xs h-7"
-                  >
-                    <KeyRound className="h-3 w-3 mr-1" /> Пароль
-                  </Button>
-
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => setSingleDeleteTarget(st)}
-                    className="h-7 w-7 text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+            <Button
+              size="icon-xs"
+              variant="outline"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="h-7 w-7"
+              title="Следующая страница"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="outline"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="h-7 w-7"
+              title="Последняя страница"
+            >
+              <ChevronsRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       )}
 

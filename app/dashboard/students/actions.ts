@@ -48,9 +48,22 @@ export async function getStudentsAction(): Promise<StudentListItemDTO[]> {
     const list = await prisma.user.findMany({
       where: { role: "STUDENT" },
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        createdAt: true,
         studentEnrollments: {
-          include: { group: true },
+          take: 1,
+          select: {
+            group: {
+              select: {
+                name: true,
+              },
+            },
+          },
         },
       },
     });
