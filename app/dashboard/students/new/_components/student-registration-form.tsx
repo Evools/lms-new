@@ -47,6 +47,8 @@ import {
   FileSpreadsheet,
   Trash2,
   Save,
+  Upload,
+  Download,
 } from "lucide-react";
 
 export interface DBGroupItem {
@@ -66,6 +68,7 @@ export interface ImportedStudentRow {
   fullName: string;
   email: string;
   phone: string;
+  password?: string;
   group: string;
   enrollmentType: "Бюджет" | "Контракт";
   status: "VALID" | "WARNING";
@@ -219,18 +222,166 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const csvContent =
-      "\uFEFF" +
-      "ФИО Студента,Email (Логин),Телефон\n" +
-      "Касымов Бактыбек Замирович,kasymov@lyceum.edu,+996 555 12-34-56\n" +
-      "Саматова Алина Руслановна,samatova@lyceum.edu,+996 700 98-76-54\n";
+  const normalizeKyrgyzPhone = (rawPhone: string) => {
+    if (!rawPhone) return "";
+    const digits = rawPhone.replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.startsWith("996") && digits.length === 12) {
+      return `+996 (${digits.slice(3, 6)}) ${digits.slice(6, 9)}-${digits.slice(9)}`;
+    }
+    if (digits.length === 9) {
+      return `+996 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    if (digits.startsWith("0") && digits.length === 10) {
+      return `+996 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+    return rawPhone;
+  };
+
+  const generateEmailFromName = (fullName: string, pin?: string) => {
+    if (pin && pin.length === 14) {
+      return `${pin}@student.lyceum.kg`;
+    }
+    const latin = fullName
+      .trim()
+      .toLowerCase()
+      .replace(/а/g, "a").replace(/б/g, "b").replace(/в/g, "v").replace(/г/g, "g")
+      .replace(/д/g, "d").replace(/е/g, "e").replace(/ё/g, "yo").replace(/ж/g, "zh")
+      .replace(/з/g, "z").replace(/и/g, "i").replace(/й/g, "y").replace(/к/g, "k")
+      .replace(/л/g, "l").replace(/м/g, "m").replace(/н/g, "n").replace(/о/g, "o")
+      .replace(/п/g, "p").replace(/р/g, "r").replace(/с/g, "s").replace(/т/g, "t")
+      .replace(/у/g, "u").replace(/ф/g, "f").replace(/х/g, "kh").replace(/ц/g, "ts")
+      .replace(/ч/g, "ch").replace(/ш/g, "sh").replace(/щ/g, "shch").replace(/ъ/g, "")
+      .replace(/ы/g, "y").replace(/ь/g, "").replace(/э/g, "e").replace(/ю/g, "yu")
+      .replace(/я/g, "ya");
+    const parts = latin.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[1]}.${parts[0]}@lyceum.edu`;
+    }
+    return `${parts[0] || "student"}@lyceum.edu`;
+  };
+
+  const parseStudentTableText = (text: string) => {
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) return;
+
+    let headerIndices = { name: -1, pin: -1, phone: -1, email: -1 };
+
+    // Check header row
+    const firstLineParts = lines[0].split(/[\t,;]/).map((p) => p.trim().toLowerCase());
+    const hasHeader = firstLineParts.some((p) =>
+      p.includes("фио") || p.includes("студент") || p.includes("пин") || p.includes("телефон") || p.includes("имя")
+    );
+
+    let startLine = 0;
+    if (hasHeader) {
+      startLine = 1;
+      firstLineParts.forEach((p, idx) => {
+        if (p.includes("фио") || p.includes("студент") || p.includes("имя")) headerIndices.name = idx;
+        else if (p.includes("пин") || p.includes("инн")) headerIndices.pin = idx;
+        else if (p.includes("тел") || p.includes("телефон") || p.includes("мобильн")) headerIndices.phone = idx;
+        else if (p.includes("email") || p.includes("почта") || p.includes("логин")) headerIndices.email = idx;
+      });
+    }
+
+    const parsedRows: ImportedStudentRow[] = [];
+
+    for (let i = startLine; i < lines.length; i++) {
+      const parts = lines[i].split(/[\t,;]/).map((p) => p.trim());
+      if (parts.length < 2) continue;
+
+      let name = "";
+      let pin = "";
+      let phone = "";
+      let email = "";
+
+      if (hasHeader) {
+        if (headerIndices.name !== -1) name = parts[headerIndices.name] || "";
+        if (headerIndices.pin !== -1) pin = parts[headerIndices.pin] || "";
+        if (headerIndices.phone !== -1) phone = parts[headerIndices.phone] || "";
+        if (headerIndices.email !== -1) email = parts[headerIndices.email] || "";
+      } else {
+        let startIndex = 0;
+        if (/^\d{1,3}$/.test(parts[0])) startIndex = 1;
+
+        name = parts[startIndex] || "";
+        if (parts[startIndex + 1] && /^\d{14}$/.test(parts[startIndex + 1])) {
+          pin = parts[startIndex + 1];
+          phone = parts[startIndex + 2] || "";
+        } else if (parts[startIndex + 1] && parts[startIndex + 1].includes("@")) {
+          email = parts[startIndex + 1];
+          phone = parts[startIndex + 2] || "";
+        } else {
+          phone = parts[startIndex + 1] || "";
+        }
+      }
+
+      if (!name || name.toLowerCase().includes("фио") || name.toLowerCase().includes("студент")) continue;
+
+      const formattedPhone = normalizeKyrgyzPhone(phone);
+      const finalEmail = email.includes("@") ? email : generateEmailFromName(name, pin);
+      const autoPassword = "Lms" + (Math.floor(100000 + Math.random() * 900000)).toString();
+
+      parsedRows.push({
+        id: `imp-${i}-${Date.now()}`,
+        fullName: name,
+        email: finalEmail,
+        phone: formattedPhone,
+        password: autoPassword,
+        group: defaultImportGroup,
+        enrollmentType: defaultImportType,
+        status: "VALID",
+        statusText: "Готов к зачислению",
+      });
+    }
+
+    if (parsedRows.length > 0) {
+      setImportedStudents(parsedRows);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelFileName(file.name);
+
+    try {
+      const text = await file.text();
+      parseStudentTableText(text);
+    } catch (err) {
+      setErrorMessage("Не удалось прочитать файл");
+    }
+  };
+
+  const handleDownloadPasswordsCSV = () => {
+    if (importedStudents.length === 0) return;
+    let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Телефон,Временный Пароль,Группа\n";
+    importedStudents.forEach((st, idx) => {
+      csvContent += `${idx + 1},"${st.fullName}","${st.email}","${st.phone}","${st.password || 'Lms123456'}","${st.group}"\n`;
+    });
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "shablon_studentov.csv");
+    link.setAttribute("download", `loginy_i_paroli_${defaultImportGroup || "gruppy"}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDownloadTemplate = () => {
+    const csvContent =
+      "\uFEFF" +
+      "ФИО Студента,ПИН КР,Телефон,Дата рождения,Статус\n" +
+      "Абдыкадыров Бекзат Дурусбекович,20707200900462,+996 703 070 029,07.07.2009,Одобрен\n" +
+      "Алмазбеков Асылбек Алмазбекович,22502200900165,+996 225 547 154,25.02.2009,Одобрен\n";
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "shablon_vedomosti_studentov.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -239,9 +390,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
   const handleLoadDemoData = () => {
     setExcelFileName("spisok_kursantov_2026.xlsx");
     setImportedStudents([
-      { id: "imp-1", fullName: "Абдрахманов Эльдар Бакытович", email: "abdrakhmanov@lyceum.edu", phone: "+996 555 11-22-33", group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к импорту" },
-      { id: "imp-2", fullName: "Жаныбекова Асель Кубанычбековна", email: "zhanybekova@lyceum.edu", phone: "+996 708 44-55-66", group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к импорту" },
-      { id: "imp-3", fullName: "Токтосунов Адилет Тимурович", email: "toktosunov@lyceum.edu", phone: "+996 770 99-88-77", group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к импорту" },
+      { id: "imp-1", fullName: "Абдыкадыров Бекзат Дурусбекович", email: "20707200900462@student.lyceum.kg", phone: "+996 (703) 070-029", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к зачислению" },
+      { id: "imp-2", fullName: "Алмазбеков Асылбек Алмазбекович", email: "22502200900165@student.lyceum.kg", phone: "+996 (225) 547-154", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к зачислению" },
+      { id: "imp-3", fullName: "Анарбаев Каниет Рустамович", email: "21705201100139@student.lyceum.kg", phone: "+996 (703) 032-335", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType, status: "VALID", statusText: "Готов к зачислению" },
     ]);
   };
 
@@ -259,6 +410,7 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
         name: st.fullName,
         email: st.email,
         phone: st.phone,
+        password: st.password,
         groupName: st.group,
         enrollmentType: st.enrollmentType,
       }));
@@ -694,15 +846,44 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
             </div>
           </div>
 
-          <div className="border border-dashed rounded-xl p-6 text-center space-y-2 bg-muted/20">
-            <FileSpreadsheet className="h-8 w-8 mx-auto text-primary/60" />
-            <div className="font-semibold text-xs text-foreground">
-              {excelFileName ? `Файл: ${excelFileName}` : "Загрузите ведомость учащихся"}
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="font-semibold text-xs text-foreground">1. Загрузите файл таблицы (.csv, .txt, .xlsx)</label>
+              <label className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all bg-card text-center relative">
+                <input
+                  type="file"
+                  accept=".csv,.txt,.tsv,.xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Upload className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="font-semibold text-xs text-foreground">
+                    {excelFileName ? (
+                      <span className="text-primary font-bold flex items-center gap-1 justify-center">
+                        <FileSpreadsheet className="h-3.5 w-3.5" /> {excelFileName}
+                      </span>
+                    ) : (
+                      "Выберите файл экспортной ведомости на компьютере"
+                    )}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground pt-0.5">
+                    Автоматически распознает столбцы: ФИО Студента, ПИН КР, Телефон, Дата рождения, Статус
+                  </div>
+                </div>
+              </label>
             </div>
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <Button size="xs" onClick={handleLoadDemoData} variant="outline" className="h-7 text-xs">
-                Загрузить демо-список
-              </Button>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-xs text-foreground">Или вставьте скопированный текст из Excel / Таблицы:</label>
+              <textarea
+                rows={3}
+                placeholder="Вставьте скопированные строки из другой системы (Ctrl+V)..."
+                onChange={(e) => parseStudentTableText(e.target.value)}
+                className="w-full p-2.5 rounded-lg border bg-background text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
           </div>
 
@@ -727,6 +908,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                       <Badge variant="outline" className="text-[9px]">
                         {st.group}
                       </Badge>
+                      <Badge variant="outline" className="text-[9px] font-mono border-primary/30 text-primary bg-primary/5">
+                        Пароль: {st.password || "Lms123456"}
+                      </Badge>
                       <Button
                         size="icon-xs"
                         variant="ghost"
@@ -740,13 +924,24 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                 ))}
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <Button size="xs" variant="outline" onClick={() => setImportedStudents([])} className="h-8 text-xs">
-                  Очистить
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={handleDownloadPasswordsCSV}
+                  className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+                >
+                  <Download className="h-3.5 w-3.5" /> Скачать логины и пароли (.csv)
                 </Button>
-                <Button size="xs" onClick={handleBatchImportSubmit} disabled={isSubmitting} className="h-8 text-xs gap-1.5">
-                  <Save className="h-3.5 w-3.5" /> Зачислить всех ({importedStudents.length})
-                </Button>
+
+                <div className="flex items-center gap-2">
+                  <Button size="xs" variant="outline" onClick={() => setImportedStudents([])} className="h-8 text-xs">
+                    Очистить
+                  </Button>
+                  <Button size="xs" onClick={handleBatchImportSubmit} disabled={isSubmitting} className="h-8 text-xs gap-1.5">
+                    <Save className="h-3.5 w-3.5" /> Зачислить всех ({importedStudents.length})
+                  </Button>
+                </div>
               </div>
             </div>
           )}
