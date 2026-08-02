@@ -463,26 +463,26 @@ export function SettingsView({
     });
   };
 
-  const [userRoleFilter, setUserRoleFilter] = useState<"STAFF" | "TEACHER" | "ADMIN" | "STUDENT" | "ALL">("STAFF");
+  const [userRoleFilter, setUserRoleFilter] = useState<"STAFF" | "TEACHER" | "ADMIN">("STAFF");
 
   const filteredUsers = allUsers.filter((u) => {
+    if (u.role !== "TEACHER" && u.role !== "ADMIN") return false;
+
     const matchesSearch =
       u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.email.toLowerCase().includes(userSearch.toLowerCase());
 
     if (!matchesSearch) return false;
 
-    if (userRoleFilter === "STAFF") return u.role === "TEACHER" || u.role === "ADMIN";
     if (userRoleFilter === "TEACHER") return u.role === "TEACHER";
     if (userRoleFilter === "ADMIN") return u.role === "ADMIN";
-    if (userRoleFilter === "STUDENT") return u.role === "STUDENT";
 
     return true;
   });
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { key: "system" as Tab, label: "Настройки системы", icon: <Globe className="h-3.5 w-3.5" />, adminOnly: true },
-    { key: "users" as Tab, label: "Пользователи", icon: <Users className="h-3.5 w-3.5" />, adminOnly: true },
+    { key: "users" as Tab, label: "Сотрудники и доступы", icon: <Users className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "academic" as Tab, label: "Учебные годы", icon: <CalendarDays className="h-3.5 w-3.5" />, adminOnly: true },
   ].filter((t) => !t.adminOnly || isAdmin);
 
@@ -702,7 +702,7 @@ export function SettingsView({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                Сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN").length})
+                Все сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN").length})
               </button>
               <button
                 type="button"
@@ -724,29 +724,7 @@ export function SettingsView({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
-                Админы ({allUsers.filter((u) => u.role === "ADMIN").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setUserRoleFilter("STUDENT")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                  userRoleFilter === "STUDENT"
-                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                }`}
-              >
-                Студенты ({allUsers.filter((u) => u.role === "STUDENT").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setUserRoleFilter("ALL")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                  userRoleFilter === "ALL"
-                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                }`}
-              >
-                Все ({allUsers.length})
+                Администраторы ({allUsers.filter((u) => u.role === "ADMIN").length})
               </button>
             </div>
           </div>
@@ -755,11 +733,9 @@ export function SettingsView({
             <div className="p-3.5 border-b flex items-center justify-between">
               <h2 className="font-bold text-foreground flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
-                {userRoleFilter === "STAFF" && "Сотрудники и преподаватели"}
+                {userRoleFilter === "STAFF" && "Все сотрудники и преподаватели"}
                 {userRoleFilter === "TEACHER" && "Преподавательский состав"}
                 {userRoleFilter === "ADMIN" && "Администраторы системы"}
-                {userRoleFilter === "STUDENT" && "Зачисленные студенты"}
-                {userRoleFilter === "ALL" && "Все аккаунты системы"}
               </h2>
               <span className="text-[11px] text-muted-foreground font-medium">{filteredUsers.length} чел.</span>
             </div>
@@ -797,7 +773,6 @@ export function SettingsView({
                             <SelectContent>
                               <SelectItem value="ADMIN" className="text-xs">Администратор</SelectItem>
                               <SelectItem value="TEACHER" className="text-xs">Преподаватель</SelectItem>
-                              <SelectItem value="STUDENT" className="text-xs">Студент</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -979,7 +954,6 @@ export function SettingsView({
                     <SelectContent>
                       <SelectItem value="TEACHER" className="text-xs font-medium">Преподаватель</SelectItem>
                       <SelectItem value="ADMIN" className="text-xs font-medium">Администратор</SelectItem>
-                      <SelectItem value="STUDENT" className="text-xs font-medium">Студент</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
