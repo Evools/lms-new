@@ -114,6 +114,19 @@ export function NavUser({
 
             <DropdownMenuSeparator />
 
+            <DropdownMenuGroup>
+              <DropdownMenuItem render={<Link href="/dashboard/profile" />}>
+                <User className="mr-2 h-4 w-4" />
+                Мой профиль
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
+                <Settings className="mr-2 h-4 w-4" />
+                Настройки
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+
+            <DropdownMenuSeparator />
+
             <DropdownMenuItem
               onClick={() => logoutAction()}
               className="text-destructive focus:text-destructive cursor-pointer"

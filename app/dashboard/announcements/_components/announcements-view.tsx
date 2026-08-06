@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ import {
   deleteAnnouncementAction,
   updateAnnouncementAction,
 } from "../actions";
+import { RichWysiwygEditor } from "@/components/rich-wysiwyg-editor";
 
 export interface FileAttachmentItem {
   id: string;
@@ -88,6 +89,11 @@ export function AnnouncementsView({
   initialAnnouncements = [],
 }: AnnouncementsViewProps) {
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(initialAnnouncements);
+
+  // Sync with fresh server data after revalidatePath
+  useEffect(() => {
+    setAnnouncements(initialAnnouncements);
+  }, [initialAnnouncements]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeAudienceFilter, setActiveAudienceFilter] = useState<"ALL" | "LYCEUM" | "GROUP" | "TEACHERS">("ALL");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -192,6 +198,7 @@ export function AnnouncementsView({
         title: titleVal,
         body: bodyVal,
         targetAudience: audienceVal,
+        isPinned: newPinned,
       });
     });
   };
@@ -227,6 +234,7 @@ export function AnnouncementsView({
         title: updatedTitle,
         body: updatedBody,
         targetAudience: updatedAudience,
+        isPinned: updatedPinned,
       });
     });
   };
@@ -281,7 +289,7 @@ export function AnnouncementsView({
             <DialogTrigger render={<Button size="xs" className="h-8 text-xs gap-1.5 shrink-0" />}>
               <Plus className="h-3.5 w-3.5" /> Новое объявление
             </DialogTrigger>
-            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[540px]">
+            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[760px]">
               <form onSubmit={handleCreateSubmit} className="space-y-3">
                 <DialogHeader className="pb-2 border-b gap-1">
                   <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
@@ -375,14 +383,13 @@ export function AnnouncementsView({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="font-medium text-foreground text-xs">Текст объявления *</label>
-                    <textarea
-                      required
-                      rows={4}
-                      placeholder="Введите подробный текст объявления..."
+                    <RichWysiwygEditor
+                      label="Текст объявления *"
                       value={newBody}
-                      onChange={(e) => setNewBody(e.target.value)}
-                      className="w-full p-2 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary resize-none"
+                      onChange={setNewBody}
+                      placeholder="Введите подробный текст объявления..."
+                      minHeight="180px"
+                      showStats={false}
                     />
                   </div>
 
@@ -418,7 +425,7 @@ export function AnnouncementsView({
 
       {/* Edit Announcement Modal */}
       <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
-        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[540px]">
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[760px]">
           <form onSubmit={handleEditSubmit} className="space-y-3">
             <DialogHeader className="pb-2 border-b gap-1">
               <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
@@ -509,14 +516,13 @@ export function AnnouncementsView({
               </div>
 
               <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Текст объявления *</label>
-                <textarea
-                  required
-                  rows={4}
-                  placeholder="Введите текст объявления..."
+                <RichWysiwygEditor
+                  label="Текст объявления *"
                   value={editBody}
-                  onChange={(e) => setEditBody(e.target.value)}
-                  className="w-full p-2 rounded-md border text-xs bg-background focus:outline-hidden focus:ring-1 focus:ring-primary resize-none"
+                  onChange={setEditBody}
+                  placeholder="Введите текст объявления..."
+                  minHeight="180px"
+                  showStats={false}
                 />
               </div>
 

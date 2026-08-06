@@ -69,6 +69,9 @@ import {
   AlertCircle,
   X,
   SlidersHorizontal,
+  Power,
+  PowerOff,
+  AlertTriangle,
 } from "lucide-react";
 import {
   GroupDetailsDTO,
@@ -80,6 +83,7 @@ import {
   createGroupAnnouncementAction,
   updateGroupAnnouncementAction,
   deleteGroupAnnouncementAction,
+  toggleGroupDutyAction,
 } from "../../actions";
 import { DayDutyGroupDTO, addDutyStudentAction, removeDutyStudentAction, generateWeeklyDutyAction } from "@/app/dashboard/duty/actions";
 
@@ -113,6 +117,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
   const [dutyActionStatus, setDutyActionStatus] = useState<{ success?: string; error?: string } | null>(null);
 
   // Duty Sub-Tab State: SCHEDULE vs SETTINGS
+  const [isDutyEnabled, setIsDutyEnabled] = useState<boolean>(group.isDutyEnabled ?? true);
   const [dutySubTab, setDutySubTab] = useState<"SCHEDULE" | "SETTINGS">("SCHEDULE");
   const [dutyPerDaySetting, setDutyPerDaySetting] = useState<number>(0); // 0 = Auto
   const [activeDutyDays, setActiveDutyDays] = useState<number[]>([0, 1, 2, 3, 4, 5]); // Mon-Sat
@@ -124,10 +129,30 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
 
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
 
+  const handleToggleDutyStatus = (enabled: boolean) => {
+    setDutyActionStatus(null);
+    startTransition(async () => {
+      const res = await toggleGroupDutyAction(group.id, enabled);
+      if (res.success) {
+        setIsDutyEnabled(enabled);
+        setDutyActionStatus({
+          success: enabled
+            ? "Дежурства для группы успешно включены!"
+            : "Дежурства для группы отключены. График приостановлен.",
+        });
+        router.refresh();
+        setTimeout(() => setDutyActionStatus(null), 3500);
+      } else {
+        setDutyActionStatus({ error: res.error || "Ошибка при изменении статуса дежурств" });
+      }
+    });
+  };
+
   const handleApplyDetailedDutySettings = () => {
     setDutyActionStatus(null);
     startTransition(async () => {
       const res = await generateWeeklyDutyAction(group.id, {
+        isDutyEnabled,
         perDay: dutyPerDaySetting > 0 ? dutyPerDaySetting : undefined,
         activeDays: activeDutyDays,
         includeLeader: responsibleMode !== "NONE",
@@ -137,7 +162,11 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
         excludedStudentIds,
       });
       if (res.success) {
-        setDutyActionStatus({ success: "График дежурств успешно сформирован с учетом всех настроек!" });
+        setDutyActionStatus({
+          success: isDutyEnabled
+            ? "График дежурств успешно сформирован с учетом всех настроек!"
+            : "Настройки сохранены. Дежурства отключены.",
+        });
         setDutySubTab("SCHEDULE");
         router.refresh();
         setTimeout(() => setDutyActionStatus(null), 3500);
@@ -831,7 +860,17 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
               <div className="space-y-1">
                 <div className="text-xs font-bold text-foreground flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-primary" />
-                  Управление графиком дежурств
+                  <span>Управление графиком дежурств</span>
+                  <Badge
+                    variant="outline"
+                    className={
+                      isDutyEnabled
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] px-2 py-0 font-medium"
+                        : "bg-destructive/10 text-destructive border-destructive/20 text-[10px] px-2 py-0 font-medium"
+                    }
+                  >
+                    {isDutyEnabled ? "Дежурство включено" : "Дежурство отключено"}
+                  </Badge>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   Календарная ротация, ручное назначение и детальные параметры дежурств
@@ -844,7 +883,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                     onClick={() => setDutySubTab("SCHEDULE")}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors font-medium ${
                       dutySubTab === "SCHEDULE"
-                        ? "bg-card border border-border shadow-2xs text-foreground font-semibold"
+                        ? "bg-card border border-border shadow-2xs text-foreground font-medium"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -857,7 +896,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                       onClick={() => setDutySubTab("SETTINGS")}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors font-medium ${
                         dutySubTab === "SETTINGS"
-                          ? "bg-card border border-border shadow-2xs text-foreground font-semibold"
+                          ? "bg-card border border-border shadow-2xs text-foreground font-medium"
                           : "text-muted-foreground hover:text-foreground"
                       }`}
                     >
@@ -872,6 +911,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                 <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
                   <Button
                     size="xs"
+                    disabled={!isDutyEnabled}
                     className="h-8 text-xs gap-1.5"
                     onClick={() => {
                       const targetDay = weeklyDays.find((d) => d.isToday && !d.isSunday) || weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
@@ -888,7 +928,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                     <Button
                       size="xs"
                       onClick={handleApplyDetailedDutySettings}
-                      disabled={isPending}
+                      disabled={isPending || !isDutyEnabled}
                       className="h-8 text-xs gap-1.5"
                     >
                       <Sparkles className="h-3.5 w-3.5" />
@@ -915,8 +955,38 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
 
             {/* SUB-TAB 1: WEEKLY SCHEDULE CALENDAR VIEW */}
             {dutySubTab === "SCHEDULE" && (
-              <div className="space-y-4">
-                <div className="rounded-xl border overflow-hidden bg-card">
+              <div className="space-y-3">
+                {!isDutyEnabled && (
+                  <div className="p-2.5 px-3 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                      <span className="font-semibold text-foreground text-xs">Дежурства в этой группе отключены</span>
+                      <span className="text-[11px] text-muted-foreground hidden md:inline">— график не рассчитывается</span>
+                    </div>
+                    {isAdminOrTeacher && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          size="xs"
+                          onClick={() => handleToggleDutyStatus(true)}
+                          disabled={isPending}
+                          className="h-6 text-[11px] px-2.5 gap-1 bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
+                        >
+                          <Power className="h-3 w-3" /> Включить
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => setDutySubTab("SETTINGS")}
+                          className="h-6 text-[11px] px-2 gap-1 font-medium"
+                        >
+                          <SlidersHorizontal className="h-3 w-3" /> Настройки
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className={`rounded-xl border overflow-hidden bg-card ${!isDutyEnabled ? "opacity-75" : ""}`}>
                   {/* Table header */}
                   <div className="grid grid-cols-[100px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>День / Дата</span>
@@ -934,7 +1004,9 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                         <div
                           key={day.fullDate}
                           className={`grid grid-cols-[100px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${
-                            day.isToday
+                            !isDutyEnabled
+                              ? "bg-muted/10"
+                              : day.isToday
                               ? "bg-primary/5"
                               : day.isSunday
                               ? "bg-muted/20 opacity-60"
@@ -944,10 +1016,10 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                           {/* Day Column */}
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <span className={`text-xs font-bold ${day.isToday ? "text-primary" : "text-foreground"}`}>
+                              <span className={`text-xs font-bold ${isDutyEnabled && day.isToday ? "text-primary" : "text-foreground"}`}>
                                 {day.dayName}
                               </span>
-                              {day.isToday && (
+                              {isDutyEnabled && day.isToday && (
                                 <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 font-medium">
                                   Сегодня
                                 </Badge>
@@ -958,7 +1030,11 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
 
                           {/* Duty Students List Column */}
                           <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            {day.isSunday ? (
+                            {!isDutyEnabled ? (
+                              <span className="text-[11px] text-muted-foreground/60 italic flex items-center gap-1">
+                                <PowerOff className="h-3 w-3 text-muted-foreground/40" /> Дежурство отключено
+                              </span>
+                            ) : day.isSunday ? (
                               <span className="text-[11px] text-muted-foreground/60 italic">Выходной день</span>
                             ) : day.dutyStudents && day.dutyStudents.length > 0 ? (
                               day.dutyStudents.map((st) => (
@@ -1006,7 +1082,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
 
                           {/* Action Column */}
                           <div className="flex items-center justify-end gap-1.5 shrink-0">
-                            {!day.isSunday && isAdminOrTeacher && (
+                            {isDutyEnabled && !day.isSunday && isAdminOrTeacher && (
                               <Button
                                 size="xs"
                                 variant="outline"
@@ -1028,7 +1104,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                   </div>
                 </div>
 
-                {weeklyDays.length === 0 && (
+                {weeklyDays.length === 0 && isDutyEnabled && (
                   <div className="rounded-xl border border-dashed py-10 text-center text-muted-foreground space-y-2">
                     <Clock className="h-7 w-7 mx-auto text-muted-foreground/30" />
                     <div className="text-xs font-medium">График дежурств ещё не создан</div>
@@ -1044,25 +1120,69 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
 
             {/* SUB-TAB 2: DUTY SETTINGS PAGE VIEW */}
             {dutySubTab === "SETTINGS" && (
-              <Card className="p-4 space-y-4 text-xs bg-card">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b">
+              <Card className="p-3.5 space-y-3.5 text-xs bg-card">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b">
                   <div>
                     <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                       <SlidersHorizontal className="h-4 w-4 text-primary" /> Настройки автоматической ротации
                     </h3>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Настройка алгоритма, числа дежурных, рабочих дней недели и индивидуальных исключений
+                      Включение/отключение дежурств, настройка алгоритма, числа дежурных и исключений
                     </p>
                   </div>
                   <Button
                     size="xs"
                     onClick={handleApplyDetailedDutySettings}
                     disabled={isPending}
-                    className="h-8 text-xs gap-1.5 shrink-0"
+                    className="h-7 text-xs gap-1.5 shrink-0"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     {isPending ? "Расчет..." : "Сохранить и сформировать"}
                   </Button>
+                </div>
+
+                {/* 0. Main Duty Enable / Disable Option (Compact Bar) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 px-3 rounded-lg border bg-muted/10 border-primary/20 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Power className={`h-4 w-4 shrink-0 ${isDutyEnabled ? "text-emerald-500" : "text-destructive"}`} />
+                    <div className="space-y-0.5 truncate">
+                      <span className="font-semibold text-foreground">Режим дежурств: </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {isDutyEnabled ? "система автоматически рассчитывает график" : "если отключить, то работать не будет"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                    <div className="inline-flex p-0.5 bg-muted/80 rounded-md border text-[11px] font-medium">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDutyStatus(true)}
+                        disabled={isPending}
+                        className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-medium ${
+                          isDutyEnabled
+                            ? "bg-background text-emerald-600 dark:text-emerald-400 border border-border shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        <span>Включено</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDutyStatus(false)}
+                        disabled={isPending}
+                        className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-medium ${
+                          !isDutyEnabled
+                            ? "bg-background text-destructive border border-border shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <PowerOff className="h-3.5 w-3.5 text-destructive shrink-0" />
+                        <span>Отключено</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

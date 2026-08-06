@@ -66,11 +66,12 @@ import {
 
 interface DutyScheduleViewProps {
   userRole: string;
-  groupsList: { id: string; name: string }[];
+  groupsList: { id: string; name: string; isDutyEnabled?: boolean }[];
   weeklyDays: DayDutyGroupDTO[];
   groupStudents: GroupStudentWithDutyInfo[];
   groupDutyStats: StudentDutyStatDTO[];
   selectedGroupId?: string;
+  isDutyEnabled?: boolean;
 }
 
 type StudentPickerMode = {
@@ -87,6 +88,7 @@ export function DutyScheduleView({
   groupStudents = [],
   groupDutyStats = [],
   selectedGroupId,
+  isDutyEnabled = true,
 }: DutyScheduleViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -438,6 +440,24 @@ export function DutyScheduleView({
       </div>
 
       {/* Alert Messages */}
+      {!isDutyEnabled && (
+        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+            <span>
+              Дежурства для группы <strong>{currentGroupObj?.name || ""}</strong> отключены в настройках группы. График не рассчитывается.
+            </span>
+          </div>
+          {currentGroupId && (
+            <Link href={`/dashboard/groups/${currentGroupId}`}>
+              <Button size="xs" variant="outline" className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 shrink-0">
+                Настройки группы
+              </Button>
+            </Link>
+          )}
+        </div>
+      )}
+
       {successMsg && (
         <div className="print:hidden p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />

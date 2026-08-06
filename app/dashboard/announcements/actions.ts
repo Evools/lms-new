@@ -69,7 +69,7 @@ export async function getAnnouncementsAction(): Promise<AnnouncementItemDTO[]> {
         hour: "2-digit",
         minute: "2-digit",
       }),
-      isPinned: false,
+      isPinned: item.isPinned,
       files: item.fileUrl
         ? item.fileUrl.split(", ").map((fileName, idx) => ({
             id: `file-${item.id}-${idx}`,
@@ -91,6 +91,7 @@ export async function createAnnouncementAction(data: {
   body: string;
   targetAudience: "LYCEUM" | "GROUP" | "TEACHERS";
   fileUrl?: string;
+  isPinned?: boolean;
 }) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -112,6 +113,7 @@ export async function createAnnouncementAction(data: {
         content: data.body,
         scope,
         fileUrl: data.fileUrl || null,
+        isPinned: data.isPinned ?? false,
       },
     });
 
@@ -148,6 +150,7 @@ export async function updateAnnouncementAction(
     body: string;
     targetAudience: "LYCEUM" | "GROUP" | "TEACHERS";
     fileUrl?: string;
+    isPinned?: boolean;
   }
 ) {
   const session = await auth();
@@ -169,7 +172,8 @@ export async function updateAnnouncementAction(
         title: data.title,
         content: data.body,
         scope,
-        fileUrl: data.fileUrl || null,
+        ...(data.fileUrl !== undefined && { fileUrl: data.fileUrl || null }),
+        isPinned: data.isPinned ?? false,
       },
     });
 

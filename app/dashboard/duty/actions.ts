@@ -43,18 +43,21 @@ export interface GroupStudentWithDutyInfo {
 }
 
 export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
-  groups: { id: string; name: string }[];
+  groups: { id: string; name: string; isDutyEnabled: boolean }[];
   weeklyDays: DayDutyGroupDTO[];
   allSchedules: DutyItemDTO[];
   groupStudents: GroupStudentWithDutyInfo[];
+  isDutyEnabled?: boolean;
 }> {
   try {
     const groups = await prisma.group.findMany({
-      select: { id: true, name: true },
+      select: { id: true, name: true, isDutyEnabled: true },
       orderBy: { name: "asc" },
     });
 
     const targetGroupId = selectedGroupId || groups[0]?.id;
+    const targetGroupObj = groups.find((g) => g.id === targetGroupId);
+    const targetGroupIsDutyEnabled = targetGroupObj ? targetGroupObj.isDutyEnabled : true;
 
     const now = new Date();
     const currentDayOfWeek = now.getDay();
@@ -172,8 +175,8 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
         isLeader: false,
       }));
 
-      // Fallback: compute fair rotation ONLY if no DB schedule exists at all for this week
-      if (!hasAnyDbSchedule && !isSunday && dutyStudents.length === 0 && groupStudents.length > 0) {
+      // Fallback: compute fair rotation ONLY if duty is enabled and no DB schedule exists at all for this week
+      if (targetGroupIsDutyEnabled && !hasAnyDbSchedule && !isSunday && dutyStudents.length === 0 && groupStudents.length > 0) {
         const perDay = Math.min(groupStudents.length, groupStudents.length >= 6 ? 3 : 2);
         const candidates = [...groupStudents].sort((a, b) => {
           const diff = (fallbackDutyCount[a.id] || 0) - (fallbackDutyCount[b.id] || 0);
@@ -189,7 +192,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
         }
       }
 
-      if (!hasAnyDbSchedule && !isSunday && !leaderObj && groupStudents.length > 0) {
+      if (targetGroupIsDutyEnabled && !hasAnyDbSchedule && !isSunday && !leaderObj && groupStudents.length > 0) {
         const leaderCandidate =
           groupStudents.find((s) => s.name === groupMonitorName) || groupStudents[0];
         if (leaderCandidate) {
@@ -223,7 +226,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       isToday: new Date(s.date).toDateString() === now.toDateString(),
     }));
 
-    return { groups, weeklyDays, allSchedules, groupStudents };
+    return { groups, weeklyDays, allSchedules, groupStudents, isDutyEnabled: targetGroupIsDutyEnabled };
   } catch (error) {
     console.error("Failed to fetch duty schedule:", error);
     return { groups: [], weeklyDays: [], allSchedules: [], groupStudents: [] };
@@ -449,6 +452,7 @@ export async function replaceDutyStudentAction(
 }
 
 export interface DutySettingsOptions {
+  isDutyEnabled?: boolean;
   perDay?: number; // 1 | 2 | 3 | 4 | 5
   activeDays?: number[]; // 0 = Mon, 1 = Tue, 2 = Wed, 3 = Thu, 4 = Fri, 5 = Sat
   includeLeader?: boolean;
@@ -472,6 +476,33 @@ export async function generateWeeklyDutyAction(
 
   try {
     const opts: DutySettingsOptions = typeof options === "number" ? { perDay: options } : (options || {});
+
+    const now = new Date();
+    const currentDayOfWeek = now.getDay();
+    const distanceToMonday = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek;
+
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + distanceToMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    if (opts.isDutyEnabled !== undefined) {
+      await prisma.group.update({
+        where: { id: groupId },
+        data: { isDutyEnabled: opts.isDutyEnabled },
+      });
+
+      if (opts.isDutyEnabled === false) {
+        const startDate = new Date(monday);
+        const endDate = new Date(monday);
+        endDate.setDate(monday.getDate() + 7);
+        await prisma.dutySchedule.deleteMany({
+          where: { groupId, date: { gte: startDate, lt: endDate } },
+        });
+        revalidatePath("/dashboard/duty");
+        revalidatePath(`/dashboard/groups/${groupId}`);
+        return { success: true };
+      }
+    }
     const perDayOverride = opts.perDay;
     const activeDays = opts.activeDays || [0, 1, 2, 3, 4, 5];
     const includeLeader = opts.includeLeader ?? true;
@@ -493,14 +524,6 @@ export async function generateWeeklyDutyAction(
     if (!group || group.students.length === 0) {
       return { success: false, error: "В группе нет зачисленных студентов для распределения" };
     }
-
-    const now = new Date();
-    const currentDayOfWeek = now.getDay();
-    const distanceToMonday = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek;
-
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + distanceToMonday);
-    monday.setHours(0, 0, 0, 0);
 
     // Eligible candidates (excluding exempted students)
     const eligibleStudents = group.students.filter((gs) => !excludedIds.has(gs.student.id));

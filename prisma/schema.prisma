@@ -65,16 +65,16 @@ model User {
   teacherGroupSubjects GroupSubject[] @relation("TeacherGroupSubjects")
 
   // Content created
-  createdMaterials   Material[]
-  createdAssignments Assignment[]
-  createdDocuments   Document[]
+  createdMaterials     Material[]
+  createdAssignments   Assignment[]
+  createdDocuments     Document[]
   createdAnnouncements Announcement[]
-  createdTests       Test[]
+  createdTests         Test[]
 
   // Student submissions and activity
-  submissions   AssignmentSubmission[]
-  attendances   Attendance[]
-  dutySchedules DutySchedule[]
+  submissions     AssignmentSubmission[]
+  attendances     Attendance[]
+  dutySchedules   DutySchedule[]
   testSubmissions TestSubmission[]
 
   @@map("users")
@@ -101,13 +101,14 @@ model Group {
   curatorId       String?
   monitorId       String?
   deputyMonitorId String?
+  isDutyEnabled   Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  academicYear  AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  curator       User?         @relation("GroupCurator", fields: [curatorId], references: [id], onDelete: SetNull)
-  monitor       User?         @relation("GroupMonitor", fields: [monitorId], references: [id], onDelete: SetNull)
-  deputyMonitor User?         @relation("GroupDeputyMonitor", fields: [deputyMonitorId], references: [id], onDelete: SetNull)
+  academicYear  AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  curator       User?        @relation("GroupCurator", fields: [curatorId], references: [id], onDelete: SetNull)
+  monitor       User?        @relation("GroupMonitor", fields: [monitorId], references: [id], onDelete: SetNull)
+  deputyMonitor User?        @relation("GroupDeputyMonitor", fields: [deputyMonitorId], references: [id], onDelete: SetNull)
 
   students      GroupStudent[]
   groupSubjects GroupSubject[]
@@ -279,6 +280,7 @@ model Announcement {
   title         String
   content       String
   fileUrl       String?
+  isPinned      Boolean           @default(false)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -291,7 +293,7 @@ model Announcement {
 model Document {
   id          String   @id @default(cuid())
   authorId    String
-  category    String   // e.g. "методички", "положения", "инструкции", "шаблоны"
+  category    String // e.g. "методички", "положения", "инструкции", "шаблоны"
   title       String
   description String?
   fileUrl     String
@@ -310,7 +312,7 @@ model Test {
   authorId         String
   title            String
   description      String?
-  timeLimit        Int?     // minutes
+  timeLimit        Int? // minutes
   shuffleQuestions Boolean  @default(false)
   shuffleOptions   Boolean  @default(false)
   isPublished      Boolean  @default(true)
@@ -332,8 +334,8 @@ model TestQuestion {
   testId        String
   type          String   @default("SINGLE") // SINGLE, MULTIPLE, TEXT, TRUE_FALSE
   questionText  String
-  options       String   // JSON stringified array of option strings e.g. '["Option 1","Option 2"]'
-  correctAnswer String   // Exact correct answer option text or JSON array for MULTIPLE
+  options       String // JSON stringified array of option strings e.g. '["Option 1","Option 2"]'
+  correctAnswer String // Exact correct answer option text or JSON array for MULTIPLE
   points        Int      @default(1)
   order         Int      @default(0)
   createdAt     DateTime @default(now())
@@ -350,7 +352,7 @@ model TestSubmission {
   studentId   String
   score       Int
   maxScore    Int
-  answers     String   // JSON stringified user answers map e.g. '{"q1":"Option A"}'
+  answers     String // JSON stringified user answers map e.g. '{"q1":"Option A"}'
   submittedAt DateTime @default(now())
 
   test    Test @relation(fields: [testId], references: [id], onDelete: Cascade)

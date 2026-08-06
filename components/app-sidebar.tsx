@@ -22,13 +22,11 @@ import {
   Megaphone,
   FileText,
   BarChart3,
-  Settings,
   Building2,
   GraduationCap,
   Sparkles,
   FileCheck2,
   BookMarked,
-  User,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -119,11 +117,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           groupLabel: "Управление",
           items: [
             {
-              title: "Мой профиль",
-              url: "/dashboard/profile",
-              icon: <User className="h-4 w-4" />,
-            },
-            {
               title: "Аналитика & Отчёты",
               url: "/dashboard/reports",
               icon: <BarChart3 className="h-4 w-4" />,
@@ -132,11 +125,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Документы лицея",
               url: "/dashboard/documents",
               icon: <FileText className="h-4 w-4" />,
-            },
-            {
-              title: "Настройки системы",
-              url: "/dashboard/settings",
-              icon: <Settings className="h-4 w-4" />,
             },
           ],
         },
@@ -207,13 +195,8 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           ],
         },
         {
-          groupLabel: "Аккаунт & Документы",
+          groupLabel: "Документы",
           items: [
-            {
-              title: "Мой профиль",
-              url: "/dashboard/profile",
-              icon: <User className="h-4 w-4" />,
-            },
             {
               title: "Документы лицея",
               url: "/dashboard/documents",
@@ -277,13 +260,8 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         ],
       },
       {
-        groupLabel: "Аккаунт & Документы",
+        groupLabel: "Документы",
         items: [
-          {
-            title: "Мой профиль",
-            url: "/dashboard/profile",
-            icon: <User className="h-4 w-4" />,
-          },
           {
             title: "Документы лицея",
             url: "/dashboard/documents",

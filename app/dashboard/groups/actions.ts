@@ -15,6 +15,7 @@ export interface GroupDTO {
   monitorName?: string;
   deputyMonitorName?: string;
   academicYear: string;
+  isDutyEnabled?: boolean;
   createdAt: string;
 }
 
@@ -81,6 +82,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
         monitorName: item.monitor?.name || undefined,
         deputyMonitorName: item.deputyMonitor?.name || undefined,
         academicYear: item.academicYear.name,
+        isDutyEnabled: item.isDutyEnabled ?? true,
         createdAt: new Date(item.createdAt).toLocaleDateString("ru-RU"),
       };
     });
@@ -329,6 +331,7 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       monitorName: item.monitor?.name || undefined,
       deputyMonitorName: item.deputyMonitor?.name || undefined,
       academicYear: item.academicYear.name,
+      isDutyEnabled: item.isDutyEnabled ?? true,
       createdAt: new Date(item.createdAt).toLocaleDateString("ru-RU"),
       studentsList,
       subjectsList,
@@ -337,6 +340,29 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
   } catch (error) {
     console.error("Failed to fetch group details:", error);
     return null;
+  }
+}
+
+export async function toggleGroupDutyAction(groupId: string, isDutyEnabled: boolean) {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+  ) {
+    return { success: false, error: "Недостаточно прав" };
+  }
+  try {
+    await prisma.group.update({
+      where: { id: groupId },
+      data: { isDutyEnabled },
+    });
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    revalidatePath("/dashboard/groups");
+    revalidatePath("/dashboard/duty");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to toggle duty status:", error);
+    return { success: false, error: error.message || "Ошибка при изменении статуса дежурства" };
   }
 }
 
