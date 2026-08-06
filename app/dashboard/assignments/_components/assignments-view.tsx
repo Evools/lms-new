@@ -704,19 +704,21 @@ export function AssignmentsView({
                                 <Eye className="h-3.5 w-3.5 text-primary" /> Описание
                               </Button>
 
-                              <Button
-                                size="xs"
-                                variant={userSub?.status === SubmissionStatus.ACCEPTED ? "outline" : "default"}
-                                onClick={() => {
-                                  setSubmitTargetAssignment(assignment);
-                                  setSubmitFileUrl(userSub?.fileUrl || "");
-                                  setSubmitComment(userSub?.comment || "");
-                                }}
-                                className="h-7 text-xs gap-1 font-medium px-2.5"
-                              >
-                                <Send className="h-3.5 w-3.5" />
-                                {userSub ? "Пересдать" : "Сдать"}
-                              </Button>
+                              {/* Show resubmit only if NOT accepted */}
+                              {userSub?.status !== SubmissionStatus.ACCEPTED && (
+                                <Button
+                                  size="xs"
+                                  onClick={() => {
+                                    setSubmitTargetAssignment(assignment);
+                                    setSubmitFileUrl(userSub?.fileUrl || "");
+                                    setSubmitComment("");
+                                  }}
+                                  className="h-7 text-xs gap-1 font-medium px-2.5"
+                                >
+                                  <Send className="h-3.5 w-3.5" />
+                                  {userSub ? "Пересдать" : "Сдать"}
+                                </Button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -831,24 +833,34 @@ export function AssignmentsView({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between w-full gap-2">
+                    <div
+                      className="flex items-center justify-between w-full gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {userSub ? (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-semibold border px-2 py-0.5 ${
-                            userSub.status === SubmissionStatus.ACCEPTED
-                              ? "bg-primary/15 text-primary border-primary/30"
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] font-semibold border px-2 py-0.5 ${
+                              userSub.status === SubmissionStatus.ACCEPTED
+                                ? "bg-primary/15 text-primary border-primary/30"
+                                : userSub.status === SubmissionStatus.NEED_REVISION
+                                  ? "bg-destructive/10 text-destructive border-destructive/30"
+                                  : "bg-muted/60 text-muted-foreground border-border/50"
+                            }`}
+                          >
+                            {userSub.status === SubmissionStatus.ACCEPTED
+                              ? "✓ Принято"
                               : userSub.status === SubmissionStatus.NEED_REVISION
-                                ? "bg-destructive/10 text-destructive border-destructive/30"
-                                : "bg-muted/60 text-muted-foreground border-border/50"
-                          }`}
-                        >
-                          {userSub.status === SubmissionStatus.ACCEPTED
-                            ? "Принято"
-                            : userSub.status === SubmissionStatus.NEED_REVISION
-                              ? "На доработке"
-                              : "На проверке"}
-                        </Badge>
+                                ? "↩ На доработке"
+                                : "⏳ На проверке"}
+                          </Badge>
+                          {userSub.teacherComment && (
+                            <p className="text-[10px] text-muted-foreground italic line-clamp-1">
+                              💬 {userSub.teacherComment}
+                            </p>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-[10px] text-muted-foreground italic">Не сдано</span>
                       )}
@@ -1035,6 +1047,23 @@ export function AssignmentsView({
             </DialogHeader>
 
             <div className="space-y-3 py-1 text-xs">
+              {/* Show teacher's previous feedback to student when resubmitting */}
+              {submitTargetAssignment?.userSubmission?.teacherComment && (
+                <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 space-y-1">
+                  <div className="text-[10px] font-semibold text-primary flex items-center gap-1.5">
+                    <MessageSquare className="h-3.5 w-3.5" /> Комментарий преподавателя:
+                  </div>
+                  <p className="text-xs text-foreground leading-relaxed">
+                    {submitTargetAssignment.userSubmission.teacherComment}
+                  </p>
+                  {submitTargetAssignment.userSubmission.reviewedAt && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Проверено: {new Date(submitTargetAssignment.userSubmission.reviewedAt).toLocaleString("ru-RU")}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Ссылка на работу (URL)</label>
                 <Input
@@ -1417,26 +1446,39 @@ export function AssignmentsView({
                             </Button>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              disabled={isPending}
-                              onClick={() => handleReviewSubmission(activeSub.id, SubmissionStatus.NEED_REVISION)}
-                              className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium"
-                            >
-                              <XCircle className="h-3.5 w-3.5" /> На доработку
-                            </Button>
+                          {activeSub.status === SubmissionStatus.ACCEPTED ? (
+                            /* Already accepted — block re-review */
+                            <div className="flex items-center gap-2 text-[11px] text-primary font-medium">
+                              <CheckCircle2 className="h-4 w-4" />
+                              Принято
+                              {activeSub.reviewedAt && (
+                                <span className="text-muted-foreground font-normal">
+                                  {new Date(activeSub.reviewedAt).toLocaleDateString("ru-RU")}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => handleReviewSubmission(activeSub.id, SubmissionStatus.NEED_REVISION)}
+                                className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium"
+                              >
+                                <XCircle className="h-3.5 w-3.5" /> На доработку
+                              </Button>
 
-                            <Button
-                              size="xs"
-                              disabled={isPending}
-                              onClick={() => handleReviewSubmission(activeSub.id, SubmissionStatus.ACCEPTED)}
-                              className="h-7 text-xs gap-1.5 font-medium px-3 shadow-xs"
-                            >
-                              <Check className="h-3.5 w-3.5" /> Принять и дальше <ArrowRight className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                              <Button
+                                size="xs"
+                                disabled={isPending}
+                                onClick={() => handleReviewSubmission(activeSub.id, SubmissionStatus.ACCEPTED)}
+                                className="h-7 text-xs gap-1.5 font-medium px-3 shadow-xs"
+                              >
+                                <Check className="h-3.5 w-3.5" /> Принять и дальше <ArrowRight className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </>
                     );
@@ -1521,27 +1563,40 @@ export function AssignmentsView({
                             }))
                           }
                           className="h-7 text-xs bg-background"
+                          disabled={sub.status === SubmissionStatus.ACCEPTED}
                         />
                       </div>
 
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.NEED_REVISION)}
-                          className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium"
-                        >
-                          <XCircle className="h-3.5 w-3.5" /> На доработку
-                        </Button>
+                      {sub.status === SubmissionStatus.ACCEPTED ? (
+                        <div className="flex items-center gap-2 text-[11px] text-primary font-medium py-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Принято
+                          {sub.reviewedAt && (
+                            <span className="text-muted-foreground font-normal">
+                              {new Date(sub.reviewedAt).toLocaleDateString("ru-RU")}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.NEED_REVISION)}
+                            className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium"
+                          >
+                            <XCircle className="h-3.5 w-3.5" /> На доработку
+                          </Button>
 
-                        <Button
-                          size="xs"
-                          onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.ACCEPTED)}
-                          className="h-7 text-xs gap-1 font-medium px-3"
-                        >
-                          <Check className="h-3.5 w-3.5" /> Принять работу
-                        </Button>
-                      </div>
+                          <Button
+                            size="xs"
+                            onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.ACCEPTED)}
+                            className="h-7 text-xs gap-1 font-medium px-3"
+                          >
+                            <Check className="h-3.5 w-3.5" /> Принять работу
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

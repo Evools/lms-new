@@ -230,6 +230,7 @@ model AssignmentSubmission {
   teacherComment String?
   status         SubmissionStatus @default(SUBMITTED)
   submittedAt    DateTime         @default(now())
+  reviewedAt     DateTime?
   updatedAt      DateTime         @updatedAt
 
   assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)

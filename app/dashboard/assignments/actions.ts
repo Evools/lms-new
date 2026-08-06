@@ -26,6 +26,7 @@ export interface SubmissionDTO {
   teacherComment?: string | null;
   status: SubmissionStatus;
   submittedAt: string;
+  reviewedAt?: string | null;
 }
 
 export interface AssignmentDTO {
@@ -127,6 +128,7 @@ export async function getAssignmentsDataAction(groupId?: string) {
         teacherComment: sub.teacherComment,
         status: sub.status,
         submittedAt: sub.submittedAt.toISOString(),
+        reviewedAt: sub.reviewedAt ? sub.reviewedAt.toISOString() : null,
       }));
 
       const userSub = currentUserId
@@ -254,6 +256,19 @@ export async function submitAssignmentAction(data: {
   }
 
   try {
+    // Block resubmission if work is already ACCEPTED
+    const existing = await prisma.assignmentSubmission.findUnique({
+      where: {
+        assignmentId_studentId: {
+          assignmentId: data.assignmentId,
+          studentId: session.user.id,
+        },
+      },
+    });
+    if (existing && existing.status === SubmissionStatus.ACCEPTED) {
+      return { success: false, error: "Работа уже принята и не может быть пересдана" };
+    }
+
     await prisma.assignmentSubmission.upsert({
       where: {
         assignmentId_studentId: {
@@ -266,6 +281,8 @@ export async function submitAssignmentAction(data: {
         comment: data.comment?.trim() || null,
         status: SubmissionStatus.SUBMITTED,
         submittedAt: new Date(),
+        teacherComment: null, // reset teacher comment on resubmission
+        reviewedAt: null,
       },
       create: {
         assignmentId: data.assignmentId,
@@ -304,6 +321,7 @@ export async function reviewSubmissionAction(data: {
       data: {
         status: data.status,
         teacherComment: data.teacherComment?.trim() || null,
+        reviewedAt: new Date(),
       },
     });
 
