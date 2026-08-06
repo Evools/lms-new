@@ -359,7 +359,7 @@ export default async function DashboardPage() {
 
           {/* Interactive Analytics Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl border bg-card p-3.5 space-y-3">
+            <div className="rounded-xl border bg-card p-3.5 space-y-3 min-h-0 overflow-hidden">
               <div className="flex items-center justify-between border-b pb-2.5">
                 <div>
                   <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -373,7 +373,7 @@ export default async function DashboardPage() {
               <AdminGenderDistributionChart maleCount={Math.round(adminStats.studentsCount * 0.55)} femaleCount={Math.round(adminStats.studentsCount * 0.45)} />
             </div>
 
-            <div className="rounded-xl border bg-card p-3.5 space-y-3">
+            <div className="rounded-xl border bg-card p-3.5 space-y-3 min-h-0 overflow-hidden">
               <div className="flex items-center justify-between border-b pb-2.5">
                 <div>
                   <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -549,7 +549,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 rounded-xl border bg-card p-3.5 space-y-3">
+            <div className="lg:col-span-2 rounded-xl border bg-card p-3.5 space-y-3 min-h-0 overflow-hidden">
               <div className="flex items-center justify-between border-b pb-2.5">
                 <div>
                   <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -563,7 +563,7 @@ export default async function DashboardPage() {
               <TeacherOverviewChart />
             </div>
 
-            <div className="rounded-xl border bg-card p-3.5 space-y-3">
+            <div className="rounded-xl border bg-card p-3.5 space-y-3 min-h-0 overflow-hidden">
               <div className="flex items-center justify-between border-b pb-2.5">
                 <div>
                   <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -626,7 +626,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 rounded-xl border bg-card p-3.5 space-y-3">
+            <div className="lg:col-span-2 rounded-xl border bg-card p-3.5 space-y-3 min-h-0 overflow-hidden">
               <div className="flex items-center justify-between border-b pb-2.5">
                 <div>
                   <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -642,7 +642,7 @@ export default async function DashboardPage() {
               <StudentProgressChart />
             </div>
 
-            <div className="rounded-xl border bg-card p-3.5 space-y-3">
+            <div className="rounded-xl border bg-card p-3.5 space-y-3 min-h-0 overflow-hidden">
               <div className="flex items-center justify-between border-b pb-2.5">
                 <div>
                   <div className="text-xs font-bold text-foreground flex items-center gap-1.5">

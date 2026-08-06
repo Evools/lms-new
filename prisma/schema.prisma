@@ -231,6 +231,7 @@ model AssignmentSubmission {
   status         SubmissionStatus @default(SUBMITTED)
   submittedAt    DateTime         @default(now())
   reviewedAt     DateTime?
+  grade          Int?
   updatedAt      DateTime         @updatedAt
 
   assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)

@@ -135,6 +135,7 @@ export function AssignmentsView({
   // Modal 3: Teacher Streamlined Review Submissions Suite
   const [reviewTargetAssignment, setReviewTargetAssignment] = useState<AssignmentDTO | null>(null);
   const [reviewTeacherCommentMap, setReviewTeacherCommentMap] = useState<Record<string, string>>({});
+  const [reviewGradeMap, setReviewGradeMap] = useState<Record<string, number | null>>({});
   const [reviewFilter, setReviewFilter] = useState<ReviewStatusFilter>("SUBMITTED");
   const [submissionSearch, setSubmissionSearch] = useState<string>("");
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
@@ -142,6 +143,9 @@ export function AssignmentsView({
 
   // Full Assignment Details Modal
   const [viewTargetAssignment, setViewTargetAssignment] = useState<AssignmentDTO | null>(null);
+
+  // Student "My Result" Modal (separate from assignment description)
+  const [viewMyResultAssignment, setViewMyResultAssignment] = useState<AssignmentDTO | null>(null);
 
   const currentGroupObj = groups.find((g) => g.id === currentGroupId);
 
@@ -252,10 +256,13 @@ export function AssignmentsView({
   const handleOpenReviewModal = (assignment: AssignmentDTO) => {
     setReviewTargetAssignment(assignment);
     const initialComments: Record<string, string> = {};
+    const initialGrades: Record<string, number | null> = {};
     assignment.submissions.forEach((s) => {
       initialComments[s.id] = s.teacherComment || "";
+      initialGrades[s.id] = s.grade ?? null;
     });
     setReviewTeacherCommentMap(initialComments);
+    setReviewGradeMap(initialGrades);
 
     const pendingSub = assignment.submissions.find((s) => s.status === SubmissionStatus.SUBMITTED);
     if (pendingSub) {
@@ -270,6 +277,7 @@ export function AssignmentsView({
   // Teacher Review Single Submission Handler (Auto-advances to next student!)
   const handleReviewSubmission = (submissionId: string, status: SubmissionStatus) => {
     const teacherComment = reviewTeacherCommentMap[submissionId] || "";
+    const grade = reviewGradeMap[submissionId] ?? null;
 
     setErrorMsg(null);
     startTransition(async () => {
@@ -277,6 +285,7 @@ export function AssignmentsView({
         submissionId,
         status,
         teacherComment,
+        grade,
       });
 
       if (res.success) {
@@ -622,7 +631,7 @@ export function AssignmentsView({
                       </td>
 
                       {/* Submissions & Status */}
-                      <td className="py-2.5 px-3 text-center">
+                      <td className="py-2.5 px-3">
                         {canCreate ? (
                           <button
                             type="button"
@@ -633,22 +642,36 @@ export function AssignmentsView({
                             <span>{assignment.submissionsCount} / {assignment.totalStudents}</span>
                           </button>
                         ) : userSub ? (
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] font-semibold border px-2 py-0.5 ${
-                              userSub.status === SubmissionStatus.ACCEPTED
-                                ? "bg-primary/15 text-primary border-primary/30"
-                                : userSub.status === SubmissionStatus.NEED_REVISION
-                                  ? "bg-destructive/10 text-destructive border-destructive/30"
-                                  : "bg-muted/60 text-muted-foreground border-border/50"
-                            }`}
-                          >
-                            {userSub.status === SubmissionStatus.ACCEPTED
-                              ? "Принято"
-                              : userSub.status === SubmissionStatus.NEED_REVISION
-                                ? "На доработке"
-                                : "На проверке"}
-                          </Badge>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] font-semibold border px-2 py-0.5 ${
+                                  userSub.status === SubmissionStatus.ACCEPTED
+                                    ? "bg-primary/15 text-primary border-primary/30"
+                                    : userSub.status === SubmissionStatus.NEED_REVISION
+                                      ? "bg-destructive/10 text-destructive border-destructive/30"
+                                      : "bg-muted/60 text-muted-foreground border-border/50"
+                                }`}
+                              >
+                                {userSub.status === SubmissionStatus.ACCEPTED
+                                  ? "✓ Принято"
+                                  : userSub.status === SubmissionStatus.NEED_REVISION
+                                    ? "↩ Доработка"
+                                    : "⏳ Проверка"}
+                              </Badge>
+                              {userSub.grade != null && (
+                                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                  ⭐ {userSub.grade}
+                                </span>
+                              )}
+                            </div>
+                            {userSub.teacherComment && (
+                              <p className="text-[10px] text-muted-foreground italic line-clamp-1 max-w-[180px]">
+                                {userSub.teacherComment}
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal">
                             Не сдано
@@ -699,10 +722,23 @@ export function AssignmentsView({
                                 variant="outline"
                                 onClick={() => setViewTargetAssignment(assignment)}
                                 className="h-7 text-xs gap-1 px-2 text-muted-foreground hover:text-foreground"
-                                title="Подробности"
+                                title="Описание"
                               >
                                 <Eye className="h-3.5 w-3.5 text-primary" /> Описание
                               </Button>
+
+                              {/* My Result button — only when submission exists */}
+                              {userSub && (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={() => setViewMyResultAssignment(assignment)}
+                                  className="h-7 text-xs gap-1 px-2 border-primary/30 text-primary hover:bg-primary/10"
+                                  title="Мой ответ"
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" /> Мой ответ
+                                </Button>
+                              )}
 
                               {/* Show resubmit only if NOT accepted */}
                               {userSub?.status !== SubmissionStatus.ACCEPTED && (
@@ -833,51 +869,71 @@ export function AssignmentsView({
                       </div>
                     </div>
                   ) : (
+                    /* Student card bottom — feedback + submit */
                     <div
-                      className="flex items-center justify-between w-full gap-2"
+                      className="space-y-2 w-full"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {userSub ? (
-                        <div className="space-y-1 flex-1 min-w-0">
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] font-semibold border px-2 py-0.5 ${
-                              userSub.status === SubmissionStatus.ACCEPTED
-                                ? "bg-primary/15 text-primary border-primary/30"
+                        <div className="rounded-lg border bg-muted/30 p-2.5 space-y-1.5">
+                          {/* Status row */}
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-semibold border px-2 py-0.5 ${
+                                userSub.status === SubmissionStatus.ACCEPTED
+                                  ? "bg-primary/15 text-primary border-primary/30"
+                                  : userSub.status === SubmissionStatus.NEED_REVISION
+                                    ? "bg-destructive/10 text-destructive border-destructive/30"
+                                    : "bg-muted/60 text-muted-foreground border-border/50"
+                              }`}
+                            >
+                              {userSub.status === SubmissionStatus.ACCEPTED
+                                ? "✓ Принято"
                                 : userSub.status === SubmissionStatus.NEED_REVISION
-                                  ? "bg-destructive/10 text-destructive border-destructive/30"
-                                  : "bg-muted/60 text-muted-foreground border-border/50"
-                            }`}
-                          >
-                            {userSub.status === SubmissionStatus.ACCEPTED
-                              ? "✓ Принято"
-                              : userSub.status === SubmissionStatus.NEED_REVISION
-                                ? "↩ На доработке"
-                                : "⏳ На проверке"}
-                          </Badge>
+                                  ? "↩ На доработке"
+                                  : "⏳ На проверке"}
+                            </Badge>
+                            {userSub.grade != null && (
+                              <span className="inline-flex items-center gap-0.5 text-[12px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                ⭐ {userSub.grade}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Teacher comment */}
                           {userSub.teacherComment && (
-                            <p className="text-[10px] text-muted-foreground italic line-clamp-1">
-                              💬 {userSub.teacherComment}
+                            <p className="text-[10px] text-foreground leading-relaxed border-l-2 border-primary/40 pl-2 italic">
+                              {userSub.teacherComment}
+                            </p>
+                          )}
+
+                          {/* Reviewed date */}
+                          {userSub.reviewedAt && (
+                            <p className="text-[9px] text-muted-foreground">
+                              Проверено: {new Date(userSub.reviewedAt).toLocaleDateString("ru-RU")}
                             </p>
                           )}
                         </div>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground italic">Не сдано</span>
+                        <p className="text-[10px] text-muted-foreground italic text-center py-1">Не сдано</p>
                       )}
 
-                      <Button
-                        size="xs"
-                        variant={userSub?.status === SubmissionStatus.ACCEPTED ? "outline" : "default"}
-                        onClick={() => {
-                          setSubmitTargetAssignment(assignment);
-                          setSubmitFileUrl(userSub?.fileUrl || "");
-                          setSubmitComment(userSub?.comment || "");
-                        }}
-                        className="h-7 text-xs gap-1 font-medium px-2.5"
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                        {userSub ? "Пересдать" : "Сдать"}
-                      </Button>
+                      {/* Submit button — only when not accepted */}
+                      {userSub?.status !== SubmissionStatus.ACCEPTED && (
+                        <Button
+                          size="xs"
+                          className="w-full h-7 text-xs gap-1 font-medium"
+                          onClick={() => {
+                            setSubmitTargetAssignment(assignment);
+                            setSubmitFileUrl(userSub?.fileUrl || "");
+                            setSubmitComment("");
+                          }}
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          {userSub ? "Пересдать" : "Сдать ДЗ"}
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -894,7 +950,7 @@ export function AssignmentsView({
         </div>
       )}
 
-      {/* Modal 0: Full Assignment View Dialog */}
+      {/* Modal 0: Full Assignment View Dialog (clean — just description) */}
       <Dialog open={viewTargetAssignment !== null} onOpenChange={(open) => !open && setViewTargetAssignment(null)}>
         {viewTargetAssignment && (
           <DialogContent className="p-4 gap-3 text-xs sm:max-w-[620px] max-h-[85vh] overflow-y-auto">
@@ -928,7 +984,7 @@ export function AssignmentsView({
               {parseAttachmentLinks(viewTargetAssignment.fileUrl).length > 0 && (
                 <div className="space-y-1.5 pt-2 border-t">
                   <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                    <Paperclip className="h-3.5 w-3.5 text-primary" /> Прикреплённые ресурсы и ссылки:
+                    <Paperclip className="h-3.5 w-3.5 text-primary" /> Прикреплённые ресурсы:
                   </div>
                   <div className="flex flex-col gap-1.5">
                     {parseAttachmentLinks(viewTargetAssignment.fileUrl).map((url, idx) => (
@@ -955,6 +1011,111 @@ export function AssignmentsView({
             </DialogFooter>
           </DialogContent>
         )}
+      </Dialog>
+
+      {/* Modal 0b: Student "My Result" Dialog */}
+      <Dialog open={viewMyResultAssignment !== null} onOpenChange={(open) => !open && setViewMyResultAssignment(null)}>
+        {viewMyResultAssignment && (() => {
+          const mySub = viewMyResultAssignment.userSubmission;
+          return (
+            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[480px] overflow-hidden">
+              <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium">
+                    {viewMyResultAssignment.subjectName}
+                  </Badge>
+                </div>
+                <DialogTitle className="text-sm font-bold text-foreground pt-1">
+                  Мой ответ: {viewMyResultAssignment.title}
+                </DialogTitle>
+              </DialogHeader>
+
+              {mySub ? (
+                <div className="space-y-3 py-1">
+                  {/* Status + Grade */}
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs font-semibold border px-3 py-1 ${
+                        mySub.status === SubmissionStatus.ACCEPTED
+                          ? "bg-primary/15 text-primary border-primary/30"
+                          : mySub.status === SubmissionStatus.NEED_REVISION
+                            ? "bg-destructive/10 text-destructive border-destructive/30"
+                            : "bg-muted/60 text-muted-foreground border-border/50"
+                      }`}
+                    >
+                      {mySub.status === SubmissionStatus.ACCEPTED
+                        ? "\u2713 \u041f\u0440\u0438\u043d\u044f\u0442\u043e"
+                        : mySub.status === SubmissionStatus.NEED_REVISION
+                          ? "\u21a9 \u041d\u0430 \u0434\u043e\u0440\u0430\u0431\u043e\u0442\u043a\u0435"
+                          : "\u23f3 \u041d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435"}
+                    </Badge>
+                    {mySub.grade != null && (
+                      <span className="inline-flex items-center gap-1.5 text-base font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-xl">
+                        ⭐ {mySub.grade} <span className="text-xs font-normal text-amber-500">/ 5</span>
+                      </span>
+                    )}
+                    {mySub.reviewedAt && (
+                      <span className="text-[10px] text-muted-foreground ml-auto">
+                        {new Date(mySub.reviewedAt).toLocaleDateString("ru-RU")}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Teacher comment — only when exists */}
+                  {mySub.teacherComment && (
+                    <div className="p-3 rounded-xl bg-muted/30 border border-l-[3px] border-l-primary text-xs text-foreground leading-relaxed">
+                      {mySub.teacherComment}
+                    </div>
+                  )}
+
+                  {/* Student submission details — only when has content */}
+                  {(mySub.fileUrl || mySub.comment) && (
+                    <div className="border-t pt-2 space-y-1.5">
+                      {mySub.fileUrl && (
+                        <a
+                          href={mySub.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-medium"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                          Ссылка на проект
+                        </a>
+                      )}
+                      {mySub.comment && (
+                        <p className="text-[10px] text-muted-foreground italic break-words">«{mySub.comment}»</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-muted-foreground text-xs">\u0412\u044b \u0435\u0449\u0451 \u043d\u0435 \u0441\u0434\u0430\u0432\u0430\u043b\u0438 \u044d\u0442\u043e \u0437\u0430\u0434\u0430\u043d\u0438\u0435</div>
+              )}
+
+              <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+                {mySub?.status !== SubmissionStatus.ACCEPTED && (
+                  <Button
+                    size="xs"
+                    onClick={() => {
+                      setViewMyResultAssignment(null);
+                      setSubmitTargetAssignment(viewMyResultAssignment);
+                      setSubmitFileUrl(mySub?.fileUrl || "");
+                      setSubmitComment("");
+                    }}
+                    className="h-7 text-xs gap-1"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {mySub ? "Пересдать" : "Сдать ДЗ"}
+                  </Button>
+                )}
+                <Button variant="outline" size="xs" onClick={() => setViewMyResultAssignment(null)}>
+                  Закрыть
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          );
+        })()}
       </Dialog>
 
       {/* Modal 1: Quick Create Assignment Dialog */}
@@ -1398,6 +1559,48 @@ export function AssignmentsView({
                             </div>
                           </div>
 
+                          {/* Grade Selector */}
+                          <div className="space-y-1.5 pt-1">
+                            <label className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
+                              ⭐ Оценка (1–5):
+                            </label>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((g) => {
+                                const selected = reviewGradeMap[activeSub.id] === g;
+                                return (
+                                  <button
+                                    key={g}
+                                    type="button"
+                                    onClick={() =>
+                                      setReviewGradeMap((prev) => ({
+                                        ...prev,
+                                        [activeSub.id]: selected ? null : g,
+                                      }))
+                                    }
+                                    className={`h-8 w-8 rounded-lg text-xs font-bold border transition-all ${
+                                      selected
+                                        ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                                        : "bg-muted/60 text-muted-foreground border-border hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300"
+                                    }`}
+                                  >
+                                    {g}
+                                  </button>
+                                );
+                              })}
+                              {reviewGradeMap[activeSub.id] != null && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setReviewGradeMap((prev) => ({ ...prev, [activeSub.id]: null }))
+                                  }
+                                  className="text-[10px] text-muted-foreground hover:text-destructive ml-1"
+                                >
+                                  сбросить
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
                           {/* Teacher Comment Textarea */}
                           <div className="space-y-1 pt-1">
                             <label className="text-[10px] font-semibold text-foreground">Замечание / Рецензия преподавателя:</label>
@@ -1447,15 +1650,35 @@ export function AssignmentsView({
                           </div>
 
                           {activeSub.status === SubmissionStatus.ACCEPTED ? (
-                            /* Already accepted — block re-review */
-                            <div className="flex items-center gap-2 text-[11px] text-primary font-medium">
-                              <CheckCircle2 className="h-4 w-4" />
-                              Принято
-                              {activeSub.reviewedAt && (
-                                <span className="text-muted-foreground font-normal">
-                                  {new Date(activeSub.reviewedAt).toLocaleDateString("ru-RU")}
-                                </span>
-                              )}
+                            /* Accepted — can still edit grade/comment */
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5 text-[11px] text-primary font-medium">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                <span>Принято</span>
+                                {activeSub.reviewedAt && (
+                                  <span className="text-muted-foreground font-normal">
+                                    {new Date(activeSub.reviewedAt).toLocaleDateString("ru-RU")}
+                                  </span>
+                                )}
+                              </div>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => handleReviewSubmission(activeSub.id, SubmissionStatus.ACCEPTED)}
+                                className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 ml-auto"
+                              >
+                                <Check className="h-3.5 w-3.5" /> Обновить
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => handleReviewSubmission(activeSub.id, SubmissionStatus.NEED_REVISION)}
+                                className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium"
+                              >
+                                <XCircle className="h-3.5 w-3.5" /> На доработку
+                              </Button>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
@@ -1551,6 +1774,35 @@ export function AssignmentsView({
 
                     {/* Teacher Feedback & Action Buttons */}
                     <div className="pt-1.5 border-t space-y-2">
+                      {/* Grade selector */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground font-medium shrink-0">⭐ Оценка:</span>
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((g) => {
+                            const selected = reviewGradeMap[sub.id] === g;
+                            return (
+                              <button
+                                key={g}
+                                type="button"
+                                onClick={() =>
+                                  setReviewGradeMap((prev) => ({
+                                    ...prev,
+                                    [sub.id]: selected ? null : g,
+                                  }))
+                                }
+                                className={`h-6 w-6 rounded-md text-[10px] font-bold border transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                                  selected
+                                    ? "bg-amber-500 text-white border-amber-500"
+                                    : "bg-muted/60 text-muted-foreground border-border hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300"
+                                }`}
+                              >
+                                {g}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       <div className="space-y-1">
                         <label className="text-[10px] font-medium text-muted-foreground">Комментарий преподавателя:</label>
                         <Input
@@ -1563,19 +1815,44 @@ export function AssignmentsView({
                             }))
                           }
                           className="h-7 text-xs bg-background"
-                          disabled={sub.status === SubmissionStatus.ACCEPTED}
                         />
                       </div>
 
                       {sub.status === SubmissionStatus.ACCEPTED ? (
-                        <div className="flex items-center gap-2 text-[11px] text-primary font-medium py-1">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Принято
-                          {sub.reviewedAt && (
-                            <span className="text-muted-foreground font-normal">
-                              {new Date(sub.reviewedAt).toLocaleDateString("ru-RU")}
-                            </span>
-                          )}
+                        /* Accepted — editable, with Update button */
+                        <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                          <div className="flex items-center gap-1.5 text-[11px] text-primary font-medium">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <span>Принято</span>
+                            {sub.grade != null && (
+                              <span className="text-amber-600 font-bold">⭐ {sub.grade}</span>
+                            )}
+                            {sub.reviewedAt && (
+                              <span className="text-muted-foreground font-normal">
+                                {new Date(sub.reviewedAt).toLocaleDateString("ru-RU")}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              disabled={isPending}
+                              onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.NEED_REVISION)}
+                              className="h-6 text-[10px] gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+                            >
+                              <XCircle className="h-3 w-3" /> На доработку
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              disabled={isPending}
+                              onClick={() => handleReviewSubmission(sub.id, SubmissionStatus.ACCEPTED)}
+                              className="h-6 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                            >
+                              <Check className="h-3 w-3" /> Обновить
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center justify-end gap-2">

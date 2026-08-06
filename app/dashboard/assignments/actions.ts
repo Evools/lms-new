@@ -27,6 +27,7 @@ export interface SubmissionDTO {
   status: SubmissionStatus;
   submittedAt: string;
   reviewedAt?: string | null;
+  grade?: number | null;
 }
 
 export interface AssignmentDTO {
@@ -129,6 +130,7 @@ export async function getAssignmentsDataAction(groupId?: string) {
         status: sub.status,
         submittedAt: sub.submittedAt.toISOString(),
         reviewedAt: sub.reviewedAt ? sub.reviewedAt.toISOString() : null,
+        grade: sub.grade ?? null,
       }));
 
       const userSub = currentUserId
@@ -281,8 +283,9 @@ export async function submitAssignmentAction(data: {
         comment: data.comment?.trim() || null,
         status: SubmissionStatus.SUBMITTED,
         submittedAt: new Date(),
-        teacherComment: null, // reset teacher comment on resubmission
+        teacherComment: null,
         reviewedAt: null,
+        grade: null,
       },
       create: {
         assignmentId: data.assignmentId,
@@ -306,6 +309,7 @@ export async function reviewSubmissionAction(data: {
   submissionId: string;
   status: SubmissionStatus;
   teacherComment?: string;
+  grade?: number | null;
 }) {
   const session = await auth();
   if (
@@ -322,6 +326,7 @@ export async function reviewSubmissionAction(data: {
         status: data.status,
         teacherComment: data.teacherComment?.trim() || null,
         reviewedAt: new Date(),
+        grade: data.grade ?? null,
       },
     });
 
