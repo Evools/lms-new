@@ -1396,3 +1396,196 @@ export async function deleteTestAction(testId: string) {
     return { success: false, error: "Ошибка при удалении теста" };
   }
 }
+
+export async function getTestResultsAction(testId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для просмотра результатов" };
+    }
+
+    const test = await prisma.test.findUnique({
+      where: { id: testId },
+      include: {
+        groupSubject: {
+          include: {
+            subject: true,
+            group: {
+              include: {
+                students: {
+                  include: {
+                    student: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        questions: {
+          orderBy: { createdAt: "asc" },
+        },
+        submissions: {
+          include: {
+            student: true,
+          },
+          orderBy: { submittedAt: "desc" },
+        },
+      },
+    });
+
+    if (!test) {
+      return { success: false, error: "Тест не найден" };
+    }
+
+    const totalMaxPoints = test.questions.reduce((sum: number, q: { points: number }) => sum + (q.points || 1), 0);
+
+    // Get all enrolled students in this group
+    const enrolledStudentsMap = new Map<string, string>();
+    test.groupSubject.group.students.forEach((gs: { student: { id: string; name: string | null } }) => {
+      if (gs.student) {
+        enrolledStudentsMap.set(gs.student.id, gs.student.name || "Студент");
+      }
+    });
+
+    // Also include any student who submitted (even if not in current group list)
+    test.submissions.forEach((sub: { student: { id: string; name: string | null }; studentId: string }) => {
+      if (sub.student && !enrolledStudentsMap.has(sub.student.id)) {
+        enrolledStudentsMap.set(sub.student.id, sub.student.name || "Студент");
+      }
+    });
+
+    const submissionsByStudent = new Map<string, (typeof test.submissions)[0]>();
+    test.submissions.forEach((sub: (typeof test.submissions)[0]) => {
+      if (!submissionsByStudent.has(sub.studentId)) {
+        submissionsByStudent.set(sub.studentId, sub);
+      }
+    });
+
+    const studentsResults = Array.from(enrolledStudentsMap.entries()).map(([studentId, studentName]) => {
+      const sub = submissionsByStudent.get(studentId);
+      if (!sub) {
+        return {
+          studentId,
+          studentName,
+          submissionId: null,
+          hasSubmitted: false,
+          score: 0,
+          maxScore: totalMaxPoints,
+          percent: 0,
+          submittedAt: null,
+          answersMap: {} as Record<string, { answer: string; isCorrect: boolean; pointsAwarded: number }>,
+        };
+      }
+
+      let parsedUserAnswers: Record<string, string> = {};
+      try {
+        parsedUserAnswers = JSON.parse(sub.answers || "{}");
+      } catch {
+        parsedUserAnswers = {};
+      }
+
+      const answersMap: Record<string, { answer: string; isCorrect: boolean; pointsAwarded: number }> = {};
+
+      test.questions.forEach((q: { id: string; type: string; correctAnswer: string; points: number }) => {
+        const userAns = parsedUserAnswers[q.id] || "";
+        let isCorrect = false;
+
+        if (q.type === "MULTIPLE") {
+          try {
+            const correctArr: string[] = JSON.parse(q.correctAnswer);
+            const userArr: string[] = userAns ? JSON.parse(userAns) : [];
+            isCorrect =
+              Array.isArray(correctArr) &&
+              Array.isArray(userArr) &&
+              correctArr.length === userArr.length &&
+              correctArr.every((item) => userArr.includes(item));
+          } catch {
+            isCorrect = false;
+          }
+        } else if (q.type === "ORDERING" || q.type === "BLANKS") {
+          try {
+            const correctArr: string[] = JSON.parse(q.correctAnswer);
+            const userArr: string[] = userAns ? JSON.parse(userAns) : [];
+            isCorrect =
+              Array.isArray(correctArr) &&
+              Array.isArray(userArr) &&
+              JSON.stringify(correctArr) === JSON.stringify(userArr);
+          } catch {
+            isCorrect = false;
+          }
+        } else {
+          isCorrect = userAns.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+        }
+
+        answersMap[q.id] = {
+          answer: userAns,
+          isCorrect,
+          pointsAwarded: isCorrect ? q.points : 0,
+        };
+      });
+
+      const maxScore = sub.maxScore || totalMaxPoints || 1;
+      const percent = Math.round((sub.score / maxScore) * 100);
+
+      return {
+        studentId,
+        studentName,
+        submissionId: sub.id,
+        hasSubmitted: true,
+        score: sub.score,
+        maxScore,
+        percent,
+        submittedAt: sub.submittedAt.toISOString(),
+        answersMap,
+      };
+    });
+
+    // Sort students by name alphabetically
+    studentsResults.sort((a, b) => a.studentName.localeCompare(b.studentName, "ru"));
+
+    return {
+      success: true,
+      test: {
+        id: test.id,
+        title: test.title,
+        description: test.description || "",
+        groupName: test.groupSubject.group.name,
+        subjectName: test.groupSubject.subject.name,
+        timeLimit: test.timeLimit,
+        totalMaxPoints,
+      },
+      questions: test.questions.map((q: { id: string; type: string; questionText: string; options: string; correctAnswer: string; points: number }) => ({
+        id: q.id,
+        type: q.type,
+        questionText: q.questionText,
+        options: JSON.parse(q.options),
+        correctAnswer: q.correctAnswer,
+        points: q.points,
+      })),
+      studentsResults,
+    };
+  } catch (err) {
+    console.error("getTestResultsAction error:", err);
+    return { success: false, error: "Ошибка при получении результатов теста" };
+  }
+}
+
+export async function resetTestSubmissionAction(submissionId: string, testId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для выполнения действия" };
+    }
+
+    await prisma.testSubmission.delete({
+      where: { id: submissionId },
+    });
+
+    revalidatePath("/dashboard/lms/tests");
+    revalidatePath(`/dashboard/lms/tests/${testId}/results`);
+    return { success: true };
+  } catch (err) {
+    console.error("resetTestSubmissionAction error:", err);
+    return { success: false, error: "Ошибка при сбросе работы студента" };
+  }
+}

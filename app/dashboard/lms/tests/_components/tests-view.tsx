@@ -514,10 +514,13 @@ export function TestsView({
                     <tr key={test.id} className="hover:bg-muted/30 transition-colors">
                       {/* Title & Topic */}
                       <td className="py-2.5 px-3 max-w-[280px]">
-                        <div className="font-bold text-foreground text-xs truncate flex items-center gap-1.5">
+                        <Link
+                          href={canCreate ? `/dashboard/lms/tests/${test.id}/results` : `/dashboard/lms/tests/${test.id}/take`}
+                          className="font-bold text-foreground hover:text-primary transition-colors text-xs truncate flex items-center gap-1.5"
+                        >
                           <FileCheck2 className="h-3.5 w-3.5 text-primary shrink-0" />
                           <span className="truncate">{test.title}</span>
-                        </div>
+                        </Link>
                         <div className="text-[10px] text-muted-foreground truncate pt-0.5">
                           {test.topicTitle ? `Тема: ${test.topicTitle}` : test.description || "Без привязки к теме"}
                         </div>
@@ -560,17 +563,12 @@ export function TestsView({
                       {/* Results / Submissions Badge */}
                       <td className="py-2.5 px-3 text-center">
                         {canCreate ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setViewSubmissionsTest(test);
-                              setSubmissionSearch("");
-                            }}
-                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-bold text-[11px] hover:bg-primary/20 transition-colors"
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            <span>{test.submissionsCount} работ</span>
-                          </button>
+                          <Link href={`/dashboard/lms/tests/${test.id}/results`}>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-bold text-[11px] hover:bg-primary/20 transition-colors">
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>{test.submissionsCount} работ</span>
+                            </span>
+                          </Link>
                         ) : userSub ? (
                           <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary/10 text-primary font-bold text-[10px]">
                             <CheckCircle2 className="h-3 w-3 shrink-0" />
@@ -588,19 +586,17 @@ export function TestsView({
                         <div className="flex items-center justify-end gap-1">
                           {canCreate ? (
                             <>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => {
-                                  setViewSubmissionsTest(test);
-                                  setSubmissionSearch("");
-                                }}
-                                className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
-                                title="Сданные работы"
-                              >
-                                <FileText className="h-3.5 w-3.5" />
-                                <span className="hidden md:inline">Работы</span>
-                              </Button>
+                              <Link href={`/dashboard/lms/tests/${test.id}/results`}>
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
+                                  title="Сданные работы и матрица результатов"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  <span className="hidden md:inline">Работы</span>
+                                </Button>
+                              </Link>
 
                               <Link href={`/dashboard/lms/tests/${test.id}/take`}>
                                 <Button
@@ -734,18 +730,16 @@ export function TestsView({
                 <div className="flex items-center justify-between gap-2 border-t pt-2">
                   {canCreate ? (
                     <div className="flex items-center justify-between w-full gap-2">
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() => {
-                          setViewSubmissionsTest(test);
-                          setSubmissionSearch("");
-                        }}
-                        className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
-                      >
-                        <FileText className="h-3.5 w-3.5 text-primary" />
-                        Работы ({test.submissionsCount})
-                      </Button>
+                      <Link href={`/dashboard/lms/tests/${test.id}/results`}>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-primary" />
+                          Работы ({test.submissionsCount})
+                        </Button>
+                      </Link>
 
                       <div className="flex items-center gap-1">
                         <Link href={`/dashboard/lms/tests/${test.id}/take`}>
