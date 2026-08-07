@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MaterialType } from "@prisma/client";
@@ -31,6 +31,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
+  ArrowLeft,
   FileText,
   Plus,
   Building2,
@@ -76,6 +77,7 @@ interface MaterialsViewProps {
   topicsWithMaterials?: TopicWithMaterialsDTO[];
   materials: MaterialDTO[];
   selectedGroupId: string;
+  selectedSubjectIdProp?: string | null;
   selectedTopicId: string;
   selectedType: string;
   canCreate: boolean;
@@ -87,6 +89,7 @@ export function MaterialsView({
   topicsWithMaterials = [],
   materials,
   selectedGroupId,
+  selectedSubjectIdProp = null,
   canCreate,
 }: MaterialsViewProps) {
   const router = useRouter();
@@ -94,22 +97,45 @@ export function MaterialsView({
 
   const currentGroupObj = groups.find((g) => g.id === selectedGroupId);
 
-  // Selected Subject Filter State
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
+  // Selected Subject Filter State (null = show subjects grid, string = show subject materials)
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(selectedSubjectIdProp || null);
 
-  const targetSubjectName =
-    selectedSubjectId !== "all"
-      ? subjects.find((s) => s.id === selectedSubjectId)?.subjectName
-      : null;
+  useEffect(() => {
+    setSelectedSubjectId(selectedSubjectIdProp || null);
+  }, [selectedSubjectIdProp]);
+
+  const currentSubjectObj = subjects.find((s) => s.id === selectedSubjectId);
+
+  const handleGroupChange = (newGroupId: string) => {
+    setSelectedSubjectId(null);
+    router.push(`/dashboard/lms/materials?group=${newGroupId}`);
+  };
+
+  const handleSelectSubject = (subjectId: string) => {
+    setSelectedSubjectId(subjectId);
+    router.push(`/dashboard/lms/materials?group=${selectedGroupId}&subject=${subjectId}`);
+    const subj = subjects.find((s) => s.id === subjectId);
+    if (subj) {
+      const firstMatOfSubj = materials.find((m) => m.subjectName === subj.subjectName);
+      if (firstMatOfSubj) {
+        setActiveMaterial(firstMatOfSubj);
+      }
+    }
+  };
+
+  const handleBackToSubjects = () => {
+    setSelectedSubjectId(null);
+    router.push(`/dashboard/lms/materials?group=${selectedGroupId}`);
+  };
 
   const displayTopics = topicsWithMaterials.filter((t) => {
-    if (!targetSubjectName) return true;
-    return t.subjectName === targetSubjectName;
+    if (!currentSubjectObj) return true;
+    return t.subjectName === currentSubjectObj.subjectName;
   });
 
   const displayMaterials = materials.filter((m) => {
-    if (!targetSubjectName) return true;
-    return m.subjectName === targetSubjectName;
+    if (!currentSubjectObj) return true;
+    return m.subjectName === currentSubjectObj.subjectName;
   });
 
   // Active Selected Material State
@@ -140,12 +166,9 @@ export function MaterialsView({
   // Delete Material Alert State
   const [deleteMaterialTarget, setDeleteMaterialTarget] = useState<MaterialDTO | null>(null);
 
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Alerts
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-  const handleGroupChange = (val: string) => {
-    router.push(`/dashboard/lms/materials?group=${val}`);
-  };
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const toggleTopicExpand = (topicId: string) => {
     setExpandedTopics((prev) => ({
@@ -334,69 +357,7 @@ export function MaterialsView({
   };
 
   return (
-    <div className="space-y-3 w-full">
-      {/* Top Breadcrumb & Page Title Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>Преподаватель</span>
-            <ChevronRight className="h-3 w-3" />
-            <span>Группы</span>
-            <ChevronRight className="h-3 w-3" />
-            <span>#{currentGroupObj?.name || "Группа"}</span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-semibold">Материалы</span>
-          </div>
-          <h1 className="text-sm font-bold text-foreground">
-            Материалы группы {currentGroupObj?.name || "LMS"}
-          </h1>
-        </div>
-
-        {/* Group & Subject Selectors */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Group Dropdown */}
-          <div className="flex items-center gap-1.5">
-            <Building2 className="h-4 w-4 text-primary shrink-0" />
-            <Select value={selectedGroupId} onValueChange={handleGroupChange}>
-              <SelectTrigger className="h-8 text-xs font-semibold bg-background sm:w-[190px]">
-                <SelectValue>{currentGroupObj ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map((g) => (
-                  <SelectItem key={g.id} value={g.id} className="text-xs">
-                    Группа {g.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Subject Dropdown */}
-          <div className="flex items-center gap-1.5">
-            <BookMarked className="h-4 w-4 text-primary shrink-0" />
-            <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId}>
-              <SelectTrigger className="h-8 text-xs font-semibold bg-background sm:w-[220px]">
-                <SelectValue>
-                  {selectedSubjectId === "all"
-                    ? "Все дисциплины"
-                    : subjects.find((s) => s.id === selectedSubjectId)?.subjectName || "Дисциплина"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-xs font-medium">
-                  Все дисциплины группы
-                </SelectItem>
-                {subjects.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className="text-xs">
-                    {s.subjectName} ({s.teacherName})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-4 w-full text-xs">
       {/* Alerts */}
       {successMsg && (
         <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
@@ -412,10 +373,140 @@ export function MaterialsView({
         </div>
       )}
 
-      {/* MAIN LAYOUT MATCHING USER FIGMA SCREENSHOT (Sidebar + Content View) */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-        {/* LEFT SIDEBAR: CHAPTERS & MATERIALS TREE */}
-        <div className="md:col-span-4 lg:col-span-3 bg-card rounded-xl border p-3.5 space-y-3 shadow-xs sticky top-16 max-h-[calc(100vh-5rem)] overflow-y-auto z-10">
+      {/* STEP 1: SUBJECTS CATALOG VIEW (When no subject is selected) */}
+      {!selectedSubjectId ? (
+        <div className="space-y-4">
+          {/* Top Header Bar with Group Selector */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-2xs">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span>Учебный процесс</span>
+                <ChevronRight className="h-3 w-3" />
+                <span>#{currentGroupObj?.name || "Группа"}</span>
+                <ChevronRight className="h-3 w-3" />
+                <span className="text-foreground font-semibold">Предметы</span>
+              </div>
+              <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary" />
+                Учебные дисциплины группы {currentGroupObj?.name}
+              </h1>
+            </div>
+
+            {/* Group Selector Dropdown */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Building2 className="h-4 w-4 text-primary shrink-0" />
+              <Select value={selectedGroupId} onValueChange={handleGroupChange}>
+                <SelectTrigger className="h-8 text-xs font-semibold bg-background sm:w-[200px]">
+                  <SelectValue>{currentGroupObj ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((g) => (
+                    <SelectItem key={g.id} value={g.id} className="text-xs">
+                      Группа {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Subjects Grid */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <BookMarked className="h-4 w-4 text-primary" /> Доступные дисциплины ({subjects.length})
+              </h2>
+              <span className="text-[11px] text-muted-foreground">
+                Выберите предмет для перехода к лекциям и материалам
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {subjects.map((subj) => (
+                <div
+                  key={subj.id}
+                  onClick={() => handleSelectSubject(subj.id)}
+                  className="p-4 rounded-xl border bg-card hover:border-primary/60 hover:shadow-xs transition-all cursor-pointer space-y-3 group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                      <BookMarked className="h-5 w-5" />
+                    </div>
+                    <Badge variant="outline" className="text-[10px] bg-muted font-medium">
+                      {subj.topicsCount ?? 0} тем
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-foreground text-sm group-hover:text-primary transition-colors truncate">
+                      {subj.subjectName}
+                    </h3>
+                    <p className="text-xs text-muted-foreground truncate">
+                      Преподаватель: {subj.teacherName}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t flex items-center justify-between text-xs text-primary font-medium">
+                    <span>Открыть материалы</span>
+                    <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              ))}
+
+              {subjects.length === 0 && (
+                <div className="col-span-full p-12 border rounded-xl bg-card text-center space-y-2 text-muted-foreground">
+                  <BookMarked className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                  <p className="font-semibold text-foreground text-xs">Дисциплины не назначены</p>
+                  <p className="text-[11px]">У этой группы пока нет добавленных предметов</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* STEP 2: SELECTED SUBJECT MATERIALS READER */
+        <div className="space-y-3">
+          {/* Header Action Bar with Back Button */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-2xs">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={handleBackToSubjects}
+                className="h-7 text-xs px-2.5 gap-1.5 text-muted-foreground hover:text-foreground font-medium"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Назад к предметам
+              </Button>
+              <div className="h-4 w-px bg-border hidden sm:block" />
+              <div className="flex items-center gap-2">
+                <BookMarked className="h-4 w-4 text-primary" />
+                <span className="font-bold text-foreground text-xs">{currentSubjectObj?.subjectName}</span>
+                <span className="text-[11px] text-muted-foreground">• Преподаватель: {currentSubjectObj?.teacherName}</span>
+              </div>
+            </div>
+
+            {/* Quick Switch Subject Dropdown */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[11px] text-muted-foreground">Предмет:</span>
+              <Select value={selectedSubjectId} onValueChange={handleSelectSubject}>
+                <SelectTrigger className="h-7 text-xs font-semibold bg-background sm:w-[200px]">
+                  <SelectValue>{currentSubjectObj?.subjectName}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s) => (
+                    <SelectItem key={s.id} value={s.id} className="text-xs">
+                      {s.subjectName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* MAIN READER AREA (Topics Sidebar + Content) */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+            {/* LEFT SIDEBAR: CHAPTERS & MATERIALS TREE FOR THIS SUBJECT */}
+            <div className="md:col-span-4 lg:col-span-3 bg-card rounded-xl border p-3.5 space-y-3 shadow-xs sticky top-16 max-h-[calc(100vh-5rem)] overflow-y-auto z-10">
           {/* Header */}
           <div className="flex items-center justify-between border-b pb-2">
             <div>
@@ -711,11 +802,12 @@ export function MaterialsView({
             <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
               <BookOpen className="h-8 w-8 text-muted-foreground/40 mx-auto" />
               <div className="font-semibold text-foreground">Материал не выбран</div>
-              <p className="text-[11px]">Выберите главу и кликните по материалу слева в списке для просмотра.</p>
             </div>
           )}
         </div>
       </div>
+    </div>
+  )}
 
       {/* Modal 1: Quick Create Chapter (Topic) */}
       <Dialog open={isCreateChapterOpen} onOpenChange={setIsCreateChapterOpen}>

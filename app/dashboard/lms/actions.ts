@@ -14,6 +14,8 @@ export interface GroupSubjectDTO {
   id: string;
   subjectName: string;
   teacherName: string;
+  topicsCount?: number;
+  materialsCount?: number;
 }
 
 export interface MaterialDTO {
@@ -517,6 +519,11 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       include: {
         subject: { select: { name: true } },
         teacher: { select: { name: true } },
+        topics: {
+          include: {
+            materials: { select: { id: true } },
+          },
+        },
       },
     });
 
@@ -524,6 +531,8 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       id: gs.id,
       subjectName: gs.subject.name,
       teacherName: gs.teacher.name,
+      topicsCount: gs.topics.length,
+      materialsCount: gs.topics.reduce((acc, t) => acc + t.materials.length, 0),
     }));
 
     const dbTopics = await prisma.topic.findMany({
