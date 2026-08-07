@@ -28,12 +28,28 @@ import {
   Trophy,
   BarChart2,
   Eye,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+  ListOrdered,
+  FormInput,
+  Code,
+  Terminal,
 } from "lucide-react";
 import { submitTestAnswersAction } from "@/app/dashboard/lms/actions";
 
+export type QuestionType =
+  | "SINGLE"
+  | "MULTIPLE"
+  | "TEXT"
+  | "TRUE_FALSE"
+  | "ORDERING"
+  | "BLANKS"
+  | "CODE";
+
 interface QuestionItem {
   id: string;
-  type: "SINGLE" | "MULTIPLE" | "TEXT" | "TRUE_FALSE";
+  type: QuestionType;
   questionText: string;
   options: string[];
   points: number;
@@ -60,6 +76,15 @@ interface TestTakeData {
 
 interface TakeTestViewProps {
   test: TestTakeData;
+}
+
+function parseQuestionCode(fullText: string): { title: string; code?: string } {
+  if (!fullText) return { title: "" };
+  const match = fullText.match(/^([\s\S]*?)\n```(?:[a-z]*)\n([\s\S]*?)\n```$/);
+  if (match) {
+    return { title: match[1].trim(), code: match[2].trim() };
+  }
+  return { title: fullText };
 }
 
 export function TakeTestView({ test }: TakeTestViewProps) {
@@ -153,6 +178,44 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleOrderingMove = (questionId: string, options: string[], fromIdx: number, toIdx: number) => {
+    if (testResult || isPending || test.userSubmission || isTeacherOrAdmin) return;
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
+    const currentAnswerStr = studentAnswers[questionId];
+    let currentList: string[] = [];
+    try {
+      currentList = currentAnswerStr ? JSON.parse(currentAnswerStr) : [...options];
+    } catch {
+      currentList = [...options];
+    }
+    const updated = [...currentList];
+    const [moved] = updated.splice(fromIdx, 1);
+    updated.splice(toIdx, 0, moved);
+    setStudentAnswers((prev) => ({
+      ...prev,
+      [questionId]: JSON.stringify(updated),
+    }));
+  };
+
+  const handleBlankChange = (questionId: string, optionsCount: number, blankIdx: number, val: string) => {
+    if (testResult || isPending || test.userSubmission || isTeacherOrAdmin) return;
+    const currentAnswerStr = studentAnswers[questionId];
+    let currentList: string[] = [];
+    try {
+      currentList = currentAnswerStr ? JSON.parse(currentAnswerStr) : Array(optionsCount).fill("");
+    } catch {
+      currentList = Array(optionsCount).fill("");
+    }
+    while (currentList.length < optionsCount) {
+      currentList.push("");
+    }
+    currentList[blankIdx] = val;
+    setStudentAnswers((prev) => ({
+      ...prev,
+      [questionId]: JSON.stringify(currentList),
+    }));
   };
 
   const handleOptionSelect = (questionId: string, option: string, type: string) => {
@@ -357,6 +420,22 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                       correctArr.length === studentArr.length &&
                       correctArr.every((val, idx) => val === studentArr[idx]);
                   } catch {}
+                } else if (q.type === "ORDERING") {
+                  try {
+                    const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim());
+                    const studentArr: string[] = selectedVal ? JSON.parse(selectedVal).map((s: string) => s.trim()) : [];
+                    isCorrect =
+                      correctArr.length === studentArr.length &&
+                      correctArr.every((val, idx) => val === studentArr[idx]);
+                  } catch {}
+                } else if (q.type === "BLANKS") {
+                  try {
+                    const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim().toLowerCase());
+                    const studentArr: string[] = selectedVal ? JSON.parse(selectedVal).map((s: string) => s.trim().toLowerCase()) : [];
+                    isCorrect =
+                      correctArr.length === studentArr.length &&
+                      correctArr.every((val, idx) => val === studentArr[idx]);
+                  } catch {}
                 } else if (q.type === "TEXT") {
                   isCorrect = selectedVal.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
                 } else {
@@ -495,6 +574,26 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                 }
               }
 
+              let currentOrderingList: string[] = [];
+              if (q.type === "ORDERING") {
+                try {
+                  currentOrderingList = selectedVal ? JSON.parse(selectedVal) : [...q.options];
+                } catch {
+                  currentOrderingList = [...q.options];
+                }
+              }
+
+              let currentBlankList: string[] = [];
+              if (q.type === "BLANKS") {
+                try {
+                  currentBlankList = selectedVal ? JSON.parse(selectedVal) : Array(q.options.length).fill("");
+                } catch {
+                  currentBlankList = Array(q.options.length).fill("");
+                }
+              }
+
+              const parsedCode = parseQuestionCode(q.questionText);
+
               return (
                 <Card key={q.id} className="p-4 border shadow-none bg-card rounded-xl space-y-3">
                   <div className="flex items-start justify-between gap-2 border-b pb-2">
@@ -502,7 +601,14 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                       <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                         {qIdx + 1}
                       </span>
-                      <h3 className="text-xs font-bold text-foreground leading-snug">{q.questionText}</h3>
+                      <div className="space-y-1.5">
+                        <h3 className="text-xs font-bold text-foreground leading-snug">{parsedCode.title}</h3>
+                        {parsedCode.code && (
+                          <div className="font-mono bg-slate-950 text-emerald-400 p-3 rounded-lg border text-xs leading-relaxed overflow-x-auto">
+                            <pre className="font-mono whitespace-pre-wrap">{parsedCode.code}</pre>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <Badge variant="outline" className="text-[10px] border-primary/20 text-muted-foreground font-normal shrink-0">
                       {q.points} {q.points === 1 ? "балл" : "балла"}
@@ -525,6 +631,74 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                             Правильный ответ: <strong className="text-primary font-semibold">{q.correctAnswer}</strong>
                           </div>
                         )}
+                      </div>
+                    ) : q.type === "ORDERING" ? (
+                      <div className="space-y-2">
+                        <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+                          <ListOrdered className="h-3.5 w-3.5 text-primary" /> Расставьте элементы в правильной последовательности:
+                        </div>
+                        <div className="space-y-1.5">
+                          {currentOrderingList.map((itemText, itemIdx) => (
+                            <div
+                              key={itemIdx}
+                              className="p-2.5 rounded-lg border bg-background flex items-center justify-between text-xs font-medium"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="h-5 w-5 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                                  {itemIdx + 1}
+                                </span>
+                                <span>{itemText}</span>
+                              </div>
+
+                              {!isTeacherOrAdmin && !test.userSubmission && (
+                                <div className="flex items-center gap-0.5">
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="ghost"
+                                    disabled={itemIdx === 0}
+                                    onClick={() => handleOrderingMove(q.id, currentOrderingList, itemIdx, itemIdx - 1)}
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <ChevronUp className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="ghost"
+                                    disabled={itemIdx === currentOrderingList.length - 1}
+                                    onClick={() => handleOrderingMove(q.id, currentOrderingList, itemIdx, itemIdx + 1)}
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <ChevronDown className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : q.type === "BLANKS" ? (
+                      <div className="space-y-2">
+                        <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+                          <FormInput className="h-3.5 w-3.5 text-primary" /> Впишите пропущенные слова по порядку:
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {q.options.map((opt, blankIdx) => (
+                            <div key={blankIdx} className="space-y-1">
+                              <label className="text-[10px] font-medium text-muted-foreground">
+                                Пропуск #{blankIdx + 1}
+                              </label>
+                              <Input
+                                placeholder={`Ответ на пропуск #${blankIdx + 1}...`}
+                                disabled={isTeacherOrAdmin}
+                                value={isTeacherOrAdmin ? opt : currentBlankList[blankIdx] || ""}
+                                onChange={(e) => handleBlankChange(q.id, q.options.length, blankIdx, e.target.value)}
+                                className="h-8 text-xs bg-background font-medium"
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

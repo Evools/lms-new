@@ -34,14 +34,30 @@ import {
   ToggleLeft,
   Shuffle,
   Save,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+  ListOrdered,
+  FormInput,
+  Code,
+  Terminal,
+  ArrowUpDown,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, updateTestAction } from "@/app/dashboard/lms/actions";
 
-export type QuestionType = "SINGLE" | "MULTIPLE" | "TEXT" | "TRUE_FALSE";
+export type QuestionType =
+  | "SINGLE"
+  | "MULTIPLE"
+  | "TEXT"
+  | "TRUE_FALSE"
+  | "ORDERING"
+  | "BLANKS"
+  | "CODE";
 
 export interface QuestionDraft {
   type: QuestionType;
   questionText: string;
+  codeSnippet?: string;
   options: string[];
   correctAnswer: string;
   points: number;
@@ -67,6 +83,33 @@ interface EditTestViewProps {
   topics: Array<{ id: string; title: string }>;
 }
 
+function parseQuestionCode(fullText: string): { title: string; code?: string } {
+  if (!fullText) return { title: "" };
+  const match = fullText.match(/^([\s\S]*?)\n```(?:[a-z]*)\n([\s\S]*?)\n```$/);
+  if (match) {
+    return { title: match[1].trim(), code: match[2].trim() };
+  }
+  return { title: fullText };
+}
+
+export function extractBlanksFromText(text: string): { templateParts: string[]; blanks: string[] } {
+  if (!text) return { templateParts: [""], blanks: [] };
+  const regex = /\[(.*?)\]/g;
+  const templateParts: string[] = [];
+  const blanks: string[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    templateParts.push(text.substring(lastIndex, match.index));
+    blanks.push(match[1]);
+    lastIndex = regex.lastIndex;
+  }
+  templateParts.push(text.substring(lastIndex));
+
+  return { templateParts, blanks };
+}
+
 export function EditTestView({
   initialTest,
   groups,
@@ -76,8 +119,8 @@ export function EditTestView({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [groupId, setGroupId] = useState(initialTest.groupId);
-  const [groupSubjectId, setGroupSubjectId] = useState(initialTest.groupSubjectId);
+  const [groupId, setGroupId] = useState(initialTest.groupId || groups[0]?.id || "");
+  const [groupSubjectId, setGroupSubjectId] = useState(initialTest.groupSubjectId || subjects[0]?.id || "");
   const [topicId, setTopicId] = useState(initialTest.topicId || "none");
   const [title, setTitle] = useState(initialTest.title);
   const [description, setDescription] = useState(initialTest.description);
@@ -88,37 +131,124 @@ export function EditTestView({
   const [isPreview, setIsPreview] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [previewAnswers, setPreviewAnswers] = useState<Record<number, string>>({});
 
-  const [questionDrafts, setQuestionDrafts] = useState<QuestionDraft[]>(
-    initialTest.questions.length > 0
-      ? initialTest.questions
-      : [
-          {
-            type: "SINGLE",
-            questionText: "",
-            options: ["Вариант 1", "Вариант 2"],
-            correctAnswer: "Вариант 1",
-            points: 1,
-          },
-        ]
-  );
+  const handlePreviewSelect = (qIdx: number, opt: string, type: QuestionType) => {
+    if (type === "MULTIPLE") {
+      let currentArr: string[] = [];
+      try {
+        currentArr = previewAnswers[qIdx] ? JSON.parse(previewAnswers[qIdx]) : [];
+      } catch {
+        currentArr = [];
+      }
+      const exists = currentArr.includes(opt);
+      const updated = exists ? currentArr.filter((item) => item !== opt) : [...currentArr, opt];
+      setPreviewAnswers((prev) => ({ ...prev, [qIdx]: JSON.stringify(updated) }));
+    } else {
+      setPreviewAnswers((prev) => ({ ...prev, [qIdx]: opt }));
+    }
+  };
+
+  React.useEffect(() => {
+    if (subjects.length > 0 && (!groupSubjectId || !subjects.some((s) => s.id === groupSubjectId))) {
+      setGroupSubjectId(subjects[0].id);
+    }
+  }, [subjects, groupSubjectId]);
+
+  // DnD States
+  const [draggedQuestionIdx, setDraggedQuestionIdx] = useState<number | null>(null);
+  const [dragOverQuestionIdx, setDragOverQuestionIdx] = useState<number | null>(null);
+  const [draggedOption, setDraggedOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
+  const [dragOverOption, setDragOverOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
+
+  const [questionDrafts, setQuestionDrafts] = useState<QuestionDraft[]>(() => {
+    if (!initialTest.questions || initialTest.questions.length === 0) {
+      return [
+        {
+          type: "SINGLE",
+          questionText: "",
+          options: ["Вариант 1", "Вариант 2"],
+          correctAnswer: "Вариант 1",
+          points: 1,
+        },
+      ];
+    }
+    return initialTest.questions.map((q) => {
+      let snippet = q.codeSnippet;
+      let text = q.questionText;
+      if (q.type === "CODE" && !snippet) {
+        const parsed = parseQuestionCode(q.questionText);
+        if (parsed.code) {
+          text = parsed.title;
+          snippet = parsed.code;
+        }
+      }
+      return {
+        ...q,
+        questionText: text,
+        codeSnippet: snippet,
+      };
+    });
+  });
 
   const handleGroupChange = (val: string) => {
     setGroupId(val);
     router.push(`/dashboard/lms/tests/${initialTest.id}/edit?group=${val}`);
   };
 
-  const handleAddQuestion = () => {
-    setQuestionDrafts((prev) => [
-      ...prev,
-      {
-        type: "SINGLE",
-        questionText: "",
-        options: ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"],
-        correctAnswer: "Вариант 1",
-        points: 1,
-      },
-    ]);
+  const handleMoveQuestion = (fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= questionDrafts.length || toIdx >= questionDrafts.length) return;
+    setQuestionDrafts((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIdx, 1);
+      updated.splice(toIdx, 0, moved);
+      return updated;
+    });
+  };
+
+  const handleMoveOption = (qIdx: number, fromOptIdx: number, toOptIdx: number) => {
+    if (fromOptIdx === toOptIdx || fromOptIdx < 0 || toOptIdx < 0) return;
+    setQuestionDrafts((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx || fromOptIdx >= q.options.length || toOptIdx >= q.options.length) return q;
+        const newOptions = [...q.options];
+        const [moved] = newOptions.splice(fromOptIdx, 1);
+        newOptions.splice(toOptIdx, 0, moved);
+        return { ...q, options: newOptions };
+      })
+    );
+  };
+
+  const handleAddQuestionAt = (atIndex?: number) => {
+    const newQ: QuestionDraft = {
+      type: "SINGLE",
+      questionText: "",
+      options: ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"],
+      correctAnswer: "Вариант 1",
+      points: 1,
+    };
+
+    let targetIdx = questionDrafts.length;
+    setQuestionDrafts((prev) => {
+      const copy = [...prev];
+      if (typeof atIndex === "number" && atIndex >= 0 && atIndex <= copy.length) {
+        copy.splice(atIndex, 0, newQ);
+        targetIdx = atIndex;
+      } else {
+        copy.push(newQ);
+        targetIdx = copy.length - 1;
+      }
+      return copy;
+    });
+
+    setTimeout(() => {
+      const el = document.getElementById(`question-card-${targetIdx}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        const input = el.querySelector("input") as HTMLInputElement | null;
+        if (input) input.focus();
+      }
+    }, 80);
   };
 
   const handleDuplicateQuestion = (idx: number) => {
@@ -142,6 +272,7 @@ export function EditTestView({
     setQuestionDrafts((prev) =>
       prev.map((q, i) => {
         if (i !== qIdx) return q;
+
         const updated: QuestionDraft = { ...q, type: newType, options: [...q.options] };
 
         if (newType === "TRUE_FALSE") {
@@ -150,12 +281,31 @@ export function EditTestView({
         } else if (newType === "TEXT") {
           updated.options = [];
           updated.correctAnswer = "";
+        } else if (newType === "ORDERING") {
+          if (updated.options.length < 2) {
+            updated.options = ["Этап 1: Инициализация проекта", "Этап 2: Написание кода", "Этап 3: Тестирование и деплой"];
+          }
+          updated.correctAnswer = JSON.stringify(updated.options);
+        } else if (newType === "BLANKS") {
+          if (updated.options.length === 0) {
+            updated.options = ["значение1", "значение2"];
+          }
+          updated.correctAnswer = JSON.stringify(updated.options);
+        } else if (newType === "CODE") {
+          if (updated.options.length === 0) {
+            updated.options = ["10", "20", "undefined", "Error"];
+          }
+          if (!updated.codeSnippet) {
+            updated.codeSnippet = "const a = 10;\nconst b = 20;\nconsole.log(a + b);";
+          }
+          updated.correctAnswer = updated.options[0] || "";
         } else if (newType === "MULTIPLE") {
           if (updated.options.length === 0) {
             updated.options = ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"];
           }
           updated.correctAnswer = JSON.stringify([updated.options[0] || ""]);
         } else {
+          // SINGLE
           if (updated.options.length === 0) {
             updated.options = ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"];
           }
@@ -170,6 +320,7 @@ export function EditTestView({
             }
           }
         }
+
         return updated;
       })
     );
@@ -352,6 +503,16 @@ export function EditTestView({
       }
     }
 
+    const preparedQuestions = questionDrafts.map((q) => {
+      if (q.type === "CODE" && q.codeSnippet && q.codeSnippet.trim()) {
+        return {
+          ...q,
+          questionText: `${q.questionText.trim()}\n\`\`\`\n${q.codeSnippet.trim()}\n\`\`\``,
+        };
+      }
+      return q;
+    });
+
     setErrorMsg(null);
     startTransition(async () => {
       const res = await updateTestAction(initialTest.id, {
@@ -362,7 +523,7 @@ export function EditTestView({
         timeLimit: timeLimit ? Number(timeLimit) : undefined,
         shuffleQuestions,
         shuffleOptions,
-        questions: questionDrafts,
+        questions: preparedQuestions,
       });
 
       if (res.success) {
@@ -458,83 +619,154 @@ export function EditTestView({
           {isPreview ? (
             <div className="p-3.5 border rounded-xl bg-card space-y-3 text-xs shadow-xs">
               <div className="flex items-center justify-between border-b pb-2">
-                <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Eye className="h-3.5 w-3.5 text-primary" /> Режим предпросмотра теста
-                </h3>
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Eye className="h-3.5 w-3.5 text-primary" /> Симуляция прохождения теста (Предпросмотр)
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    Кликайте по вариантам ответа, чтобы проверить работу теста от лица студента
+                  </p>
+                </div>
                 <Badge variant="outline" className="text-[10px] text-primary border-primary/30 font-medium">
                   Всего: {questionDrafts.length} вопросов ({totalPoints} баллов)
                 </Badge>
               </div>
 
-              <div className="space-y-3">
-                {questionDrafts.map((q, idx) => (
-                  <div key={idx} className="p-3.5 border rounded-xl bg-card space-y-3">
-                    <div className="flex items-start justify-between gap-2 border-b pb-2">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[9px] border-primary/30 text-primary">
-                            {q.type === "SINGLE"
-                              ? "Один выбор"
-                              : q.type === "MULTIPLE"
-                                ? "Множественный выбор"
-                                : q.type === "TEXT"
-                                  ? "Текстовый ответ"
-                                  : "Верно/Неверно"}
-                          </Badge>
-                        </div>
-                        <span className="font-bold text-xs text-foreground pt-0.5 block">
-                          Вопрос #{idx + 1}: {q.questionText || "Без текста"}
-                        </span>
-                      </div>
-                      <Badge variant="secondary" className="text-[9px] shrink-0 font-normal">
-                        +{q.points} б.
-                      </Badge>
-                    </div>
+              <div className="space-y-4">
+                {questionDrafts.map((q, qIdx) => {
+                  const selectedVal = previewAnswers[qIdx] || "";
+                  let selectedMultiple: string[] = [];
+                  if (q.type === "MULTIPLE") {
+                    try {
+                      selectedMultiple = selectedVal ? JSON.parse(selectedVal) : [];
+                    } catch {
+                      selectedMultiple = [];
+                    }
+                  }
 
-                    {q.type === "TEXT" ? (
-                      <div className="p-3 rounded-lg border bg-background space-y-1">
-                        <div className="text-[11px] text-muted-foreground font-medium">Поле для ответа студента:</div>
-                        <Input disabled placeholder="Текстовый ответ..." className="h-8 text-xs bg-muted/40" />
-                        <div className="text-[10px] text-primary pt-1 font-medium">
-                          Правильный ответ: «{q.correctAnswer}»
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {q.options.map((opt, optIdx) => {
-                          const isCorrect = isOptionCorrect(q, opt);
+                  const parsedCode = parseQuestionCode(q.questionText);
+                  const codeToDisplay = q.type === "CODE" ? (q.codeSnippet || parsedCode.code) : parsedCode.code;
+                  const titleToDisplay = parsedCode.title || q.questionText;
 
-                          return (
-                            <div
-                              key={optIdx}
-                              className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 transition-all ${
-                                isCorrect
-                                  ? "border-primary bg-primary/10 font-semibold text-primary"
-                                  : "border-border bg-background"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={`h-4 w-4 rounded-${q.type === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center ${
-                                    isCorrect ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"
-                                  }`}
-                                >
-                                  {isCorrect && <Check className="h-3 w-3 stroke-[3]" />}
-                                </div>
+                  return (
+                    <div key={qIdx} className="p-3.5 border rounded-xl bg-card space-y-3">
+                      <div className="flex items-start justify-between gap-2 border-b pb-2">
+                        <div className="space-y-1.5 w-full">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[9px] border-primary/30 text-primary font-medium">
+                              {q.type === "SINGLE"
+                                ? "Один выбор"
+                                : q.type === "MULTIPLE"
+                                  ? "Множественный выбор"
+                                  : q.type === "TEXT"
+                                    ? "Текстовый ответ"
+                                    : q.type === "TRUE_FALSE"
+                                      ? "Да/Нет"
+                                      : q.type === "ORDERING"
+                                        ? "Последовательность"
+                                        : q.type === "BLANKS"
+                                          ? "Пропуски"
+                                          : "Код / Сниппет"}
+                            </Badge>
+                          </div>
+                          <span className="font-bold text-xs text-foreground block">
+                            Вопрос #{qIdx + 1}: {titleToDisplay || "Без текста"}
+                          </span>
+                          {codeToDisplay && (
+                            <div className="font-mono bg-slate-950 text-emerald-400 p-3 rounded-lg border text-xs leading-relaxed overflow-x-auto my-1.5">
+                              <pre className="font-mono whitespace-pre-wrap">{codeToDisplay}</pre>
+                            </div>
+                          )}
+                        </div>
+                        <Badge variant="secondary" className="text-[9px] shrink-0 font-normal">
+                          +{q.points} б.
+                        </Badge>
+                      </div>
+
+                      {/* Interactive Options Rendering in Preview Mode */}
+                      {q.type === "TEXT" ? (
+                        <div className="p-3 rounded-lg border bg-background space-y-1.5">
+                          <div className="text-[11px] text-muted-foreground font-medium">Поле для ответа студента:</div>
+                          <Input
+                            placeholder="Введите ваш текстовый ответ..."
+                            value={selectedVal}
+                            onChange={(e) => handlePreviewSelect(qIdx, e.target.value, "TEXT")}
+                            className="h-8 text-xs bg-background font-medium"
+                          />
+                          <div className="text-[10px] text-primary pt-1 font-semibold flex items-center gap-1">
+                            <Check className="h-3 w-3" /> Эталонный правильный ответ: «{q.correctAnswer}»
+                          </div>
+                        </div>
+                      ) : q.type === "ORDERING" ? (
+                        <div className="space-y-2">
+                          <div className="text-[11px] text-muted-foreground font-medium">
+                            Последовательность элементов:
+                          </div>
+                          <div className="space-y-1.5">
+                            {q.options.map((opt, optIdx) => (
+                              <div key={optIdx} className="p-2.5 rounded-lg border bg-background flex items-center gap-2 text-xs font-medium">
+                                <span className="h-5 w-5 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                                  {optIdx + 1}
+                                </span>
                                 <span>{opt}</span>
                               </div>
-                              {isCorrect && (
-                                <Badge className="bg-primary text-primary-foreground text-[9px] font-normal">
-                                  Верный ответ
-                                </Badge>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {q.options.map((opt, optIdx) => {
+                            const isCorrect = isOptionCorrect(q, opt);
+                            const isSelected =
+                              q.type === "MULTIPLE"
+                                ? selectedMultiple.includes(opt)
+                                : selectedVal === opt;
+
+                            return (
+                              <div
+                                key={optIdx}
+                                onClick={() => handlePreviewSelect(qIdx, opt, q.type)}
+                                className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                                  isSelected
+                                    ? "border-primary bg-primary/10 font-semibold text-primary shadow-xs"
+                                    : isCorrect
+                                      ? "border-primary/40 bg-primary/5 text-foreground"
+                                      : "border-border bg-background text-foreground hover:bg-muted/40"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`h-4 w-4 rounded-${q.type === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center ${
+                                      isSelected
+                                        ? "border-primary bg-primary text-primary-foreground"
+                                        : "border-muted-foreground/40"
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                                  </div>
+                                  <span>{opt}</span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                  {isSelected && (
+                                    <Badge variant="outline" className="text-[9px] border-primary text-primary bg-primary/10 font-bold">
+                                      Выбрано вами
+                                    </Badge>
+                                  )}
+                                  {isCorrect && (
+                                    <Badge className="bg-primary text-primary-foreground text-[9px] font-normal">
+                                      ✓ Эталонный ответ
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -551,213 +783,439 @@ export function EditTestView({
                   type="button"
                   size="xs"
                   variant="outline"
-                  onClick={handleAddQuestion}
+                  onClick={() => handleAddQuestionAt()}
                   className="h-7 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10 font-medium shrink-0"
                 >
                   <PlusCircle className="h-3.5 w-3.5" /> Добавить вопрос
                 </Button>
               </div>
 
-              <div className="space-y-3">
-                {questionDrafts.map((q, qIdx) => (
-                  <div key={qIdx} className="p-3.5 border rounded-xl bg-card space-y-3 relative">
-                    {/* Question Header */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
-                          {qIdx + 1}
-                        </span>
-                        <span className="font-bold text-xs text-foreground">Вопрос #{qIdx + 1}</span>
+              <div className="space-y-4">
+                {questionDrafts.map((q, qIdx) => {
+                  const isDraggingQ = draggedQuestionIdx === qIdx;
+                  const isOverQ = dragOverQuestionIdx === qIdx;
 
-                        <div className="grid grid-cols-4 gap-1 p-0.5 bg-muted/60 rounded-lg border text-[11px] font-medium ml-2">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuestionType(qIdx, "SINGLE")}
-                            className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                              q.type === "SINGLE"
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
+                  return (
+                    <div
+                      key={qIdx}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", qIdx.toString());
+                        setDraggedQuestionIdx(qIdx);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                      }}
+                      onDragEnter={() => setDragOverQuestionIdx(qIdx)}
+                      onDragEnd={() => {
+                        setDraggedQuestionIdx(null);
+                        setDragOverQuestionIdx(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (draggedQuestionIdx !== null && draggedQuestionIdx !== qIdx) {
+                          handleMoveQuestion(draggedQuestionIdx, qIdx);
+                        }
+                        setDraggedQuestionIdx(null);
+                        setDragOverQuestionIdx(null);
+                      }}
+                      className={`p-3.5 border rounded-xl bg-card space-y-3 relative transition-all ${
+                        isDraggingQ ? "opacity-40 scale-[0.99] border-dashed border-primary" : ""
+                      } ${isOverQ && !isDraggingQ ? "border-2 border-primary bg-primary/5 shadow-sm" : ""}`}
+                    >
+                      {/* Question Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Drag Handle */}
+                          <div
+                            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                            title="Перетащите для изменения порядка вопросов"
                           >
-                            <CircleDot className="h-3 w-3" /> Один выбор
-                          </button>
+                            <GripVertical className="h-4 w-4" />
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuestionType(qIdx, "MULTIPLE")}
-                            className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                              q.type === "MULTIPLE"
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            <CheckSquare className="h-3 w-3" /> Несколько
-                          </button>
+                          <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                            {qIdx + 1}
+                          </span>
+                          <span className="font-bold text-xs text-foreground">Вопрос #{qIdx + 1}</span>
 
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuestionType(qIdx, "TEXT")}
-                            className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                              q.type === "TEXT"
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            <Type className="h-3 w-3" /> Текст
-                          </button>
+                          {/* Quick Up/Down Move Buttons */}
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="ghost"
+                              disabled={qIdx === 0}
+                              onClick={() => handleMoveQuestion(qIdx, qIdx - 1)}
+                              className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                              title="Переместить вверх"
+                            >
+                              <ChevronUp className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="ghost"
+                              disabled={qIdx === questionDrafts.length - 1}
+                              onClick={() => handleMoveQuestion(qIdx, qIdx + 1)}
+                              className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                              title="Переместить вниз"
+                            >
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuestionType(qIdx, "TRUE_FALSE")}
-                            className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                              q.type === "TRUE_FALSE"
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            <ToggleLeft className="h-3 w-3" /> Да/Нет
-                          </button>
+                          <div className="grid grid-cols-4 gap-1 p-0.5 bg-muted/60 rounded-lg border text-[11px] font-medium ml-1">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "SINGLE")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "SINGLE"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Один верный ответ (Radio)"
+                            >
+                              <CircleDot className="h-3 w-3" /> Один выбор
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "MULTIPLE")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "MULTIPLE"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Множественный выбор (Checkboxes)"
+                            >
+                              <CheckSquare className="h-3 w-3" /> Несколько
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "TEXT")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "TEXT"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Ввод текста с клавиатуры"
+                            >
+                              <Type className="h-3 w-3" /> Текст
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "TRUE_FALSE")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "TRUE_FALSE"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Да / Нет (Верно / Неверно)"
+                            >
+                              <ToggleLeft className="h-3 w-3" /> Да/Нет
+                            </button>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <label className="text-[10px] text-muted-foreground font-medium">Баллы:</label>
-                          <Input
-                            type="number"
-                            value={q.points}
-                            onChange={(e) => handleUpdateQuestionPoints(qIdx, Number(e.target.value))}
-                            className="h-6 w-12 text-[11px] bg-background text-center font-bold"
-                          />
-                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <label className="text-[10px] text-muted-foreground font-medium">Баллы:</label>
+                            <Input
+                              type="number"
+                              value={q.points}
+                              onChange={(e) => handleUpdateQuestionPoints(qIdx, Number(e.target.value))}
+                              className="h-6 w-12 text-[11px] bg-background text-center font-bold"
+                            />
+                          </div>
 
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="ghost"
-                          onClick={() => handleDuplicateQuestion(qIdx)}
-                          className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-                          title="Дублировать вопрос"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-
-                        {questionDrafts.length > 1 && (
                           <Button
                             type="button"
                             size="xs"
                             variant="ghost"
-                            onClick={() => handleRemoveQuestion(qIdx)}
-                            className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
-                            title="Удалить вопрос"
+                            onClick={() => handleDuplicateQuestion(qIdx)}
+                            className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                            title="Дублировать вопрос"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Copy className="h-3 w-3" />
                           </Button>
+
+                          {questionDrafts.length > 1 && (
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="ghost"
+                              onClick={() => handleRemoveQuestion(qIdx)}
+                              className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                              title="Удалить вопрос"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-medium text-muted-foreground">Формулировка вопроса</label>
+                          <Input
+                            placeholder={
+                              q.type === "BLANKS"
+                                ? "Пример: В JavaScript переменная объявляется через [const] или [let]"
+                                : q.type === "CODE"
+                                  ? "Пример: Что напечатает эта программа в консоль?"
+                                  : "Введите текст тестового вопроса..."
+                            }
+                            value={q.questionText}
+                            onChange={(e) => handleUpdateQuestionText(qIdx, e.target.value)}
+                            className="h-8 text-xs bg-background font-medium"
+                          />
+                        </div>
+
+                        {/* Code Snippet Editor for CODE type */}
+                        {q.type === "CODE" && (
+                          <div className="space-y-1 pt-1">
+                            <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
+                              <Terminal className="h-3.5 w-3.5" /> Фрагмент кода (Code Snippet)
+                            </label>
+                            <Textarea
+                              placeholder="// Вставьте исходный код программы..."
+                              value={q.codeSnippet || ""}
+                              onChange={(e) =>
+                                setQuestionDrafts((prev) => {
+                                  const copy = [...prev];
+                                  copy[qIdx].codeSnippet = e.target.value;
+                                  return copy;
+                                })
+                              }
+                              className="text-xs font-mono bg-slate-950 text-emerald-400 p-3 rounded-lg border min-h-[90px] leading-relaxed"
+                            />
+                          </div>
                         )}
-                      </div>
-                    </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted-foreground">Формулировка вопроса</label>
-                      <Input
-                        placeholder="Введите текст тестового вопроса..."
-                        value={q.questionText}
-                        onChange={(e) => handleUpdateQuestionText(qIdx, e.target.value)}
-                        className="h-8 text-xs bg-background font-medium"
-                      />
-                    </div>
+                      {/* Options Grid / Answer Config depending on Type */}
+                      {q.type === "TEXT" ? (
+                        <div className="space-y-1.5 pt-2 border-t">
+                          <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
+                            <Type className="h-3.5 w-3.5" /> Эталонный верный текстовый ответ (регистр не учитывается)
+                          </label>
+                          <Input
+                            placeholder="Введите точный ответ (например: HTTP, 42, REST)"
+                            value={q.correctAnswer}
+                            onChange={(e) =>
+                              setQuestionDrafts((prev) => {
+                                const copy = [...prev];
+                                copy[qIdx].correctAnswer = e.target.value;
+                                return copy;
+                              })
+                            }
+                            className="h-8 text-xs bg-background font-mono border-primary/50"
+                          />
+                        </div>
+                      ) : q.type === "BLANKS" ? (
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="p-3 rounded-lg border bg-primary/5 space-y-2">
+                            <div className="text-[11px] font-semibold text-primary flex items-center gap-1.5">
+                              <FormInput className="h-4 w-4 text-primary" /> Инструкция по созданию пропусков в тексте:
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              Пишите формулировку вопроса и выделяйте нужные правильные пропущенные слова <strong>в квадратных скобках `[слово]`</strong>. 
+                              Система автоматически сделает их скрытыми полями ввода для студентов.
+                            </p>
 
-                    {q.type === "TEXT" ? (
-                      <div className="space-y-1.5 pt-2 border-t">
-                        <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
-                          <Type className="h-3.5 w-3.5" /> Эталонный верный текстовый ответ (регистр не учитывается)
-                        </label>
-                        <Input
-                          placeholder="Введите точный ответ (например: HTTP, 42, REST)"
-                          value={q.correctAnswer}
-                          onChange={(e) =>
-                            setQuestionDrafts((prev) => {
-                              const copy = [...prev];
-                              copy[qIdx].correctAnswer = e.target.value;
-                              return copy;
-                            })
-                          }
-                          className="h-8 text-xs bg-background font-mono border-primary/50"
-                        />
-                      </div>
-                    ) : (
-                      <div className="space-y-2 pt-2 border-t">
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
-                          <span>
-                            Варианты ответов (нажмите на галочку слева для выбора{" "}
-                            {q.type === "MULTIPLE" ? "верных вариантов" : "верного варианта"}):
-                          </span>
+                            {(() => {
+                              const { blanks } = extractBlanksFromText(q.questionText);
+                              if (blanks.length === 0) {
+                                return (
+                                  <div className="text-[11px] text-primary/80 font-medium bg-primary/10 p-2 rounded border border-primary/20">
+                                    ⚠️ Вы ещё не выделили ни одного пропуска. Добавьте в текст скобки `[слово]`, например: <i>«Столица Франции — [Париж]»</i>.
+                                  </div>
+                                );
+                              }
 
-                          {q.type !== "TRUE_FALSE" && (
+                              return (
+                                <div className="space-y-1 pt-1 border-t border-primary/20">
+                                  <div className="text-[11px] font-semibold text-foreground">
+                                    Автоматически обнаружено верных пропусков ({blanks.length} шт.):
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {blanks.map((b, bIdx) => (
+                                      <Badge key={bIdx} variant="outline" className="text-[10px] bg-background border-primary text-primary font-mono font-bold">
+                                        Пропуск #{bIdx + 1}: «{b}»
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      ) : q.type === "ORDERING" ? (
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
+                            <span className="flex items-center gap-1 text-primary">
+                              <ListOrdered className="h-3.5 w-3.5" /> Элементы в верном эталонном порядке (перетащите в нужный порядок):
+                            </span>
                             <button
                               type="button"
                               onClick={() => handleAddOption(qIdx)}
                               className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1"
                             >
-                              <PlusCircle className="h-3 w-3" /> Вариант
+                              <PlusCircle className="h-3 w-3" /> Элемент
                             </button>
-                          )}
-                        </div>
+                          </div>
 
-                        <div className="space-y-2">
-                          {q.options.map((opt, optIdx) => {
-                            const isCorrect = isOptionCorrect(q, opt);
-
-                            return (
+                          <div className="space-y-2">
+                            {q.options.map((opt, optIdx) => (
                               <div key={optIdx} className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleOptionCorrect(qIdx, opt)}
-                                  className={`w-7 h-7 shrink-0 rounded-md border flex items-center justify-center transition-colors ${
-                                    isCorrect
-                                      ? "bg-primary border-primary text-primary-foreground"
-                                      : "bg-background border-border text-muted-foreground hover:border-primary/50"
-                                  }`}
-                                  title={isCorrect ? "Верный ответ" : "Отметить как верный"}
-                                >
-                                  <Check className={`h-3.5 w-3.5 stroke-[3] ${isCorrect ? "opacity-100" : "opacity-0"}`} />
-                                </button>
+                                <span className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                                  {optIdx + 1}
+                                </span>
 
                                 <Input
-                                  disabled={q.type === "TRUE_FALSE"}
                                   value={opt}
                                   onChange={(e) => handleUpdateOptionText(qIdx, optIdx, e.target.value)}
-                                  className={`h-7 text-xs bg-background flex-1 ${
-                                    isCorrect ? "border-primary/60 font-semibold text-primary" : ""
-                                  }`}
+                                  className="h-7 text-xs bg-background flex-1 font-medium"
                                 />
 
-                                {q.type !== "TRUE_FALSE" && q.options.length > 2 && (
+                                {q.options.length > 2 && (
                                   <Button
                                     type="button"
                                     size="xs"
                                     variant="ghost"
                                     onClick={() => handleRemoveOption(qIdx, optIdx)}
                                     className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                                    title="Удалить вариант"
                                   >
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
                                 )}
                               </div>
-                            );
-                          })}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      ) : (
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
+                            <span className="flex items-center gap-1">
+                              Варианты ответов (нажмите на галочку для выбора{" "}
+                              {q.type === "MULTIPLE" ? "верных вариантов" : "верного варианта"}):
+                            </span>
+
+                            {q.type !== "TRUE_FALSE" && (
+                              <button
+                                type="button"
+                                onClick={() => handleAddOption(qIdx)}
+                                className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1"
+                              >
+                                <PlusCircle className="h-3 w-3" /> Вариант
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Options List with DnD */}
+                          <div className="space-y-2">
+                            {q.options.map((opt, optIdx) => {
+                              const isCorrect = isOptionCorrect(q, opt);
+                              const isDraggingOpt = draggedOption?.qIdx === qIdx && draggedOption?.optIdx === optIdx;
+                              const isOverOpt = dragOverOption?.qIdx === qIdx && dragOverOption?.optIdx === optIdx;
+
+                              return (
+                                <div
+                                  key={optIdx}
+                                  draggable={q.type !== "TRUE_FALSE"}
+                                  onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    setDraggedOption({ qIdx, optIdx });
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                  }}
+                                  onDragEnter={(e) => {
+                                    e.stopPropagation();
+                                    setDragOverOption({ qIdx, optIdx });
+                                  }}
+                                  onDragEnd={(e) => {
+                                    e.stopPropagation();
+                                    setDraggedOption(null);
+                                    setDragOverOption(null);
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (
+                                      draggedOption &&
+                                      draggedOption.qIdx === qIdx &&
+                                      draggedOption.optIdx !== optIdx
+                                    ) {
+                                      handleMoveOption(qIdx, draggedOption.optIdx, optIdx);
+                                    }
+                                    setDraggedOption(null);
+                                    setDragOverOption(null);
+                                  }}
+                                  className={`flex items-center gap-2 p-1 rounded-lg border transition-all ${
+                                    isDraggingOpt ? "opacity-40 border-dashed border-primary" : "border-transparent"
+                                  } ${isOverOpt && !isDraggingOpt ? "bg-primary/10 border-primary" : ""}`}
+                                >
+                                  {q.type !== "TRUE_FALSE" && (
+                                    <div
+                                      className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground shrink-0"
+                                      title="Перетащите для изменения порядка вариантов"
+                                    >
+                                      <GripVertical className="h-3.5 w-3.5" />
+                                    </div>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleOptionCorrect(qIdx, opt)}
+                                    className={`w-7 h-7 shrink-0 rounded-md border flex items-center justify-center transition-colors ${
+                                      isCorrect
+                                        ? "bg-primary border-primary text-primary-foreground"
+                                        : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                                    }`}
+                                    title={isCorrect ? "Верный ответ" : "Отметить как верный"}
+                                  >
+                                    <Check className={`h-3.5 w-3.5 stroke-[3] ${isCorrect ? "opacity-100" : "opacity-0"}`} />
+                                  </button>
+
+                                  <Input
+                                    disabled={q.type === "TRUE_FALSE"}
+                                    value={opt}
+                                    onChange={(e) => handleUpdateOptionText(qIdx, optIdx, e.target.value)}
+                                    className={`h-7 text-xs bg-background flex-1 ${
+                                      isCorrect ? "border-primary/60 font-semibold text-primary" : ""
+                                    }`}
+                                  />
+
+                                  {q.type !== "TRUE_FALSE" && q.options.length > 2 && (
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      variant="ghost"
+                                      onClick={() => handleRemoveOption(qIdx, optIdx)}
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                                      title="Удалить вариант"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
 
                 <Button
                   type="button"
                   size="xs"
                   variant="outline"
-                  onClick={handleAddQuestion}
+                  onClick={() => handleAddQuestionAt()}
                   className="w-full h-8 text-xs gap-1.5 text-primary border-dashed border-primary/40 hover:bg-primary/5 font-medium"
                 >
                   <PlusCircle className="h-3.5 w-3.5" /> Добавить ещё один вопрос

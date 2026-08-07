@@ -45,10 +45,19 @@ export interface TopicDTO {
   materials: MaterialDTO[];
 }
 
+export type QuestionTypeDTO =
+  | "SINGLE"
+  | "MULTIPLE"
+  | "TEXT"
+  | "TRUE_FALSE"
+  | "ORDERING"
+  | "BLANKS"
+  | "CODE";
+
 export interface TestQuestionDTO {
   id: string;
   testId: string;
-  type: "SINGLE" | "MULTIPLE" | "TEXT" | "TRUE_FALSE";
+  type: QuestionTypeDTO;
   questionText: string;
   options: string[]; // parsed array
   correctAnswer: string;
@@ -780,11 +789,15 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
       if (!selectedGroupId || !studentGroupIds?.includes(selectedGroupId)) {
         selectedGroupId = studentGroupIds?.[0] || groups[0]?.id || "";
       }
+    } else {
+      if (!selectedGroupId) {
+        selectedGroupId = groups[0]?.id || "";
+      }
     }
 
     if (!selectedGroupId) {
       return {
-        groups: [],
+        groups,
         subjects: [],
         topics: [],
         tests: [],
@@ -933,7 +946,7 @@ export async function createTestAction(data: {
   shuffleQuestions?: boolean;
   shuffleOptions?: boolean;
   questions: {
-    type?: "SINGLE" | "MULTIPLE" | "TEXT" | "TRUE_FALSE";
+    type?: QuestionTypeDTO;
     questionText: string;
     options: string[];
     correctAnswer: string;
@@ -950,11 +963,22 @@ export async function createTestAction(data: {
       return { success: false, error: "Укажите дисциплину, название и добавьте хотя бы 1 вопрос" };
     }
 
+    let finalTopicId: string | null = null;
+    if (data.topicId && data.topicId !== "none") {
+      const topicExists = await prisma.topic.findUnique({
+        where: { id: data.topicId },
+        select: { id: true },
+      });
+      if (topicExists) {
+        finalTopicId = topicExists.id;
+      }
+    }
+
     const test = await prisma.test.create({
       data: {
         // Create new test with shuffle options and multi-type questions
         groupSubjectId: data.groupSubjectId,
-        topicId: data.topicId || null,
+        topicId: finalTopicId,
         authorId: session.user.id,
         title: data.title.trim(),
         description: data.description?.trim() || null,
@@ -1173,11 +1197,22 @@ export async function updateTestAction(
       return { success: false, error: "Укажите дисциплину, название и добавьте хотя бы 1 вопрос" };
     }
 
+    let finalTopicId: string | null = null;
+    if (data.topicId && data.topicId !== "none") {
+      const topicExists = await prisma.topic.findUnique({
+        where: { id: data.topicId },
+        select: { id: true },
+      });
+      if (topicExists) {
+        finalTopicId = topicExists.id;
+      }
+    }
+
     await prisma.test.update({
       where: { id: testId },
       data: {
         groupSubjectId: data.groupSubjectId,
-        topicId: data.topicId || null,
+        topicId: finalTopicId,
         title: data.title.trim(),
         description: data.description?.trim() || null,
         timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
@@ -1280,6 +1315,36 @@ export async function submitTestAnswersAction(data: {
           }
         } catch {
           if (studentAnswer.trim() === q.correctAnswer.trim()) {
+            userScore += qPoints;
+          }
+        }
+      } else if (qType === "ORDERING") {
+        try {
+          const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim());
+          const studentArr: string[] = JSON.parse(studentAnswer).map((s: string) => s.trim());
+          if (
+            correctArr.length === studentArr.length &&
+            correctArr.every((val, index) => val === studentArr[index])
+          ) {
+            userScore += qPoints;
+          }
+        } catch {
+          if (studentAnswer.trim() === q.correctAnswer.trim()) {
+            userScore += qPoints;
+          }
+        }
+      } else if (qType === "BLANKS") {
+        try {
+          const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim().toLowerCase());
+          const studentArr: string[] = JSON.parse(studentAnswer).map((s: string) => s.trim().toLowerCase());
+          if (
+            correctArr.length === studentArr.length &&
+            correctArr.every((val, index) => val === studentArr[index])
+          ) {
+            userScore += qPoints;
+          }
+        } catch {
+          if (studentAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) {
             userScore += qPoints;
           }
         }
