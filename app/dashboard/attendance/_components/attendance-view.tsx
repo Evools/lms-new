@@ -549,71 +549,97 @@ export function AttendanceView({
                     )}
                   </div>
 
-                  {/* Segmented Pill Toggle for Attendance Status */}
-                  <div className="grid grid-cols-4 gap-0.5 p-0.5 bg-muted/60 rounded-lg border text-xs">
-                    <button
-                      type="button"
-                      disabled={!isAdminOrTeacher}
-                      onClick={() => handleStatusChange(st.studentId, AttendanceStatus.PRESENT)}
-                      className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                        rec.status === AttendanceStatus.PRESENT
-                          ? "bg-primary text-primary-foreground shadow-2xs"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      Был
-                    </button>
+                  {/* Attendance Status (Editable for Admin/Teacher, Clean Badge for Read-Only) */}
+                  {isAdminOrTeacher ? (
+                    <div className="grid grid-cols-4 gap-0.5 p-0.5 bg-muted/60 rounded-lg border text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(st.studentId, AttendanceStatus.PRESENT)}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                          rec.status === AttendanceStatus.PRESENT
+                            ? "bg-primary text-primary-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Был
+                      </button>
 
-                    <button
-                      type="button"
-                      disabled={!isAdminOrTeacher}
-                      onClick={() => handleStatusChange(st.studentId, AttendanceStatus.ABSENT)}
-                      className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                        rec.status === AttendanceStatus.ABSENT
-                          ? "bg-destructive text-white shadow-2xs"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      НБ
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(st.studentId, AttendanceStatus.ABSENT)}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                          rec.status === AttendanceStatus.ABSENT
+                            ? "bg-destructive text-white shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        НБ
+                      </button>
 
-                    <button
-                      type="button"
-                      disabled={!isAdminOrTeacher}
-                      onClick={() => handleStatusChange(st.studentId, AttendanceStatus.LATE)}
-                      className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                        rec.status === AttendanceStatus.LATE
-                          ? "bg-primary text-primary-foreground shadow-2xs"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      Опоздал
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(st.studentId, AttendanceStatus.LATE)}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                          rec.status === AttendanceStatus.LATE
+                            ? "bg-primary text-primary-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Опоздал
+                      </button>
 
-                    <button
-                      type="button"
-                      disabled={!isAdminOrTeacher}
-                      onClick={() => handleStatusChange(st.studentId, AttendanceStatus.EXCUSED)}
-                      className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                        rec.status === AttendanceStatus.EXCUSED
-                          ? "bg-secondary text-secondary-foreground shadow-2xs border"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      Уваж.
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(st.studentId, AttendanceStatus.EXCUSED)}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                          rec.status === AttendanceStatus.EXCUSED
+                            ? "bg-secondary text-secondary-foreground shadow-2xs border"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Уваж.
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex justify-center">
+                      {rec.status === AttendanceStatus.PRESENT && (
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 font-medium text-[11px] gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Присутствует
+                        </Badge>
+                      )}
+                      {rec.status === AttendanceStatus.ABSENT && (
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 font-medium text-[11px] gap-1">
+                          <AlertCircle className="h-3 w-3" /> Отсутствует (НБ)
+                        </Badge>
+                      )}
+                      {rec.status === AttendanceStatus.LATE && (
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 font-medium text-[11px] gap-1">
+                          <Clock className="h-3 w-3" /> Опоздал
+                        </Badge>
+                      )}
+                      {rec.status === AttendanceStatus.EXCUSED && (
+                        <Badge variant="secondary" className="font-medium text-[11px] gap-1">
+                          <UserCheck className="h-3 w-3 text-primary" /> Уважительная
+                        </Badge>
+                      )}
+                    </div>
+                  )}
 
-                  {/* Comment Input */}
+                  {/* Comment Input for Editor, Clean Text for Read-Only */}
                   <div>
-                    <Input
-                      placeholder="Примечание..."
-                      value={rec.comment}
-                      disabled={!isAdminOrTeacher}
-                      onChange={(e) => handleCommentChange(st.studentId, e.target.value)}
-                      onBlur={() => handleCommentBlur(st.studentId)}
-                      className="h-7 text-xs bg-background"
-                    />
+                    {isAdminOrTeacher ? (
+                      <Input
+                        placeholder="Примечание..."
+                        value={rec.comment}
+                        onChange={(e) => handleCommentChange(st.studentId, e.target.value)}
+                        onBlur={() => handleCommentBlur(st.studentId)}
+                        className="h-7 text-xs bg-background"
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {rec.comment || "—"}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
