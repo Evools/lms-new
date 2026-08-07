@@ -796,9 +796,10 @@ export function EditTestView({
                   const isOverQ = dragOverQuestionIdx === qIdx;
 
                   return (
-                    <div
-                      key={qIdx}
-                      draggable
+                    <React.Fragment key={qIdx}>
+                      <div
+                        id={`question-card-${qIdx}`}
+                        draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData("text/plain", qIdx.toString());
                         setDraggedQuestionIdx(qIdx);
@@ -865,7 +866,8 @@ export function EditTestView({
                             </Button>
                           </div>
 
-                          <div className="grid grid-cols-4 gap-1 p-0.5 bg-muted/60 rounded-lg border text-[11px] font-medium ml-1">
+                          {/* Question Type Selector Pills */}
+                          <div className="flex flex-wrap gap-1 p-0.5 bg-muted/60 rounded-lg border text-[11px] font-medium ml-1">
                             <button
                               type="button"
                               onClick={() => handleUpdateQuestionType(qIdx, "SINGLE")}
@@ -916,6 +918,45 @@ export function EditTestView({
                               title="Да / Нет (Верно / Неверно)"
                             >
                               <ToggleLeft className="h-3 w-3" /> Да/Нет
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "ORDERING")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "ORDERING"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Расстановка элементов в правильном порядке"
+                            >
+                              <ListOrdered className="h-3 w-3" /> Последовательность
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "BLANKS")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "BLANKS"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Заполнение пропущенных слов [слово]"
+                            >
+                              <FormInput className="h-3 w-3" /> Пропуски
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "CODE")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "CODE"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Анализ и ввод фрагмента кода"
+                            >
+                              <Code className="h-3 w-3" /> Код / Сниппет
                             </button>
                           </div>
                         </div>
@@ -1208,18 +1249,31 @@ export function EditTestView({
                         </div>
                       )}
                     </div>
-                  );
-                })}
 
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  onClick={() => handleAddQuestionAt()}
-                  className="w-full h-8 text-xs gap-1.5 text-primary border-dashed border-primary/40 hover:bg-primary/5 font-medium"
-                >
-                  <PlusCircle className="h-3.5 w-3.5" /> Добавить ещё один вопрос
-                </Button>
+                    {/* Quick Insert Divider Between Questions */}
+                    <div className="flex items-center justify-center py-0.5 group">
+                      <button
+                        type="button"
+                        onClick={() => handleAddQuestionAt(qIdx + 1)}
+                        className="h-6 px-3 text-[10px] rounded-full border border-dashed border-primary/30 bg-background text-primary opacity-50 group-hover:opacity-100 hover:border-primary hover:bg-primary/10 transition-all font-semibold flex items-center gap-1 shadow-2xs cursor-pointer"
+                        title={`Вставить новый вопрос между #${qIdx + 1} и #${qIdx + 2}`}
+                      >
+                        <PlusCircle className="h-3 w-3" /> Вставить вопрос после #{qIdx + 1}
+                      </button>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={() => handleAddQuestionAt()}
+                className="w-full h-8 text-xs gap-1.5 text-primary border-dashed border-primary/40 hover:bg-primary/5 font-medium"
+              >
+                <PlusCircle className="h-3.5 w-3.5" /> Добавить еще один вопрос в конец
+              </Button>
               </div>
             </div>
           )}
