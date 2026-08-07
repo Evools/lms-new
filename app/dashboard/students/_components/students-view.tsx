@@ -68,7 +68,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import { deleteStudentsAction } from "../actions";
+import { deleteStudentsAction, resetPasswordAction } from "../actions";
 
 export interface StudentRegistryItem {
   id: string;
@@ -226,20 +226,27 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
     }
   };
 
-  const handleConfirmPasswordReset = () => {
-    if (!resetTargetStudent) return;
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === resetTargetStudent.id
-          ? {
-              ...s,
-              accountStatus: "Временный пароль",
-              lastPasswordReset: new Date().toLocaleDateString("ru-RU"),
-            }
-          : s
-      )
-    );
-    setResetTargetStudent(null);
+  const handleConfirmPasswordReset = async () => {
+    if (!resetTargetStudent || !generatedNewPassword) return;
+
+    const res = await resetPasswordAction(resetTargetStudent.id, generatedNewPassword);
+
+    if (res.success) {
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === resetTargetStudent.id
+            ? {
+                ...s,
+                accountStatus: "Временный пароль",
+                lastPasswordReset: new Date().toLocaleDateString("ru-RU"),
+              }
+            : s
+        )
+      );
+      setResetTargetStudent(null);
+    } else {
+      alert(res.error || "Ошибка при сбросе пароля");
+    }
   };
 
   const isAnyFilterActive =

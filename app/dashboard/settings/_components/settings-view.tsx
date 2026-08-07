@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,7 @@ import {
   Upload,
   FileSpreadsheet,
   X,
+  Check,
 } from "lucide-react";
 import type {
   UserProfileDTO,
@@ -90,7 +91,7 @@ interface SettingsViewProps {
   role: string;
 }
 
-type Tab = "system" | "users" | "academic";
+type Tab = "profile" | "security" | "appearance" | "system" | "users" | "academic";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Администратор",
@@ -116,7 +117,43 @@ export function SettingsView({
   const [isPending, startTransition] = useTransition();
 
   const isAdmin = role === "ADMIN";
-  const [activeTab, setActiveTab] = useState<Tab>("system");
+  const isStudent = role === "STUDENT";
+  const [activeTab, setActiveTab] = useState<Tab>(isStudent ? "profile" : "system");
+
+  // Theme State
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("light");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("lms-theme") as "light" | "dark" | "system" | null;
+    if (stored) {
+      setTheme(stored);
+    } else if (document.documentElement.classList.contains("dark")) {
+      setTheme("dark");
+    } else {
+      setTheme("light");
+    }
+  }, []);
+
+  const applyTheme = (t: "light" | "dark" | "system") => {
+    setTheme(t);
+    localStorage.setItem("lms-theme", t);
+    if (t === "dark") {
+      document.documentElement.classList.add("dark");
+    } else if (t === "light") {
+      document.documentElement.classList.remove("dark");
+    } else {
+      // system
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.classList.toggle("dark", prefersDark);
+    }
+  };
+
+  // Notification prefs (local)
+  const [notifAssignments, setNotifAssignments] = useState(true);
+  const [notifGrades, setNotifGrades] = useState(true);
+  const [notifAnnouncements, setNotifAnnouncements] = useState(true);
+  const [notifDuty, setNotifDuty] = useState(false);
+  const [compactMode, setCompactMode] = useState(false);
 
   // Profile State
   const [profileName, setProfileName] = useState(profile.name);
@@ -478,11 +515,17 @@ export function SettingsView({
     return true;
   });
 
-  const TABS: { key: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+  const TABS: { key: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean; studentOnly?: boolean }[] = [
+    { key: "profile" as Tab, label: "Мой профиль", icon: <User className="h-3.5 w-3.5" />, studentOnly: false },
+    { key: "security" as Tab, label: "Безопасность", icon: <Lock className="h-3.5 w-3.5" />, studentOnly: false },
+    { key: "appearance" as Tab, label: "Оформление", icon: <Sliders className="h-3.5 w-3.5" /> },
     { key: "system" as Tab, label: "Настройки системы", icon: <Globe className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "users" as Tab, label: "Сотрудники и доступы", icon: <Users className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "academic" as Tab, label: "Учебные годы", icon: <CalendarDays className="h-3.5 w-3.5" />, adminOnly: true },
-  ].filter((t) => !t.adminOnly || isAdmin);
+  ].filter((t) => {
+    if (t.adminOnly && !isAdmin) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-3 w-full text-xs">
@@ -510,17 +553,310 @@ export function SettingsView({
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-              activeTab === tab.key
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${activeTab === tab.key
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
+              }`}
           >
             {tab.icon}
             {tab.label}
           </button>
         ))}
       </div>
+
+      {/* ===================== STUDENT SETTINGS ===================== */}
+
+      {/* Tab: Profile (all roles) */}
+      {activeTab === "profile" && (
+        <div className="space-y-3">
+          {/* Profile Card */}
+          <div className="bg-card border rounded-xl p-4 space-y-4 shadow-xs">
+            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+              <User className="h-4 w-4 text-primary" /> Личные данные
+            </h2>
+
+            {/* Avatar preview */}
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-primary font-bold text-xl shrink-0 overflow-hidden">
+                {profileAvatar ? (
+                  <img src={profileAvatar} alt={profileName} className="w-full h-full object-cover rounded-full" />
+                ) : (
+                  <span>{profileName?.[0]?.toUpperCase() || "?"}</span>
+                )}
+              </div>
+              <div className="flex-1 space-y-1">
+                <p className="text-xs font-semibold text-foreground">{profileName}</p>
+                <p className="text-[11px] text-muted-foreground">{profile.email}</p>
+                <Badge variant="outline" className={`text-[9px] border ${ROLE_COLORS[profile.role] || ""}`}>
+                  {ROLE_LABELS[profile.role] || profile.role}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-foreground">ФИО *</label>
+                <Input
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  placeholder="Иванов Иван Иванович"
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-foreground">Телефон</label>
+                <Input
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                  placeholder="+996 (700) 000-000"
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-medium text-foreground">URL аватара (ссылка на фото)</label>
+                <Input
+                  value={profileAvatar}
+                  onChange={(e) => setProfileAvatar(e.target.value)}
+                  placeholder="https://..."
+                  className="h-8 text-xs bg-background font-mono"
+                />
+              </div>
+            </div>
+
+            <Button size="xs" disabled={isPending} onClick={handleUpdateProfile} className="h-8 px-4 font-medium gap-1.5">
+              <UserCheck className="h-3.5 w-3.5" /> Сохранить профиль
+            </Button>
+          </div>
+
+          {/* Student info card */}
+          {isStudent && (
+            <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+              <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+                <GraduationCap className="h-4 w-4 text-primary" /> Учебная информация
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-lg bg-muted/30 border space-y-0.5">
+                  <p className="text-[10px] text-muted-foreground font-medium">Email аккаунта</p>
+                  <p className="font-semibold text-foreground font-mono">{profile.email}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/30 border space-y-0.5">
+                  <p className="text-[10px] text-muted-foreground font-medium">Роль в системе</p>
+                  <p className="font-semibold text-foreground">Студент</p>
+                </div>
+                <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 space-y-0.5 sm:col-span-2">
+                  <p className="text-[10px] text-primary font-medium">Дата регистрации в системе</p>
+                  <p className="font-semibold text-foreground text-[11px]">
+                    {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Security (all roles) */}
+      {activeTab === "security" && (
+        <div className="bg-card border rounded-xl p-4 space-y-4 shadow-xs">
+          <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+            <Lock className="h-4 w-4 text-primary" /> Смена пароля
+          </h2>
+
+          <div className="space-y-3 max-w-sm">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Текущий пароль</label>
+              <div className="relative">
+                <Input
+                  type={showPwd ? "text" : "password"}
+                  value={currentPwd}
+                  onChange={(e) => setCurrentPwd(e.target.value)}
+                  placeholder="Ваш текущий пароль"
+                  className="h-8 text-xs bg-background pr-9"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((v) => !v)}
+                  className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPwd ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Новый пароль</label>
+              <Input
+                type={showPwd ? "text" : "password"}
+                value={newPwd}
+                onChange={(e) => setNewPwd(e.target.value)}
+                placeholder="Минимум 6 символов"
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Подтверждение нового пароля</label>
+              <Input
+                type={showPwd ? "text" : "password"}
+                value={confirmPwd}
+                onChange={(e) => setConfirmPwd(e.target.value)}
+                placeholder="Повторите новый пароль"
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+
+            {newPwd && confirmPwd && newPwd !== confirmPwd && (
+              <p className="text-[11px] text-destructive flex items-center gap-1">
+                <X className="h-3 w-3" /> Пароли не совпадают
+              </p>
+            )}
+
+            <Button
+              size="xs"
+              disabled={isPending || !currentPwd || !newPwd || newPwd !== confirmPwd}
+              onClick={handleChangePassword}
+              className="h-8 px-4 font-medium gap-1.5"
+            >
+              <Shield className="h-3.5 w-3.5" /> Сменить пароль
+            </Button>
+          </div>
+
+          <div className="pt-3 border-t space-y-1">
+            <p className="text-[11px] text-muted-foreground font-medium">Советы по безопасности:</p>
+            <ul className="text-[11px] text-muted-foreground space-y-0.5 list-disc list-inside">
+              <li>Используйте минимум 8 символов</li>
+              <li>Добавьте цифры и специальные символы (!@#$)</li>
+              <li>Не используйте один пароль на разных сайтах</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Appearance (all roles) */}
+      {activeTab === "appearance" && (
+        <div className="space-y-3">
+          {/* Theme Card */}
+          <div className="bg-card border rounded-xl p-4 space-y-4 shadow-xs">
+            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+              <Sliders className="h-4 w-4 text-primary" /> Тема оформления
+            </h2>
+
+            <div className="grid grid-cols-3 gap-3">
+              {/* Light */}
+              <button
+                type="button"
+                onClick={() => applyTheme("light")}
+                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "light"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                  }`}
+              >
+                <div className="w-full h-16 rounded-lg bg-white border border-border flex flex-col gap-1 p-2 overflow-hidden">
+                  <div className="h-2 w-2/3 rounded bg-gray-200" />
+                  <div className="h-1.5 w-full rounded bg-gray-100" />
+                  <div className="h-1.5 w-4/5 rounded bg-gray-100" />
+                  <div className="h-2 w-1/2 rounded bg-teal-200 mt-auto" />
+                </div>
+                <span className="text-[11px] font-medium text-foreground">Светлая</span>
+                {theme === "light" && (
+                  <div className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-2.5 w-2.5 text-white" />
+                  </div>
+                )}
+              </button>
+
+              {/* Dark */}
+              <button
+                type="button"
+                onClick={() => applyTheme("dark")}
+                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "dark"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                  }`}
+              >
+                <div className="w-full h-16 rounded-lg bg-gray-900 border border-gray-700 flex flex-col gap-1 p-2 overflow-hidden">
+                  <div className="h-2 w-2/3 rounded bg-gray-600" />
+                  <div className="h-1.5 w-full rounded bg-gray-800" />
+                  <div className="h-1.5 w-4/5 rounded bg-gray-800" />
+                  <div className="h-2 w-1/2 rounded bg-teal-700 mt-auto" />
+                </div>
+                <span className="text-[11px] font-medium text-foreground">Тёмная</span>
+                {theme === "dark" && (
+                  <div className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-2.5 w-2.5 text-white" />
+                  </div>
+                )}
+              </button>
+
+              {/* System */}
+              <button
+                type="button"
+                onClick={() => applyTheme("system")}
+                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "system"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                  }`}
+              >
+                <div className="w-full h-16 rounded-lg border border-border overflow-hidden flex">
+                  <div className="flex-1 bg-white flex flex-col gap-1 p-1.5">
+                    <div className="h-1.5 w-full rounded bg-gray-200" />
+                    <div className="h-1 w-4/5 rounded bg-gray-100" />
+                  </div>
+                  <div className="flex-1 bg-gray-900 flex flex-col gap-1 p-1.5">
+                    <div className="h-1.5 w-full rounded bg-gray-700" />
+                    <div className="h-1 w-4/5 rounded bg-gray-800" />
+                  </div>
+                </div>
+                <span className="text-[11px] font-medium text-foreground">Системная</span>
+                {theme === "system" && (
+                  <div className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-2.5 w-2.5 text-white" />
+                  </div>
+                )}
+              </button>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">
+              Тема сохраняется в вашем браузере и применяется сразу без перезагрузки страницы.
+            </p>
+          </div>
+
+          {/* Notification Preferences Card */}
+          {isStudent && (
+            <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+              <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+                <Bell className="h-4 w-4 text-primary" /> Уведомления
+              </h2>
+              <p className="text-[11px] text-muted-foreground">Выберите, о чём вы хотите получать уведомления в системе.</p>
+
+              <div className="space-y-2">
+                {[
+                  { label: "Новые домашние задания", desc: "Когда преподаватель публикует новое ДЗ", state: notifAssignments, set: setNotifAssignments, id: "notif-hw" },
+                  { label: "Оценки и результаты", desc: "Когда преподаватель проверил вашу работу", state: notifGrades, set: setNotifGrades, id: "notif-grades" },
+                  { label: "Объявления", desc: "Общие объявления от администрации", state: notifAnnouncements, set: setNotifAnnouncements, id: "notif-ann" },
+                  { label: "Дежурства", desc: "Напоминания о назначенных дежурствах", state: notifDuty, set: setNotifDuty, id: "notif-duty" },
+                ].map((item) => (
+                  <div key={item.id} className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+                    <label htmlFor={item.id} className="space-y-0.5 cursor-pointer flex-1">
+                      <div className="font-semibold text-foreground text-xs">{item.label}</div>
+                      <div className="text-[11px] text-muted-foreground">{item.desc}</div>
+                    </label>
+                    <Switch
+                      id={item.id}
+                      checked={item.state}
+                      onCheckedChange={item.set}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <Button size="xs" className="h-8 px-4 font-medium gap-1.5" onClick={() => toast.add({ title: "Настройки уведомлений сохранены", type: "success" })}>
+                <Check className="h-3.5 w-3.5" /> Сохранить
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab: System Settings (Admin Only) */}
       {activeTab === "system" && isAdmin && (
@@ -694,33 +1030,30 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => setUserRoleFilter("STAFF")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                  userRoleFilter === "STAFF"
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "STAFF"
                     ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                }`}
+                  }`}
               >
                 Все сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN").length})
               </button>
               <button
                 type="button"
                 onClick={() => setUserRoleFilter("TEACHER")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                  userRoleFilter === "TEACHER"
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "TEACHER"
                     ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                }`}
+                  }`}
               >
                 Преподаватели ({allUsers.filter((u) => u.role === "TEACHER").length})
               </button>
               <button
                 type="button"
                 onClick={() => setUserRoleFilter("ADMIN")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                  userRoleFilter === "ADMIN"
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "ADMIN"
                     ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                }`}
+                  }`}
               >
                 Администраторы ({allUsers.filter((u) => u.role === "ADMIN").length})
               </button>
@@ -896,22 +1229,20 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => setCreateUserMode("single")}
-                className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all ${
-                  createUserMode === "single"
+                className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all ${createUserMode === "single"
                     ? "bg-background text-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 Анкета одного сотрудника
               </button>
               <button
                 type="button"
                 onClick={() => setCreateUserMode("excel")}
-                className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all ${
-                  createUserMode === "excel"
+                className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all ${createUserMode === "excel"
                     ? "bg-background text-primary shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 Массовый импорт (Excel / CSV)
               </button>

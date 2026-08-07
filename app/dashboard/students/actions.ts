@@ -314,3 +314,40 @@ export async function deleteStudentsAction(ids: string[]) {
     return { success: false, error: error.message || "Ошибка при удалении из БД" };
   }
 }
+
+export async function resetPasswordAction(studentId: string, newPassword: string) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Необходима авторизация" };
+    }
+
+    const role = session.user.role || "STUDENT";
+    if (role !== "ADMIN" && role !== "TEACHER") {
+      return { success: false, error: "Недостаточно прав" };
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: "Пароль слишком короткий (минимум 6 символов)" };
+    }
+
+    const existing = await prisma.user.findUnique({ where: { id: studentId } });
+    if (!existing) {
+      return { success: false, error: "Пользователь не найден" };
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: studentId },
+      data: { password: hashed },
+    });
+
+    revalidatePath("/dashboard/students");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error resetting password:", error);
+    return { success: false, error: error.message || "Ошибка при смене пароля" };
+  }
+}
+
