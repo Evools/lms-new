@@ -51,6 +51,9 @@ import {
   MessageSquare,
   ArrowRight,
   CheckCheck,
+  Star,
+  RotateCcw,
+  Timer,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -646,7 +649,7 @@ export function AssignmentsView({
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Badge
                                 variant="outline"
-                                className={`text-[10px] font-semibold border px-2 py-0.5 ${
+                                className={`text-[10px] font-semibold border px-2 py-0.5 inline-flex items-center gap-1 ${
                                   userSub.status === SubmissionStatus.ACCEPTED
                                     ? "bg-primary/15 text-primary border-primary/30"
                                     : userSub.status === SubmissionStatus.NEED_REVISION
@@ -655,14 +658,14 @@ export function AssignmentsView({
                                 }`}
                               >
                                 {userSub.status === SubmissionStatus.ACCEPTED
-                                  ? "✓ Принято"
+                                  ? <><Check className="h-3 w-3" /> Принято</>
                                   : userSub.status === SubmissionStatus.NEED_REVISION
-                                    ? "↩ Доработка"
-                                    : "⏳ Проверка"}
+                                    ? <><RotateCcw className="h-3 w-3" /> Доработка</>
+                                    : <><Timer className="h-3 w-3" /> Проверка</>}
                               </Badge>
                               {userSub.grade != null && (
                                 <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
-                                  ⭐ {userSub.grade}
+                                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {userSub.grade}
                                 </span>
                               )}
                             </div>
@@ -880,7 +883,7 @@ export function AssignmentsView({
                           <div className="flex items-center justify-between gap-2">
                             <Badge
                               variant="outline"
-                              className={`text-[10px] font-semibold border px-2 py-0.5 ${
+                              className={`text-[10px] font-semibold border px-2 py-0.5 inline-flex items-center gap-1 ${
                                 userSub.status === SubmissionStatus.ACCEPTED
                                   ? "bg-primary/15 text-primary border-primary/30"
                                   : userSub.status === SubmissionStatus.NEED_REVISION
@@ -889,14 +892,14 @@ export function AssignmentsView({
                               }`}
                             >
                               {userSub.status === SubmissionStatus.ACCEPTED
-                                ? "✓ Принято"
+                                ? <><Check className="h-3 w-3" /> Принято</>
                                 : userSub.status === SubmissionStatus.NEED_REVISION
-                                  ? "↩ На доработке"
-                                  : "⏳ На проверке"}
+                                  ? <><RotateCcw className="h-3 w-3" /> На доработке</>
+                                  : <><Timer className="h-3 w-3" /> На проверке</>}
                             </Badge>
                             {userSub.grade != null && (
                               <span className="inline-flex items-center gap-0.5 text-[12px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                                ⭐ {userSub.grade}
+                                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" /> {userSub.grade}
                               </span>
                             )}
                           </div>
@@ -1018,7 +1021,7 @@ export function AssignmentsView({
         {viewMyResultAssignment && (() => {
           const mySub = viewMyResultAssignment.userSubmission;
           return (
-            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[480px] overflow-hidden">
+            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[680px] overflow-hidden">
               <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium">
@@ -1036,7 +1039,7 @@ export function AssignmentsView({
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <Badge
                       variant="outline"
-                      className={`text-xs font-semibold border px-3 py-1 ${
+                      className={`text-xs font-semibold border px-3 py-1 inline-flex items-center gap-1.5 ${
                         mySub.status === SubmissionStatus.ACCEPTED
                           ? "bg-primary/15 text-primary border-primary/30"
                           : mySub.status === SubmissionStatus.NEED_REVISION
@@ -1045,14 +1048,14 @@ export function AssignmentsView({
                       }`}
                     >
                       {mySub.status === SubmissionStatus.ACCEPTED
-                        ? "\u2713 \u041f\u0440\u0438\u043d\u044f\u0442\u043e"
+                        ? <><Check className="h-3.5 w-3.5" /> Принято</>
                         : mySub.status === SubmissionStatus.NEED_REVISION
-                          ? "\u21a9 \u041d\u0430 \u0434\u043e\u0440\u0430\u0431\u043e\u0442\u043a\u0435"
-                          : "\u23f3 \u041d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435"}
+                          ? <><RotateCcw className="h-3.5 w-3.5" /> На доработке</>
+                          : <><Timer className="h-3.5 w-3.5" /> На проверке</>}
                     </Badge>
                     {mySub.grade != null && (
-                      <span className="inline-flex items-center gap-1.5 text-base font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-xl">
-                        ⭐ {mySub.grade} <span className="text-xs font-normal text-amber-500">/ 5</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {mySub.grade}<span className="text-[10px] font-normal text-amber-500">/5</span>
                       </span>
                     )}
                     {mySub.reviewedAt && (
@@ -1562,7 +1565,7 @@ export function AssignmentsView({
                           {/* Grade Selector */}
                           <div className="space-y-1.5 pt-1">
                             <label className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
-                              ⭐ Оценка (1–5):
+                              <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> Оценка (1–5):
                             </label>
                             <div className="flex items-center gap-1">
                               {[1, 2, 3, 4, 5].map((g) => {
@@ -1776,7 +1779,7 @@ export function AssignmentsView({
                     <div className="pt-1.5 border-t space-y-2">
                       {/* Grade selector */}
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-medium shrink-0">⭐ Оценка:</span>
+                        <span className="text-[10px] text-muted-foreground font-medium shrink-0 flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> Оценка:</span>
                         <div className="flex items-center gap-1">
                           {[1, 2, 3, 4, 5].map((g) => {
                             const selected = reviewGradeMap[sub.id] === g;
@@ -1825,8 +1828,8 @@ export function AssignmentsView({
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             <span>Принято</span>
                             {sub.grade != null && (
-                              <span className="text-amber-600 font-bold">⭐ {sub.grade}</span>
-                            )}
+                               <span className="inline-flex items-center gap-0.5 text-amber-600 font-bold"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {sub.grade}</span>
+                             )}
                             {sub.reviewedAt && (
                               <span className="text-muted-foreground font-normal">
                                 {new Date(sub.reviewedAt).toLocaleDateString("ru-RU")}
