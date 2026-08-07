@@ -64,6 +64,8 @@ export interface TopicWithMaterialsDTO {
   title: string;
   description?: string | null;
   order: number;
+  subjectName?: string;
+  teacherName?: string;
   materials: MaterialDTO[];
 }
 
@@ -92,8 +94,26 @@ export function MaterialsView({
 
   const currentGroupObj = groups.find((g) => g.id === selectedGroupId);
 
+  // Selected Subject Filter State
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
+
+  const targetSubjectName =
+    selectedSubjectId !== "all"
+      ? subjects.find((s) => s.id === selectedSubjectId)?.subjectName
+      : null;
+
+  const displayTopics = topicsWithMaterials.filter((t) => {
+    if (!targetSubjectName) return true;
+    return t.subjectName === targetSubjectName;
+  });
+
+  const displayMaterials = materials.filter((m) => {
+    if (!targetSubjectName) return true;
+    return m.subjectName === targetSubjectName;
+  });
+
   // Active Selected Material State
-  const initialActiveMat = materials[0] || null;
+  const initialActiveMat = displayMaterials[0] || materials[0] || null;
   const [activeMaterial, setActiveMaterial] = useState<MaterialDTO | null>(initialActiveMat);
 
   // Expanded Chapter State
@@ -332,21 +352,48 @@ export function MaterialsView({
           </h1>
         </div>
 
-        {/* Group Selector Dropdown */}
-        <div className="flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-primary shrink-0" />
-          <Select value={selectedGroupId} onValueChange={handleGroupChange}>
-            <SelectTrigger className="h-8 text-xs font-semibold bg-background sm:w-[220px]">
-              <SelectValue>{currentGroupObj?.name || "Выберите группу"}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id} className="text-xs">
-                  Группа {g.name}
+        {/* Group & Subject Selectors */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Group Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <Building2 className="h-4 w-4 text-primary shrink-0" />
+            <Select value={selectedGroupId} onValueChange={handleGroupChange}>
+              <SelectTrigger className="h-8 text-xs font-semibold bg-background sm:w-[190px]">
+                <SelectValue>{currentGroupObj ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={g.id} className="text-xs">
+                    Группа {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Subject Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <BookMarked className="h-4 w-4 text-primary shrink-0" />
+            <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId}>
+              <SelectTrigger className="h-8 text-xs font-semibold bg-background sm:w-[220px]">
+                <SelectValue>
+                  {selectedSubjectId === "all"
+                    ? "Все дисциплины"
+                    : subjects.find((s) => s.id === selectedSubjectId)?.subjectName || "Дисциплина"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs font-medium">
+                  Все дисциплины группы
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {subjects.map((s) => (
+                  <SelectItem key={s.id} value={s.id} className="text-xs">
+                    {s.subjectName} ({s.teacherName})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -400,7 +447,7 @@ export function MaterialsView({
 
           {/* Chapters Accordion List */}
           <div className="space-y-1 pt-1 overflow-y-auto pr-1">
-            {topicsWithMaterials.map((topic, topicIdx) => {
+            {displayTopics.map((topic, topicIdx) => {
               const isExpanded = expandedTopics[topic.id] ?? true;
               const topicMats = topic.materials || [];
 
@@ -410,11 +457,16 @@ export function MaterialsView({
                   <div className="p-2 rounded-lg hover:bg-muted/60 transition-colors flex items-center justify-between group select-none">
                     <div
                       onClick={() => toggleTopicExpand(topic.id)}
-                      className="flex items-center gap-2 cursor-pointer flex-1 truncate"
+                      className="cursor-pointer flex-1 truncate space-y-0.5"
                     >
-                      <span className="text-xs font-bold text-foreground truncate">
+                      <span className="text-xs font-bold text-foreground truncate block">
                         {topicIdx + 1}. {topic.title}
                       </span>
+                      {topic.subjectName && (
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-primary/5 text-primary border-primary/20 font-medium">
+                          {topic.subjectName}
+                        </Badge>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
@@ -543,13 +595,21 @@ export function MaterialsView({
               <div className="flex items-start justify-between gap-3 border-b pb-3">
                 <div className="space-y-1">
                   <h2 className="text-base font-bold text-foreground">{currentMat.title}</h2>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                     <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium flex items-center gap-1">
                       {getMaterialTypeIcon(currentMat.type)}
                       <span>{getMaterialTypeLabel(currentMat.type)}</span>
                     </Badge>
+
+                    {currentMat.subjectName && (
+                      <Badge variant="secondary" className="text-[10px] font-semibold text-foreground flex items-center gap-1">
+                        <BookMarked className="h-3 w-3 text-primary" />
+                        <span>{currentMat.subjectName}</span>
+                      </Badge>
+                    )}
+
                     <span>Глава: {currentMat.topicTitle}</span>
-                    <span>• Автор: {currentMat.authorName}</span>
+                    <span>• Преподаватель: {currentMat.teacherName || currentMat.authorName}</span>
                   </div>
                 </div>
 

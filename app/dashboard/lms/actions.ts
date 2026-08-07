@@ -20,6 +20,8 @@ export interface MaterialDTO {
   id: string;
   topicId: string;
   topicTitle: string;
+  subjectName?: string;
+  teacherName?: string;
   authorId: string;
   authorName: string;
   type: MaterialType;
@@ -528,6 +530,12 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       where: { groupSubjectId: { in: groupSubjects.map((gs) => gs.id) } },
       orderBy: { order: "asc" },
       include: {
+        groupSubject: {
+          include: {
+            subject: { select: { name: true } },
+            teacher: { select: { name: true } },
+          },
+        },
         materials: {
           orderBy: { createdAt: "asc" },
           include: {
@@ -550,7 +558,16 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
     const dbMaterials = await prisma.material.findMany({
       where: whereClause,
       include: {
-        topic: { select: { title: true } },
+        topic: {
+          include: {
+            groupSubject: {
+              include: {
+                subject: { select: { name: true } },
+                teacher: { select: { name: true } },
+              },
+            },
+          },
+        },
         author: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -560,6 +577,8 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       id: m.id,
       topicId: m.topicId,
       topicTitle: m.topic.title,
+      subjectName: m.topic.groupSubject.subject.name,
+      teacherName: m.topic.groupSubject.teacher.name,
       authorId: m.authorId,
       authorName: m.author.name,
       type: m.type,
@@ -575,10 +594,14 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       title: t.title,
       description: t.description,
       order: t.order,
+      subjectName: t.groupSubject.subject.name,
+      teacherName: t.groupSubject.teacher.name,
       materials: t.materials.map((m) => ({
         id: m.id,
         topicId: m.topicId,
         topicTitle: t.title,
+        subjectName: t.groupSubject.subject.name,
+        teacherName: t.groupSubject.teacher.name,
         authorId: m.authorId,
         authorName: m.author.name,
         type: m.type,

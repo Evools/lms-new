@@ -25,3 +25,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
    - `AlertDialogFooter`: Always align action buttons in a clean right-aligned flex row (`flex flex-row justify-end gap-2 pt-2 border-t mt-2`).
    - Action buttons in modals: Use concise button labels (`"Отмена"`, `"Удалить"`, `"Сохранить"`) with `size="xs"` / `h-6 px-2.5 text-xs`.
    - Priority Toggles in Modals: Use a compact Segmented Pill Toggle (`<div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">`) instead of multi-line form buttons.
+
+5. **No Emojis (Использовать ТОЛЬКО иконки, никаких emoji)**:
+   - NEVER use Unicode emoji characters (e.g. 📚, 🎓, 👨‍🏫, 👤, ✓, ✕) anywhere in UI text, selects, or buttons.
+   - ALWAYS use strict SVG Lucide icons (e.g. `<BookMarked />`, `<GraduationCap />`, `<UserCheck />`, `<Check />`, `<X />`).
