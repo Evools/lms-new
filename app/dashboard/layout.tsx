@@ -10,6 +10,8 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 
+import { NotificationsPopover } from "@/components/notifications-popover";
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -53,6 +55,7 @@ export default async function DashboardLayout({
             <span className="text-xs font-mono text-muted-foreground border px-2 py-0.5 rounded-md">
               ИС-1-25
             </span>
+            <NotificationsPopover />
           </div>
         </header>
 

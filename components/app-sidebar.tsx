@@ -20,6 +20,7 @@ import {
   ClipboardList,
   Clock,
   Megaphone,
+  Bell,
   FileText,
   BarChart3,
   Building2,
@@ -65,6 +66,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Объявления",
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
+            },
+            {
+              title: "Уведомления",
+              url: "/dashboard/notifications",
+              icon: <Bell className="h-4 w-4" />,
             },
           ],
         },
@@ -147,6 +153,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
             },
+            {
+              title: "Уведомления",
+              url: "/dashboard/notifications",
+              icon: <Bell className="h-4 w-4" />,
+            },
           ],
         },
         {
@@ -221,6 +232,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             title: "Объявления",
             url: "/dashboard/announcements",
             icon: <Megaphone className="h-4 w-4" />,
+          },
+          {
+            title: "Уведомления",
+            url: "/dashboard/notifications",
+            icon: <Bell className="h-4 w-4" />,
           },
         ],
       },
