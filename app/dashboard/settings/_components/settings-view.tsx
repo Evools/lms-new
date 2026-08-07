@@ -123,7 +123,11 @@ export function SettingsView({
 
   // Theme — use the global ThemeProvider
   const { theme, setTheme } = useTheme();
-  const applyTheme = (t: "light" | "dark" | "system") => setTheme(t);
+  const THEME_LABELS = { light: "Светлая тема применена", dark: "Тёмная тема применена", system: "Системная тема применена" };
+  const applyTheme = (t: "light" | "dark" | "system") => {
+    setTheme(t);
+    toast.add({ title: THEME_LABELS[t], type: "success" });
+  };
 
   // Notification prefs (local)
   const [notifAssignments, setNotifAssignments] = useState(true);

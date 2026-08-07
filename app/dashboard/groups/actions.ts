@@ -52,7 +52,22 @@ export interface GroupDetailsDTO extends GroupDTO {
 
 export async function getGroupsAction(): Promise<GroupDTO[]> {
   try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+    const userId = session?.user?.id;
+
+    // Students can only see their own group(s)
+    let whereClause: Record<string, unknown> | undefined = undefined;
+    if (role === "STUDENT" && userId) {
+      const enrollments = await prisma.groupStudent.findMany({
+        where: { studentId: userId },
+        select: { groupId: true },
+      });
+      whereClause = { id: { in: enrollments.map((e) => e.groupId) } };
+    }
+
     const list = await prisma.group.findMany({
+      where: whereClause,
       orderBy: { name: "asc" },
       include: {
         curator: { select: { id: true, name: true } },
@@ -91,6 +106,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
     return [];
   }
 }
+
 
 export async function getTeachersListAction() {
   try {
