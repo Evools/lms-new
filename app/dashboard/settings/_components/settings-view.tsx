@@ -554,8 +554,8 @@ export function SettingsView({
             type="button"
             onClick={() => setActiveTab(tab.key)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${activeTab === tab.key
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
           >
             {tab.icon}
@@ -747,8 +747,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => applyTheme("light")}
                 className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "light"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/40 hover:bg-muted/30"
                   }`}
               >
                 <div className="w-full h-16 rounded-lg bg-white border border-border flex flex-col gap-1 p-2 overflow-hidden">
@@ -770,8 +770,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => applyTheme("dark")}
                 className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "dark"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/40 hover:bg-muted/30"
                   }`}
               >
                 <div className="w-full h-16 rounded-lg bg-gray-900 border border-gray-700 flex flex-col gap-1 p-2 overflow-hidden">
@@ -793,8 +793,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => applyTheme("system")}
                 className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "system"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/40 hover:bg-muted/30"
                   }`}
               >
                 <div className="w-full h-16 rounded-lg border border-border overflow-hidden flex">
@@ -1031,8 +1031,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => setUserRoleFilter("STAFF")}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "STAFF"
-                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   }`}
               >
                 Все сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN").length})
@@ -1041,8 +1041,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => setUserRoleFilter("TEACHER")}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "TEACHER"
-                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   }`}
               >
                 Преподаватели ({allUsers.filter((u) => u.role === "TEACHER").length})
@@ -1051,8 +1051,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => setUserRoleFilter("ADMIN")}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "ADMIN"
-                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   }`}
               >
                 Администраторы ({allUsers.filter((u) => u.role === "ADMIN").length})
@@ -1230,8 +1230,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => setCreateUserMode("single")}
                 className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all ${createUserMode === "single"
-                    ? "bg-background text-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
+                  ? "bg-background text-foreground shadow-2xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
                   }`}
               >
                 Анкета одного сотрудника
@@ -1240,8 +1240,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => setCreateUserMode("excel")}
                 className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all ${createUserMode === "excel"
-                    ? "bg-background text-primary shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
+                  ? "bg-background text-primary shadow-2xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
                   }`}
               >
                 Массовый импорт (Excel / CSV)
