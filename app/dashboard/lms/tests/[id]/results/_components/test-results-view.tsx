@@ -10,6 +10,7 @@ import {
   Check,
   X,
   CheckCircle2,
+  XCircle,
   User,
   FileText,
   Users,
@@ -525,27 +526,21 @@ export function TestResultsView({
             <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-primary" /> Сводная матрица результатов
             </h2>
-            <div className="flex items-center gap-3 text-[11px] flex-wrap">
-              <span className="flex items-center gap-1.5 font-bold text-primary">
-                <div className="w-4 h-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                  <Check className="h-2.5 w-2.5 stroke-[3]" />
-                </div>
+            <div className="flex items-center gap-2 text-[11px] flex-wrap">
+              <Badge variant="outline" className="text-[11px] font-medium gap-1 text-primary border-primary/30 bg-primary/10">
+                <CheckCircle2 className="h-3 w-3" />
                 Верно
-              </span>
-              <span className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400">
-                <div className="w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center text-[9px] font-mono">
-                  ½
-                </div>
+              </Badge>
+              <Badge variant="outline" className="text-[11px] font-medium gap-1 text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
+                <span className="font-bold font-mono text-[10px]">½</span>
                 Частично
-              </span>
-              <span className="flex items-center gap-1.5 font-bold text-destructive">
-                <div className="w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
-                  <X className="h-2.5 w-2.5 stroke-[3]" />
-                </div>
+              </Badge>
+              <Badge variant="outline" className="text-[11px] font-medium gap-1 text-destructive border-destructive/30 bg-destructive/10">
+                <XCircle className="h-3 w-3" />
                 Ошибка
-              </span>
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <RotateCcw className="h-3.5 w-3.5" /> Сбросить попытку
+              </Badge>
+              <span className="text-muted-foreground ml-1 flex items-center gap-1 text-[11px]">
+                <RotateCcw className="h-3 w-3" /> Сбросить попытку
               </span>
             </div>
           </div>
@@ -697,26 +692,26 @@ export function TestResultsView({
                             key={q.id}
                             className={`py-1.5 px-1 text-center border-r transition-colors ${
                               isCorrect
-                                ? "bg-primary/10 hover:bg-primary/15"
+                                ? "bg-primary/5 hover:bg-primary/10"
                                 : isPartial
-                                  ? "bg-amber-500/10 hover:bg-amber-500/15"
-                                  : "bg-destructive/10 hover:bg-destructive/15"
+                                  ? "bg-amber-500/5 hover:bg-amber-500/10"
+                                  : "bg-destructive/5 hover:bg-destructive/10"
                             }`}
                           >
                             <Tooltip>
                               <TooltipTrigger>
                                 <div className="w-full h-7 flex items-center justify-center cursor-help">
                                   {isCorrect ? (
-                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-2xs">
-                                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                    <div className="w-5 h-5 rounded-full bg-primary/15 text-primary flex items-center justify-center border border-primary/30 shadow-2xs">
+                                      <Check className="h-3 w-3 stroke-[2.5]" />
                                     </div>
                                   ) : isPartial ? (
-                                    <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-2xs text-[10px] font-bold">
+                                    <div className="w-5 h-5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30 shadow-2xs text-[10px] font-bold">
                                       ½
                                     </div>
                                   ) : (
-                                    <div className="w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-2xs">
-                                      <X className="h-3.5 w-3.5 stroke-[3]" />
+                                    <div className="w-5 h-5 rounded-full bg-destructive/15 text-destructive flex items-center justify-center border border-destructive/30 shadow-2xs">
+                                      <X className="h-3 w-3 stroke-[2.5]" />
                                     </div>
                                   )}
                                 </div>
