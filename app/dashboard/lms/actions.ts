@@ -56,14 +56,16 @@ export type QuestionTypeDTO =
   | "TRUE_FALSE"
   | "ORDERING"
   | "BLANKS"
-  | "CODE";
+  | "CODE"
+  | "MATCHING"
+  | "NUMERICAL";
 
 export interface TestQuestionDTO {
   id: string;
   testId: string;
   type: QuestionTypeDTO;
   questionText: string;
-  options: string[]; // parsed array
+  options: any[]; // parsed array or pair objects
   correctAnswer: string;
   points: number;
   order: number;
@@ -980,7 +982,7 @@ export async function createTestAction(data: {
   questions: {
     type?: QuestionTypeDTO;
     questionText: string;
-    options: string[];
+    options: any[];
     correctAnswer: string;
     points?: number;
   }[];
@@ -1213,7 +1215,7 @@ export async function updateTestAction(
     questions: Array<{
       type?: string;
       questionText: string;
-      options: string[];
+      options: any[];
       correctAnswer: string;
       points?: number;
     }>;
@@ -1280,7 +1282,8 @@ export async function updateTestAction(
 
 export async function submitTestAnswersAction(data: {
   testId: string;
-  answers: Record<string, string>; // questionId -> selectedOption
+  answers: Record<string, string>; // questionId -> selectedOption/JSON
+  tabSwitches?: number;
 }) {
   try {
     const session = await auth();
@@ -1331,25 +1334,76 @@ export async function submitTestAnswersAction(data: {
       maxScore += qPoints;
       const studentAnswer = data.answers[q.id];
 
-      if (!studentAnswer) return;
+      if (!studentAnswer || !String(studentAnswer).trim()) return;
 
-      const qType = q.type || "SINGLE";
+      const qType = (q.type || "SINGLE").toUpperCase();
 
       if (qType === "MULTIPLE") {
         try {
-          const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim()).sort();
-          const studentArr: string[] = JSON.parse(studentAnswer).map((s: string) => s.trim()).sort();
-          if (
-            correctArr.length === studentArr.length &&
-            correctArr.every((val, index) => val === studentArr[index])
-          ) {
-            userScore += qPoints;
+          const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim().toLowerCase());
+          const studentArr: string[] = JSON.parse(studentAnswer).map((s: string) => s.trim().toLowerCase());
+          if (correctArr.length > 0 && Array.isArray(studentArr)) {
+            let correctMatches = 0;
+            let wrongSelections = 0;
+            studentArr.forEach((opt) => {
+              if (correctArr.includes(opt)) correctMatches++;
+              else wrongSelections++;
+            });
+            // Partial credit: (correct matches - wrong choices) / total correct answers
+            const ratio = Math.max(0, (correctMatches - wrongSelections) / correctArr.length);
+            const earned = Math.round(ratio * qPoints * 100) / 100;
+            userScore += earned;
           }
         } catch {
-          if (studentAnswer.trim() === q.correctAnswer.trim()) {
+          if (studentAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) {
             userScore += qPoints;
           }
         }
+      } else if (qType === "MATCHING") {
+        try {
+          let correctPairs: Record<string, string> = {};
+          try {
+            correctPairs = JSON.parse(q.correctAnswer);
+          } catch {
+            correctPairs = {};
+          }
+          let studentPairs: Record<string, string> = {};
+          try {
+            studentPairs = JSON.parse(studentAnswer);
+          } catch {
+            studentPairs = {};
+          }
+          const keys = Object.keys(correctPairs);
+          if (keys.length > 0) {
+            let matched = 0;
+            keys.forEach((k) => {
+              if (studentPairs[k] && studentPairs[k].trim().toLowerCase() === correctPairs[k].trim().toLowerCase()) {
+                matched++;
+              }
+            });
+            const ratio = matched / keys.length;
+            const earned = Math.round(ratio * qPoints * 100) / 100;
+            userScore += earned;
+          }
+        } catch {}
+      } else if (qType === "NUMERICAL") {
+        try {
+          let targetVal = 0;
+          let tolerance = 0;
+          try {
+            const parsed = JSON.parse(q.correctAnswer);
+            targetVal = Number(parsed.value ?? parsed.val ?? parsed);
+            tolerance = Number(parsed.tolerance ?? 0);
+          } catch {
+            targetVal = Number(q.correctAnswer.replace(",", "."));
+          }
+          const studentVal = Number(String(studentAnswer).replace(",", "."));
+          if (!isNaN(studentVal) && !isNaN(targetVal)) {
+            if (Math.abs(studentVal - targetVal) <= (tolerance || 0.0001)) {
+              userScore += qPoints;
+            }
+          }
+        } catch {}
       } else if (qType === "ORDERING") {
         try {
           const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim());
@@ -1369,11 +1423,15 @@ export async function submitTestAnswersAction(data: {
         try {
           const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim().toLowerCase());
           const studentArr: string[] = JSON.parse(studentAnswer).map((s: string) => s.trim().toLowerCase());
-          if (
-            correctArr.length === studentArr.length &&
-            correctArr.every((val, index) => val === studentArr[index])
-          ) {
-            userScore += qPoints;
+          if (correctArr.length > 0 && Array.isArray(studentArr)) {
+            let matches = 0;
+            correctArr.forEach((c, idx) => {
+              if (studentArr[idx] && studentArr[idx] === c) {
+                matches++;
+              }
+            });
+            const ratio = matches / correctArr.length;
+            userScore += Math.round(ratio * qPoints * 100) / 100;
           }
         } catch {
           if (studentAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) {
@@ -1385,11 +1443,14 @@ export async function submitTestAnswersAction(data: {
           userScore += qPoints;
         }
       } else {
+        // SINGLE, TRUE_FALSE, CODE
         if (studentAnswer.trim() === q.correctAnswer.trim()) {
           userScore += qPoints;
         }
       }
     });
+
+    userScore = Math.round(userScore * 100) / 100;
 
     await prisma.testSubmission.create({
       data: {
@@ -1397,11 +1458,15 @@ export async function submitTestAnswersAction(data: {
         studentId: studentId,
         score: userScore,
         maxScore,
-        answers: JSON.stringify(data.answers),
+        answers: JSON.stringify({
+          ...data.answers,
+          ...(data.tabSwitches ? { _tabSwitches: data.tabSwitches } : {}),
+        }),
       },
     });
 
     revalidatePath("/dashboard/lms/tests");
+    revalidatePath(`/dashboard/lms/tests/${data.testId}/results`);
     return { success: true, score: userScore, maxScore };
   } catch (err) {
     console.error("submitTestAnswersAction error:", err);
@@ -1454,7 +1519,7 @@ export async function getTestResultsAction(testId: string) {
           },
         },
         questions: {
-          orderBy: { createdAt: "asc" },
+          orderBy: { order: "asc" },
         },
         submissions: {
           include: {
@@ -1505,54 +1570,109 @@ export async function getTestResultsAction(testId: string) {
           maxScore: totalMaxPoints,
           percent: 0,
           submittedAt: null,
-          answersMap: {} as Record<string, { answer: string; isCorrect: boolean; pointsAwarded: number }>,
+          tabSwitches: 0,
+          answersMap: {} as Record<string, { answer: string; isCorrect: boolean; isPartial?: boolean; pointsAwarded: number }>,
         };
       }
 
-      let parsedUserAnswers: Record<string, string> = {};
+      let parsedUserAnswers: Record<string, any> = {};
       try {
         parsedUserAnswers = JSON.parse(sub.answers || "{}");
       } catch {
         parsedUserAnswers = {};
       }
 
-      const answersMap: Record<string, { answer: string; isCorrect: boolean; pointsAwarded: number }> = {};
+      const tabSwitches = Number(parsedUserAnswers._tabSwitches || 0);
+
+      const answersMap: Record<string, { answer: string; isCorrect: boolean; isPartial?: boolean; pointsAwarded: number }> = {};
 
       test.questions.forEach((q: { id: string; type: string; correctAnswer: string; points: number }) => {
-        const userAns = parsedUserAnswers[q.id] || "";
+        const userAns = parsedUserAnswers[q.id] !== undefined ? parsedUserAnswers[q.id] : "";
+        const qPoints = q.points || 1;
+        const qType = (q.type || "SINGLE").toUpperCase();
         let isCorrect = false;
+        let isPartial = false;
+        let pointsAwarded = 0;
 
-        if (q.type === "MULTIPLE") {
+        if (qType === "MULTIPLE") {
           try {
-            const correctArr: string[] = JSON.parse(q.correctAnswer);
-            const userArr: string[] = userAns ? JSON.parse(userAns) : [];
-            isCorrect =
-              Array.isArray(correctArr) &&
-              Array.isArray(userArr) &&
-              correctArr.length === userArr.length &&
-              correctArr.every((item) => userArr.includes(item));
+            const correctArr: string[] = JSON.parse(q.correctAnswer).map((s: string) => s.trim().toLowerCase());
+            const userArr: string[] = typeof userAns === "string" && userAns ? JSON.parse(userAns).map((s: string) => s.trim().toLowerCase()) : [];
+            if (correctArr.length > 0 && Array.isArray(userArr)) {
+              let correctMatches = 0;
+              let wrongSelections = 0;
+              userArr.forEach((opt) => {
+                if (correctArr.includes(opt)) correctMatches++;
+                else wrongSelections++;
+              });
+              const ratio = Math.max(0, (correctMatches - wrongSelections) / correctArr.length);
+              pointsAwarded = Math.round(ratio * qPoints * 100) / 100;
+              if (ratio === 1) isCorrect = true;
+              else if (ratio > 0) isPartial = true;
+            }
           } catch {
-            isCorrect = false;
+            isCorrect = String(userAns).trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+            pointsAwarded = isCorrect ? qPoints : 0;
           }
-        } else if (q.type === "ORDERING" || q.type === "BLANKS") {
+        } else if (qType === "MATCHING") {
+          try {
+            const correctPairs: Record<string, string> = JSON.parse(q.correctAnswer);
+            const studentPairs: Record<string, string> = typeof userAns === "string" && userAns ? JSON.parse(userAns) : {};
+            const keys = Object.keys(correctPairs);
+            if (keys.length > 0) {
+              let matched = 0;
+              keys.forEach((k) => {
+                if (studentPairs[k] && studentPairs[k].trim().toLowerCase() === correctPairs[k].trim().toLowerCase()) {
+                  matched++;
+                }
+              });
+              const ratio = matched / keys.length;
+              pointsAwarded = Math.round(ratio * qPoints * 100) / 100;
+              if (ratio === 1) isCorrect = true;
+              else if (ratio > 0) isPartial = true;
+            }
+          } catch {}
+        } else if (qType === "NUMERICAL") {
+          try {
+            let targetVal = 0;
+            let tolerance = 0;
+            try {
+              const parsed = JSON.parse(q.correctAnswer);
+              targetVal = Number(parsed.value ?? parsed.val ?? parsed);
+              tolerance = Number(parsed.tolerance ?? 0);
+            } catch {
+              targetVal = Number(q.correctAnswer.replace(",", "."));
+            }
+            const studentVal = Number(String(userAns).replace(",", "."));
+            if (!isNaN(studentVal) && !isNaN(targetVal)) {
+              if (Math.abs(studentVal - targetVal) <= (tolerance || 0.0001)) {
+                isCorrect = true;
+                pointsAwarded = qPoints;
+              }
+            }
+          } catch {}
+        } else if (qType === "ORDERING" || qType === "BLANKS") {
           try {
             const correctArr: string[] = JSON.parse(q.correctAnswer);
-            const userArr: string[] = userAns ? JSON.parse(userAns) : [];
+            const userArr: string[] = typeof userAns === "string" && userAns ? JSON.parse(userAns) : [];
             isCorrect =
               Array.isArray(correctArr) &&
               Array.isArray(userArr) &&
               JSON.stringify(correctArr) === JSON.stringify(userArr);
+            pointsAwarded = isCorrect ? qPoints : 0;
           } catch {
             isCorrect = false;
           }
         } else {
-          isCorrect = userAns.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+          isCorrect = String(userAns).trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+          pointsAwarded = isCorrect ? qPoints : 0;
         }
 
         answersMap[q.id] = {
-          answer: userAns,
+          answer: typeof userAns === "object" ? JSON.stringify(userAns) : String(userAns),
           isCorrect,
-          pointsAwarded: isCorrect ? q.points : 0,
+          isPartial,
+          pointsAwarded,
         };
       });
 
@@ -1568,12 +1688,74 @@ export async function getTestResultsAction(testId: string) {
         maxScore,
         percent,
         submittedAt: sub.submittedAt.toISOString(),
+        tabSwitches,
         answersMap,
       };
     });
 
     // Sort students by name alphabetically
     studentsResults.sort((a, b) => a.studentName.localeCompare(b.studentName, "ru"));
+
+    // Calculate aggregated question stats
+    const submittedResults = studentsResults.filter((s) => s.hasSubmitted);
+    const submittedCount = submittedResults.length;
+
+    const questionStats = test.questions.map((q: any, idx: number) => {
+      let fullCorrectCount = 0;
+      let partialCount = 0;
+      let wrongCount = 0;
+      let totalEarned = 0;
+      const qPoints = q.points || 1;
+
+      submittedResults.forEach((s) => {
+        const a = s.answersMap[q.id];
+        if (a) {
+          if (a.isCorrect) fullCorrectCount++;
+          else if (a.isPartial) partialCount++;
+          else wrongCount++;
+          totalEarned += a.pointsAwarded;
+        } else {
+          wrongCount++;
+        }
+      });
+
+      const maxPossibleForQ = submittedCount * qPoints;
+      const accuracyPercent =
+        maxPossibleForQ > 0 ? Math.round((totalEarned / maxPossibleForQ) * 100) : 0;
+
+      return {
+        questionId: q.id,
+        questionNumber: idx + 1,
+        questionText: q.questionText,
+        type: q.type,
+        points: qPoints,
+        fullCorrectCount,
+        partialCount,
+        wrongCount,
+        accuracyPercent,
+      };
+    });
+
+    // Analytics summary
+    const scores = submittedResults.map((s) => s.percent).sort((a, b) => a - b);
+    const avgPercent = submittedCount > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / submittedCount) : 0;
+    const medianPercent =
+      scores.length === 0
+        ? 0
+        : scores.length % 2 === 1
+          ? scores[Math.floor(scores.length / 2)]
+          : Math.round((scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2);
+
+    const sortedByAccuracy = [...questionStats].sort((a, b) => a.accuracyPercent - b.accuracyPercent);
+    const hardestQuestion = sortedByAccuracy.length > 0 ? sortedByAccuracy[0] : null;
+    const easiestQuestion = sortedByAccuracy.length > 0 ? sortedByAccuracy[sortedByAccuracy.length - 1] : null;
+
+    const scoreDistribution = [
+      { range: "0–39%", label: "Неуд (0–39%)", count: submittedResults.filter((s) => s.percent < 40).length, fill: "#FF2D55" },
+      { range: "40–59%", label: "Удовл (40–59%)", count: submittedResults.filter((s) => s.percent >= 40 && s.percent < 60).length, fill: "#FFAA00" },
+      { range: "60–79%", label: "Хор (60–79%)", count: submittedResults.filter((s) => s.percent >= 60 && s.percent < 80).length, fill: "#007AFF" },
+      { range: "80–100%", label: "Отл (80–100%)", count: submittedResults.filter((s) => s.percent >= 80).length, fill: "#00C853" },
+    ];
 
     return {
       success: true,
@@ -1586,15 +1768,35 @@ export async function getTestResultsAction(testId: string) {
         timeLimit: test.timeLimit,
         totalMaxPoints,
       },
-      questions: test.questions.map((q: { id: string; type: string; questionText: string; options: string; correctAnswer: string; points: number }) => ({
-        id: q.id,
-        type: q.type,
-        questionText: q.questionText,
-        options: JSON.parse(q.options),
-        correctAnswer: q.correctAnswer,
-        points: q.points,
-      })),
+      questions: test.questions.map((q: any) => {
+        let opts: any[] = [];
+        try {
+          opts = JSON.parse(q.options);
+        } catch {
+          opts = [];
+        }
+        return {
+          id: q.id,
+          type: q.type,
+          questionText: q.questionText,
+          options: opts,
+          correctAnswer: q.correctAnswer,
+          points: q.points,
+        };
+      }),
       studentsResults,
+      analytics: {
+        totalEnrolled: studentsResults.length,
+        submittedCount,
+        avgPercent,
+        medianPercent,
+        highestPercent: scores.length > 0 ? Math.max(...scores) : 0,
+        lowestPercent: scores.length > 0 ? Math.min(...scores) : 0,
+        hardestQuestion,
+        easiestQuestion,
+        scoreDistribution,
+      },
+      questionStats,
     };
   } catch (err) {
     console.error("getTestResultsAction error:", err);

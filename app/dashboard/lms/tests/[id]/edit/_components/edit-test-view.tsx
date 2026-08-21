@@ -15,6 +15,14 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   ChevronLeft,
   FileCheck2,
   Building2,
@@ -42,6 +50,10 @@ import {
   Code,
   Terminal,
   ArrowUpDown,
+  FileUp,
+  Layers,
+  Hash,
+  Sparkles,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, updateTestAction } from "@/app/dashboard/lms/actions";
 
@@ -52,13 +64,15 @@ export type QuestionType =
   | "TRUE_FALSE"
   | "ORDERING"
   | "BLANKS"
-  | "CODE";
+  | "CODE"
+  | "MATCHING"
+  | "NUMERICAL";
 
 export interface QuestionDraft {
   type: QuestionType;
   questionText: string;
   codeSnippet?: string;
-  options: string[];
+  options: any[];
   correctAnswer: string;
   points: number;
 }
@@ -74,6 +88,86 @@ export interface TestEditData {
   groupSubjectId: string;
   topicId: string;
   questions: QuestionDraft[];
+}
+
+export function parseBulkQuestions(rawText: string): QuestionDraft[] {
+  const result: QuestionDraft[] = [];
+  const blocks = rawText.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+
+  for (const block of blocks) {
+    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) continue;
+
+    const questionLine = lines[0].replace(/^(\d+[\.\)]|\#\d+|[Qq]\d+[:\.]?)\s*/, "").trim();
+    if (!questionLine) continue;
+
+    const optLines = lines.slice(1);
+    if (optLines.length === 0) {
+      result.push({
+        type: "TEXT",
+        questionText: questionLine,
+        options: [],
+        correctAnswer: "",
+        points: 1,
+      });
+      continue;
+    }
+
+    const options: string[] = [];
+    const correctOptions: string[] = [];
+
+    for (const optLine of optLines) {
+      let isCorrect = false;
+      let cleanOpt = optLine;
+
+      if (cleanOpt.startsWith("*") || cleanOpt.startsWith("+")) {
+        isCorrect = true;
+        cleanOpt = cleanOpt.substring(1).trim();
+      }
+
+      cleanOpt = cleanOpt.replace(/^(\([a-zA-Z0-9\*\+]\)|\[[xX \*\+]\]|[a-zA-Z0-9][\.\)]|\-)\s*/, "").trim();
+
+      if (cleanOpt.endsWith("*") || cleanOpt.endsWith("(+)") || cleanOpt.endsWith("(верно)")) {
+        isCorrect = true;
+        cleanOpt = cleanOpt.replace(/(\*|\(\+\)|\(верно\))$/, "").trim();
+      }
+
+      if (cleanOpt) {
+        options.push(cleanOpt);
+        if (isCorrect) {
+          correctOptions.push(cleanOpt);
+        }
+      }
+    }
+
+    if (correctOptions.length > 1) {
+      result.push({
+        type: "MULTIPLE",
+        questionText: questionLine,
+        options,
+        correctAnswer: JSON.stringify(correctOptions),
+        points: 2,
+      });
+    } else if (correctOptions.length === 1) {
+      result.push({
+        type: "SINGLE",
+        questionText: questionLine,
+        options,
+        correctAnswer: correctOptions[0],
+        points: 1,
+      });
+    } else if (options.length > 0) {
+      result.push({
+        type: "SINGLE",
+        questionText: questionLine,
+        options,
+        correctAnswer: options[0] || "",
+        points: 1,
+      });
+    }
+  }
+
+  return result;
 }
 
 interface EditTestViewProps {
@@ -127,6 +221,9 @@ export function EditTestView({
   const [timeLimit, setTimeLimit] = useState<number | "">(initialTest.timeLimit ?? "");
   const [shuffleQuestions, setShuffleQuestions] = useState(initialTest.shuffleQuestions);
   const [shuffleOptions, setShuffleOptions] = useState(initialTest.shuffleOptions);
+
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [bulkImportText, setBulkImportText] = useState("");
 
   const [isPreview, setIsPreview] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -304,6 +401,15 @@ export function EditTestView({
             updated.options = ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"];
           }
           updated.correctAnswer = JSON.stringify([updated.options[0] || ""]);
+        } else if (newType === "MATCHING") {
+          updated.options = [
+            { left: "Термин A", right: "Определение 1" },
+            { left: "Термин B", right: "Определение 2" },
+          ];
+          updated.correctAnswer = JSON.stringify({ "Термин A": "Определение 1", "Термин B": "Определение 2" });
+        } else if (newType === "NUMERICAL") {
+          updated.options = [];
+          updated.correctAnswer = JSON.stringify({ value: 10, tolerance: 0.1 });
         } else {
           // SINGLE
           if (updated.options.length === 0) {
@@ -322,6 +428,81 @@ export function EditTestView({
         }
 
         return updated;
+      })
+    );
+  };
+
+  const handleApplyBulkImport = () => {
+    if (!bulkImportText.trim()) return;
+    const parsed = parseBulkQuestions(bulkImportText);
+    if (parsed.length === 0) {
+      setErrorMsg("Не удалось распознать вопросы. Проверьте формат текста.");
+      return;
+    }
+    setQuestionDrafts((prev) => [...prev, ...parsed]);
+    setBulkImportText("");
+    setIsBulkImportOpen(false);
+    setSuccessMsg(`Успешно импортировано вопросов: ${parsed.length}`);
+  };
+
+  const handleAddMatchingPair = (qIdx: number) => {
+    setQuestionDrafts((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        const currentPairs = Array.isArray(q.options) ? [...q.options] : [];
+        const nextIdx = currentPairs.length + 1;
+        const newPairs = [...currentPairs, { left: `Термин ${nextIdx}`, right: `Определение ${nextIdx}` }];
+        const map: Record<string, string> = {};
+        newPairs.forEach((p: any) => {
+          if (p && typeof p === "object" && p.left) map[p.left] = p.right || "";
+        });
+        return { ...q, options: newPairs, correctAnswer: JSON.stringify(map) };
+      })
+    );
+  };
+
+  const handleUpdateMatchingPair = (qIdx: number, pIdx: number, key: "left" | "right", val: string) => {
+    setQuestionDrafts((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        const currentPairs = Array.isArray(q.options) ? [...q.options] : [];
+        const updatedPairs = currentPairs.map((p, idx) => (idx === pIdx ? { ...p, [key]: val } : p));
+        const map: Record<string, string> = {};
+        updatedPairs.forEach((p: any) => {
+          if (p && typeof p === "object" && p.left) map[p.left] = p.right || "";
+        });
+        return { ...q, options: updatedPairs, correctAnswer: JSON.stringify(map) };
+      })
+    );
+  };
+
+  const handleRemoveMatchingPair = (qIdx: number, pIdx: number) => {
+    setQuestionDrafts((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        const currentPairs = Array.isArray(q.options) ? [...q.options] : [];
+        if (currentPairs.length <= 1) return q;
+        const updatedPairs = currentPairs.filter((_, idx) => idx !== pIdx);
+        const map: Record<string, string> = {};
+        updatedPairs.forEach((p: any) => {
+          if (p && typeof p === "object" && p.left) map[p.left] = p.right || "";
+        });
+        return { ...q, options: updatedPairs, correctAnswer: JSON.stringify(map) };
+      })
+    );
+  };
+
+  const handleUpdateNumerical = (qIdx: number, field: "value" | "tolerance", val: string) => {
+    setQuestionDrafts((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        let currentObj = { value: 0, tolerance: 0 };
+        try {
+          currentObj = JSON.parse(q.correctAnswer || "{}");
+        } catch {}
+        const numVal = parseFloat(val) || 0;
+        const updatedObj = { ...currentObj, [field]: numVal };
+        return { ...q, correctAnswer: JSON.stringify(updatedObj) };
       })
     );
   };
@@ -562,6 +743,15 @@ export function EditTestView({
           <Button
             size="xs"
             variant="outline"
+            onClick={() => setIsBulkImportOpen(true)}
+            className="h-7 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> Быстрый импорт
+          </Button>
+
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => setIsPreview(!isPreview)}
             className="h-7 text-xs gap-1.5"
           >
@@ -573,6 +763,58 @@ export function EditTestView({
           </Button>
         </div>
       </div>
+
+      {/* Bulk Import Dialog Modal */}
+      <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" /> Быстрый импорт вопросов
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Вставьте текст с вопросами. Система автоматически определит формулировки и правильные ответы.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="p-2.5 rounded-lg border bg-muted/40 text-[11px] text-muted-foreground space-y-1 font-mono">
+              <p className="font-sans font-semibold text-foreground">Пример поддерживаемого формата:</p>
+              <p>1. Какой метод HTTP используется для создания ресурса?</p>
+              <p>a) GET</p>
+              <p>*b) POST</p>
+              <p>c) PUT</p>
+              <p className="pt-1">2. Столица Франции?</p>
+              <p>*Париж</p>
+            </div>
+
+            <Textarea
+              placeholder="Вставьте вопросы сюда..."
+              value={bulkImportText}
+              onChange={(e) => setBulkImportText(e.target.value)}
+              className="min-h-[160px] text-xs font-mono bg-background"
+            />
+          </div>
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between">
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => setIsBulkImportOpen(false)}
+              className="h-8 text-xs"
+            >
+              Отмена
+            </Button>
+            <Button
+              size="xs"
+              onClick={handleApplyBulkImport}
+              disabled={!bulkImportText.trim()}
+              className="h-8 px-4 text-xs font-bold gap-1.5"
+            >
+              <FileUp className="h-3.5 w-3.5" /> Импортировать вопросы
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Alerts */}
       {successMsg && (
@@ -958,6 +1200,32 @@ export function EditTestView({
                             >
                               <Code className="h-3 w-3" /> Код / Сниппет
                             </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "MATCHING")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "MATCHING"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Сопоставление пар элементов (термин <-> определение)"
+                            >
+                              <Layers className="h-3 w-3" /> Сопоставление
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionType(qIdx, "NUMERICAL")}
+                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                q.type === "NUMERICAL"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Числовой ответ с допустимой погрешностью"
+                            >
+                              <Hash className="h-3 w-3" /> Число
+                            </button>
                           </div>
                         </div>
 
@@ -1134,6 +1402,106 @@ export function EditTestView({
                               </div>
                             ))}
                           </div>
+                        </div>
+                      ) : q.type === "MATCHING" ? (
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
+                            <span className="flex items-center gap-1 text-primary">
+                              <Layers className="h-3.5 w-3.5" /> Пары для сопоставления (Слева термин — Справа определение):
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddMatchingPair(qIdx)}
+                              className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1"
+                            >
+                              <PlusCircle className="h-3 w-3" /> Добавить пару
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {(Array.isArray(q.options) ? q.options : []).map((pair: any, pIdx: number) => {
+                              const leftVal = typeof pair === "object" ? pair.left : pair;
+                              const rightVal = typeof pair === "object" ? pair.right : "";
+                              return (
+                                <div key={pIdx} className="flex items-center gap-2">
+                                  <span className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                                    {pIdx + 1}
+                                  </span>
+
+                                  <Input
+                                    placeholder="Термин / Элемент слева..."
+                                    value={leftVal}
+                                    onChange={(e) => handleUpdateMatchingPair(qIdx, pIdx, "left", e.target.value)}
+                                    className="h-7 text-xs bg-background flex-1 font-medium"
+                                  />
+
+                                  <span className="text-muted-foreground font-bold">➔</span>
+
+                                  <Input
+                                    placeholder="Определение / Пара справа..."
+                                    value={rightVal}
+                                    onChange={(e) => handleUpdateMatchingPair(qIdx, pIdx, "right", e.target.value)}
+                                    className="h-7 text-xs bg-background flex-1 font-medium"
+                                  />
+
+                                  {Array.isArray(q.options) && q.options.length > 1 && (
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      variant="ghost"
+                                      onClick={() => handleRemoveMatchingPair(qIdx, pIdx)}
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : q.type === "NUMERICAL" ? (
+                        <div className="space-y-2 pt-2 border-t">
+                          <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
+                            <Hash className="h-3.5 w-3.5" /> Числовой эталонный ответ и допустимая погрешность
+                          </label>
+                          {(() => {
+                            let numObj = { value: 10, tolerance: 0.1 };
+                            try {
+                              numObj = JSON.parse(q.correctAnswer || "{}");
+                            } catch {}
+                            return (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border bg-muted/20">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] text-muted-foreground font-medium">
+                                    Точное числовое значение:
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    step="any"
+                                    placeholder="Например: 9.8"
+                                    value={numObj.value ?? 0}
+                                    onChange={(e) => handleUpdateNumerical(qIdx, "value", e.target.value)}
+                                    className="h-8 text-xs font-mono bg-background"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[10px] text-muted-foreground font-medium">
+                                    Допустимая погрешность (± Δ):
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    step="any"
+                                    placeholder="Например: 0.05"
+                                    value={numObj.tolerance ?? 0}
+                                    onChange={(e) => handleUpdateNumerical(qIdx, "tolerance", e.target.value)}
+                                    className="h-8 text-xs font-mono bg-background"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       ) : (
                         <div className="space-y-2 pt-2 border-t">

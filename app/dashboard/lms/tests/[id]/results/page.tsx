@@ -27,6 +27,8 @@ export default async function TestResultsPage({ params }: TestResultsPageProps) 
       test={res.test}
       questions={res.questions}
       studentsResults={res.studentsResults}
+      analytics={res.analytics}
+      questionStats={res.questionStats}
     />
   );
 }
