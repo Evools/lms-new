@@ -230,12 +230,19 @@ export function TestResultsView({
         )
       : 0);
 
-  const distributionData = analytics?.scoreDistribution || [
-    { range: "0–39%", label: "Неуд", count: studentsResults.filter((s) => s.hasSubmitted && s.percent < 40).length, fill: "var(--destructive)" },
-    { range: "40–59%", label: "Удовл", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 40 && s.percent < 60).length, fill: "var(--chart-3)" },
-    { range: "60–79%", label: "Хор", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 60 && s.percent < 80).length, fill: "var(--chart-2)" },
-    { range: "80–100%", label: "Отл", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 80).length, fill: "var(--chart-1)" },
-  ];
+  const scorePalette = ["var(--chart-5)", "var(--chart-3)", "var(--chart-2)", "var(--chart-1)"];
+
+  const distributionData = (
+    analytics?.scoreDistribution || [
+      { range: "0–39%", label: "Неуд (0–39%)", count: studentsResults.filter((s) => s.hasSubmitted && s.percent < 40).length },
+      { range: "40–59%", label: "Удовл (40–59%)", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 40 && s.percent < 60).length },
+      { range: "60–79%", label: "Хор (60–79%)", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 60 && s.percent < 80).length },
+      { range: "80–100%", label: "Отл (80–100%)", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 80).length },
+    ]
+  ).map((item, idx) => ({
+    ...item,
+    fill: scorePalette[idx] || "var(--chart-1)",
+  }));
 
   const questionChartData = questionStats.map((qs) => ({
     name: `В#${qs.questionNumber}`,
@@ -509,7 +516,7 @@ export function TestResultsView({
                             ? "var(--chart-1)"
                             : entry.accuracy >= 45
                               ? "var(--chart-3)"
-                              : "var(--destructive)";
+                              : "var(--chart-5)";
                         return <Cell key={`qcell-${index}`} fill={color} />;
                       })}
                     </Bar>

@@ -1751,10 +1751,10 @@ export async function getTestResultsAction(testId: string) {
     const easiestQuestion = sortedByAccuracy.length > 0 ? sortedByAccuracy[sortedByAccuracy.length - 1] : null;
 
     const scoreDistribution = [
-      { range: "0–39%", label: "Неуд (0–39%)", count: submittedResults.filter((s) => s.percent < 40).length, fill: "#FF2D55" },
-      { range: "40–59%", label: "Удовл (40–59%)", count: submittedResults.filter((s) => s.percent >= 40 && s.percent < 60).length, fill: "#FFAA00" },
-      { range: "60–79%", label: "Хор (60–79%)", count: submittedResults.filter((s) => s.percent >= 60 && s.percent < 80).length, fill: "#007AFF" },
-      { range: "80–100%", label: "Отл (80–100%)", count: submittedResults.filter((s) => s.percent >= 80).length, fill: "#00C853" },
+      { range: "0–39%", label: "Неуд (0–39%)", count: submittedResults.filter((s) => s.percent < 40).length, fill: "var(--chart-5)" },
+      { range: "40–59%", label: "Удовл (40–59%)", count: submittedResults.filter((s) => s.percent >= 40 && s.percent < 60).length, fill: "var(--chart-3)" },
+      { range: "60–79%", label: "Хор (60–79%)", count: submittedResults.filter((s) => s.percent >= 60 && s.percent < 80).length, fill: "var(--chart-2)" },
+      { range: "80–100%", label: "Отл (80–100%)", count: submittedResults.filter((s) => s.percent >= 80).length, fill: "var(--chart-1)" },
     ];
 
     return {
