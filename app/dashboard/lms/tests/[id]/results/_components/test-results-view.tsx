@@ -244,15 +244,6 @@ export function TestResultsView({
     fill: scorePalette[idx] || "var(--chart-1)",
   }));
 
-  const questionChartData = questionStats.map((qs) => ({
-    name: `В#${qs.questionNumber}`,
-    accuracy: qs.accuracyPercent,
-    fullText: qs.questionText,
-    correct: qs.fullCorrectCount,
-    partial: qs.partialCount,
-    wrong: qs.wrongCount,
-  }));
-
   return (
     <TooltipProvider>
       <div className="space-y-4 w-full pb-10">
@@ -425,7 +416,7 @@ export function TestResultsView({
 
         {/* Analytics Charts View */}
         {activeTab === "analytics" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {/* Score Distribution Chart */}
             <Card className="p-4 bg-card border shadow-xs space-y-3">
               <div className="flex items-center justify-between">
@@ -434,7 +425,7 @@ export function TestResultsView({
                     <BarChart3 className="h-4 w-4 text-primary" /> Распределение баллов в группе
                   </h3>
                   <p className="text-[11px] text-muted-foreground">
-                    Количество студентов по диапазонам успешности
+                    Количество студентов по диапазонам оценок (0–39%, 40–59%, 60–79%, 80–100%)
                   </p>
                 </div>
               </div>
@@ -465,60 +456,6 @@ export function TestResultsView({
                       {distributionData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            {/* Question Accuracy Chart */}
-            <Card className="p-4 bg-card border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4 text-primary" /> Успешность по вопросам (% верных)
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    Определяет темы, вызвавшие наибольшие затруднения
-                  </p>
-                </div>
-              </div>
-
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={questionChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} />
-                    <RechartsTooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div className="bg-popover text-popover-foreground text-xs p-2.5 rounded-lg border shadow-md space-y-1 max-w-xs">
-                              <p className="font-bold text-primary">{data.name}: {data.accuracy}% верных</p>
-                              <p className="text-[11px] text-muted-foreground line-clamp-2">{data.fullText}</p>
-                              <div className="text-[10px] pt-1 border-t border-border flex items-center gap-2">
-                                <span className="text-primary font-semibold">Верно: {data.correct}</span>
-                                {data.partial > 0 && <span className="text-amber-600 dark:text-amber-400 font-semibold">Частично: {data.partial}</span>}
-                                <span className="text-destructive font-semibold">Ошибок: {data.wrong}</span>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Bar dataKey="accuracy" radius={[4, 4, 0, 0]}>
-                      {questionChartData.map((entry, index) => {
-                        const color =
-                          entry.accuracy >= 75
-                            ? "var(--chart-1)"
-                            : entry.accuracy >= 45
-                              ? "var(--chart-3)"
-                              : "var(--chart-5)";
-                        return <Cell key={`qcell-${index}`} fill={color} />;
-                      })}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
