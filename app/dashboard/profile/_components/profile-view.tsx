@@ -52,6 +52,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
 
   // Profile Form State
   const [name, setName] = useState(profile.name);
+  const [email, setEmail] = useState(profile.email);
   const [phone, setPhone] = useState(profile.phone || "");
   const [avatar, setAvatar] = useState(profile.avatar || "");
 
@@ -61,13 +62,25 @@ export function ProfileView({ profile }: ProfileViewProps) {
   const [confirmPwd, setConfirmPwd] = useState("");
   const [showPwd, setShowPwd] = useState(false);
 
+  const isStudent = profile.role === "STUDENT";
+
   const handleUpdateProfile = () => {
-    if (!name.trim()) {
+    if (!isStudent && !name.trim()) {
       toast.add({ title: "Укажите имя и фамилию", type: "error" });
       return;
     }
+    if (!email.trim()) {
+      toast.add({ title: "Укажите email адрес", type: "error" });
+      return;
+    }
+
     startTransition(async () => {
-      const res = await updateProfileDetailsAction({ name, phone, avatar });
+      const res = await updateProfileDetailsAction({
+        name: isStudent ? undefined : name,
+        email,
+        phone,
+        avatar,
+      });
       if (res.success) {
         toast.add({ title: "Данные профиля обновлены", type: "success" });
         router.refresh();
@@ -216,22 +229,48 @@ export function ProfileView({ profile }: ProfileViewProps) {
             <div className="flex-1 min-w-0">
               <div className="font-bold text-foreground text-sm truncate">{profile.name}</div>
               <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                <Mail className="h-3 w-3" /> {profile.email}
+                <Mail className="h-3 w-3" /> {email}
               </div>
             </div>
           </div>
 
           <div className="space-y-2.5">
+            {/* Full Name Field */}
             <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Имя и фамилия *</label>
+              <div className="flex items-center justify-between">
+                <label className="font-medium text-foreground text-xs">
+                  Имя и фамилия {isStudent ? "" : "*"}
+                </label>
+                {isStudent && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Lock className="h-3 w-3" /> Фиксируется администрацией
+                  </span>
+                )}
+              </div>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={isStudent}
                 placeholder="Иванов Иван"
+                className={`h-8 text-xs ${
+                  isStudent ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-80" : "bg-background"
+                }`}
+              />
+            </div>
+
+            {/* Email Field */}
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Email для входа и уведомлений *</label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="student@example.com"
                 className="h-8 text-xs bg-background"
               />
             </div>
 
+            {/* Phone Field */}
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs">Телефон связи</label>
               <Input
@@ -242,6 +281,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
               />
             </div>
 
+            {/* Avatar URL Field */}
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs">Ссылка на аватар (URL)</label>
               <Input
@@ -257,9 +297,9 @@ export function ProfileView({ profile }: ProfileViewProps) {
             size="xs"
             disabled={isPending}
             onClick={handleUpdateProfile}
-            className="w-full h-8 font-medium mt-1"
+            className="w-full h-8 font-medium mt-1 cursor-pointer"
           >
-            Сохранить данные
+            {isPending ? "Сохранение..." : "Сохранить данные"}
           </Button>
         </div>
 

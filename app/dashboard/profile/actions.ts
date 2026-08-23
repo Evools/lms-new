@@ -80,23 +80,63 @@ export async function getProfileDataAction(): Promise<UserProfileDetailsDTO | nu
 }
 
 export async function updateProfileDetailsAction(data: {
-  name: string;
+  name?: string;
+  email?: string;
   phone?: string;
   avatar?: string;
 }) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Не авторизован" };
-  if (!data.name.trim()) return { success: false, error: "Укажите имя и фамилию" };
 
   try {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+    });
+    if (!currentUser) return { success: false, error: "Пользователь не найден" };
+
+    const isStudent = currentUser.role === "STUDENT";
+
+    // If student, name cannot be changed (keep existing name from DB)
+    let updatedName = currentUser.name;
+    if (!isStudent && data.name) {
+      if (!data.name.trim()) return { success: false, error: "Укажите имя и фамилию" };
+      updatedName = data.name.trim();
+    }
+
+    // Validate email if provided
+    let updatedEmail = currentUser.email;
+    if (data.email && data.email.trim()) {
+      const cleanedEmail = data.email.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanedEmail)) {
+        return { success: false, error: "Некорректный формат email адреса" };
+      }
+
+      if (cleanedEmail !== currentUser.email) {
+        // Check uniqueness
+        const existingUser = await prisma.user.findFirst({
+          where: {
+            email: cleanedEmail,
+            id: { not: currentUser.id },
+          },
+        });
+        if (existingUser) {
+          return { success: false, error: "Этот email уже зарегистрирован в системе" };
+        }
+        updatedEmail = cleanedEmail;
+      }
+    }
+
     await prisma.user.update({
       where: { id: session.user.id },
       data: {
-        name: data.name.trim(),
+        name: updatedName,
+        email: updatedEmail,
         phone: data.phone?.trim() || null,
         avatar: data.avatar?.trim() || null,
       },
     });
+
     revalidatePath("/dashboard/profile");
     revalidatePath("/dashboard/settings");
     return { success: true };
