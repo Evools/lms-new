@@ -5,7 +5,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppHeaderBreadcrumbs } from "@/components/app-header-breadcrumbs";
 import { NotificationsPopover } from "@/components/notifications-popover";
-import { NotificationListener } from "@/components/notification-listener";
 import { TourTriggerButton } from "@/components/tour-trigger-button";
 import { OnboardingTour } from "@/components/onboarding-tour";
 import { TourHubModal } from "@/components/tour-hub-modal";
@@ -71,7 +70,6 @@ export default async function DashboardLayout({
         </div>
       </SidebarInset>
 
-      <NotificationListener />
       <OnboardingTour />
       <TourHubModal userRole={role ?? "STUDENT"} />
     </SidebarProvider>

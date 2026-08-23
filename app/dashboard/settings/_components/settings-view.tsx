@@ -91,11 +91,6 @@ import {
   deleteAcademicYearAction,
   updateSystemConfigAction,
 } from "../actions";
-import {
-  isNotificationSupported,
-  getNotificationPermission,
-  requestNotificationPermission,
-} from "@/lib/web-notifications";
 
 interface SettingsViewProps {
   profile: UserProfileDTO;
@@ -143,31 +138,12 @@ export function SettingsView({
     toast.add({ title: THEME_LABELS[t], type: "success" });
   };
 
-  // Notification prefs
-  const [notifPush, setNotifPush] = useState(
-    typeof window !== "undefined" && isNotificationSupported() && getNotificationPermission() === "granted"
-  );
+  // Notification prefs (local)
   const [notifAssignments, setNotifAssignments] = useState(true);
   const [notifGrades, setNotifGrades] = useState(true);
   const [notifAnnouncements, setNotifAnnouncements] = useState(true);
   const [notifDuty, setNotifDuty] = useState(false);
   const [compactMode, setCompactMode] = useState(false);
-
-  const handleTogglePush = async (checked: boolean) => {
-    if (checked) {
-      const res = await requestNotificationPermission();
-      if (res === "granted") {
-        setNotifPush(true);
-        toast.add({ title: "Браузерные уведомления включены!", type: "success" });
-      } else {
-        setNotifPush(false);
-        toast.add({ title: "Разрешение на уведомления отклонено в браузере", type: "warning" });
-      }
-    } else {
-      setNotifPush(false);
-      toast.add({ title: "Уведомления отключены", type: "info" });
-    }
-  };
 
   // Profile State
   const [profileName, setProfileName] = useState(profile.name);
@@ -980,28 +956,9 @@ export function SettingsView({
             <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
               <Bell className="h-4 w-4 text-primary" /> Уведомления и оповещения
             </h2>
-            <p className="text-[11px] text-muted-foreground">Настройте всплывающие пуши в браузере и типы событий.</p>
+            <p className="text-[11px] text-muted-foreground">Выберите, о чём вы хотите получать уведомления в системе.</p>
 
             <div className="space-y-2">
-              <div className="p-3 border rounded-lg bg-primary/5 border-primary/20 flex items-center justify-between gap-3">
-                <label htmlFor="notif-push" className="space-y-0.5 cursor-pointer flex-1">
-                  <div className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <span>Браузерные Push-уведомления</span>
-                    <Badge variant="outline" className="text-[9px] border-primary/30 text-primary py-0 font-medium">
-                      Web Notifications
-                    </Badge>
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Получать мгновенные системные оповещения в ОС при сдаче заданий, проверках и оценках (даже когда вкладка не активна)
-                  </div>
-                </label>
-                <Switch
-                  id="notif-push"
-                  checked={notifPush}
-                  onCheckedChange={handleTogglePush}
-                />
-              </div>
-
               {[
                 { label: "Новые домашние задания", desc: "Когда преподаватель публикует новое ДЗ", state: notifAssignments, set: setNotifAssignments, id: "notif-hw" },
                 { label: "Оценки и результаты", desc: "Когда преподаватель проверил вашу работу", state: notifGrades, set: setNotifGrades, id: "notif-grades" },
