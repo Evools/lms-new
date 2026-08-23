@@ -202,10 +202,10 @@ export function SubmissionContentDisplay({ submission }: { submission: Submissio
                       setActiveFileIdx(idx);
                       setShowLivePreview(false);
                     }}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-mono font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-mono font-medium border transition-colors flex items-center gap-1.5 shrink-0 ${
                       isActive && !showLivePreview
-                        ? "bg-background text-primary shadow-xs font-bold border border-primary/30"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                        ? "bg-background text-primary border-border shadow-xs"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60"
                     }`}
                   >
                     <FileCode className="h-3.5 w-3.5 text-primary" />
@@ -221,10 +221,10 @@ export function SubmissionContentDisplay({ submission }: { submission: Submissio
                 <button
                   type="button"
                   onClick={() => setShowLivePreview(!showLivePreview)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all flex items-center gap-1 shrink-0 ${
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors flex items-center gap-1 shrink-0 ${
                     showLivePreview
-                      ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                      : "text-primary hover:bg-primary/10 border border-primary/20 bg-background"
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : "border-border text-primary hover:bg-primary/10 bg-background"
                   }`}
                 >
                   <Play className="h-3 w-3" />
@@ -1576,10 +1576,10 @@ export function AssignmentsView({
                 <button
                   type="button"
                   onClick={() => setSubmitMode("code")}
-                  className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-1.5 px-3 rounded-md text-xs font-medium border transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
                     submitMode === "code"
-                      ? "bg-background text-primary shadow-xs border border-primary/20 font-bold"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-background text-primary border-border shadow-xs"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Code className="h-3.5 w-3.5" /> Редактор кода (Файлы)
@@ -1587,10 +1587,10 @@ export function AssignmentsView({
                 <button
                   type="button"
                   onClick={() => setSubmitMode("url")}
-                  className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-1.5 px-3 rounded-md text-xs font-medium border transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
                     submitMode === "url"
-                      ? "bg-background text-primary shadow-xs border border-primary/20 font-bold"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-background text-primary border-border shadow-xs"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <ExternalLink className="h-3.5 w-3.5" /> Ссылка (GitHub / Drive)
@@ -1649,10 +1649,10 @@ export function AssignmentsView({
                             <div
                               key={idx}
                               onClick={() => setActiveSubmitFileIdx(idx)}
-                              className={`px-2.5 py-1 rounded-md text-[11px] font-mono font-medium transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-mono font-medium border transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 ${
                                 isActive
-                                  ? "bg-background text-primary shadow-xs font-bold border border-primary/30"
-                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                                  ? "bg-background text-primary border-border shadow-xs"
+                                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60"
                               }`}
                             >
                               <FileCode className="h-3 w-3 text-primary" />
@@ -1869,10 +1869,10 @@ export function AssignmentsView({
                   <button
                     type="button"
                     onClick={() => setReviewViewMode("focus")}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-medium border transition-colors ${
                       reviewViewMode === "focus"
-                        ? "bg-background text-primary shadow-xs font-bold"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "bg-background text-primary border-border shadow-xs"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     Поочередная проверка
@@ -1880,10 +1880,10 @@ export function AssignmentsView({
                   <button
                     type="button"
                     onClick={() => setReviewViewMode("list")}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-medium border transition-colors ${
                       reviewViewMode === "list"
-                        ? "bg-background text-primary shadow-xs font-bold"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "bg-background text-primary border-border shadow-xs"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     Список работ
