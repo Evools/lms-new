@@ -209,7 +209,7 @@ export async function saveStudentAttendanceAction(
   }
 }
 
-/** Batch save attendance for all students in class */
+/** Batch save attendance for all students in class in a single transaction */
 export async function saveBatchAttendanceAction(
   groupSubjectId: string,
   dateStr: string,
@@ -217,14 +217,18 @@ export async function saveBatchAttendanceAction(
 ) {
   const isAllowed = await checkEditPermission(groupSubjectId);
   if (!isAllowed) {
-    return { success: false, error: "Недостаточно прав для массового сохранения" };
+    return { success: false, error: "Недостаточно прав для сохранения" };
+  }
+
+  if (!records.length) {
+    return { success: true };
   }
 
   try {
     const date = new Date(dateStr);
 
-    for (const rec of records) {
-      await prisma.attendance.upsert({
+    const ops = records.map((rec) =>
+      prisma.attendance.upsert({
         where: {
           groupSubjectId_studentId_date: {
             groupSubjectId,
@@ -243,13 +247,48 @@ export async function saveBatchAttendanceAction(
           status: rec.status,
           comment: rec.comment || null,
         },
-      });
-    }
+      })
+    );
+
+    await prisma.$transaction(ops);
 
     revalidatePath("/dashboard/attendance");
     return { success: true };
   } catch (error: any) {
     console.error("Failed to save batch attendance:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/** Clear / Annul all attendance records for a group subject on a given date */
+export async function clearAttendanceAction(
+  groupSubjectId: string,
+  dateStr: string
+) {
+  const isAllowed = await checkEditPermission(groupSubjectId);
+  if (!isAllowed) {
+    return { success: false, error: "Недостаточно прав для аннулирования посещаемости" };
+  }
+
+  try {
+    const targetDate = new Date(dateStr);
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(targetDate.getDate() + 1);
+
+    await prisma.attendance.deleteMany({
+      where: {
+        groupSubjectId,
+        date: {
+          gte: targetDate,
+          lt: nextDay,
+        },
+      },
+    });
+
+    revalidatePath("/dashboard/attendance");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to clear attendance:", error);
     return { success: false, error: error.message };
   }
 }
