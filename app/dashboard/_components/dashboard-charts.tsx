@@ -17,7 +17,7 @@ import {
   Legend,
 } from "recharts";
 import { ChartContainer, ChartTooltipContent, ChartConfig } from "@/components/ui/chart";
-import { CalendarCheck, TrendingUp, ClipboardCheck } from "lucide-react";
+import { CalendarCheck, TrendingUp, ClipboardCheck, BarChart3 } from "lucide-react";
 
 // -------------------------------------------------------------
 // ADMIN CHARTS
@@ -75,30 +75,38 @@ interface GroupPerfProps {
   data?: Array<{ group: string; submitted: number }>;
 }
 
-const defaultAdminGroupData = [
-  { group: "ИС-1-25", submitted: 94 },
-  { group: "ИС-2-24", submitted: 88 },
-  { group: "ПО-1-25", submitted: 96 },
-];
-
 const adminGroupConfig: ChartConfig = {
   submitted: {
     label: "% Сдачи ДЗ",
-    color: "var(--chart-1)",
+    color: "var(--primary)",
   },
 };
 
-export function AdminGroupPerformanceChart({ data = defaultAdminGroupData }: GroupPerfProps) {
-  const chartData = data.length > 0 ? data : defaultAdminGroupData;
+export function AdminGroupPerformanceChart({ data = [] }: GroupPerfProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-[210px] w-full flex flex-col items-center justify-center text-center p-4 gap-2">
+        <div className="p-3 rounded-full bg-muted/60 text-muted-foreground">
+          <BarChart3 className="h-6 w-6" />
+        </div>
+        <div className="space-y-0.5">
+          <div className="text-xs font-semibold text-foreground">Нет данных по группам</div>
+          <div className="text-[11px] text-muted-foreground">
+            Статистика активности появится после создания заданий
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <ChartContainer config={adminGroupConfig} className="h-[250px] w-full">
-      <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+    <ChartContainer config={adminGroupConfig} className="h-[210px] w-full">
+      <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
-        <XAxis dataKey="group" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+        <XAxis dataKey="group" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[0, 100]} />
         <Tooltip content={<ChartTooltipContent />} />
-        <Bar dataKey="submitted" fill="var(--chart-1)" radius={[4, 4, 0, 0]} name="% Сдачи ДЗ" />
+        <Bar dataKey="submitted" fill="var(--primary)" radius={[4, 4, 0, 0]} name="% Сдачи ДЗ" />
       </BarChart>
     </ChartContainer>
   );
@@ -109,40 +117,46 @@ export function AdminGroupPerformanceChart({ data = defaultAdminGroupData }: Gro
 // -------------------------------------------------------------
 
 interface TeacherOverviewProps {
-  data?: Array<{ week: string; homeworks: number; checked: number }>;
+  data?: Array<{ name: string; total: number; checked: number }>;
 }
 
-const defaultTeacherWeeklyData = [
-  { week: "Нед 1", homeworks: 32, checked: 30 },
-  { week: "Нед 2", homeworks: 45, checked: 42 },
-  { week: "Нед 3", homeworks: 28, checked: 28 },
-  { week: "Нед 4", homeworks: 50, checked: 48 },
-  { week: "Нед 5", homeworks: 38, checked: 30 },
-];
-
 const teacherWeeklyConfig: ChartConfig = {
-  homeworks: {
-    label: "Сдано ДЗ",
-    color: "var(--chart-1)",
+  total: {
+    label: "Сдано работ",
+    color: "var(--primary)",
   },
   checked: {
     label: "Проверено",
-    color: "var(--chart-2)",
+    color: "#0ea5e9",
   },
 };
 
-export function TeacherOverviewChart({ data = defaultTeacherWeeklyData }: TeacherOverviewProps) {
-  const chartData = data.length > 0 ? data : defaultTeacherWeeklyData;
+export function TeacherOverviewChart({ data = [] }: TeacherOverviewProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-[210px] w-full flex flex-col items-center justify-center text-center p-4 gap-2">
+        <div className="p-3 rounded-full bg-muted/60 text-muted-foreground">
+          <ClipboardCheck className="h-6 w-6" />
+        </div>
+        <div className="space-y-0.5">
+          <div className="text-xs font-semibold text-foreground">Нет активных домашних заданий</div>
+          <div className="text-[11px] text-muted-foreground">
+            Создайте задание в разделе «Задания», чтобы отслеживать динамику сдачи
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <ChartContainer config={teacherWeeklyConfig} className="h-[240px] w-full">
-      <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+    <ChartContainer config={teacherWeeklyConfig} className="h-[210px] w-full">
+      <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
-        <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-        <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+        <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
+        <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} allowDecimals={false} />
         <Tooltip content={<ChartTooltipContent />} />
-        <Bar dataKey="homeworks" fill="var(--chart-1)" radius={[4, 4, 0, 0]} name="Сдано работ" />
-        <Bar dataKey="checked" fill="var(--chart-2)" radius={[4, 4, 0, 0]} name="Проверено" />
+        <Bar dataKey="total" fill="var(--primary)" radius={[4, 4, 0, 0]} name="Сдано работ" />
+        <Bar dataKey="checked" fill="#0ea5e9" radius={[4, 4, 0, 0]} name="Проверено" />
       </BarChart>
     </ChartContainer>
   );

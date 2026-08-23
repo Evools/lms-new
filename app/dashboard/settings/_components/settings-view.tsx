@@ -83,6 +83,7 @@ import {
   toggleUserActiveAction,
   changeUserRoleAction,
   createUserAction,
+  updateUserAction,
   createBulkUsersAction,
   setCurrentAcademicYearAction,
   createAcademicYearAction,
@@ -163,6 +164,47 @@ export function SettingsView({
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT">("TEACHER");
   const [newUserPhone, setNewUserPhone] = useState("");
+
+  // Edit User Dialog State
+  const [editUserTarget, setEditUserTarget] = useState<UserProfileDTO | null>(null);
+  const [editUserName, setEditUserName] = useState("");
+  const [editUserEmail, setEditUserEmail] = useState("");
+  const [editUserPhone, setEditUserPhone] = useState("");
+  const [editUserRole, setEditUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT">("TEACHER");
+  const [editUserPassword, setEditUserPassword] = useState("");
+
+  const openEditUser = (u: UserProfileDTO) => {
+    setEditUserTarget(u);
+    setEditUserName(u.name);
+    setEditUserEmail(u.email);
+    setEditUserPhone(u.phone || "");
+    setEditUserRole(u.role as any);
+    setEditUserPassword("");
+  };
+
+  const handleSaveEditUser = () => {
+    if (!editUserTarget) return;
+    if (!editUserName.trim() || !editUserEmail.trim()) {
+      toast.add({ title: "Укажите имя и email", type: "error" });
+      return;
+    }
+    startTransition(async () => {
+      const res = await updateUserAction(editUserTarget.id, {
+        name: editUserName,
+        email: editUserEmail,
+        phone: editUserPhone,
+        role: editUserRole,
+        password: editUserPassword || undefined,
+      });
+      if (res.success) {
+        toast.add({ title: "Данные сотрудника обновлены", type: "success" });
+        setEditUserTarget(null);
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка обновления", type: "error" });
+      }
+    });
+  };
 
   // User Creation & Import Dialog State
   const [createUserMode, setCreateUserMode] = useState<"single" | "excel">("single");
@@ -1166,8 +1208,8 @@ export function SettingsView({
                     <th className="text-left py-2 px-3.5 font-medium">Имя</th>
                     <th className="text-left py-2 px-2 font-medium">Email</th>
                     <th className="text-center py-2 px-2 font-medium">Роль</th>
-                    <th className="text-center py-2 px-2 font-medium">Статус аккаунта</th>
-                    <th className="text-right py-2 px-3.5 font-medium">Активен (Switch)</th>
+                    <th className="text-center py-2 px-2 font-medium">Статус</th>
+                    <th className="text-right py-2 px-3.5 font-medium">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1202,16 +1244,26 @@ export function SettingsView({
                         </Badge>
                       </td>
                       <td className="py-2.5 px-3.5 text-right">
-                        {u.id !== profile.id && (
-                          <div className="flex items-center justify-end">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => openEditUser(u)}
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-primary cursor-pointer"
+                            title="Редактировать сотрудника"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          {u.id !== profile.id && (
                             <Switch
                               checked={u.isActive}
                               disabled={isPending}
                               onCheckedChange={(checked) => handleToggleUser(u.id, checked)}
                               title={u.isActive ? "Заблокировать" : "Активировать"}
                             />
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1517,6 +1569,90 @@ export function SettingsView({
             )}
           </DialogFooter>
         </DialogContent>
+      </Dialog>
+
+      {/* Modal: Edit User (Admin Only) */}
+      <Dialog open={editUserTarget !== null} onOpenChange={(open) => !open && setEditUserTarget(null)}>
+        {editUserTarget && (
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+            <DialogHeader className="pb-2 border-b gap-1 text-left">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+                <Pencil className="h-4 w-4 text-primary" /> Редактировать сотрудника
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Изменение личных данных, роли и сброс пароля сотрудника
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2.5 py-1">
+              <div className="space-y-1">
+                <label className="font-medium text-xs text-foreground font-semibold">ФИО сотрудника *</label>
+                <Input
+                  value={editUserName}
+                  onChange={(e) => setEditUserName(e.target.value)}
+                  placeholder="Иванов Иван Иванович"
+                  className="h-8 text-xs bg-background font-medium"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-xs text-foreground font-semibold">Email *</label>
+                <Input
+                  type="email"
+                  value={editUserEmail}
+                  onChange={(e) => setEditUserEmail(e.target.value)}
+                  placeholder="teacher@lyceum.ru"
+                  className="h-8 text-xs bg-background font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-xs text-foreground font-semibold">Телефон связи</label>
+                <Input
+                  value={editUserPhone}
+                  onChange={(e) => setEditUserPhone(e.target.value)}
+                  placeholder="+996 (555) 00-00-00"
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-xs text-foreground font-semibold">Роль в лицее *</label>
+                <Select value={editUserRole} onValueChange={(v) => setEditUserRole(v as any)}>
+                  <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                    <SelectValue>{ROLE_LABELS[editUserRole]}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TEACHER" className="text-xs font-medium">Преподаватель</SelectItem>
+                    <SelectItem value="ADMIN" className="text-xs font-medium">Администратор</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1 pt-1 border-t">
+                <label className="font-medium text-xs text-foreground flex items-center justify-between">
+                  <span>Новый пароль</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">(оставьте пустым, если не меняется)</span>
+                </label>
+                <Input
+                  value={editUserPassword}
+                  onChange={(e) => setEditUserPassword(e.target.value)}
+                  placeholder="Введите новый пароль для сброса"
+                  className="h-8 text-xs bg-background font-mono"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setEditUserTarget(null)}>
+                Отмена
+              </Button>
+              <Button size="xs" disabled={isPending} onClick={handleSaveEditUser}>
+                Сохранить изменения
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
       </Dialog>
 
       {/* Modal: Create Academic Year */}

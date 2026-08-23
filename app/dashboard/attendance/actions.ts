@@ -34,13 +34,39 @@ export async function getAttendanceDataAction(
     const currentUserId = session?.user?.id;
     const role = session?.user?.role || "STUDENT";
 
-    // 1. Fetch all groups
+    // 1. Fetch relevant groups based on role
+    let groupWhereClause: Record<string, unknown> = {};
+
+    if (role === "STUDENT" && currentUserId) {
+      const enrollments = await prisma.groupStudent.findMany({
+        where: { studentId: currentUserId },
+        select: { groupId: true },
+      });
+      groupWhereClause = { id: { in: enrollments.map((e) => e.groupId) } };
+    } else if (role === "TEACHER" && currentUserId) {
+      // Teacher sees groups where they teach a subject OR where they are the curator (master)
+      const taughtGroupSubjects = await prisma.groupSubject.findMany({
+        where: { teacherId: currentUserId },
+        select: { groupId: true },
+      });
+      const taughtGroupIds = taughtGroupSubjects.map((gs) => gs.groupId);
+
+      groupWhereClause = {
+        OR: [
+          { id: { in: taughtGroupIds } },
+          { curatorId: currentUserId },
+        ],
+      };
+    }
+
     const groups = await prisma.group.findMany({
-      select: { id: true, name: true },
+      where: groupWhereClause,
+      select: { id: true, name: true, curatorId: true },
       orderBy: { name: "asc" },
     });
 
-    const selectedGroup = groupId || groups[0]?.id;
+    const selectedGroupObj = groups.find((g) => g.id === groupId) || groups[0];
+    const selectedGroup = selectedGroupObj?.id;
 
     if (!selectedGroup) {
       return {
@@ -55,13 +81,22 @@ export async function getAttendanceDataAction(
       };
     }
 
-    // 2. Fetch subjects for selected group
+    // 2. Fetch subjects for selected group (filtered for teacher unless curator or admin)
+    const isCuratorOfSelectedGroup = selectedGroupObj?.curatorId === currentUserId;
+    let subjectWhereClause: Record<string, unknown> = { groupId: selectedGroup };
+
+    if (role === "TEACHER" && currentUserId && !isCuratorOfSelectedGroup) {
+      // If regular teacher (not curator of this group), show only subjects taught by this teacher
+      subjectWhereClause.teacherId = currentUserId;
+    }
+
     const groupSubjects = await prisma.groupSubject.findMany({
-      where: { groupId: selectedGroup },
+      where: subjectWhereClause,
       include: {
         subject: { select: { name: true } },
         teacher: { select: { name: true } },
       },
+      orderBy: { subject: { name: "asc" } },
     });
 
     const subjects: GroupSubjectItemDTO[] = groupSubjects.map((gs) => ({
@@ -151,17 +186,25 @@ async function checkEditPermission(groupSubjectId: string) {
   const session = await auth();
   if (!session?.user) return false;
 
-  if (session.user.role === "ADMIN" || session.user.role === "TEACHER") {
+  if (session.user.role === "ADMIN") {
     return true;
   }
 
-  // Check if current user is the monitor of this group
   const gs = await prisma.groupSubject.findUnique({
     where: { id: groupSubjectId },
-    select: { group: { select: { monitorId: true } } },
+    select: {
+      teacherId: true,
+      group: { select: { curatorId: true, monitorId: true } },
+    },
   });
+  if (!gs) return false;
 
-  return Boolean(gs?.group?.monitorId && gs.group.monitorId === session.user.id);
+  if (session.user.role === "TEACHER") {
+    return gs.teacherId === session.user.id || gs.group.curatorId === session.user.id;
+  }
+
+  // Check if current user is the monitor of this group
+  return Boolean(gs.group?.monitorId && gs.group.monitorId === session.user.id);
 }
 
 /** Save or update attendance status for a single student */

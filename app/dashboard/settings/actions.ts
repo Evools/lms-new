@@ -308,6 +308,60 @@ export async function changeUserRoleAction(userId: string, role: "ADMIN" | "TEAC
   }
 }
 
+/** Admin: update user details */
+export async function updateUserAction(
+  userId: string,
+  data: {
+    name: string;
+    email: string;
+    role: "ADMIN" | "TEACHER" | "STUDENT";
+    phone?: string;
+    password?: string;
+  }
+) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор может редактировать данные сотрудников" };
+  }
+  if (!data.name.trim() || !data.email.trim()) {
+    return { success: false, error: "Укажите имя и email" };
+  }
+
+  try {
+    const cleanEmail = data.email.trim().toLowerCase();
+    const existing = await prisma.user.findFirst({
+      where: {
+        email: cleanEmail,
+        id: { not: userId },
+      },
+    });
+    if (existing) {
+      return { success: false, error: "Этот email уже зарегистрирован другим пользователем" };
+    }
+
+    const updateData: Record<string, unknown> = {
+      name: data.name.trim(),
+      email: cleanEmail,
+      role: data.role,
+      phone: data.phone?.trim() || null,
+    };
+
+    if (data.password && data.password.trim().length >= 6) {
+      updateData.password = await bcrypt.hash(data.password.trim(), 12);
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 /** Admin: create new user */
 export async function createUserAction(data: {
   name: string;

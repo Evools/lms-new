@@ -96,6 +96,7 @@ export default async function DashboardPage() {
     studentsCount: 0,
     assignmentsCount: 0,
     latestActivity: [] as Array<{ id: string; text: string; time: string; type: string }>,
+    groupPerformanceData: [] as Array<{ group: string; submitted: number }>,
   };
 
   if (role === "ADMIN") {
@@ -138,12 +139,48 @@ export default async function DashboardPage() {
       })),
     ].slice(0, 5);
 
+    const activeGroups = await prisma.group.findMany({
+      select: {
+        name: true,
+        _count: { select: { students: true } },
+        groupSubjects: {
+          select: {
+            assignments: {
+              select: {
+                submissions: { select: { id: true } },
+              },
+            },
+          },
+        },
+      },
+      take: 5,
+      orderBy: { name: "asc" },
+    });
+
+    const groupPerformanceData = activeGroups.map((g) => {
+      let totalSubs = 0;
+      let totalAssignmentsCount = 0;
+      g.groupSubjects.forEach((gs) => {
+        gs.assignments.forEach((a) => {
+          totalAssignmentsCount++;
+          totalSubs += a.submissions.length;
+        });
+      });
+      const expectedTotal = totalAssignmentsCount * (g._count.students || 1);
+      const percent = expectedTotal > 0 ? Math.min(100, Math.round((totalSubs / expectedTotal) * 100)) : 0;
+      return {
+        group: g.name,
+        submitted: percent,
+      };
+    });
+
     adminStats = {
       groupsCount,
       teachersCount,
       studentsCount,
       assignmentsCount,
       latestActivity: activityList,
+      groupPerformanceData,
     };
   }
 
@@ -153,11 +190,11 @@ export default async function DashboardPage() {
     acceptedCount: 0,
     revisionCount: 0,
     groupsCount: 0,
-    myAssignments: [] as Array<{ id: string; title: string; count: number }>,
+    assignmentOverviewData: [] as Array<{ name: string; total: number; checked: number }>,
   };
 
   if (role === "TEACHER") {
-    const [pendingCount, acceptedCount, revisionCount, teacherGroupSubjects] = await Promise.all([
+    const [pendingCount, acceptedCount, revisionCount, teacherGroupSubjects, teacherAssignments] = await Promise.all([
       prisma.assignmentSubmission.count({
         where: { assignment: { authorId: userId }, status: "SUBMITTED" },
       }),
@@ -172,14 +209,35 @@ export default async function DashboardPage() {
         select: { groupId: true },
         distinct: ["groupId"],
       }),
+      prisma.assignment.findMany({
+        where: { authorId: userId },
+        include: {
+          submissions: {
+            select: { id: true, status: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 6,
+      }),
     ]);
+
+    const assignmentOverviewData = teacherAssignments.map((a) => {
+      const shortTitle = a.title.length > 12 ? a.title.slice(0, 12) + "..." : a.title;
+      const total = a.submissions.length;
+      const checked = a.submissions.filter((s) => s.status === "ACCEPTED" || s.status === "NEED_REVISION").length;
+      return {
+        name: shortTitle,
+        total,
+        checked,
+      };
+    });
 
     teacherStats = {
       pendingCount,
       acceptedCount,
       revisionCount,
       groupsCount: teacherGroupSubjects.length,
-      myAssignments: [],
+      assignmentOverviewData,
     };
   }
 
@@ -439,7 +497,7 @@ export default async function DashboardPage() {
                 </div>
                 <Badge variant="outline" className="text-[9px] px-1.5 py-0">По группам</Badge>
               </div>
-              <AdminGroupPerformanceChart />
+              <AdminGroupPerformanceChart data={adminStats.groupPerformanceData} />
             </div>
           </div>
 
@@ -615,7 +673,7 @@ export default async function DashboardPage() {
                 </div>
                 <Badge variant="outline" className="text-[9px] px-1.5 py-0">По неделям</Badge>
               </div>
-              <TeacherOverviewChart />
+              <TeacherOverviewChart data={teacherStats.assignmentOverviewData} />
             </div>
 
             <div className="rounded-xl border bg-card p-3.5 space-y-3 min-h-0 overflow-hidden">
