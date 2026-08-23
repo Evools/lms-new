@@ -285,10 +285,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       <SidebarHeader className="border-b p-2">
         <TeamSwitcher teams={teams} />
       </SidebarHeader>
-      <SidebarContent className="gap-0 py-2 px-2">
+      <SidebarContent className="gap-0 py-2 px-2" data-tour="sidebar-nav">
         <NavMain sections={getNavSections()} />
       </SidebarContent>
-      <SidebarFooter className="border-t p-2">
+      <SidebarFooter className="border-t p-2" data-tour="sidebar-user">
         <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />

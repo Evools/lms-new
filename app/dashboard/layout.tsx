@@ -5,6 +5,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppHeaderBreadcrumbs } from "@/components/app-header-breadcrumbs";
 import { NotificationsPopover } from "@/components/notifications-popover";
+import { TourTriggerButton } from "@/components/tour-trigger-button";
+import { OnboardingTour } from "@/components/onboarding-tour";
 import { prisma } from "@/lib/prisma";
 
 export default async function DashboardLayout({
@@ -44,7 +46,9 @@ export default async function DashboardLayout({
           <div className="flex items-center gap-3">
             <SidebarTrigger className="rounded-md" />
             <Separator orientation="vertical" className="h-4" />
-            <AppHeaderBreadcrumbs />
+            <div data-tour="header-breadcrumbs">
+              <AppHeaderBreadcrumbs />
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -53,12 +57,19 @@ export default async function DashboardLayout({
                 {studentGroupName}
               </span>
             )}
-            <NotificationsPopover />
+            <div data-tour="header-notifications">
+              <NotificationsPopover />
+            </div>
+            <TourTriggerButton />
           </div>
         </header>
 
-        <div className="flex-1 p-6">{children}</div>
+        <div className="flex-1 p-6" data-tour="dashboard-content">
+          {children}
+        </div>
       </SidebarInset>
+
+      <OnboardingTour />
     </SidebarProvider>
   );
 }

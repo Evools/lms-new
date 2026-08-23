@@ -66,7 +66,9 @@ import {
   Moon,
   Monitor,
   Palette,
+  Compass,
 } from "lucide-react";
+import { startOnboardingTour } from "@/components/onboarding-tour";
 import type {
   UserProfileDTO,
   AcademicYearDTO,
@@ -872,6 +874,29 @@ export function SettingsView({
             <p className="text-[11px] text-muted-foreground pt-1 border-t">
               Тема мгновенно сохраняется в вашем браузере и применяется ко всем страницам без перезагрузки.
             </p>
+          </div>
+
+          {/* Onboarding Tour Card */}
+          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <h2 className="font-bold text-foreground text-xs flex items-center gap-2">
+                  <Compass className="h-4 w-4 text-primary" /> Интерактивный тур по платформе
+                </h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Запустите интерактивное обучение с подсветкой элементов, чтобы быстро освоить возможности системы.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={startOnboardingTour}
+                className="h-8 text-xs px-3 gap-1.5 font-medium border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
+              >
+                <Compass className="h-3.5 w-3.5" /> Начать тур
+              </Button>
+            </div>
           </div>
 
           {/* Notification Preferences Card */}
