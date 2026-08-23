@@ -1366,7 +1366,7 @@ export function AssignmentsView({
         {viewMyResultAssignment && (() => {
           const mySub = viewMyResultAssignment.userSubmission;
           return (
-            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[680px] overflow-hidden">
+            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1100px] w-[94vw] max-h-[92vh] overflow-y-auto">
               <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium">
@@ -1540,7 +1540,7 @@ export function AssignmentsView({
       {/* Modal 2: Student Submission Modal (Multi-File Code Editor & URL) */}
       <Dialog open={submitTargetAssignment !== null} onOpenChange={(open) => !open && setSubmitTargetAssignment(null)}>
         {submitTargetAssignment && (
-          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[760px] max-h-[92vh] overflow-y-auto">
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1100px] w-[94vw] max-h-[92vh] overflow-y-auto">
             <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
               <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium">
                 {submitTargetAssignment.subjectName}
@@ -1719,8 +1719,8 @@ export function AssignmentsView({
                       onChange={handleUpdateCurrentFileCode}
                       fileName={submitFiles[activeSubmitFileIdx]?.name || "index.html"}
                       placeholder={`// Вставьте или напишите код для файла ${submitFiles[activeSubmitFileIdx]?.name || ""}...`}
-                      minHeight="220px"
-                      maxHeight="360px"
+                      minHeight="260px"
+                      maxHeight="460px"
                     />
                   </div>
 
