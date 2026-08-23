@@ -190,6 +190,11 @@ export default async function DashboardPage() {
     submittedAssignments: 0,
     completedTestsCount: 0,
     avgTestScorePercent: 0,
+    presentAttendance: 0,
+    absentAttendance: 0,
+    lateAttendance: 0,
+    excusedAttendance: 0,
+    progressChartData: [] as Array<{ subject: string; grade: number }>,
   };
 
   if (role === "STUDENT") {
@@ -200,12 +205,34 @@ export default async function DashboardPage() {
 
     const groupId = studentEnrollment?.groupId;
 
-    const [totalAssignments, studentSubmissions, studentTestSubmissions] = await Promise.all([
+    const [
+      totalAssignments,
+      studentSubmissions,
+      studentTestSubmissions,
+      studentGradedSubmissions,
+      presentAttendance,
+      absentAttendance,
+      lateAttendance,
+      excusedAttendance,
+    ] = await Promise.all([
       groupId
         ? prisma.assignment.count({ where: { groupSubject: { groupId } } })
         : prisma.assignment.count(),
       prisma.assignmentSubmission.count({ where: { studentId: userId } }),
-      prisma.testSubmission.findMany({ where: { studentId: userId } }),
+      prisma.testSubmission.findMany({
+        where: { studentId: userId },
+        include: { test: { select: { title: true } } },
+        orderBy: { submittedAt: "asc" },
+      }),
+      prisma.assignmentSubmission.findMany({
+        where: { studentId: userId, grade: { not: null } },
+        include: { assignment: { select: { title: true } } },
+        orderBy: { reviewedAt: "asc" },
+      }),
+      prisma.attendance.count({ where: { studentId: userId, status: "PRESENT" } }),
+      prisma.attendance.count({ where: { studentId: userId, status: "ABSENT" } }),
+      prisma.attendance.count({ where: { studentId: userId, status: "LATE" } }),
+      prisma.attendance.count({ where: { studentId: userId, status: "EXCUSED" } }),
     ]);
 
     let totalScore = 0;
@@ -218,12 +245,40 @@ export default async function DashboardPage() {
     const avgScorePercent =
       maxScoreTotal > 0 ? Math.round((totalScore / maxScoreTotal) * 100) : 0;
 
+    const progressChartData: Array<{ subject: string; grade: number }> = [];
+
+    studentTestSubmissions.forEach((ts) => {
+      const grade5 = ts.maxScore > 0 ? Math.round((ts.score / ts.maxScore) * 5 * 10) / 10 : 0;
+      const title = ts.test?.title || "Тест";
+      const shortTitle = title.length > 12 ? title.slice(0, 12) + "..." : title;
+      progressChartData.push({
+        subject: shortTitle,
+        grade: grade5,
+      });
+    });
+
+    studentGradedSubmissions.forEach((gs) => {
+      if (gs.grade !== null) {
+        const title = gs.assignment?.title || "ДЗ";
+        const shortTitle = title.length > 12 ? title.slice(0, 12) + "..." : title;
+        progressChartData.push({
+          subject: shortTitle,
+          grade: Number(gs.grade),
+        });
+      }
+    });
+
     studentStats = {
       groupName: studentEnrollment?.group.name || "Лицей",
       totalAssignments,
       submittedAssignments: studentSubmissions,
       completedTestsCount: studentTestSubmissions.length,
       avgTestScorePercent: avgScorePercent,
+      presentAttendance,
+      absentAttendance,
+      lateAttendance,
+      excusedAttendance,
+      progressChartData,
     };
   }
 
@@ -639,7 +694,7 @@ export default async function DashboardPage() {
                   {studentStats.avgTestScorePercent > 0 ? `Успеваемость: ${studentStats.avgTestScorePercent}%` : "Старт семестра"}
                 </Badge>
               </div>
-              <StudentProgressChart />
+              <StudentProgressChart data={studentStats.progressChartData} />
             </div>
 
             <div className="rounded-xl border bg-card p-3.5 space-y-3 min-h-0 overflow-hidden">
@@ -652,7 +707,12 @@ export default async function DashboardPage() {
                   <p className="text-[10px] text-muted-foreground">Учёт за текущий семестр</p>
                 </div>
               </div>
-              <StudentAttendancePieChart />
+              <StudentAttendancePieChart
+                presentCount={studentStats.presentAttendance}
+                absentCount={studentStats.absentAttendance}
+                lateCount={studentStats.lateAttendance}
+                excusedCount={studentStats.excusedAttendance}
+              />
             </div>
           </div>
         </div>
