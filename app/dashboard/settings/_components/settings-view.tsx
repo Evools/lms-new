@@ -62,6 +62,10 @@ import {
   FileSpreadsheet,
   X,
   Check,
+  Sun,
+  Moon,
+  Monitor,
+  Palette,
 } from "lucide-react";
 import type {
   UserProfileDTO,
@@ -544,88 +548,329 @@ export function SettingsView({
       {activeTab === "appearance" && (
         <div className="space-y-3">
           {/* Theme Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-4 shadow-xs">
-            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
-              <Sliders className="h-4 w-4 text-primary" /> Тема оформления
-            </h2>
+          <div className="bg-card border rounded-xl p-4 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <div className="space-y-0.5">
+                <h2 className="font-bold text-foreground text-xs flex items-center gap-2">
+                  <Palette className="h-4 w-4 text-primary" /> Тема оформления
+                </h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Выберите комфортную цветовую схему для работы в системе
+                </p>
+              </div>
+              <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium">
+                {theme === "light" ? "Светлая" : theme === "dark" ? "Тёмная" : "Системная"}
+              </Badge>
+            </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Light */}
               <button
                 type="button"
                 onClick={() => applyTheme("light")}
-                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "light"
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/40 hover:bg-muted/30"
-                  }`}
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+                  theme === "light"
+                    ? "border-primary bg-primary/5 shadow-xs"
+                    : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                }`}
               >
-                <div className="w-full h-16 rounded-lg bg-white border border-border flex flex-col gap-1 p-2 overflow-hidden">
-                  <div className="h-2 w-2/3 rounded bg-gray-200" />
-                  <div className="h-1.5 w-full rounded bg-gray-100" />
-                  <div className="h-1.5 w-4/5 rounded bg-gray-100" />
-                  <div className="h-2 w-1/2 rounded bg-teal-200 mt-auto" />
-                </div>
-                <span className="text-[11px] font-medium text-foreground">Светлая</span>
-                {theme === "light" && (
-                  <div className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-2.5 w-2.5 text-white" />
+                {/* Mockup Preview Light */}
+                <div className="w-full h-52 rounded-lg bg-slate-100 border border-slate-300/80 flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
+                  {/* Top Window Bar */}
+                  <div className="h-5 bg-slate-200/90 border-b border-slate-300/80 flex items-center px-2.5 gap-1.5 shrink-0">
+                    <div className="h-2 w-2 rounded-full bg-red-400/80" />
+                    <div className="h-2 w-2 rounded-full bg-amber-400/80" />
+                    <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
+                    <div className="h-2 w-16 bg-slate-300 rounded ml-2" />
                   </div>
-                )}
+
+                  <div className="flex-1 flex overflow-hidden">
+                    {/* Mini Sidebar */}
+                    <div className="w-1/4 bg-white border-r border-slate-200 p-2 flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        <div className="h-3 w-full bg-primary/20 rounded flex items-center px-1">
+                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        </div>
+                        <div className="h-1.5 w-3/4 bg-slate-200 rounded mt-2" />
+                        <div className="h-1.5 w-4/5 bg-slate-200 rounded" />
+                        <div className="h-1.5 w-2/3 bg-slate-200 rounded" />
+                        <div className="h-1.5 w-3/4 bg-slate-200 rounded" />
+                        <div className="h-1.5 w-1/2 bg-slate-200 rounded" />
+                      </div>
+                      <div className="h-3.5 w-full bg-slate-100 rounded flex items-center gap-1 p-1">
+                        <div className="h-2 w-2 rounded-full bg-slate-300 shrink-0" />
+                        <div className="h-1.5 w-2/3 bg-slate-300 rounded" />
+                      </div>
+                    </div>
+
+                    {/* Mini Main Content */}
+                    <div className="flex-1 bg-slate-50/90 p-2 flex flex-col gap-2 overflow-hidden">
+                      {/* Top header bar inside page */}
+                      <div className="h-4 w-full bg-white border border-slate-200/80 rounded flex items-center justify-between px-2">
+                        <div className="h-1.5 w-1/4 bg-slate-200 rounded" />
+                        <div className="flex items-center gap-1">
+                          <div className="h-2 w-6 bg-slate-200 rounded" />
+                          <div className="h-2 w-2 rounded-full bg-primary/80" />
+                        </div>
+                      </div>
+
+                      {/* Stat Cards Row */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div className="bg-white border border-slate-200/80 rounded p-1.5 space-y-1">
+                          <div className="h-1 w-1/2 bg-slate-300 rounded" />
+                          <div className="h-2 w-3/4 bg-primary/30 rounded" />
+                        </div>
+                        <div className="bg-white border border-slate-200/80 rounded p-1.5 space-y-1">
+                          <div className="h-1 w-1/2 bg-slate-300 rounded" />
+                          <div className="h-2 w-3/4 bg-slate-300 rounded" />
+                        </div>
+                        <div className="bg-white border border-slate-200/80 rounded p-1.5 space-y-1">
+                          <div className="h-1 w-1/2 bg-slate-300 rounded" />
+                          <div className="h-2 w-3/4 bg-slate-300 rounded" />
+                        </div>
+                      </div>
+
+                      {/* Lower 2 Widget Cards */}
+                      <div className="grid grid-cols-2 gap-1.5 flex-1">
+                        <div className="bg-white border border-slate-200/80 rounded p-2 flex flex-col justify-between">
+                          <div className="flex items-center justify-between">
+                            <div className="h-1.5 w-1/2 bg-slate-300 rounded" />
+                            <div className="h-1.5 w-4 bg-primary/30 rounded" />
+                          </div>
+                          <div className="flex items-end gap-1 h-8 pt-1">
+                            <div className="w-1/4 h-4 bg-primary/30 rounded-t" />
+                            <div className="w-1/4 h-6 bg-primary/50 rounded-t" />
+                            <div className="w-1/4 h-3 bg-primary/30 rounded-t" />
+                            <div className="w-1/4 h-8 bg-primary rounded-t" />
+                          </div>
+                        </div>
+
+                        <div className="bg-white border border-slate-200/80 rounded p-2 flex flex-col justify-between space-y-1">
+                          <div className="h-1.5 w-2/3 bg-slate-300 rounded" />
+                          <div className="space-y-1">
+                            <div className="h-2 w-full bg-slate-100 rounded flex items-center px-1">
+                              <div className="h-1 w-2/3 bg-slate-300 rounded" />
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded flex items-center px-1">
+                              <div className="h-1 w-1/2 bg-slate-300 rounded" />
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded flex items-center px-1">
+                              <div className="h-1 w-3/4 bg-slate-300 rounded" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between w-full">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Sun className="h-3.5 w-3.5 text-amber-500" /> Светлая
+                    </span>
+                    <p className="text-[10px] text-muted-foreground">Чистый светлый вид</p>
+                  </div>
+                  {theme === "light" && (
+                    <div className="h-4 w-4 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xs">
+                      <Check className="h-2.5 w-2.5" />
+                    </div>
+                  )}
+                </div>
               </button>
 
               {/* Dark */}
               <button
                 type="button"
                 onClick={() => applyTheme("dark")}
-                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "dark"
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/40 hover:bg-muted/30"
-                  }`}
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+                  theme === "dark"
+                    ? "border-primary bg-primary/5 shadow-xs"
+                    : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                }`}
               >
-                <div className="w-full h-16 rounded-lg bg-gray-900 border border-gray-700 flex flex-col gap-1 p-2 overflow-hidden">
-                  <div className="h-2 w-2/3 rounded bg-gray-600" />
-                  <div className="h-1.5 w-full rounded bg-gray-800" />
-                  <div className="h-1.5 w-4/5 rounded bg-gray-800" />
-                  <div className="h-2 w-1/2 rounded bg-teal-700 mt-auto" />
-                </div>
-                <span className="text-[11px] font-medium text-foreground">Тёмная</span>
-                {theme === "dark" && (
-                  <div className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-2.5 w-2.5 text-white" />
+                {/* Mockup Preview Dark */}
+                <div className="w-full h-52 rounded-lg bg-zinc-950 border border-zinc-800 flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
+                  {/* Top Window Bar */}
+                  <div className="h-5 bg-zinc-900 border-b border-zinc-800 flex items-center px-2.5 gap-1.5 shrink-0">
+                    <div className="h-2 w-2 rounded-full bg-red-400/80" />
+                    <div className="h-2 w-2 rounded-full bg-amber-400/80" />
+                    <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
+                    <div className="h-2 w-16 bg-zinc-700 rounded ml-2" />
                   </div>
-                )}
+
+                  <div className="flex-1 flex overflow-hidden">
+                    {/* Mini Sidebar */}
+                    <div className="w-1/4 bg-zinc-900 border-r border-zinc-800/80 p-2 flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        <div className="h-3 w-full bg-primary/30 rounded flex items-center px-1">
+                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        </div>
+                        <div className="h-1.5 w-3/4 bg-zinc-800 rounded mt-2" />
+                        <div className="h-1.5 w-4/5 bg-zinc-800 rounded" />
+                        <div className="h-1.5 w-2/3 bg-zinc-800 rounded" />
+                        <div className="h-1.5 w-3/4 bg-zinc-800 rounded" />
+                        <div className="h-1.5 w-1/2 bg-zinc-800 rounded" />
+                      </div>
+                      <div className="h-3.5 w-full bg-zinc-800/60 rounded flex items-center gap-1 p-1">
+                        <div className="h-2 w-2 rounded-full bg-zinc-700 shrink-0" />
+                        <div className="h-1.5 w-2/3 bg-zinc-700 rounded" />
+                      </div>
+                    </div>
+
+                    {/* Mini Main Content */}
+                    <div className="flex-1 bg-zinc-950 p-2 flex flex-col gap-2 overflow-hidden">
+                      {/* Top header bar */}
+                      <div className="h-4 w-full bg-zinc-900 border border-zinc-800/80 rounded flex items-center justify-between px-2">
+                        <div className="h-1.5 w-1/4 bg-zinc-700 rounded" />
+                        <div className="flex items-center gap-1">
+                          <div className="h-2 w-6 bg-zinc-800 rounded" />
+                          <div className="h-2 w-2 rounded-full bg-primary/80" />
+                        </div>
+                      </div>
+
+                      {/* Stat Cards Row */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-1.5 space-y-1">
+                          <div className="h-1 w-1/2 bg-zinc-700 rounded" />
+                          <div className="h-2 w-3/4 bg-primary/40 rounded" />
+                        </div>
+                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-1.5 space-y-1">
+                          <div className="h-1 w-1/2 bg-zinc-700 rounded" />
+                          <div className="h-2 w-3/4 bg-zinc-750 rounded" />
+                        </div>
+                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-1.5 space-y-1">
+                          <div className="h-1 w-1/2 bg-zinc-700 rounded" />
+                          <div className="h-2 w-3/4 bg-zinc-750 rounded" />
+                        </div>
+                      </div>
+
+                      {/* Lower 2 Widget Cards */}
+                      <div className="grid grid-cols-2 gap-1.5 flex-1">
+                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-2 flex flex-col justify-between">
+                          <div className="flex items-center justify-between">
+                            <div className="h-1.5 w-1/2 bg-zinc-700 rounded" />
+                            <div className="h-1.5 w-4 bg-primary/30 rounded" />
+                          </div>
+                          <div className="flex items-end gap-1 h-8 pt-1">
+                            <div className="w-1/4 h-4 bg-primary/30 rounded-t" />
+                            <div className="w-1/4 h-6 bg-primary/50 rounded-t" />
+                            <div className="w-1/4 h-3 bg-primary/30 rounded-t" />
+                            <div className="w-1/4 h-8 bg-primary rounded-t" />
+                          </div>
+                        </div>
+
+                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-2 flex flex-col justify-between space-y-1">
+                          <div className="h-1.5 w-2/3 bg-zinc-700 rounded" />
+                          <div className="space-y-1">
+                            <div className="h-2 w-full bg-zinc-800/60 rounded flex items-center px-1">
+                              <div className="h-1 w-2/3 bg-zinc-700 rounded" />
+                            </div>
+                            <div className="h-2 w-full bg-zinc-800/60 rounded flex items-center px-1">
+                              <div className="h-1 w-1/2 bg-zinc-700 rounded" />
+                            </div>
+                            <div className="h-2 w-full bg-zinc-800/60 rounded flex items-center px-1">
+                              <div className="h-1 w-3/4 bg-zinc-700 rounded" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between w-full">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Moon className="h-3.5 w-3.5 text-primary" /> Тёмная
+                    </span>
+                    <p className="text-[10px] text-muted-foreground">Для работы в темноте</p>
+                  </div>
+                  {theme === "dark" && (
+                    <div className="h-4 w-4 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xs">
+                      <Check className="h-2.5 w-2.5" />
+                    </div>
+                  )}
+                </div>
               </button>
 
               {/* System */}
               <button
                 type="button"
                 onClick={() => applyTheme("system")}
-                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === "system"
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/40 hover:bg-muted/30"
-                  }`}
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+                  theme === "system"
+                    ? "border-primary bg-primary/5 shadow-xs"
+                    : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                }`}
               >
-                <div className="w-full h-16 rounded-lg border border-border overflow-hidden flex">
-                  <div className="flex-1 bg-white flex flex-col gap-1 p-1.5">
-                    <div className="h-1.5 w-full rounded bg-gray-200" />
-                    <div className="h-1 w-4/5 rounded bg-gray-100" />
+                {/* Mockup Preview Split System */}
+                <div className="w-full h-52 rounded-lg border border-border flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
+                  {/* Top Window Bar Split */}
+                  <div className="h-5 flex border-b border-border shrink-0">
+                    <div className="w-1/2 bg-slate-200/90 border-r border-slate-300 flex items-center px-2.5 gap-1.5">
+                      <div className="h-2 w-2 rounded-full bg-red-400/80" />
+                      <div className="h-2 w-2 rounded-full bg-amber-400/80" />
+                      <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
+                    </div>
+                    <div className="w-1/2 bg-zinc-900 flex items-center justify-end px-2.5 gap-1">
+                      <div className="h-2 w-10 bg-zinc-700 rounded" />
+                    </div>
                   </div>
-                  <div className="flex-1 bg-gray-900 flex flex-col gap-1 p-1.5">
-                    <div className="h-1.5 w-full rounded bg-gray-700" />
-                    <div className="h-1 w-4/5 rounded bg-gray-800" />
+
+                  <div className="flex-1 flex overflow-hidden">
+                    {/* Left Half (Light) */}
+                    <div className="w-1/2 bg-slate-50 border-r border-slate-200 flex flex-col p-2 gap-1.5">
+                      <div className="h-3.5 w-full bg-white border border-slate-200 rounded flex items-center px-1.5">
+                        <div className="h-1.5 w-1/2 bg-slate-300 rounded" />
+                      </div>
+                      <div className="bg-white border border-slate-200 rounded p-1.5 flex-1 flex flex-col justify-between space-y-1">
+                        <div className="h-1.5 w-2/3 bg-slate-300 rounded" />
+                        <div className="h-2 w-full bg-primary/30 rounded" />
+                        <div className="flex items-end gap-1 h-10 pt-1">
+                          <div className="w-1/3 h-4 bg-primary/30 rounded-t" />
+                          <div className="w-1/3 h-7 bg-primary/60 rounded-t" />
+                          <div className="w-1/3 h-3 bg-primary/30 rounded-t" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Half (Dark) */}
+                    <div className="w-1/2 bg-zinc-950 flex flex-col p-2 gap-1.5">
+                      <div className="h-3.5 w-full bg-zinc-900 border border-zinc-800 rounded flex items-center justify-end px-1.5">
+                        <div className="h-1.5 w-1/2 bg-zinc-700 rounded" />
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 rounded p-1.5 flex-1 flex flex-col justify-between space-y-1">
+                        <div className="h-1.5 w-2/3 bg-zinc-700 rounded" />
+                        <div className="h-2 w-full bg-primary/40 rounded" />
+                        <div className="flex items-end gap-1 h-10 pt-1">
+                          <div className="w-1/3 h-4 bg-primary/30 rounded-t" />
+                          <div className="w-1/3 h-7 bg-primary/60 rounded-t" />
+                          <div className="w-1/3 h-3 bg-primary/30 rounded-t" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <span className="text-[11px] font-medium text-foreground">Системная</span>
-                {theme === "system" && (
-                  <div className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-2.5 w-2.5 text-white" />
+
+                <div className="flex items-center justify-between w-full">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Monitor className="h-3.5 w-3.5 text-muted-foreground" /> Системная
+                    </span>
+                    <p className="text-[10px] text-muted-foreground">Синхронизация с ОС</p>
                   </div>
-                )}
+                  {theme === "system" && (
+                    <div className="h-4 w-4 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xs">
+                      <Check className="h-2.5 w-2.5" />
+                    </div>
+                  )}
+                </div>
               </button>
             </div>
 
-            <p className="text-[11px] text-muted-foreground">
-              Тема сохраняется в вашем браузере и применяется сразу без перезагрузки страницы.
+            <p className="text-[11px] text-muted-foreground pt-1 border-t">
+              Тема мгновенно сохраняется в вашем браузере и применяется ко всем страницам без перезагрузки.
             </p>
           </div>
 

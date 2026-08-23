@@ -44,18 +44,33 @@ interface TeacherOption {
   email: string;
 }
 
-interface GroupCreationFormProps {
-  teachersList?: TeacherOption[];
+interface AcademicYearOption {
+  id: string;
+  name: string;
+  isCurrent?: boolean;
 }
 
-export function GroupCreationForm({ teachersList = [] }: GroupCreationFormProps) {
+interface GroupCreationFormProps {
+  teachersList?: TeacherOption[];
+  academicYearsList?: AcademicYearOption[];
+}
+
+export function GroupCreationForm({
+  teachersList = [],
+  academicYearsList = [],
+}: GroupCreationFormProps) {
   const router = useRouter();
+
+  const defaultYear =
+    academicYearsList.find((y) => y.isCurrent)?.name ||
+    academicYearsList[0]?.name ||
+    "2025-2026";
 
   const [groupName, setGroupName] = useState("");
   const [course, setCourse] = useState("1");
   const [specialty, setSpecialty] = useState("Информационные системы и программирование");
   const [curatorId, setCuratorId] = useState<string>("unassigned");
-  const [academicYear, setAcademicYear] = useState("2025-2026");
+  const [academicYear, setAcademicYear] = useState(defaultYear);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
@@ -205,8 +220,18 @@ export function GroupCreationForm({ teachersList = [] }: GroupCreationFormProps)
                       <SelectValue placeholder="Выберите учебный год" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="2025-2026" className="text-xs">2025-2026 учебный год</SelectItem>
-                      <SelectItem value="2026-2027" className="text-xs">2026-2027 учебный год</SelectItem>
+                      {academicYearsList && academicYearsList.length > 0 ? (
+                        academicYearsList.map((y) => (
+                          <SelectItem key={y.id} value={y.name} className="text-xs">
+                            {y.name} учебный год {y.isCurrent ? "(Текущий)" : ""}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="2025-2026" className="text-xs">2025-2026 учебный год</SelectItem>
+                          <SelectItem value="2026-2027" className="text-xs">2026-2027 учебный год</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

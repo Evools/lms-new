@@ -142,6 +142,19 @@ export async function getTeachersListAction() {
   }
 }
 
+export async function getAcademicYearsListAction() {
+  try {
+    const years = await prisma.academicYear.findMany({
+      orderBy: [{ isCurrent: "desc" }, { startDate: "desc" }],
+      select: { id: true, name: true, isCurrent: true },
+    });
+    return years;
+  } catch (error) {
+    console.error("Failed to fetch academic years list:", error);
+    return [];
+  }
+}
+
 export async function createGroupAction(data: {
   name: string;
   curatorId?: string;

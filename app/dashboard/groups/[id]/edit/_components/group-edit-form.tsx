@@ -45,13 +45,25 @@ interface TeacherOption {
   email: string;
 }
 
+interface AcademicYearOption {
+  id: string;
+  name: string;
+  isCurrent?: boolean;
+}
+
 interface GroupEditFormProps {
   group: GroupDTO;
   userRole: string;
   teachersList?: TeacherOption[];
+  academicYearsList?: AcademicYearOption[];
 }
 
-export function GroupEditForm({ group, userRole, teachersList = [] }: GroupEditFormProps) {
+export function GroupEditForm({
+  group,
+  userRole,
+  teachersList = [],
+  academicYearsList = [],
+}: GroupEditFormProps) {
   const router = useRouter();
 
   const [groupName, setGroupName] = useState(group.name);
@@ -198,8 +210,18 @@ export function GroupEditForm({ group, userRole, teachersList = [] }: GroupEditF
                       <SelectValue placeholder="Выберите учебный год" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="2025-2026">2025-2026 учебный год</SelectItem>
-                      <SelectItem value="2026-2027">2026-2027 учебный год</SelectItem>
+                      {academicYearsList && academicYearsList.length > 0 ? (
+                        academicYearsList.map((y) => (
+                          <SelectItem key={y.id} value={y.name} className="text-xs">
+                            {y.name} учебный год {y.isCurrent ? "(Текущий)" : ""}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="2025-2026" className="text-xs">2025-2026 учебный год</SelectItem>
+                          <SelectItem value="2026-2027" className="text-xs">2026-2027 учебный год</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

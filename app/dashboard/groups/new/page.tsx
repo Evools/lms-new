@@ -1,6 +1,9 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getTeachersListAction } from "../actions";
+import {
+  getTeachersListAction,
+  getAcademicYearsListAction,
+} from "@/app/dashboard/groups/actions";
 import { GroupCreationForm } from "./_components/group-creation-form";
 
 export default async function NewGroupPage() {
