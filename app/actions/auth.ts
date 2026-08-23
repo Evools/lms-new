@@ -15,7 +15,7 @@ export async function loginAction(formData: FormData) {
     await signIn("credentials", {
       email: identifier,
       password,
-      redirectTo: "/dashboard",
+      redirect: false,
     });
     return { success: true };
   } catch (error) {

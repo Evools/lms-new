@@ -25,6 +25,11 @@ import {
   markNotificationAsReadAction,
   markAllNotificationsAsReadAction,
 } from "@/app/dashboard/notifications/actions";
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+} from "@/lib/web-notifications";
 
 interface NotificationItem {
   id: string;
@@ -42,6 +47,7 @@ export function NotificationsPopover() {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>("default");
 
   const fetchNotifications = async () => {
     const res = await getNotificationsAction(5);
@@ -53,7 +59,25 @@ export function NotificationsPopover() {
 
   useEffect(() => {
     fetchNotifications();
+    if (isNotificationSupported()) {
+      setPushPermission(getNotificationPermission());
+    }
+
+    const handleNewNotification = () => {
+      fetchNotifications();
+    };
+
+    window.addEventListener("lms-new-notification", handleNewNotification);
+    return () => {
+      window.removeEventListener("lms-new-notification", handleNewNotification);
+    };
   }, []);
+
+  const handleRequestPush = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const perm = await requestNotificationPermission();
+    setPushPermission(perm);
+  };
 
   const handleMarkAllRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -139,6 +163,21 @@ export function NotificationsPopover() {
             </Button>
           )}
         </div>
+
+        {/* Push Notifications Enable Banner */}
+        {pushPermission !== "granted" && (
+          <div className="px-3 py-2 bg-primary/5 border-b flex items-center justify-between gap-2">
+            <span className="text-[10px] text-muted-foreground">Пуши в браузере:</span>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={handleRequestPush}
+              className="h-5 px-2 text-[10px] border-primary/30 text-primary hover:bg-primary/10"
+            >
+              Включить
+            </Button>
+          </div>
+        )}
 
         {/* List */}
         <div className="max-h-[300px] overflow-y-auto divide-y divide-border/60">

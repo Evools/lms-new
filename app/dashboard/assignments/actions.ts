@@ -204,7 +204,7 @@ export async function createAssignmentAction(data: {
   }
 
   try {
-    await prisma.assignment.create({
+    const newAssignment = await prisma.assignment.create({
       data: {
         groupSubjectId: data.groupSubjectId,
         authorId: session.user.id,
@@ -213,7 +213,33 @@ export async function createAssignmentAction(data: {
         fileUrl: data.fileUrl?.trim() || null,
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
       },
+      include: {
+        groupSubject: {
+          include: {
+            subject: true,
+            group: {
+              include: {
+                students: { select: { studentId: true } },
+              },
+            },
+          },
+        },
+      },
     });
+
+    // Notify all students in this group
+    const students = newAssignment.groupSubject.group.students;
+    if (students.length > 0) {
+      await prisma.notification.createMany({
+        data: students.map((s) => ({
+          userId: s.studentId,
+          title: `Новое задание: ${newAssignment.title}`,
+          message: `Опубликовано задание по дисциплине "${newAssignment.groupSubject.subject.name}".`,
+          type: "ASSIGNMENT",
+          link: "/dashboard/assignments",
+        })),
+      });
+    }
 
     revalidatePath("/dashboard/assignments");
     return { success: true };
@@ -296,6 +322,25 @@ export async function submitAssignmentAction(data: {
       },
     });
 
+    // Notify assignment teacher / author
+    const assignmentWithAuthor = await prisma.assignment.findUnique({
+      where: { id: data.assignmentId },
+      include: {
+        author: { select: { id: true } },
+      },
+    });
+    if (assignmentWithAuthor?.author?.id && assignmentWithAuthor.author.id !== session.user.id) {
+      await prisma.notification.create({
+        data: {
+          userId: assignmentWithAuthor.author.id,
+          title: `${session.user.name || "Студент"} сдал(а) решение`,
+          message: `Сдано решение по заданию "${assignmentWithAuthor.title}".`,
+          type: "SUBMISSION",
+          link: "/dashboard/assignments",
+        },
+      });
+    }
+
     revalidatePath("/dashboard/assignments");
     return { success: true };
   } catch (error: any) {
@@ -320,13 +365,29 @@ export async function reviewSubmissionAction(data: {
   }
 
   try {
-    await prisma.assignmentSubmission.update({
+    const updatedSub = await prisma.assignmentSubmission.update({
       where: { id: data.submissionId },
       data: {
         status: data.status,
         teacherComment: data.teacherComment?.trim() || null,
         reviewedAt: new Date(),
         grade: data.grade ?? null,
+      },
+      include: {
+        assignment: { select: { title: true } },
+      },
+    });
+
+    // Notify student about review result
+    const statusText = data.status === SubmissionStatus.ACCEPTED ? "Принято" : "На доработке";
+    const gradeText = data.grade != null ? ` (Оценка: ${data.grade}/5)` : "";
+    await prisma.notification.create({
+      data: {
+        userId: updatedSub.studentId,
+        title: `Работа проверена: ${updatedSub.assignment.title}`,
+        message: `Статус: ${statusText}${gradeText}.${data.teacherComment ? ` Замечания: ${data.teacherComment}` : ""}`,
+        type: "GRADE",
+        link: "/dashboard/assignments",
       },
     });
 
