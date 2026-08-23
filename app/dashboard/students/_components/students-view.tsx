@@ -286,7 +286,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
         </div>
 
         {isAdminOrTeacher && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0" data-tour="students-header-actions">
             <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/students/new" />}>
               <FileSpreadsheet className="h-3.5 w-3.5 text-primary" /> Импорт из Excel
             </Button>
@@ -298,7 +298,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
       </div>
 
       {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-tour="students-metrics">
         <div className="rounded-xl border bg-card p-3 flex items-center justify-between shadow-2xs">
           <div className="space-y-0.5">
             <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Всего зачислено</span>
@@ -331,7 +331,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
       </div>
 
       {/* Filters Toolbar & View Toggle */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-muted/20 p-2 rounded-xl border">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-muted/20 p-2 rounded-xl border" data-tour="students-filters">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
@@ -406,7 +406,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
       </div>
 
       {/* Main Content: Table View */}
-      <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="rounded-xl border bg-card overflow-hidden" data-tour="students-list">
         <div className="border-b overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead className="bg-muted/40 border-b text-[11px] font-semibold text-muted-foreground">

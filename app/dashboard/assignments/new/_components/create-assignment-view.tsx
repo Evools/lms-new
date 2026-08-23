@@ -460,6 +460,7 @@ export function CreateAssignmentView({
             onClick={handleSubmit}
             className="h-8 text-xs gap-1.5 font-medium"
             title="Опубликовать (Ctrl + Enter)"
+            data-tour="assignment-new-submit"
           >
             <Send className="h-3.5 w-3.5" />
             {isPending ? "Публикация..." : "Опубликовать задание"}
@@ -480,7 +481,7 @@ export function CreateAssignmentView({
         <div className="lg:col-span-2 space-y-3">
           <Card className="border shadow-none p-3 space-y-2.5">
             {/* Assignment Title Field */}
-            <div className="space-y-1">
+            <div className="space-y-1" data-tour="assignment-new-title">
               <label className="font-medium text-muted-foreground text-[10px] uppercase tracking-wider">
                 Название домашнего задания
               </label>
@@ -493,7 +494,7 @@ export function CreateAssignmentView({
             </div>
 
             {/* WYSIWYG Visual Editor Controls */}
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="assignment-new-editor">
               <div className="bg-muted/40 p-2.5 rounded-lg border space-y-2">
                 {/* Top Control Bar: Mode Toggle & Templates Dropdown */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
@@ -521,7 +522,7 @@ export function CreateAssignmentView({
                   </div>
 
                   {/* Clean Templates Selector */}
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5" data-tour="assignment-new-templates">
                     <Select value={selectedTemplateId} onValueChange={handleApplyTemplate}>
                       <SelectTrigger className="h-7 text-[11px] font-medium bg-background shadow-none border-border text-foreground gap-1.5 min-w-[170px]">
                         <LayoutTemplate className="h-3 w-3 text-primary shrink-0" />
@@ -740,7 +741,7 @@ export function CreateAssignmentView({
         {/* Right Column: Settings, Metadata & Attachments Sidebar */}
         <div className="space-y-2.5 sticky top-20 z-10 self-start">
           {/* Metadata Card */}
-          <div className="rounded-xl border bg-card p-3 space-y-2 text-xs shadow-xs">
+          <div className="rounded-xl border bg-card p-3 space-y-2 text-xs shadow-xs" data-tour="assignment-new-group-subject">
             <CardHeader className="p-0 pb-1.5 border-b">
               <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <Building2 className="h-4 w-4 text-primary" /> Параметры публикации
@@ -782,7 +783,7 @@ export function CreateAssignmentView({
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2" data-tour="assignment-new-deadline">
                 <div className="space-y-1">
                   <label className="font-medium text-foreground text-xs flex items-center gap-1">
                     <Calendar className="h-3 w-3 text-primary" /> Срок сдачи
@@ -811,7 +812,7 @@ export function CreateAssignmentView({
           </div>
 
           {/* Attachments Card */}
-          <Card className="border shadow-none p-3 space-y-2.5">
+          <Card className="border shadow-none p-3 space-y-2.5" data-tour="assignment-new-attachments">
             <div className="flex items-center justify-between border-b pb-1.5">
               <CardTitle className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <Paperclip className="h-4 w-4 text-primary" /> Материалы & Ссылки

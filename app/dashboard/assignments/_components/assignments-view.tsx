@@ -403,7 +403,7 @@ export function AssignmentsView({
           </div>
 
           {canCreate && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" data-tour="assignments-create-btn">
               <Link href={`/dashboard/assignments/new?group=${currentGroupId}`}>
                 <Button size="xs" className="h-8 text-xs gap-1.5 font-medium px-3">
                   <Plus className="h-3.5 w-3.5" /> Создать
@@ -425,7 +425,7 @@ export function AssignmentsView({
       </div>
 
       {/* Control & Filters Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center" data-tour="assignments-filters">
         {/* Group Selector */}
         <div className="lg:col-span-3">
           <Select value={currentGroupId} onValueChange={handleGroupChange}>
@@ -561,7 +561,7 @@ export function AssignmentsView({
 
       {/* VIEW MODE 1: High-Density Table View (Default) */}
       {viewMode === "table" ? (
-        <div className="bg-card rounded-xl border shadow-xs overflow-hidden">
+        <div className="bg-card rounded-xl border shadow-xs overflow-hidden" data-tour="assignments-list">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>

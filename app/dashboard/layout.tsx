@@ -7,6 +7,7 @@ import { AppHeaderBreadcrumbs } from "@/components/app-header-breadcrumbs";
 import { NotificationsPopover } from "@/components/notifications-popover";
 import { TourTriggerButton } from "@/components/tour-trigger-button";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import { TourHubModal } from "@/components/tour-hub-modal";
 import { prisma } from "@/lib/prisma";
 
 export default async function DashboardLayout({
@@ -70,6 +71,7 @@ export default async function DashboardLayout({
       </SidebarInset>
 
       <OnboardingTour />
+      <TourHubModal userRole={role ?? "STUDENT"} />
     </SidebarProvider>
   );
 }

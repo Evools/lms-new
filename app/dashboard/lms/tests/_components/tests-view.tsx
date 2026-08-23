@@ -321,7 +321,7 @@ export function TestsView({
         </div>
 
         {/* Quick KPI Stat Chips */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap" data-tour="tests-header-stats">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
             <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
             <span className="text-muted-foreground">Тестов:</span>
@@ -341,7 +341,7 @@ export function TestsView({
           </div>
 
           {canCreate && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" data-tour="tests-create-btn">
               <Link href={`/dashboard/lms/tests/new?group=${selectedGroupId}&topic=${selectedTopicId}`}>
                 <Button size="xs" className="h-8 text-xs gap-1.5 font-medium px-3">
                   <Plus className="h-3.5 w-3.5" /> Конструктор
@@ -363,7 +363,7 @@ export function TestsView({
       </div>
 
       {/* Control & Filters Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center" data-tour="tests-filters">
         {/* Group Selector */}
         <div className="lg:col-span-3">
           <Select value={selectedGroupId} onValueChange={handleGroupChange}>
@@ -489,7 +489,7 @@ export function TestsView({
 
       {/* VIEW MODE 1: Compact Table View (Default) */}
       {viewMode === "table" ? (
-        <div className="bg-card rounded-xl border shadow-xs overflow-hidden">
+        <div className="bg-card rounded-xl border shadow-xs overflow-hidden" data-tour="tests-list">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>

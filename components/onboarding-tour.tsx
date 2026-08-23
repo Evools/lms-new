@@ -11,6 +11,13 @@ import {
   LayoutDashboard,
   Bell,
   User,
+  BookOpen,
+  FileCheck2,
+  CalendarCheck,
+  Users,
+  Clock,
+  ShieldCheck,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -23,68 +30,406 @@ export interface TourStep {
   placement?: "bottom" | "top" | "left" | "right" | "center";
 }
 
-const DEFAULT_TOUR_STEPS: TourStep[] = [
-  {
-    id: "welcome",
-    targetSelector: "[data-tour='sidebar-nav']",
-    title: "Навигация и разделы",
-    description:
-      "Здесь собраны все ключевые разделы системы: учебные группы, база студентов, дисциплины, журнал посещаемости и онлайн-тестирование LMS.",
-    icon: <LayoutDashboard className="h-4 w-4 text-primary" />,
-    placement: "right",
-  },
-  {
-    id: "header-breadcrumbs",
-    targetSelector: "[data-tour='header-breadcrumbs']",
-    title: "Хлебные крошки и путь",
-    description:
-      "Отображает текущее местоположение в системе. Вы всегда можете быстро вернуться в предыдущий раздел одним кликом.",
-    icon: <Compass className="h-4 w-4 text-primary" />,
-    placement: "bottom",
-  },
-  {
-    id: "notifications",
-    targetSelector: "[data-tour='header-notifications']",
-    title: "Центр уведомлений",
-    description:
-      "Все важные системные события, назначения тестов, объявления и дежурства мгновенно появляются здесь.",
-    icon: <Bell className="h-4 w-4 text-primary" />,
-    placement: "bottom",
-  },
-  {
-    id: "user-profile",
-    targetSelector: "[data-tour='sidebar-user']",
-    title: "Профиль и персональные настройки",
-    description:
-      "Переключение темы оформления (светлая/тёмная), изменение пароля, управление аккаунтом и доступ к системным настройкам.",
-    icon: <User className="h-4 w-4 text-primary" />,
-    placement: "right",
-  },
-  {
-    id: "dashboard-content",
-    targetSelector: "[data-tour='dashboard-content']",
-    title: "Рабочая область",
-    description:
-      "Основное пространство для работы с материалами, аналитикой, расписанием и оперативными данными.",
-    icon: <Sparkles className="h-4 w-4 text-primary" />,
-    placement: "bottom",
-  },
-];
+const TOUR_SCENARIOS: Record<string, TourStep[]> = {
+  general: [
+    {
+      id: "welcome",
+      targetSelector: "[data-tour='sidebar-nav']",
+      title: "Навигация и разделы",
+      description:
+        "Здесь собраны все ключевые разделы системы: учебные группы, база студентов, дисциплины, журнал посещаемости, домашние задания и онлайн-тестирование LMS.",
+      icon: <LayoutDashboard className="h-4 w-4 text-primary" />,
+      placement: "right",
+    },
+    {
+      id: "header-breadcrumbs",
+      targetSelector: "[data-tour='header-breadcrumbs']",
+      title: "Хлебные крошки и путь",
+      description:
+        "Отображает текущее местоположение в системе. Вы всегда можете быстро вернуться в предыдущий раздел одним кликом.",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "notifications",
+      targetSelector: "[data-tour='header-notifications']",
+      title: "Центр уведомлений",
+      description:
+        "Все важные системные события, новые задания, назначения тестов, объявления и дежурства мгновенно появляются здесь.",
+      icon: <Bell className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "user-profile",
+      targetSelector: "[data-tour='sidebar-user']",
+      title: "Профиль и персональные настройки",
+      description:
+        "Переключение темы оформления (светлая/тёмная/системная), изменение пароля, управление аккаунтом и доступ к системным настройкам.",
+      icon: <User className="h-4 w-4 text-primary" />,
+      placement: "right",
+    },
+    {
+      id: "dashboard-content",
+      targetSelector: "[data-tour='dashboard-content']",
+      title: "Рабочая область",
+      description:
+        "Основное пространство для работы с материалами, аналитикой, расписанием и оперативными данными.",
+      icon: <Sparkles className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+  ],
+  assignments: [
+    {
+      id: "assignments-create",
+      targetSelector: "[data-tour='assignments-create-btn']",
+      title: "Создание домашнего задания",
+      description:
+        "Кнопка перехода в форму создания ДЗ (/dashboard/assignments/new). Здесь вы задаете тему, выбираете группу и предмет, указываете дедлайн и прикрепляете файлы.",
+      icon: <LayoutDashboard className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "assignments-filters",
+      targetSelector: "[data-tour='assignments-filters']",
+      title: "Фильтрация и поиск заданий",
+      description:
+        "Быстрое переключение между учебными группами, предметами и табами статусов ('Все' / 'На проверку').",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "assignments-list",
+      targetSelector: "[data-tour='assignments-list']",
+      title: "Реестр заданий и проверка работ",
+      description:
+        "В строке каждого задания отображается количество сданных работ и кнопка вызова окна проверки. Кликните по ней для быстрого выставления оценок и рецензий.",
+      icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+      placement: "top",
+    },
+  ],
+  assignment_new: [
+    {
+      id: "new-title",
+      targetSelector: "[data-tour='assignment-new-title']",
+      title: "1. Название и тема задания",
+      description:
+        "Введите понятный заголовок работы, например: «Лабораторная работа №3. Настройка Next.js и Prisma».",
+      icon: <LayoutDashboard className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "new-templates",
+      targetSelector: "[data-tour='assignment-new-templates']",
+      title: "2. Готовые шаблоны-пресеты",
+      description:
+        "Используйте выпадающий список шаблонов (REST API, Лабораторная работа, Проект, Контрольные вопросы) для мгновенной вставки типовой структуры работы.",
+      icon: <Sparkles className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "new-editor",
+      targetSelector: "[data-tour='assignment-new-editor']",
+      title: "3. Markdown-редактор и Предпросмотр",
+      description:
+        "Оформите требования с помощью панели форматирования: жирный текст, списки задач, блоки кода. Переключайтесь во вкладку «Предпросмотр» для проверки внешнего вида.",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "new-group-subject",
+      targetSelector: "[data-tour='assignment-new-group-subject']",
+      title: "4. Выбор группы и дисциплины",
+      description:
+        "Укажите учебную группу и предмет, к которому относится задание. Список предметов автоматически фильтруется под выбранную группу.",
+      icon: <User className="h-4 w-4 text-primary" />,
+      placement: "left",
+    },
+    {
+      id: "new-deadline",
+      targetSelector: "[data-tour='assignment-new-deadline']",
+      title: "5. Дедлайн и максимальный балл",
+      description:
+        "Установите точную дату сдачи и максимальную оценку за задание (например, 100 баллов или 5).",
+      icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+      placement: "left",
+    },
+    {
+      id: "new-attachments",
+      targetSelector: "[data-tour='assignment-new-attachments']",
+      title: "6. Ссылки и методические материалы",
+      description:
+        "Добавьте ссылки на репозиторий GitHub, макет Figma или файлы на облачном диске с помощью кнопки «+ Ссылка».",
+      icon: <Sparkles className="h-4 w-4 text-primary" />,
+      placement: "left",
+    },
+    {
+      id: "new-submit",
+      targetSelector: "[data-tour='assignment-new-submit']",
+      title: "7. Публикация задания",
+      description:
+        "Нажмите «Опубликовать задание» или используйте горячие клавиши Ctrl+Enter (Cmd+Enter). Студенты группы сразу получат уведомление.",
+      icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+  ],
+  tests: [
+    {
+      id: "tests-stats",
+      targetSelector: "[data-tour='tests-header-stats']",
+      title: "1. Сводка и успеваемость",
+      description:
+        "Мгновенная аналитика по всем тестам выбранной группы: общее количество созданных тестов, число сданных работ и средний процент успеваемости.",
+      icon: <FileCheck2 className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "tests-create",
+      targetSelector: "[data-tour='tests-create-btn']",
+      title: "2. Создание тестов",
+      description:
+        "Кнопка «Конструктор» открывает полноценный редактор с 9 типами вопросов (одиночный, множественный выбор, число, текст, код, сопоставление). «Быстрый тест» позволяет создать экспресс-опросник в модальном окне.",
+      icon: <Sparkles className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "tests-filter-bar",
+      targetSelector: "[data-tour='tests-filters']",
+      title: "3. Фильтрация и поиск",
+      description:
+        "Быстрый отбор тестов по учебным группам, предметам, тематическим модулям или названию.",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "tests-registry",
+      targetSelector: "[data-tour='tests-list']",
+      title: "4. Реестр и ведомость результатов",
+      description:
+        "Список тестов с информацией о количестве вопросов, таймере и ссылками для просмотра ведомости сдачи студентами группы.",
+      icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+      placement: "top",
+    },
+  ],
+  attendance: [
+    {
+      id: "attendance-actions",
+      targetSelector: "[data-tour='attendance-header-actions']",
+      title: "1. Быстрая отметка и печать",
+      description:
+        "Кнопка «Отметить всех присутствующими» заполняет журнал в один клик. Кнопка «Печать бланка» формирует официальную ведомость по стандартам лицея.",
+      icon: <CalendarCheck className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "attendance-filters-bar",
+      targetSelector: "[data-tour='attendance-filters']",
+      title: "2. Выбор группы, предмета и даты",
+      description:
+        "Выберите учебную группу, предмет и точную дату занятия для просмотра или заполнения журнала.",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "attendance-summary-kpi",
+      targetSelector: "[data-tour='attendance-metrics']",
+      title: "3. Статистика занятия",
+      description:
+        "Сводка по явке на занятие: количество присутствующих, отсутствующих, опоздавших, уважительных пропусков и общий процент явки.",
+      icon: <Users className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "attendance-student-table",
+      targetSelector: "[data-tour='attendance-table']",
+      title: "4. Интерактивная ведомость",
+      description:
+        "Список учащихся с переключателями статусов (Присутствует, Болел, Не был, Опоздал) и возможностью оставить текстовое примечание.",
+      icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+      placement: "top",
+    },
+  ],
+  students: [
+    {
+      id: "students-actions",
+      targetSelector: "[data-tour='students-header-actions']",
+      title: "1. Зачисление и Excel-импорт",
+      description:
+        "Добавляйте студентов вручную по одному или используйте пакетную загрузку списков групп из файлов Excel (.xlsx).",
+      icon: <GraduationCap className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "students-kpi",
+      targetSelector: "[data-tour='students-metrics']",
+      title: "2. Сводка по контингенту",
+      description:
+        "Оперативная статистика учащихся: общее число зачисленных, количество активных учетных записей и студентов с временными паролями.",
+      icon: <Users className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "students-search-filters",
+      targetSelector: "[data-tour='students-filters']",
+      title: "3. Поиск и фильтрация",
+      description:
+        "Фильтруйте учащихся по учебным группам, статусам учетных записей (Активен, Заблокирован) и форме обучения (Бюджет / Контракт).",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "students-registry",
+      targetSelector: "[data-tour='students-list']",
+      title: "4. База данных учащихся",
+      description:
+        "Полный реестр студентов с контактами, историей активности и кнопками управления учетными записями.",
+      icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+      placement: "top",
+    },
+  ],
+  duty: [
+    {
+      id: "duty-actions",
+      targetSelector: "[data-tour='duty-header-actions']",
+      title: "1. Авто-ротация и печать",
+      description:
+        "Кнопка «Авто-ротация» автоматически распределяет смены дежурств среди студентов группы без повторов. Кнопка «Печать» генерирует настенный график.",
+      icon: <Clock className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "duty-summary-kpi",
+      targetSelector: "[data-tour='duty-kpi']",
+      title: "2. Статистика дежурств",
+      description:
+        "Показывает список назначенных дежурных на сегодняшний день, общее количество смен на текущую неделю и состав группы.",
+      icon: <Users className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "duty-nav-filters",
+      targetSelector: "[data-tour='duty-filters']",
+      title: "3. Навигация и поиск",
+      description:
+        "Переключайтесь между расписанием группы и экраном аудита/рейтинга дежурств, а также выполняйте быстрый поиск по фамилии учащегося.",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "duty-schedule-grid",
+      targetSelector: "[data-tour='duty-roster']",
+      title: "4. Еженедельный график дежурств",
+      description:
+        "Календарная сетка по дням недели с указанием старших дежурных, ответственных учащихся и дисциплинарных назначений.",
+      icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+      placement: "top",
+    },
+  ],
+  settings: [
+    {
+      id: "settings-nav-tabs",
+      targetSelector: "[data-tour='settings-tabs']",
+      title: "1. Разделы настроек",
+      description:
+        "Вкладки управления: персонализация оформления, глобальные параметры системы, сотрудники/доступы и справочник учебных годов.",
+      icon: <ShieldCheck className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "settings-theme-card",
+      targetSelector: "[data-tour='settings-theme']",
+      title: "2. Тема интерфейса",
+      description:
+        "Выберите комфортный режим: светлая, тёмная или автоматическая синхронизация с темой операционной системы.",
+      icon: <Sparkles className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "settings-guides",
+      targetSelector: "[data-tour='settings-tour-hub']",
+      title: "3. База знаний и обучение",
+      description:
+        "Центр справки: интерактивные пошаговые туры, частые вопросы (FAQ) и памятка горячих клавиш.",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "top",
+    },
+  ],
+  student_assignments: [
+    {
+      id: "std-hw-filters",
+      targetSelector: "[data-tour='assignments-filters']",
+      title: "1. Ваши домашние задания",
+      description:
+        "Фильтруйте задания по предметам и статусам сдачи: «Все» или «На проверке».",
+      icon: <BookOpen className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "std-hw-list",
+      targetSelector: "[data-tour='assignments-list']",
+      title: "2. Сдача решений и оценки",
+      description:
+        "Кликните на карточку задания, чтобы ознакомиться с требованиями, прикрепить файлы решения или ссылку и увидеть комментарий преподавателя с оценкой.",
+      icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+      placement: "top",
+    },
+  ],
+  student_tests: [
+    {
+      id: "std-tests-filters",
+      targetSelector: "[data-tour='tests-filters']",
+      title: "1. Доступные онлайн-тесты",
+      description:
+        "Здесь отображаются все тесты, назначенные вашей группе по изучаемым предметам.",
+      icon: <FileCheck2 className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "std-tests-list",
+      targetSelector: "[data-tour='tests-list']",
+      title: "2. Прохождение тестирования",
+      description:
+        "Нажмите на тест, чтобы начать прохождение. Следите за таймером вверху страницы и отправляйте ответы для моментального подсчета баллов.",
+      icon: <Sparkles className="h-4 w-4 text-primary" />,
+      placement: "top",
+    },
+  ],
+  student_attendance: [
+    {
+      id: "std-att-filters",
+      targetSelector: "[data-tour='attendance-filters']",
+      title: "1. Выбор предмета и даты",
+      description:
+        "Просматривайте журнал посещаемости по конкретной дисциплине и дате занятия.",
+      icon: <Compass className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+    {
+      id: "std-att-metrics",
+      targetSelector: "[data-tour='attendance-metrics']",
+      title: "2. Статистика посещаемости",
+      description:
+        "Общее количество посещенных занятий, уважительных пропусков по справке и ваш итоговый процент явки.",
+      icon: <CalendarCheck className="h-4 w-4 text-primary" />,
+      placement: "bottom",
+    },
+  ],
+};
 
 const STORAGE_KEY = "lms_onboarding_tour_completed_v2";
 
-export function startOnboardingTour() {
+export function startOnboardingTour(scenario: string = "general") {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("lms-start-tour"));
+    window.dispatchEvent(new CustomEvent("lms-start-tour", { detail: { scenario } }));
   }
 }
 
 export function OnboardingTour() {
   const [isOpen, setIsOpen] = useState(false);
+  const [currentScenario, setCurrentScenario] = useState<string>("general");
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
 
-  const steps = DEFAULT_TOUR_STEPS;
+  const steps = TOUR_SCENARIOS[currentScenario] || TOUR_SCENARIOS.general;
   const currentStep = steps[currentStepIndex];
 
   const updateTargetPosition = useCallback(() => {
@@ -106,17 +451,21 @@ export function OnboardingTour() {
     if (!hasCompleted) {
       const timer = setTimeout(() => {
         setIsOpen(true);
+        setCurrentScenario("general");
         setCurrentStepIndex(0);
       }, 900);
       return () => clearTimeout(timer);
     }
   }, []);
 
-  // Listen for manual tour trigger
+  // Listen for manual tour trigger with scenario
   useEffect(() => {
-    const handleStart = () => {
-      setIsOpen(true);
+    const handleStart = (e: Event) => {
+      const customEvent = e as CustomEvent<{ scenario?: string }>;
+      const scenario = customEvent.detail?.scenario || "general";
+      setCurrentScenario(scenario);
       setCurrentStepIndex(0);
+      setIsOpen(true);
     };
 
     window.addEventListener("lms-start-tour", handleStart);

@@ -67,8 +67,10 @@ import {
   Monitor,
   Palette,
   Compass,
+  Play,
 } from "lucide-react";
 import { startOnboardingTour } from "@/components/onboarding-tour";
+import { openTourHubModal } from "@/components/tour-hub-modal";
 import type {
   UserProfileDTO,
   AcademicYearDTO,
@@ -529,7 +531,7 @@ export function SettingsView({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-card border rounded-xl shadow-xs overflow-x-auto">
+      <div className="flex items-center gap-1 p-1 bg-card border rounded-xl shadow-xs overflow-x-auto" data-tour="settings-tabs">
         {TABS.map((tab) => (
           <button
             key={tab.key}
@@ -550,7 +552,7 @@ export function SettingsView({
       {activeTab === "appearance" && (
         <div className="space-y-3">
           {/* Theme Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-4 shadow-2xs">
+          <div className="bg-card border rounded-xl p-4 space-y-4 shadow-2xs" data-tour="settings-theme">
             <div className="flex items-center justify-between pb-3 border-b">
               <div className="space-y-0.5">
                 <h2 className="font-bold text-foreground text-xs flex items-center gap-2">
@@ -570,11 +572,10 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("light")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
-                  theme === "light"
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "light"
                     ? "border-primary bg-primary/5 shadow-xs"
                     : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                }`}
+                  }`}
               >
                 {/* Mockup Preview Light */}
                 <div className="w-full h-52 rounded-lg bg-slate-100 border border-slate-300/80 flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
@@ -685,11 +686,10 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("dark")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
-                  theme === "dark"
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "dark"
                     ? "border-primary bg-primary/5 shadow-xs"
                     : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                }`}
+                  }`}
               >
                 {/* Mockup Preview Dark */}
                 <div className="w-full h-52 rounded-lg bg-zinc-950 border border-zinc-800 flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
@@ -800,11 +800,10 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("system")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
-                  theme === "system"
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "system"
                     ? "border-primary bg-primary/5 shadow-xs"
                     : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                }`}
+                  }`}
               >
                 {/* Mockup Preview Split System */}
                 <div className="w-full h-52 rounded-lg border border-border flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
@@ -876,26 +875,37 @@ export function SettingsView({
             </p>
           </div>
 
-          {/* Onboarding Tour Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
+          {/* Onboarding & Academy Card */}
+          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-2xs" data-tour="settings-tour-hub">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <h2 className="font-bold text-foreground text-xs flex items-center gap-2">
-                  <Compass className="h-4 w-4 text-primary" /> Интерактивный тур по платформе
+                  <Compass className="h-4 w-4 text-primary" /> Центр обучения и интерактивные туториалы
                 </h2>
                 <p className="text-[11px] text-muted-foreground">
-                  Запустите интерактивное обучение с подсветкой элементов, чтобы быстро освоить возможности системы.
+                  Пошаговые иллюстрированные руководства по созданию тестов, домашних заданий, управлению группами и посещаемостью.
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={startOnboardingTour}
-                className="h-8 text-xs px-3 gap-1.5 font-medium border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
-              >
-                <Compass className="h-3.5 w-3.5" /> Начать тур
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={openTourHubModal}
+                  className="h-8 text-xs px-3 gap-1.5 font-medium border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
+                >
+                  <BookOpen className="h-3.5 w-3.5" /> База знаний и гайды
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="xs"
+                  onClick={() => startOnboardingTour()}
+                  className="h-8 text-xs px-3 gap-1.5 font-medium bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                >
+                  <Play className="h-3.5 w-3.5" /> Быстрый тур
+                </Button>
+              </div>
             </div>
           </div>
 

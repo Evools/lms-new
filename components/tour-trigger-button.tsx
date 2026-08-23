@@ -3,7 +3,7 @@
 import React from "react";
 import { Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { startOnboardingTour } from "./onboarding-tour";
+import { openTourHubModal } from "./tour-hub-modal";
 
 export function TourTriggerButton({
   variant = "ghost",
@@ -18,14 +18,14 @@ export function TourTriggerButton({
     <Button
       variant={variant}
       size={showText ? "xs" : "icon"}
-      onClick={startOnboardingTour}
+      onClick={openTourHubModal}
       className={`text-xs h-8 text-muted-foreground hover:text-foreground cursor-pointer ${
         showText ? "px-2.5 gap-1.5 font-medium" : "w-8"
       } ${className}`}
-      title="Запустить интерактивный тур по платформе"
+      title="Центр обучения и туториалы"
     >
       <Compass className="h-4 w-4 text-primary" />
-      {showText && <span>Тур по системе</span>}
+      {showText && <span>Обучение</span>}
     </Button>
   );
 }

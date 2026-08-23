@@ -355,7 +355,7 @@ export function DutyScheduleView({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-tour="duty-header-actions">
           <Button variant="outline" size="xs" onClick={handlePrint} className="h-8 text-xs gap-1.5">
             <Printer className="h-3.5 w-3.5" /> Печать (A4)
           </Button>
@@ -396,7 +396,7 @@ export function DutyScheduleView({
       </div>
 
       {/* Screen KPI Bar */}
-      <div className="print:hidden grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="print:hidden grid grid-cols-1 md:grid-cols-3 gap-3" data-tour="duty-kpi">
 
         {/* KPI 1 */}
         <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
@@ -473,7 +473,7 @@ export function DutyScheduleView({
       )}
 
       {/* Main Mode Tabs & Filter Bar */}
-      <div className="print:hidden flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b pb-2">
+      <div className="print:hidden flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b pb-2" data-tour="duty-filters">
         <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border">
           <button
             type="button"
@@ -517,7 +517,7 @@ export function DutyScheduleView({
 
       {/* TAB 1: WEEKLY GROUP SCHEDULE */}
       {activeTab === "WEEKLY" && (
-        <Card className="print:hidden p-0 border overflow-hidden">
+        <Card className="print:hidden p-0 border overflow-hidden" data-tour="duty-roster">
           <CardHeader className="p-3 border-b bg-muted/30">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>

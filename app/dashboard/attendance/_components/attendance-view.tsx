@@ -320,7 +320,7 @@ export function AttendanceView({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-tour="attendance-header-actions">
           <Button variant="outline" size="xs" onClick={handlePrint} className="h-8 text-xs gap-1.5">
             <Printer className="h-3.5 w-3.5" /> Печать бланка
           </Button>
@@ -340,7 +340,7 @@ export function AttendanceView({
       </div>
 
       {/* Screen Filters Bar */}
-      <div className="print:hidden grid grid-cols-1 sm:grid-cols-3 gap-3 bg-card p-3 rounded-xl border">
+      <div className="print:hidden grid grid-cols-1 sm:grid-cols-3 gap-3 bg-card p-3 rounded-xl border" data-tour="attendance-filters">
         {/* Group Selector */}
         <div className="space-y-1">
           <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
@@ -398,7 +398,7 @@ export function AttendanceView({
       </div>
 
       {/* KPI Metrics Summary Bar */}
-      <div className="print:hidden grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="print:hidden grid grid-cols-2 md:grid-cols-5 gap-3" data-tour="attendance-metrics">
         {/* KPI 1: Present */}
         <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
           <div className="space-y-0.5">
@@ -485,7 +485,7 @@ export function AttendanceView({
       )}
 
       {/* Attendance Register Card */}
-      <Card className="print:hidden p-0 border overflow-hidden">
+      <Card className="print:hidden p-0 border overflow-hidden" data-tour="attendance-table">
         <CardHeader className="p-3 border-b bg-muted/30 flex flex-row items-center justify-between gap-2">
           <div>
             <CardTitle className="text-xs font-bold text-foreground">
