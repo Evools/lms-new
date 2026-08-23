@@ -64,6 +64,14 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
 
   const isAdmin = userRole === "ADMIN";
 
+  // Unique courses present in the database
+  const availableCourses = React.useMemo(() => {
+    const courses = Array.from(
+      new Set(groups.map((g) => g.course).filter((c): c is number => typeof c === "number" && c > 0))
+    );
+    return courses.sort((a, b) => a - b);
+  }, [groups]);
+
   // Filter groups
   const filteredGroups = groups.filter((g) => {
     const matchesSearch =
@@ -139,23 +147,34 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
 
       {/* Search & Filter Toolbar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-        {/* Course Filter Pills */}
+        {/* Dynamic Course Filter Pills */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-          {(["ALL", 1, 2, 3, 4] as const).map((courseVal) => {
-            const isActive = selectedCourseFilter === courseVal;
-            const label = courseVal === "ALL" ? `Все (${groups.length})` : `${courseVal} курс`;
+          <button
+            type="button"
+            onClick={() => setSelectedCourseFilter("ALL")}
+            className={`px-2.5 py-1 rounded-md text-xs transition-colors font-medium whitespace-nowrap ${
+              selectedCourseFilter === "ALL"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Все ({groups.length})
+          </button>
+          {availableCourses.map((courseNum) => {
+            const count = groups.filter((g) => g.course === courseNum).length;
+            const isActive = selectedCourseFilter === courseNum;
             return (
               <button
-                key={String(courseVal)}
+                key={courseNum}
                 type="button"
-                onClick={() => setSelectedCourseFilter(courseVal)}
+                onClick={() => setSelectedCourseFilter(courseNum)}
                 className={`px-2.5 py-1 rounded-md text-xs transition-colors font-medium whitespace-nowrap ${
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {label}
+                {courseNum} курс ({count})
               </button>
             );
           })}

@@ -43,21 +43,54 @@ export interface StudentListItemDTO {
   avgGrade: string;
 }
 
+function parseGroupCourse(name: string): number {
+  if (!name || name === "Не распределен") return 1;
+  const dashMatch = name.match(/[-_](\d)[-_]/);
+  if (dashMatch) return parseInt(dashMatch[1], 10);
+  const startMatch = name.match(/^(\d)[\s-_]/);
+  if (startMatch) return parseInt(startMatch[1], 10);
+  const endMatch = name.match(/[\s-_](\d)$/);
+  if (endMatch) return parseInt(endMatch[1], 10);
+  const anyDigit = name.match(/[^\d]([1-6])[^\d]?/);
+  if (anyDigit) return parseInt(anyDigit[1], 10);
+  return 1;
+}
+
 export async function getStudentsAction(): Promise<StudentListItemDTO[]> {
   try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+    const userId = session?.user?.id;
+
+    // Filter by group if student
+    let whereUserClause: Record<string, unknown> = {
+      role: "STUDENT",
+      isActive: true,
+    };
+
+    if (role === "STUDENT" && userId) {
+      const myEnrollment = await prisma.groupStudent.findFirst({
+        where: { studentId: userId },
+      });
+      if (myEnrollment) {
+        whereUserClause = {
+          role: "STUDENT",
+          isActive: true,
+          studentEnrollments: {
+            some: {
+              groupId: myEnrollment.groupId,
+            },
+          },
+        };
+      }
+    }
+
     const list = await prisma.user.findMany({
-      where: { role: "STUDENT" },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        createdAt: true,
+      where: whereUserClause,
+      orderBy: { name: "asc" },
+      include: {
         studentEnrollments: {
-          take: 1,
-          select: {
+          include: {
             group: {
               select: {
                 name: true,
@@ -71,8 +104,7 @@ export async function getStudentsAction(): Promise<StudentListItemDTO[]> {
     return list.map((user) => {
       const group = user.studentEnrollments[0]?.group;
       const groupName = group?.name || "Не распределен";
-      const courseMatch = groupName.match(/-(\d)-/);
-      const course = courseMatch ? parseInt(courseMatch[1], 10) : 1;
+      const course = parseGroupCourse(groupName);
 
       return {
         id: user.id,

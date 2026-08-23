@@ -50,6 +50,27 @@ export interface GroupDetailsDTO extends GroupDTO {
   announcementsList: GroupAnnouncementDTO[];
 }
 
+function parseGroupCourse(name: string): number {
+  if (!name) return 1;
+  // Format: ИС-1-25 or ПО-2-24 (number between dashes)
+  const dashMatch = name.match(/[-_](\d)[-_]/);
+  if (dashMatch) return parseInt(dashMatch[1], 10);
+
+  // Format: 1-ИС or 2 ПО (leading number)
+  const startMatch = name.match(/^(\d)[\s-_]/);
+  if (startMatch) return parseInt(startMatch[1], 10);
+
+  // Format: ИС-2 or ПО 3 (trailing single digit)
+  const endMatch = name.match(/[\s-_](\d)$/);
+  if (endMatch) return parseInt(endMatch[1], 10);
+
+  // Fallback: search any single digit 1-6
+  const anyDigit = name.match(/[^\d]([1-6])[^\d]?/);
+  if (anyDigit) return parseInt(anyDigit[1], 10);
+
+  return 1;
+}
+
 export async function getGroupsAction(): Promise<GroupDTO[]> {
   try {
     const session = await auth();
@@ -83,8 +104,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
     }
 
     return list.map((item) => {
-      const courseMatch = item.name.match(/-(\d)-/);
-      const course = courseMatch ? parseInt(courseMatch[1], 10) : 1;
+      const course = parseGroupCourse(item.name);
 
       return {
         id: item.id,
@@ -250,8 +270,7 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       return null;
     }
 
-    const courseMatch = item.name.match(/-(\d)-/);
-    const course = courseMatch ? parseInt(courseMatch[1], 10) : 1;
+    const course = parseGroupCourse(item.name);
 
     // Fetch enrolled students
     const groupStudents = await prisma.groupStudent.findMany({

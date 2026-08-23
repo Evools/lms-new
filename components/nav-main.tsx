@@ -104,7 +104,7 @@ function NavMainCollapsibleItem({
               <SidebarMenuSubItem key={subItem.title}>
                 <SidebarMenuSubButton
                   isActive={isSubActive}
-                  className="rounded-md text-xs h-7 px-2 font-medium transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary text-muted-foreground hover:text-foreground"
+                  className="rounded-md text-xs h-7 px-2 font-normal transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-normal text-muted-foreground hover:text-foreground"
                   render={<Link href={subItem.url} />}
                 >
                   <span className="truncate">{subItem.title}</span>
