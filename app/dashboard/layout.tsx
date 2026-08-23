@@ -3,14 +3,9 @@ import { redirect } from "next/navigation";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Separator } from "@/components/ui/separator";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@/components/ui/breadcrumb";
-
+import { AppHeaderBreadcrumbs } from "@/components/app-header-breadcrumbs";
 import { NotificationsPopover } from "@/components/notifications-popover";
+import { prisma } from "@/lib/prisma";
 
 export default async function DashboardLayout({
   children,
@@ -23,7 +18,16 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const { name, email, role, avatar } = session.user;
+  const { id: userId, name, email, role, avatar } = session.user;
+
+  let studentGroupName: string | null = null;
+  if (role === "STUDENT") {
+    const enrollment = await prisma.groupStudent.findFirst({
+      where: { studentId: userId },
+      include: { group: { select: { name: true } } },
+    });
+    studentGroupName = enrollment?.group?.name ?? null;
+  }
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -40,21 +44,15 @@ export default async function DashboardLayout({
           <div className="flex items-center gap-3">
             <SidebarTrigger className="rounded-md" />
             <Separator orientation="vertical" className="h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="text-xs font-medium">
-                    Панель управления
-                  </BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
+            <AppHeaderBreadcrumbs />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground border px-2 py-0.5 rounded-md">
-              ИС-1-25
-            </span>
+            {studentGroupName && (
+              <span className="text-xs font-mono text-muted-foreground border px-2 py-0.5 rounded-md bg-muted/40 font-medium">
+                {studentGroupName}
+              </span>
+            )}
             <NotificationsPopover />
           </div>
         </header>

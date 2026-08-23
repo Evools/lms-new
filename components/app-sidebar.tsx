@@ -14,20 +14,17 @@ import {
 import {
   LayoutDashboard,
   Users,
-  UserPlus,
   BookOpen,
   CalendarCheck,
   ClipboardList,
   Clock,
   Megaphone,
-  Bell,
   FileText,
   BarChart3,
-  Building2,
   GraduationCap,
-  Sparkles,
   FileCheck2,
   BookMarked,
+  FolderOpen,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -67,25 +64,25 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
             },
-            {
-              title: "Уведомления",
-              url: "/dashboard/notifications",
-              icon: <Bell className="h-4 w-4" />,
-            },
           ],
         },
         {
           groupLabel: "Учебный процесс",
           items: [
             {
-              title: "Учебные группы",
+              title: "Группы и студенты",
               url: "/dashboard/groups",
               icon: <Users className="h-4 w-4" />,
-            },
-            {
-              title: "Зачисление студентов",
-              url: "/dashboard/students",
-              icon: <UserPlus className="h-4 w-4" />,
+              items: [
+                {
+                  title: "Учебные группы",
+                  url: "/dashboard/groups",
+                },
+                {
+                  title: "База студентов",
+                  url: "/dashboard/students",
+                },
+              ],
             },
             {
               title: "Посещаемость",
@@ -97,18 +94,23 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               url: "/dashboard/duty",
               icon: <Clock className="h-4 w-4" />,
             },
+          ],
+        },
+        {
+          groupLabel: "Обучение (LMS)",
+          items: [
             {
               title: "Домашние задания",
               url: "/dashboard/assignments",
               icon: <ClipboardList className="h-4 w-4" />,
             },
             {
-              title: "Материалы",
+              title: "Учебные материалы",
               url: "/dashboard/lms/materials",
               icon: <BookOpen className="h-4 w-4" />,
             },
             {
-              title: "Тесты",
+              title: "Тесты и опросы",
               url: "/dashboard/lms/tests",
               icon: <FileCheck2 className="h-4 w-4" />,
             },
@@ -153,11 +155,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
             },
-            {
-              title: "Уведомления",
-              url: "/dashboard/notifications",
-              icon: <Bell className="h-4 w-4" />,
-            },
           ],
         },
         {
@@ -169,32 +166,32 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               icon: <Users className="h-4 w-4" />,
             },
             {
-              title: "Зачисление студентов",
-              url: "/dashboard/students",
-              icon: <UserPlus className="h-4 w-4" />,
-            },
-            {
               title: "Посещаемость пар",
               url: "/dashboard/attendance",
               icon: <CalendarCheck className="h-4 w-4" />,
-            },
-            {
-              title: "Проверка ДЗ",
-              url: "/dashboard/assignments",
-              icon: <ClipboardList className="h-4 w-4" />,
             },
             {
               title: "График дежурств",
               url: "/dashboard/duty",
               icon: <Clock className="h-4 w-4" />,
             },
+          ],
+        },
+        {
+          groupLabel: "Обучение (LMS)",
+          items: [
             {
-              title: "Материалы",
+              title: "Проверка заданий",
+              url: "/dashboard/assignments",
+              icon: <ClipboardList className="h-4 w-4" />,
+            },
+            {
+              title: "Учебные материалы",
               url: "/dashboard/lms/materials",
               icon: <BookOpen className="h-4 w-4" />,
             },
             {
-              title: "Тесты",
+              title: "Тесты и опросы",
               url: "/dashboard/lms/tests",
               icon: <FileCheck2 className="h-4 w-4" />,
             },
@@ -206,7 +203,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           ],
         },
         {
-          groupLabel: "Документы",
+          groupLabel: "Управление",
           items: [
             {
               title: "Документы лицея",
@@ -233,20 +230,15 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             url: "/dashboard/announcements",
             icon: <Megaphone className="h-4 w-4" />,
           },
-          {
-            title: "Уведомления",
-            url: "/dashboard/notifications",
-            icon: <Bell className="h-4 w-4" />,
-          },
         ],
       },
       {
         groupLabel: "Моё обучение",
         items: [
           {
-            title: "Учебные группы",
-            url: "/dashboard/groups",
-            icon: <Users className="h-4 w-4" />,
+            title: "Мои задания",
+            url: "/dashboard/assignments",
+            icon: <ClipboardList className="h-4 w-4" />,
           },
           {
             title: "Учебные материалы",
@@ -258,10 +250,15 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             url: "/dashboard/lms/tests",
             icon: <FileCheck2 className="h-4 w-4" />,
           },
+        ],
+      },
+      {
+        groupLabel: "Группа и расписание",
+        items: [
           {
-            title: "Мои задания",
-            url: "/dashboard/assignments",
-            icon: <ClipboardList className="h-4 w-4" />,
+            title: "Моя группа",
+            url: "/dashboard/groups",
+            icon: <Users className="h-4 w-4" />,
           },
           {
             title: "Посещаемость",
@@ -273,11 +270,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             url: "/dashboard/duty",
             icon: <Clock className="h-4 w-4" />,
           },
-        ],
-      },
-      {
-        groupLabel: "Документы",
-        items: [
           {
             title: "Документы лицея",
             url: "/dashboard/documents",
@@ -293,7 +285,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       <SidebarHeader className="border-b p-2">
         <TeamSwitcher teams={teams} />
       </SidebarHeader>
-      <SidebarContent className="gap-0 py-2">
+      <SidebarContent className="gap-0 py-2 px-2">
         <NavMain sections={getNavSections()} />
       </SidebarContent>
       <SidebarFooter className="border-t p-2">

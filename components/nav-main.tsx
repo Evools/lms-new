@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -37,6 +37,14 @@ export interface NavMainSection {
   items: NavGroupItem[];
 }
 
+function checkIsActive(currentPath: string, targetUrl: string) {
+  if (!targetUrl) return false;
+  if (targetUrl === "/dashboard") {
+    return currentPath === "/dashboard";
+  }
+  return currentPath === targetUrl || currentPath.startsWith(`${targetUrl}/`);
+}
+
 function NavMainCollapsibleItem({
   item,
   isCurrentActive,
@@ -47,6 +55,12 @@ function NavMainCollapsibleItem({
   pathname: string;
 }) {
   const [open, setOpen] = useState(isCurrentActive);
+
+  useEffect(() => {
+    if (isCurrentActive) {
+      setOpen(true);
+    }
+  }, [isCurrentActive]);
 
   return (
     <Collapsible
@@ -60,30 +74,37 @@ function NavMainCollapsibleItem({
           <SidebarMenuButton
             isActive={isCurrentActive}
             tooltip={item.title}
-            className="rounded-lg font-medium text-xs h-8.5 px-2.5 transition-all data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+            className="rounded-md font-medium text-xs h-8 px-2.5 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
           />
         }
       >
-        <span className="shrink-0 text-muted-foreground group-data-[active=true]/collapsible:text-primary transition-colors">
+        <span
+          className={`shrink-0 transition-colors ${
+            isCurrentActive ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
           {item.icon}
         </span>
         <span className="truncate">{item.title}</span>
         {item.badge && (
-          <Badge variant="secondary" className="ml-auto text-[9px] px-1 py-0 font-normal shrink-0">
+          <Badge
+            variant="secondary"
+            className="ml-auto text-[9px] px-1 py-0 font-medium shrink-0"
+          >
             {item.badge}
           </Badge>
         )}
         <ChevronRight className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90 text-muted-foreground shrink-0 h-3.5 w-3.5" />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <SidebarMenuSub className="my-1 border-l border-primary/20 pl-2 ml-3">
+        <SidebarMenuSub className="my-1 border-l border-primary/20 pl-2 ml-3.5 space-y-0.5">
           {item.items?.map((subItem) => {
-            const isSubActive = pathname === subItem.url;
+            const isSubActive = checkIsActive(pathname, subItem.url);
             return (
               <SidebarMenuSubItem key={subItem.title}>
                 <SidebarMenuSubButton
                   isActive={isSubActive}
-                  className="rounded-md text-xs h-7 px-2 font-medium transition-all data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                  className="rounded-md text-xs h-7 px-2 font-medium transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary text-muted-foreground hover:text-foreground"
                   render={<Link href={subItem.url} />}
                 >
                   <span className="truncate">{subItem.title}</span>
@@ -109,35 +130,40 @@ export function NavMain({
       {sections.map((section, sectionIdx) => (
         <SidebarGroup key={section.groupLabel || sectionIdx} className="py-1">
           {section.groupLabel && (
-            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-2 py-1 select-none">
+            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2 py-1 select-none">
               {section.groupLabel}
             </SidebarGroupLabel>
           )}
-          <SidebarMenu>
+          <SidebarMenu className="space-y-0.5">
             {section.items.map((item) => {
               const hasSubItems = item.items && item.items.length > 0;
-              const isCurrentActive =
-                pathname === item.url ||
-                (item.items?.some((sub) => pathname === sub.url) ?? false);
+              const isDirectActive = checkIsActive(pathname, item.url);
+              const isChildActive =
+                item.items?.some((sub) => checkIsActive(pathname, sub.url)) ?? false;
+              const isCurrentActive = isDirectActive || isChildActive;
 
               if (!hasSubItems) {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                      isActive={isCurrentActive}
+                      isActive={isDirectActive}
                       tooltip={item.title}
-                      className="rounded-lg font-medium text-xs h-8.5 px-2.5 transition-all data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                      className="rounded-md font-medium text-xs h-8 px-2.5 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                       render={<Link href={item.url} />}
                     >
-                      <span className={`shrink-0 transition-colors ${isCurrentActive ? "text-primary" : "text-muted-foreground"}`}>
+                      <span
+                        className={`shrink-0 transition-colors ${
+                          isDirectActive ? "text-primary" : "text-muted-foreground"
+                        }`}
+                      >
                         {item.icon}
                       </span>
                       <span className="truncate">{item.title}</span>
                       {item.badge && (
                         <Badge
-                          variant={isCurrentActive ? "default" : "secondary"}
+                          variant={isDirectActive ? "default" : "secondary"}
                           className={`ml-auto text-[9px] px-1.5 py-0 font-medium shrink-0 ${
-                            isCurrentActive ? "bg-primary text-primary-foreground" : ""
+                            isDirectActive ? "bg-primary text-primary-foreground" : ""
                           }`}
                         >
                           {item.badge}
