@@ -60,7 +60,9 @@ import {
   Terminal,
   Play,
   X,
+  Download,
 } from "lucide-react";
+import JSZip from "jszip";
 import {
   GroupItemDTO,
   GroupSubjectDTO,
@@ -146,7 +148,7 @@ export function SubmissionContentDisplay({ submission }: { submission: Submissio
   const parsed = parseSubmissionContent(submission.comment);
   const [activeFileIdx, setActiveFileIdx] = useState(0);
   const [copiedFile, setCopiedFile] = useState(false);
-  const [copiedAll, setCopiedAll] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
 
   const handleCopyFile = (code: string) => {
@@ -156,12 +158,30 @@ export function SubmissionContentDisplay({ submission }: { submission: Submissio
     setTimeout(() => setCopiedFile(false), 2000);
   };
 
-  const handleCopyAll = (files: SubmissionCodeFile[]) => {
-    const full = files.map((f) => `/* ===== ${f.name} ===== */\n\n${f.code}`).join("\n\n");
-    navigator.clipboard.writeText(full);
-    setCopiedAll(true);
-    toast.add({ title: "Все файлы скопированы в буфер", type: "success" });
-    setTimeout(() => setCopiedAll(false), 2000);
+  const handleDownloadZip = async (files: SubmissionCodeFile[]) => {
+    try {
+      setIsZipping(true);
+      const zip = new JSZip();
+      files.forEach((file) => {
+        zip.file(file.name, file.code || "");
+      });
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const sanitizedName = (submission.studentName || "solution").replace(/\s+/g, "_");
+      a.download = `${sanitizedName}_project.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.add({ title: "Архив проекта .zip успешно скачан!", type: "success" });
+    } catch (err) {
+      console.error("ZIP download error:", err);
+      toast.add({ title: "Ошибка при формировании архива", type: "error" });
+    } finally {
+      setIsZipping(false);
+    }
   };
 
   if (parsed.type === "code" && parsed.files && parsed.files.length > 0) {
@@ -243,17 +263,16 @@ export function SubmissionContentDisplay({ submission }: { submission: Submissio
                 {copiedFile ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
                 {copiedFile ? "Скопировано!" : "Копировать"}
               </Button>
-              {files.length > 1 && (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="h-6 text-[10px] gap-1 px-2 font-medium"
-                  onClick={() => handleCopyAll(files)}
-                >
-                  {copiedAll ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
-                  {copiedAll ? "Всё скопировано!" : "Все файлы"}
-                </Button>
-              )}
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={isZipping}
+                className="h-6 text-[10px] gap-1 px-2 font-medium border-primary/30 text-primary hover:bg-primary/10"
+                onClick={() => handleDownloadZip(files)}
+              >
+                <Download className="h-3 w-3" />
+                {isZipping ? "Архивация..." : "Скачать ZIP"}
+              </Button>
             </div>
           </div>
 
