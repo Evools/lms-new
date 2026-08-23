@@ -4,16 +4,16 @@ import { signIn, signOut, auth } from "@/lib/auth";
 import { AuthError } from "next-auth";
 
 export async function loginAction(formData: FormData) {
-  const email = formData.get("email") as string;
+  const identifier = ((formData.get("identifier") || formData.get("email")) as string)?.trim();
   const password = formData.get("password") as string;
 
-  if (!email || !password) {
+  if (!identifier || !password) {
     return { error: "Заполните все поля" };
   }
 
   try {
     await signIn("credentials", {
-      email,
+      email: identifier,
       password,
       redirectTo: "/dashboard",
     });

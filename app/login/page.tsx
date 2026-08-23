@@ -11,7 +11,7 @@ import { Loader2, ShieldAlert, ShieldCheck, UserCheck, GraduationCap, Building2,
 export default function LoginPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +20,7 @@ export default function LoginPage() {
     setError(null);
 
     const formData = new FormData();
-    formData.append("email", email);
+    formData.append("identifier", identifier);
     formData.append("password", password);
 
     startTransition(async () => {
@@ -41,7 +41,7 @@ export default function LoginPage() {
   };
 
   const handleQuickLogin = (roleEmail: string) => {
-    setEmail(roleEmail);
+    setIdentifier(roleEmail);
     setPassword("password123");
     setError(null);
   };
@@ -69,7 +69,7 @@ export default function LoginPage() {
               <Lock className="h-3.5 w-3.5 text-primary" /> Вход в личный кабинет
             </h2>
             <p className="text-[11px] text-muted-foreground">
-              Введите электронную почту и пароль для доступа
+              Введите email или номер телефона и пароль
             </p>
           </div>
 
@@ -82,17 +82,19 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-1">
-              <label htmlFor="email" className="font-medium text-foreground text-xs flex items-center gap-1">
-                <Mail className="h-3 w-3 text-muted-foreground" /> Электронная почта
+              <label htmlFor="identifier" className="font-medium text-foreground text-xs flex items-center gap-1">
+                <Mail className="h-3 w-3 text-muted-foreground" /> Email или номер телефона
               </label>
               <Input
-                id="email"
-                type="email"
-                placeholder="name@lyceum.edu"
+                id="identifier"
+                type="text"
+                placeholder="name@lyceum.edu или +996 555..."
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className="h-8 text-xs bg-background"
+                autoCapitalize="none"
+                autoCorrect="off"
               />
             </div>
 
@@ -111,7 +113,7 @@ export default function LoginPage() {
               />
             </div>
 
-            <Button type="submit" size="xs" className="w-full h-8 text-xs font-semibold gap-1.5" disabled={isPending}>
+            <Button type="submit" size="xs" className="w-full h-8 text-xs font-semibold gap-1.5 cursor-pointer" disabled={isPending}>
               {isPending ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Вход...

@@ -127,12 +127,53 @@ export async function updateProfileDetailsAction(data: {
       }
     }
 
+    // Validate phone if provided
+    let updatedPhone = currentUser.phone;
+    if (data.phone !== undefined) {
+      const cleanPhone = data.phone?.trim() || null;
+      if (cleanPhone) {
+        const phoneDigits = cleanPhone.replace(/\D/g, "");
+        if (phoneDigits.length >= 6) {
+          // Check if another user has this phone number
+          const existingPhoneUser = await prisma.user.findFirst({
+            where: {
+              phone: { not: null },
+              id: { not: currentUser.id },
+            },
+          });
+          if (existingPhoneUser && existingPhoneUser.phone) {
+            const otherDigits = existingPhoneUser.phone.replace(/\D/g, "");
+            if (otherDigits === phoneDigits || (phoneDigits.length >= 9 && otherDigits.endsWith(phoneDigits))) {
+              return { success: false, error: "Этот номер телефона уже привязан к другому аккаунту" };
+            }
+          }
+
+          // Automatically standardize Kyrgyzstan phone format if 9, 10 or 12 digits
+          if (phoneDigits.length === 9) {
+            updatedPhone = `+996 (${phoneDigits.slice(0, 3)}) ${phoneDigits.slice(3, 6)}-${phoneDigits.slice(6)}`;
+          } else if (phoneDigits.length === 10 && phoneDigits.startsWith("0")) {
+            const d = phoneDigits.slice(1);
+            updatedPhone = `+996 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+          } else if (phoneDigits.length === 12 && phoneDigits.startsWith("996")) {
+            const d = phoneDigits.slice(3);
+            updatedPhone = `+996 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+          } else {
+            updatedPhone = cleanPhone;
+          }
+        } else {
+          updatedPhone = cleanPhone;
+        }
+      } else {
+        updatedPhone = null;
+      }
+    }
+
     await prisma.user.update({
       where: { id: session.user.id },
       data: {
         name: updatedName,
         email: updatedEmail,
-        phone: data.phone?.trim() || null,
+        phone: updatedPhone,
         avatar: data.avatar?.trim() || null,
       },
     });

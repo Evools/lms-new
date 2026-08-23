@@ -16,12 +16,56 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const email = (credentials.email as string).trim().toLowerCase();
+        const rawIdentifier = (credentials.email as string).trim();
         const password = credentials.password as string;
 
-        const user = await prisma.user.findUnique({
-          where: { email },
+        if (!rawIdentifier || !password) {
+          return null;
+        }
+
+        // 1. Try finding by email
+        let user = await prisma.user.findUnique({
+          where: { email: rawIdentifier.toLowerCase() },
         });
+
+        // 2. If not found by direct email, try finding by phone number or case-insensitive search
+        if (!user) {
+          const rawDigits = rawIdentifier.replace(/\D/g, "");
+          if (rawDigits.length >= 6) {
+            // Extract significant national number (last 9 digits, e.g. 703070029)
+            const significantInput = rawDigits.length >= 9 ? rawDigits.slice(-9) : rawDigits;
+
+            const candidates = await prisma.user.findMany({
+              where: {
+                phone: { not: null },
+              },
+            });
+
+            user = candidates.find((u) => {
+              if (!u.phone) return false;
+              const uDigits = u.phone.replace(/\D/g, "");
+              const significantDb = uDigits.length >= 9 ? uDigits.slice(-9) : uDigits;
+
+              return (
+                uDigits === rawDigits ||
+                uDigits.endsWith(rawDigits) ||
+                rawDigits.endsWith(uDigits) ||
+                significantDb === significantInput
+              );
+            }) || null;
+          }
+        }
+
+        if (!user) {
+          user = await prisma.user.findFirst({
+            where: {
+              email: {
+                equals: rawIdentifier,
+                mode: "insensitive",
+              },
+            },
+          });
+        }
 
         if (!user || !user.isActive || !user.password) {
           return null;
