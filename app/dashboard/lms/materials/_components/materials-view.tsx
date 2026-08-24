@@ -79,6 +79,7 @@ interface MaterialsViewProps {
   materials: MaterialDTO[];
   selectedGroupId: string;
   selectedSubjectIdProp?: string | null;
+  selectedMaterialIdProp?: string | null;
   selectedTopicId: string;
   selectedType: string;
   canCreate: boolean;
@@ -91,6 +92,7 @@ export function MaterialsView({
   materials,
   selectedGroupId,
   selectedSubjectIdProp = null,
+  selectedMaterialIdProp = null,
   canCreate,
 }: MaterialsViewProps) {
   const router = useRouter();
@@ -140,8 +142,21 @@ export function MaterialsView({
   });
 
   // Active Selected Material State
-  const initialActiveMat = displayMaterials[0] || materials[0] || null;
+  const initialActiveMat =
+    (selectedMaterialIdProp && materials.find((m) => m.id === selectedMaterialIdProp)) ||
+    displayMaterials[0] ||
+    materials[0] ||
+    null;
   const [activeMaterial, setActiveMaterial] = useState<MaterialDTO | null>(initialActiveMat);
+
+  useEffect(() => {
+    if (selectedMaterialIdProp) {
+      const found = materials.find((m) => m.id === selectedMaterialIdProp);
+      if (found) {
+        setActiveMaterial(found);
+      }
+    }
+  }, [selectedMaterialIdProp, materials]);
 
   // Expanded Chapter State
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>(() => {

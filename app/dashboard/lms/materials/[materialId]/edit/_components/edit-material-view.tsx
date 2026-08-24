@@ -37,6 +37,7 @@ export interface MaterialEditData {
   id: string;
   topicId: string;
   groupId: string;
+  subjectId?: string;
   type: MaterialType;
   title: string;
   content?: string | null;
@@ -48,6 +49,7 @@ interface EditMaterialViewProps {
   initialMaterial: MaterialEditData;
   groups: GroupItemDTO[];
   topics: Array<{ id: string; title: string }>;
+  selectedSubjectId?: string;
 }
 
 const DEFAULT_TEMPLATES: WysiwygTemplate[] = [
@@ -67,6 +69,7 @@ export function EditMaterialView({
   initialMaterial,
   groups,
   topics,
+  selectedSubjectId,
 }: EditMaterialViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -76,6 +79,11 @@ export function EditMaterialView({
   const [type, setType] = useState<MaterialType>(initialMaterial.type);
   const [title, setTitle] = useState(initialMaterial.title);
   const [content, setContent] = useState(initialMaterial.content || "");
+
+  const targetSubjectId = selectedSubjectId || initialMaterial.subjectId;
+  const returnUrl = targetSubjectId
+    ? `/dashboard/lms/materials?group=${groupId}&subject=${targetSubjectId}&material=${initialMaterial.id}`
+    : `/dashboard/lms/materials?group=${groupId}&material=${initialMaterial.id}`;
 
   // Multiple Video URLs parsed from linkUrl JSON or fallback
   const [videoUrls, setVideoUrls] = useState<string[]>(() => {
@@ -101,7 +109,7 @@ export function EditMaterialView({
 
   const handleGroupChange = (val: string) => {
     setGroupId(val);
-    router.push(`/dashboard/lms/materials/${initialMaterial.id}/edit?group=${val}`);
+    router.push(`/dashboard/lms/materials/${initialMaterial.id}/edit?group=${val}${targetSubjectId ? `&subject=${targetSubjectId}` : ""}`);
   };
 
   const handleAddVideoUrl = () => {
@@ -174,7 +182,11 @@ export function EditMaterialView({
       if (res.success) {
         toast.add({ title: "Изменения в материале успешно сохранены!", type: "success" });
         setTimeout(() => {
-          router.push(`/dashboard/lms/materials?group=${groupId}`);
+          const finalSubjectId = (res as any).subjectId || targetSubjectId;
+          const finalUrl = finalSubjectId
+            ? `/dashboard/lms/materials?group=${groupId}&subject=${finalSubjectId}&material=${initialMaterial.id}`
+            : `/dashboard/lms/materials?group=${groupId}&material=${initialMaterial.id}`;
+          router.push(finalUrl);
           router.refresh();
         }, 600);
       } else {
@@ -188,7 +200,7 @@ export function EditMaterialView({
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-xs">
         <div className="flex items-center gap-2.5 min-w-0">
-          <Link href={`/dashboard/lms/materials?group=${groupId}`} className="shrink-0">
+          <Link href={returnUrl} className="shrink-0">
             <Button size="xs" variant="outline" className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>

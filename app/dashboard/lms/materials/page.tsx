@@ -4,7 +4,7 @@ import { getMaterialsDataAction } from "../actions";
 import { MaterialsView } from "./_components/materials-view";
 
 interface PageProps {
-  searchParams: Promise<{ group?: string; subject?: string; topic?: string; type?: string }>;
+  searchParams: Promise<{ group?: string; subject?: string; topic?: string; type?: string; material?: string }>;
 }
 
 export default async function MaterialsPage({ searchParams }: PageProps) {
@@ -14,7 +14,7 @@ export default async function MaterialsPage({ searchParams }: PageProps) {
     redirect("/login");
   }
 
-  const { group, subject, topic, type } = await searchParams;
+  const { group, subject, topic, type, material } = await searchParams;
   const data = await getMaterialsDataAction(group, topic, type);
 
   return (
@@ -23,6 +23,7 @@ export default async function MaterialsPage({ searchParams }: PageProps) {
       selectedSubjectIdProp={subject || null}
       selectedTopicId={topic || ""}
       selectedType={type || ""}
+      selectedMaterialIdProp={material || null}
     />
   );
 }

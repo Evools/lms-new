@@ -802,7 +802,7 @@ export async function updateMaterialAction(
       return { success: false, error: "Укажите название материала" };
     }
 
-    await prisma.material.update({
+    const updated = await prisma.material.update({
       where: { id: materialId },
       data: {
         topicId: data.topicId,
@@ -812,12 +812,24 @@ export async function updateMaterialAction(
         fileUrl: data.fileUrl?.trim() || null,
         linkUrl: data.linkUrl?.trim() || null,
       },
+      include: {
+        topic: {
+          include: {
+            groupSubject: true,
+          },
+        },
+      },
     });
 
     revalidatePath("/dashboard/lms/materials");
     revalidatePath("/dashboard/lms/topics");
     revalidatePath("/dashboard/lms");
-    return { success: true };
+    return {
+      success: true,
+      materialId: updated.id,
+      groupId: updated.topic.groupSubject.groupId,
+      subjectId: updated.topic.groupSubject.id,
+    };
   } catch (err) {
     console.error("updateMaterialAction error:", err);
     return { success: false, error: "Ошибка при обновлении материала" };
@@ -852,6 +864,7 @@ export async function getMaterialForEditAction(materialId: string) {
         id: material.id,
         topicId: material.topicId,
         groupId: material.topic.groupSubject.groupId,
+        subjectId: material.topic.groupSubject.id,
         type: material.type,
         title: material.title,
         content: material.content || "",

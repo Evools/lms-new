@@ -9,6 +9,7 @@ interface EditMaterialPageProps {
   }>;
   searchParams: Promise<{
     group?: string;
+    subject?: string;
   }>;
 }
 
@@ -25,7 +26,7 @@ export default async function EditMaterialPage({ params, searchParams }: EditMat
   }
 
   const { materialId } = await params;
-  const { group: groupQuery } = await searchParams;
+  const { group: groupQuery, subject: subjectQuery } = await searchParams;
 
   const matRes = await getMaterialForEditAction(materialId);
   if (!matRes.success || !matRes.material) {
@@ -34,6 +35,7 @@ export default async function EditMaterialPage({ params, searchParams }: EditMat
 
   const initialMaterial = matRes.material;
   const selectedGroupId = groupQuery || initialMaterial.groupId;
+  const selectedSubjectId = subjectQuery || initialMaterial.subjectId;
 
   const data = await getMaterialsDataAction(selectedGroupId);
 
@@ -42,6 +44,7 @@ export default async function EditMaterialPage({ params, searchParams }: EditMat
       initialMaterial={initialMaterial}
       groups={data.groups}
       topics={data.topics}
+      selectedSubjectId={selectedSubjectId}
     />
   );
 }
