@@ -176,24 +176,30 @@ export function CreateMaterialView({
   return (
     <div className="space-y-4 w-full">
       {/* Header Bar */}
-      <div className="flex items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-xs">
-        <div className="flex items-center gap-3">
-          <Link href={returnUrl}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Link href={returnUrl} className="shrink-0">
             <Button size="xs" variant="outline" className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" /> Публикация нового материала
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-1.5 truncate">
+              <FileText className="h-4 sm:h-5 w-4 sm:w-5 text-primary shrink-0" />
+              <span className="truncate">Публикация нового материала</span>
             </h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden xs:block">
               Создайте урок, прикрепите видеозаписи, полезные файлы и ресурсы
             </p>
           </div>
         </div>
 
-        <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 text-xs gap-1.5 font-medium">
+        <Button
+          size="xs"
+          disabled={isPending}
+          onClick={handleSubmit}
+          className="h-8 text-xs gap-1.5 font-medium shrink-0 w-full sm:w-auto"
+        >
           Опубликовать материал
         </Button>
       </div>

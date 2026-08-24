@@ -682,13 +682,13 @@ export function MaterialsView({
         </div>
 
         {/* RIGHT MAIN AREA: SELECTED MATERIAL CONTENT VIEWER */}
-        <div className="md:col-span-8 lg:col-span-9 bg-card rounded-xl border p-4 space-y-4 shadow-xs">
+        <div className="md:col-span-8 lg:col-span-9 bg-card rounded-xl border p-3 sm:p-4 space-y-4 shadow-xs">
           {currentMat ? (
             <div className="space-y-4">
               {/* Active Material Header */}
-              <div className="flex items-start justify-between gap-3 border-b pb-3">
-                <div className="space-y-1">
-                  <h2 className="text-base font-bold text-foreground">{currentMat.title}</h2>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b pb-3">
+                <div className="space-y-1.5 min-w-0">
+                  <h2 className="text-base font-bold text-foreground leading-tight break-words">{currentMat.title}</h2>
                   <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                     <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium flex items-center gap-1">
                       {getMaterialTypeIcon(currentMat.type)}
@@ -707,28 +707,25 @@ export function MaterialsView({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                <div className="flex items-center justify-between sm:justify-end gap-2 text-xs text-muted-foreground pt-2 sm:pt-0 border-t sm:border-t-0 shrink-0">
                   <span className="text-[11px]">
-                    {new Date(currentMat.createdAt).toLocaleString("ru-RU", {
+                    {new Date(currentMat.createdAt).toLocaleDateString("ru-RU", {
                       day: "2-digit",
                       month: "2-digit",
                       year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
                     })}
                   </span>
 
                   {canCreate && (
                     <div className="flex items-center gap-1">
-                      <Link href={`/dashboard/lms/materials/${currentMat.id}/edit?group=${selectedGroupId}`}>
+                      <Link href={`/dashboard/lms/materials/${currentMat.id}/edit?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}>
                         <Button
                           size="xs"
                           variant="outline"
-                          className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
+                          className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-primary"
                           title="Редактировать материал"
                         >
-                          <Pencil className="h-3.5 w-3.5" /> Редактировать
+                          <Pencil className="h-3.5 w-3.5" /> <span className="text-xs">Редактировать</span>
                         </Button>
                       </Link>
 
