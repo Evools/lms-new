@@ -647,6 +647,33 @@ export async function markDutyAbsentAction(
   return { success: true };
 }
 
+/** Clear duty schedule */
+export async function clearDutyScheduleAction(groupId?: string) {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+  ) {
+    return { success: false, error: "Недостаточно прав для очистки дежурств" };
+  }
+
+  try {
+    if (groupId) {
+      await prisma.dutySchedule.deleteMany({
+        where: { groupId },
+      });
+    } else {
+      await prisma.dutySchedule.deleteMany({});
+    }
+
+    revalidatePath("/dashboard/duty");
+    return { success: true };
+  } catch (error) {
+    console.error("clearDutyScheduleAction error:", error);
+    return { success: false, error: "Ошибка при очистке дежурств" };
+  }
+}
+
 /** Assign a student to duty as a disciplinary penalty */
 export async function addDisciplinaryDutyAction(
   groupId: string,

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { toast } from "@/components/ui/toast";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,16 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectTrigger,
@@ -59,6 +70,7 @@ import {
   generateWeeklyDutyAction,
   addDutyStudentAction,
   removeDutyStudentAction,
+  clearDutyScheduleAction,
   addDisciplinaryDutyAction,
   StudentDutyStatDTO,
   GroupStudentWithDutyInfo,
@@ -98,9 +110,7 @@ export function DutyScheduleView({
   );
 
   const [activeTab, setActiveTab] = useState<"WEEKLY" | "STATS">("WEEKLY");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("" );
 
   // Absent tracking state map: key = `${studentId}_${fullDate}`, value = reason
   const [absentMap, setAbsentMap] = useState<Record<string, string>>({});
@@ -122,6 +132,9 @@ export function DutyScheduleView({
   } | null>(null);
   const [replacementStudentId, setReplacementStudentId] = useState<string>("");
 
+  // Clear confirmation dialog
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
   const currentGroupObj = groupsList.find((g) => g.id === currentGroupId);
 
@@ -137,31 +150,42 @@ export function DutyScheduleView({
   // Generate auto-rotation
   const handleAutoRotation = () => {
     if (!currentGroupId) return;
-    setErrorMsg(null);
     startTransition(async () => {
       const countParam = dutyCountPerDay === "auto" ? undefined : Number(dutyCountPerDay);
       const res = await generateWeeklyDutyAction(currentGroupId, countParam);
       if (res.success) {
-        setSuccessMsg("Честная авто-ротация успешно сформирована!");
+        toast.add({ title: "Честная авто-ротация успешно сформирована!", type: "success" });
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при генерации ротации");
+        toast.add({ title: res.error || "Ошибка при генерации ротации", type: "error" });
       }
     });
   };
 
   // Remove duty student
   const handleRemoveDuty = (studentId: string, dateStr: string) => {
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await removeDutyStudentAction(currentGroupId, studentId, dateStr);
       if (res.success) {
-        setSuccessMsg("Дежурный убран из расписания.");
+        toast.add({ title: "Дежурный убран из расписания", type: "success" });
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка удаления из дежурства");
+        toast.add({ title: res.error || "Ошибка удаления из дежурства", type: "error" });
+      }
+    });
+  };
+
+  // Clear duty schedule
+  const handleConfirmClear = () => {
+    if (!currentGroupId) return;
+    startTransition(async () => {
+      const res = await clearDutyScheduleAction(currentGroupId);
+      if (res.success) {
+        setIsClearConfirmOpen(false);
+        toast.add({ title: `Расписание дежурств группы ${currentGroupObj?.name || ""} очищено`, type: "success" });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка при очистке дежурств", type: "error" });
       }
     });
   };
@@ -172,14 +196,12 @@ export function DutyScheduleView({
       ...prev,
       [`${studentId}_${fullDate}`]: reason,
     }));
-    setSuccessMsg("Пропуск зафиксирован. Вы можете назначить замену.");
-    setTimeout(() => setSuccessMsg(null), 3000);
+    toast.add({ title: "Пропуск зафиксирован. Вы можете назначить замену.", type: "success" });
   };
 
   // Confirm Add (Standard or Penalty)
   const handleConfirmAdd = () => {
     if (!pickerMode || !pickerStudentId) return;
-    setErrorMsg(null);
 
     startTransition(async () => {
       let res;
@@ -195,17 +217,17 @@ export function DutyScheduleView({
       }
 
       if (res.success) {
-        setSuccessMsg(
-          pickerMode.type === "penalty"
+        toast.add({
+          title: pickerMode.type === "penalty"
             ? `Внеочередное дежурство (${penaltyReason}) назначено!`
-            : "Дежурный успешно добавлен!"
-        );
+            : "Дежурный успешно добавлен!",
+          type: "success",
+        });
         setPickerMode(null);
         setPickerStudentId("");
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка сохранения дежурного");
+        toast.add({ title: res.error || "Ошибка сохранения дежурного", type: "error" });
       }
     });
   };
@@ -381,16 +403,29 @@ export function DutyScheduleView({
               </Select>
             </div>
           )}
-          {isAdminOrTeacher && (
-            <Button
-              size="xs"
-              onClick={handleAutoRotation}
-              disabled={isPending || !currentGroupId}
-              className="h-8 text-xs gap-1.5"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {isPending ? "Расчет..." : "Авто-ротация"}
-            </Button>
+          {isAdminOrTeacher && isDutyEnabled && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => setIsClearConfirmOpen(true)}
+                disabled={isPending || !currentGroupId}
+                className="h-8 text-xs gap-1.5 font-medium border-destructive/30 text-destructive hover:bg-destructive/10"
+                title="Очистить расписание дежурств группы"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Очистить
+              </Button>
+              <Button
+                size="xs"
+                onClick={handleAutoRotation}
+                disabled={isPending || !currentGroupId}
+                className="h-8 text-xs gap-1.5 font-medium"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {isPending ? "Расчет..." : "Авто-ротация"}
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -455,20 +490,6 @@ export function DutyScheduleView({
               </Button>
             </Link>
           )}
-        </div>
-      )}
-
-      {successMsg && (
-        <div className="print:hidden p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="print:hidden p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
         </div>
       )}
 
@@ -847,6 +868,34 @@ export function DutyScheduleView({
           </DialogContent>
         )}
       </Dialog>
+
+      {/* Clear Duty Confirmation AlertDialog */}
+      <AlertDialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px] place-items-start text-left">
+          <AlertDialogHeader className="text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+              <Trash2 className="h-4 w-4 text-destructive" /> Очистить дежурства?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Вы уверены, что хотите удалить все записи дежурств для группы{" "}
+              <strong className="text-foreground">«{currentGroupObj?.name || ""}»</strong>?
+              Таблица расписания будет полностью очищена.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 w-full">
+            <AlertDialogCancel className="h-6 px-2.5 text-xs">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmClear}
+              disabled={isPending}
+              className="h-6 px-2.5 text-xs bg-destructive text-white hover:bg-destructive/90 font-medium"
+            >
+              Очистить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

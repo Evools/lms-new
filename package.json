@@ -15,6 +15,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
+    "db:clear:duty": "npx tsx scripts/clear-duty.ts",
     "db:studio": "prisma studio"
   },
   "prisma": {
