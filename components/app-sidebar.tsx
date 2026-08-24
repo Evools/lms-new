@@ -41,7 +41,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
 
   const teams = [
     {
-      name: "Лицей LMS",
+      name: "IT Лицей №98",
       logo: <GraduationCap className="h-4 w-4" />,
       plan: "Учебный год 2026-2027",
     },

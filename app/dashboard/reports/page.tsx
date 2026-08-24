@@ -35,7 +35,6 @@ export default async function ReportsPage() {
       groupAttendance={data.groupAttendance!}
       groupAssignments={data.groupAssignments!}
       studentActivity={data.studentActivity!}
-      subjectMaterials={data.subjectMaterials!}
     />
   );
 }
