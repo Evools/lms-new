@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { GroupItemDTO, updateMaterialAction } from "@/app/dashboard/lms/actions";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
+import { toast } from "@/components/ui/toast";
 
 export interface MaterialEditData {
   id: string;
@@ -38,9 +39,9 @@ export interface MaterialEditData {
   groupId: string;
   type: MaterialType;
   title: string;
-  content: string;
-  fileUrl: string;
-  linkUrl: string;
+  content?: string | null;
+  fileUrl?: string | null;
+  linkUrl?: string | null;
 }
 
 interface EditMaterialViewProps {
@@ -54,6 +55,11 @@ const DEFAULT_TEMPLATES: WysiwygTemplate[] = [
     id: "lecture_main",
     name: "Конспект лекции",
     content: `## Теория и ключевые понятия\nПодробное описание теоретического материала занятия.\n\n1. Раздел 1. Введение и базовые определения\n2. Раздел 2. Принципы работы и примеры\n3. Раздел 3. Анализ архитектуры\n\n> **Главный вывод:** Рассматриваемый подход обеспечивает масштабируемость и безопасность системы.\n\n\`\`\`javascript\n// Иллюстративный пример кода\nconst systemStatus = "active";\nconsole.log("Логирование загрузки системы:", systemStatus);\n\`\`\``,
+  },
+  {
+    id: "practice_main",
+    name: "Практическое задание",
+    content: `## Цели практической работы\nЗакрепление навыков на практике и выполнение задания.\n\n### Пошаговая инструкция:\n- [ ] 1. Инициализировать репозиторий и настроить окружение\n- [ ] 2. Реализовать заданную бизнес-логику\n- [ ] 3. Провести тестирование и проверить типы\n\n> **Важно:** Сохраняйте историю коммитов в Git!`,
   },
 ];
 
@@ -69,32 +75,29 @@ export function EditMaterialView({
   const [topicId, setTopicId] = useState(initialMaterial.topicId);
   const [type, setType] = useState<MaterialType>(initialMaterial.type);
   const [title, setTitle] = useState(initialMaterial.title);
-  const [content, setContent] = useState(initialMaterial.content);
+  const [content, setContent] = useState(initialMaterial.content || "");
 
-  // Parse Initial Multiple Videos
+  // Multiple Video URLs parsed from linkUrl JSON or fallback
   const [videoUrls, setVideoUrls] = useState<string[]>(() => {
     if (!initialMaterial.linkUrl) return [];
     try {
       const parsed = JSON.parse(initialMaterial.linkUrl);
-      if (Array.isArray(parsed)) return parsed.filter(Boolean);
-    } catch {}
-    return [initialMaterial.linkUrl].filter(Boolean);
+      return Array.isArray(parsed) ? parsed : [initialMaterial.linkUrl];
+    } catch {
+      return [initialMaterial.linkUrl];
+    }
   });
 
-  // Parse Initial Multiple Resource URLs
+  // Multiple File & Resource URLs parsed from fileUrl JSON or fallback
   const [resourceUrls, setResourceUrls] = useState<string[]>(() => {
     if (!initialMaterial.fileUrl) return [];
     try {
       const parsed = JSON.parse(initialMaterial.fileUrl);
-      if (Array.isArray(parsed)) {
-        return parsed.map((item: any) => typeof item === "string" ? item : item?.url || "").filter(Boolean);
-      }
-    } catch {}
-    return [initialMaterial.fileUrl].filter(Boolean);
+      return Array.isArray(parsed) ? parsed : [initialMaterial.fileUrl];
+    } catch {
+      return [initialMaterial.fileUrl];
+    }
   });
-
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const handleGroupChange = (val: string) => {
     setGroupId(val);
@@ -148,14 +151,13 @@ export function EditMaterialView({
 
   const handleSubmit = () => {
     if (!topicId || topicId === "none" || !title.trim()) {
-      setErrorMsg("Укажите главу и заголовок материала");
+      toast.add({ title: "Укажите главу и заголовок материала", type: "error" });
       return;
     }
 
     const cleanVideos = videoUrls.map((v) => v.trim()).filter(Boolean);
     const cleanResources = resourceUrls.map((r) => r.trim()).filter(Boolean);
 
-    setErrorMsg(null);
     startTransition(async () => {
       const linkUrlData = cleanVideos.length > 0 ? JSON.stringify(cleanVideos) : null;
       const fileUrlData = cleanResources.length > 0 ? JSON.stringify(cleanResources) : null;
@@ -170,13 +172,13 @@ export function EditMaterialView({
       });
 
       if (res.success) {
-        setSuccessMsg("Изменения в материале успешно сохранены!");
+        toast.add({ title: "Изменения в материале успешно сохранены!", type: "success" });
         setTimeout(() => {
           router.push(`/dashboard/lms/materials?group=${groupId}`);
           router.refresh();
-        }, 1000);
+        }, 600);
       } else {
-        setErrorMsg(res.error || "Ошибка при обновлении материала");
+        toast.add({ title: res.error || "Ошибка при обновлении материала", type: "error" });
       }
     });
   };
@@ -184,42 +186,33 @@ export function EditMaterialView({
   return (
     <div className="space-y-4 w-full">
       {/* Header Bar */}
-      <div className="flex items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-xs">
-        <div className="flex items-center gap-3">
-          <Link href={`/dashboard/lms/materials?group=${groupId}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Link href={`/dashboard/lms/materials?group=${groupId}`} className="shrink-0">
             <Button size="xs" variant="outline" className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" /> Редактирование учебного материала
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-1.5 truncate">
+              <FileText className="h-4 sm:h-5 w-4 sm:w-5 text-primary shrink-0" />
+              <span className="truncate">Редактирование материала</span>
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Изменение привязки к главе, названия, конспекта, видеозаписей и ресурсов
+            <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden xs:block">
+              Изменение привязки к главе, названия, конспекта и ресурсов
             </p>
           </div>
         </div>
 
-        <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 text-xs gap-1.5 font-medium">
+        <Button
+          size="xs"
+          disabled={isPending}
+          onClick={handleSubmit}
+          className="h-8 text-xs gap-1.5 font-medium shrink-0 w-full sm:w-auto"
+        >
           <Save className="h-3.5 w-3.5" /> Сохранить изменения
         </Button>
       </div>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Form Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

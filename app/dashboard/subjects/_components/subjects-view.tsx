@@ -113,19 +113,18 @@ export function SubjectsView({
   const [removeBindingTarget, setRemoveBindingTarget] = useState<GroupSubjectBindingDTO | null>(null);
 
   const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(null), 3000);
-    try {
-      toast.add({ title: msg, type: "success" });
-    } catch {}
+    toast.add({ title: msg, type: "success" });
+  };
+
+  const showError = (msg: string) => {
+    toast.add({ title: msg, type: "error" });
   };
 
   const handleCreate = () => {
     if (!newName.trim()) {
-      setErrorMsg("Укажите название дисциплины");
+      showError("Укажите название дисциплины");
       return;
     }
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createSubjectAction({
         name: newName,
@@ -140,17 +139,16 @@ export function SubjectsView({
         showSuccess("Дисциплина успешно создана!");
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка создания");
+        showError(res.error || "Ошибка создания");
       }
     });
   };
 
   const handleUpdate = () => {
     if (!editTarget || !editName.trim()) {
-      setErrorMsg("Укажите название");
+      showError("Укажите название");
       return;
     }
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await updateSubjectAction(editTarget.id, {
         name: editName,
@@ -162,14 +160,13 @@ export function SubjectsView({
         showSuccess("Дисциплина обновлена!");
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка обновления");
+        showError(res.error || "Ошибка обновления");
       }
     });
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await deleteSubjectAction(deleteTarget.id);
       if (res.success) {
@@ -177,7 +174,7 @@ export function SubjectsView({
         showSuccess("Дисциплина удалена!");
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка удаления");
+        showError(res.error || "Ошибка удаления");
       }
     });
   };
@@ -190,10 +187,9 @@ export function SubjectsView({
 
   const handleAssign = () => {
     if (!assignSubjectId || !assignGroupId || !assignTeacherId) {
-      setErrorMsg("Заполните все поля");
+      showError("Заполните все поля");
       return;
     }
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await assignSubjectToGroupAction({
         subjectId: assignSubjectId,
@@ -205,14 +201,13 @@ export function SubjectsView({
         showSuccess("Дисциплина успешно привязана к группе!");
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка привязки");
+        showError(res.error || "Ошибка привязки");
       }
     });
   };
 
   const handleRemoveBinding = () => {
     if (!removeBindingTarget) return;
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await removeSubjectFromGroupAction(removeBindingTarget.id);
       if (res.success) {
@@ -220,7 +215,7 @@ export function SubjectsView({
         showSuccess("Привязка удалена!");
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка отвязки");
+        showError(res.error || "Ошибка отвязки");
       }
     });
   };
@@ -340,20 +335,6 @@ export function SubjectsView({
           </div>
         )}
       </div>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2 animate-in fade-in">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Filters & View Switcher Bar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-2xs">

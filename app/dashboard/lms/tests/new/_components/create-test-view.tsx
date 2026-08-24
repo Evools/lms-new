@@ -56,6 +56,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, createTestAction } from "../../../actions";
+import { toast } from "@/components/ui/toast";
 
 interface CreateTestViewProps {
   groups: GroupItemDTO[];
@@ -421,7 +422,7 @@ export function CreateTestView({
     if (!bulkImportText.trim()) return;
     const parsed = parseBulkQuestions(bulkImportText);
     if (parsed.length === 0) {
-      setErrorMsg("Не удалось распознать вопросы. Проверьте формат текста.");
+      toast.add({ title: "Не удалось распознать вопросы. Проверьте формат текста.", type: "error" });
       return;
     }
     setQuestionDrafts((prev) => [...prev, ...parsed]);
@@ -643,7 +644,7 @@ export function CreateTestView({
 
   const handleSubmit = () => {
     if (!groupSubjectId || !title.trim()) {
-      setErrorMsg("Укажите дисциплину и название теста");
+      toast.add({ title: "Укажите дисциплину и название теста", type: "error" });
       return;
     }
 
@@ -654,7 +655,7 @@ export function CreateTestView({
     });
 
     if (invalidQ) {
-      setErrorMsg("Заполните тексты вопросов и выберите правильные ответы для всех вопросов");
+      toast.add({ title: "Заполните тексты вопросов и выберите правильные ответы для всех вопросов", type: "error" });
       return;
     }
 
@@ -668,7 +669,6 @@ export function CreateTestView({
       return q;
     });
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createTestAction({
         groupSubjectId,
@@ -682,13 +682,13 @@ export function CreateTestView({
       });
 
       if (res.success) {
-        setSuccessMsg("Тест успешно создан и опубликован!");
+        toast.add({ title: "Тест успешно создан и опубликован!", type: "success" });
         setTimeout(() => {
           router.push(`/dashboard/lms/tests?group=${groupId}`);
           router.refresh();
-        }, 1000);
+        }, 600);
       } else {
-        setErrorMsg(res.error || "Ошибка при создании теста");
+        toast.add({ title: res.error || "Ошибка при создании теста", type: "error" });
       }
     });
   };
@@ -705,10 +705,10 @@ export function CreateTestView({
           </Link>
           <div>
             <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <FileCheck2 className="h-4 w-4 text-primary" /> Конструктор теста LMS
+              <FileCheck2 className="h-4 w-4 text-primary" /> Конструктор тестов и опросов (LMS)
             </h1>
             <p className="text-[11px] text-muted-foreground">
-              Создание вопросов с вариантами ответов (выбор, текстовый ввод, верно/неверно)
+              Создайте интерактивное тестирование с баллами, таймером и вопросами
             </p>
           </div>
         </div>
@@ -716,6 +716,7 @@ export function CreateTestView({
         <div className="flex items-center gap-2">
           <Button
             size="xs"
+            type="button"
             variant="outline"
             onClick={() => setIsBulkImportOpen(true)}
             className="h-7 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
@@ -725,6 +726,7 @@ export function CreateTestView({
 
           <Button
             size="xs"
+            type="button"
             variant="outline"
             onClick={() => setIsPreview(!isPreview)}
             className="h-7 text-xs gap-1.5"
@@ -789,21 +791,6 @@ export function CreateTestView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">

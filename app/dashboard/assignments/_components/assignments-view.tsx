@@ -546,14 +546,13 @@ export function AssignmentsView({
   // Create Assignment Handler
   const handleCreateAssignment = () => {
     if (!newGroupSubjectId || !newTitle.trim()) {
-      setErrorMsg("Заполните обязательные поля: Дисциплина и Заголовок");
+      toast.add({ title: "Заполните обязательные поля: Дисциплина и Заголовок", type: "error" });
       return;
     }
 
     const validUrls = attachmentUrls.map((u) => u.trim()).filter(Boolean);
     const serializedFileUrl = validUrls.length > 0 ? JSON.stringify(validUrls) : undefined;
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createAssignmentAction({
         groupSubjectId: newGroupSubjectId,
@@ -569,11 +568,10 @@ export function AssignmentsView({
         setNewDescription("");
         setNewDueDate("");
         setAttachmentUrls([""]);
-        setSuccessMsg("Домашнее задание успешно опубликовано!");
+        toast.add({ title: "Домашнее задание успешно опубликовано!", type: "success" });
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Не удалось создать задание");
+        toast.add({ title: res.error || "Не удалось создать задание", type: "error" });
       }
     });
   };
@@ -584,16 +582,12 @@ export function AssignmentsView({
     const assignmentId = deleteTargetAssignment.id;
     setDeleteTargetAssignment(null);
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await deleteAssignmentAction(assignmentId);
       if (res.success) {
-        setSuccessMsg("Задание удалено!");
         toast.add({ title: "Задание успешно удалено", type: "success" });
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Не удалось удалить задание");
         toast.add({ title: res.error || "Не удалось удалить задание", type: "error" });
       }
     });
@@ -608,7 +602,7 @@ export function AssignmentsView({
     if (submitMode === "code") {
       const validFiles = submitFiles.filter((f) => f.name.trim() && f.code.trim());
       if (validFiles.length === 0 && !submitFileUrl.trim() && !submitComment.trim()) {
-        setErrorMsg("Напишите или вставьте код хотя бы в один файл");
+        toast.add({ title: "Напишите или вставьте код хотя бы в один файл", type: "error" });
         return;
       }
       payloadComment = JSON.stringify({
@@ -618,12 +612,11 @@ export function AssignmentsView({
       });
     } else {
       if (!submitFileUrl.trim() && !submitComment.trim()) {
-        setErrorMsg("Укажите ссылку на выполненное задание или напишите комментарий");
+        toast.add({ title: "Укажите ссылку на выполненное задание или напишите комментарий", type: "error" });
         return;
       }
     }
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await submitAssignmentAction({
         assignmentId: submitTargetAssignment.id,
@@ -635,11 +628,10 @@ export function AssignmentsView({
         setSubmitTargetAssignment(null);
         setSubmitFileUrl("");
         setSubmitComment("");
-        setSuccessMsg("Решение отправлено на проверку преподавателю!");
+        toast.add({ title: "Решение отправлено на проверку преподавателю!", type: "success" });
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при отправке задания");
+        toast.add({ title: res.error || "Ошибка при отправке задания", type: "error" });
       }
     });
   };
@@ -671,7 +663,6 @@ export function AssignmentsView({
     const teacherComment = reviewTeacherCommentMap[submissionId] || "";
     const grade = reviewGradeMap[submissionId] ?? null;
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await reviewSubmissionAction({
         submissionId,
@@ -681,7 +672,7 @@ export function AssignmentsView({
       });
 
       if (res.success) {
-        setSuccessMsg("Результат проверки сохранён!");
+        toast.add({ title: "Результат проверки сохранён!", type: "success" });
 
         // Auto advance to next student submission in current filtered queue
         if (reviewTargetAssignment) {
@@ -693,9 +684,8 @@ export function AssignmentsView({
         }
 
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 2500);
       } else {
-        setErrorMsg(res.error || "Ошибка при сохранении результата");
+        toast.add({ title: res.error || "Ошибка при сохранении результата", type: "error" });
       }
     });
   };
@@ -932,21 +922,6 @@ export function AssignmentsView({
           </div>
         </div>
       </div>
-
-      {/* Alert Messages */}
-      {successMsg && (
-        <div className="p-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* VIEW MODE 1: High-Density Table View (Default) */}
       {viewMode === "table" ? (

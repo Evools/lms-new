@@ -54,6 +54,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, TopicDTO, MaterialDTO, createTopicAction, deleteTopicAction } from "@/app/dashboard/lms/actions";
+import { toast } from "@/components/ui/toast";
 
 interface TopicsViewProps {
   groups: GroupItemDTO[];
@@ -109,11 +110,10 @@ export function TopicsView({
 
   const handleCreateTopic = () => {
     if (!newGroupSubjectId || !newTitle.trim()) {
-      setErrorMsg("Заполните предмет и название темы");
+      toast.add({ title: "Заполните предмет и название темы", type: "error" });
       return;
     }
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createTopicAction({
         groupSubjectId: newGroupSubjectId,
@@ -123,14 +123,13 @@ export function TopicsView({
       });
 
       if (res.success) {
-        setSuccessMsg("Тема успешно создана!");
+        toast.add({ title: "Тема успешно создана!", type: "success" });
         setIsCreateOpen(false);
         setNewTitle("");
         setNewDescription("");
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при создании темы");
+        toast.add({ title: res.error || "Ошибка при создании темы", type: "error" });
       }
     });
   };
@@ -140,15 +139,13 @@ export function TopicsView({
     const topicId = deleteTargetTopic.id;
     setDeleteTargetTopic(null);
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await deleteTopicAction(topicId);
       if (res.success) {
-        setSuccessMsg("Тема удалена");
+        toast.add({ title: "Тема удалена", type: "success" });
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Не удалось удалить тему");
+        toast.add({ title: res.error || "Не удалось удалить тему", type: "error" });
       }
     });
   };
@@ -255,21 +252,6 @@ export function TopicsView({
           </div>
         </div>
       </div>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Topics Accordion List */}
       <div className="space-y-3">

@@ -48,6 +48,7 @@ import {
   saveBatchAttendanceAction,
   clearAttendanceAction,
 } from "../actions";
+import { toast } from "@/components/ui/toast";
 
 interface StudentInfo {
   studentId: string;
@@ -224,7 +225,6 @@ export function AttendanceView({
   // Single Batch Save to DB (1 single network request)
   const handleSaveAll = useCallback(() => {
     if (!currentSubjectId || students.length === 0) return;
-    setErrorMsg(null);
 
     const batchList = students.map((st) => ({
       studentId: st.studentId,
@@ -236,10 +236,9 @@ export function AttendanceView({
       const res = await saveBatchAttendanceAction(currentSubjectId, currentDateStr, batchList);
       if (res.success) {
         setHasUnsavedChanges(false);
-        setSuccessMsg("Журнал успешно сохранен в базу данных!");
-        setTimeout(() => setSuccessMsg(null), 3000);
+        toast.add({ title: "Журнал успешно сохранен в базу данных!", type: "success" });
       } else {
-        setErrorMsg(res.error || "Ошибка при сохранении журнала");
+        toast.add({ title: res.error || "Ошибка при сохранении журнала", type: "error" });
       }
     });
   }, [currentSubjectId, currentDateStr, students, records]);
@@ -247,7 +246,6 @@ export function AttendanceView({
   // Clear / Annul attendance for this day
   const handleClearAttendance = useCallback(() => {
     if (!currentSubjectId) return;
-    setErrorMsg(null);
 
     startTransition(async () => {
       const res = await clearAttendanceAction(currentSubjectId, currentDateStr);
@@ -259,10 +257,9 @@ export function AttendanceView({
         setRecords(resetMap);
         setHasUnsavedChanges(false);
         setIsClearDialogOpen(false);
-        setSuccessMsg("Посещаемость за этот день успешно аннулирована");
-        setTimeout(() => setSuccessMsg(null), 3000);
+        toast.add({ title: "Посещаемость за этот день успешно аннулирована", type: "success" });
       } else {
-        setErrorMsg(res.error || "Ошибка аннулирования посещаемости");
+        toast.add({ title: res.error || "Ошибка аннулирования посещаемости", type: "error" });
       }
     });
   }, [currentSubjectId, currentDateStr, students]);
@@ -520,21 +517,6 @@ export function AttendanceView({
           {searchQuery && <button type="button" onClick={() => setSearchQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"><X className="h-3.5 w-3.5" /></button>}
         </div>
       </div>
-
-      {/* Messages */}
-      {successMsg && (
-        <div className="p-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Attendance Table with Status Tabs Header */}
       <Card className="print:hidden p-0 border overflow-hidden" data-tour="attendance-table">

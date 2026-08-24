@@ -126,19 +126,18 @@ export function DocumentsView({ documents, canManage }: DocumentsViewProps) {
   const [deleteTarget, setDeleteTarget] = useState<DocumentDTO | null>(null);
 
   const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(null), 3000);
-    try {
-      toast.add({ title: msg, type: "success" });
-    } catch {}
+    toast.add({ title: msg, type: "success" });
+  };
+
+  const showError = (msg: string) => {
+    toast.add({ title: msg, type: "error" });
   };
 
   const handleCreate = () => {
     if (!newTitle.trim() || !newUrl.trim()) {
-      setErrorMsg("Укажите название и ссылку");
+      showError("Укажите название и ссылку");
       return;
     }
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createDocumentAction({
         title: newTitle,
@@ -152,7 +151,7 @@ export function DocumentsView({ documents, canManage }: DocumentsViewProps) {
         showSuccess("Документ добавлен!");
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка");
+        showError(res.error || "Ошибка создания документа");
       }
     });
   };
@@ -167,10 +166,9 @@ export function DocumentsView({ documents, canManage }: DocumentsViewProps) {
 
   const handleUpdate = () => {
     if (!editTarget || !editTitle.trim() || !editUrl.trim()) {
-      setErrorMsg("Укажите название и ссылку");
+      showError("Укажите название и ссылку");
       return;
     }
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await updateDocumentAction(editTarget.id, {
         title: editTitle,
@@ -183,14 +181,13 @@ export function DocumentsView({ documents, canManage }: DocumentsViewProps) {
         showSuccess("Документ обновлён!");
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка");
+        showError(res.error || "Ошибка обновления документа");
       }
     });
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await deleteDocumentAction(deleteTarget.id);
       if (res.success) {
@@ -198,7 +195,7 @@ export function DocumentsView({ documents, canManage }: DocumentsViewProps) {
         showSuccess("Документ удалён!");
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка");
+        showError(res.error || "Ошибка удаления документа");
       }
     });
   };
@@ -238,20 +235,6 @@ export function DocumentsView({ documents, canManage }: DocumentsViewProps) {
           </Button>
         )}
       </div>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">

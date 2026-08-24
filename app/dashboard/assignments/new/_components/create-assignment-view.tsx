@@ -50,8 +50,9 @@ import {
   HelpCircle,
   Code2,
 } from "lucide-react";
-import { createAssignmentAction } from "../../actions";
+import { GroupItemDTO, GroupSubjectDTO, createAssignmentAction } from "@/app/dashboard/assignments/actions";
 import { renderMarkdown } from "@/lib/markdown";
+import { toast } from "@/components/ui/toast";
 
 export interface GroupOptionDTO {
   id: string;
@@ -393,22 +394,21 @@ export function CreateAssignmentView({
   // Submit Handler
   const handleSubmit = () => {
     if (!title.trim()) {
-      setErrorMsg("Укажите заголовок задания");
+      toast.add({ title: "Укажите заголовок задания", type: "error" });
       return;
     }
     if (!description.trim()) {
-      setErrorMsg("Укажите описание и требования к заданию");
+      toast.add({ title: "Укажите описание и требования к заданию", type: "error" });
       return;
     }
     if (!selectedGroupSubjectId) {
-      setErrorMsg("Выберите учебную дисциплину");
+      toast.add({ title: "Выберите учебную дисциплину", type: "error" });
       return;
     }
 
     const validUrls = attachmentUrls.map((u) => u.trim()).filter(Boolean);
     const serializedFileUrl = validUrls.length > 0 ? JSON.stringify(validUrls) : undefined;
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createAssignmentAction({
         groupSubjectId: selectedGroupSubjectId,
@@ -419,10 +419,11 @@ export function CreateAssignmentView({
       });
 
       if (res.success) {
+        toast.add({ title: "Задание успешно создано!", type: "success" });
         router.push(`/dashboard/assignments?group=${selectedGroupId}`);
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка сохранения задания");
+        toast.add({ title: res.error || "Ошибка сохранения задания", type: "error" });
       }
     });
   };
@@ -438,12 +439,12 @@ export function CreateAssignmentView({
           >
             <ChevronLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <div className="space-y-0.5">
+            <h1 className="text-sm font-bold text-foreground flex items-center gap-1.5">
               <ClipboardList className="h-4 w-4 text-primary" /> Создание домашнего задания
             </h1>
             <p className="text-[11px] text-muted-foreground">
-              Составление задания, требования к оформлению и прикрепление материалов
+              Заполните заголовок, расширенное описание, прикрепите файлы и укажите дедлайн
             </p>
           </div>
         </div>
@@ -467,13 +468,6 @@ export function CreateAssignmentView({
           </Button>
         </div>
       </div>
-
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Full-width Grid: Left = Editor Canvas (2 cols), Right = Settings Panel (1 col) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">

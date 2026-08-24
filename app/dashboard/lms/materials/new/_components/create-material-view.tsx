@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { GroupItemDTO, createMaterialAction } from "../../../actions";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
+import { toast } from "@/components/ui/toast";
 
 interface CreateMaterialViewProps {
   groups: GroupItemDTO[];
@@ -135,14 +136,13 @@ export function CreateMaterialView({
 
   const handleSubmit = () => {
     if (!title.trim()) {
-      setErrorMsg("Укажите заголовок материала");
+      toast.add({ title: "Укажите заголовок материала", type: "error" });
       return;
     }
 
     const cleanVideos = videoUrls.map((v) => v.trim()).filter(Boolean);
     const cleanResources = resourceUrls.map((r) => r.trim()).filter(Boolean);
 
-    setErrorMsg(null);
     startTransition(async () => {
       const linkUrlData = cleanVideos.length > 0 ? JSON.stringify(cleanVideos) : null;
       const fileUrlData = cleanResources.length > 0 ? JSON.stringify(cleanResources) : null;
@@ -158,7 +158,7 @@ export function CreateMaterialView({
       });
 
       if (res.success) {
-        setSuccessMsg("Материал успешно опубликован!");
+        toast.add({ title: "Материал успешно опубликован!", type: "success" });
         setTimeout(() => {
           const targetSubjectId = selectedSubjectId || (res as any).subjectId;
           const targetUrl = targetSubjectId
@@ -166,9 +166,9 @@ export function CreateMaterialView({
             : `/dashboard/lms/materials?group=${groupId}`;
           router.push(targetUrl);
           router.refresh();
-        }, 800);
+        }, 600);
       } else {
-        setErrorMsg(res.error || "Ошибка при публикации материала");
+        toast.add({ title: res.error || "Ошибка при публикации материала", type: "error" });
       }
     });
   };
@@ -203,21 +203,6 @@ export function CreateMaterialView({
           Опубликовать материал
         </Button>
       </div>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Form Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

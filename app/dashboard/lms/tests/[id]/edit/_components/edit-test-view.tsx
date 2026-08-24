@@ -56,6 +56,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, updateTestAction } from "@/app/dashboard/lms/actions";
+import { toast } from "@/components/ui/toast";
 
 export type QuestionType =
   | "SINGLE"
@@ -436,13 +437,13 @@ export function EditTestView({
     if (!bulkImportText.trim()) return;
     const parsed = parseBulkQuestions(bulkImportText);
     if (parsed.length === 0) {
-      setErrorMsg("Не удалось распознать вопросы. Проверьте формат текста.");
+      toast.add({ title: "Не удалось распознать вопросы. Проверьте формат текста.", type: "error" });
       return;
     }
     setQuestionDrafts((prev) => [...prev, ...parsed]);
     setBulkImportText("");
     setIsBulkImportOpen(false);
-    setSuccessMsg(`Успешно импортировано вопросов: ${parsed.length}`);
+    toast.add({ title: `Успешно импортировано вопросов: ${parsed.length}`, type: "success" });
   };
 
   const handleAddMatchingPair = (qIdx: number) => {
@@ -636,49 +637,49 @@ export function EditTestView({
 
   const handleSubmit = () => {
     if (!title.trim()) {
-      setErrorMsg("Укажите название теста");
+      toast.add({ title: "Укажите название теста", type: "error" });
       return;
     }
     if (!groupSubjectId) {
-      setErrorMsg("Укажите учебную дисциплину");
+      toast.add({ title: "Укажите учебную дисциплину", type: "error" });
       return;
     }
     if (questionDrafts.length === 0) {
-      setErrorMsg("Добавьте хотя бы один вопрос в тест");
+      toast.add({ title: "Добавьте хотя бы один вопрос в тест", type: "error" });
       return;
     }
 
     for (let idx = 0; idx < questionDrafts.length; idx++) {
       const q = questionDrafts[idx];
       if (!q.questionText.trim()) {
-        setErrorMsg(`Заполните текст вопроса #${idx + 1}`);
+        toast.add({ title: `Заполните текст вопроса #${idx + 1}`, type: "error" });
         return;
       }
       if (q.type !== "TEXT") {
         if (q.options.length < 2) {
-          setErrorMsg(`Вопрос #${idx + 1} должен содержать минимум 2 варианта ответа`);
+          toast.add({ title: `Вопрос #${idx + 1} должен содержать минимум 2 варианта ответа`, type: "error" });
           return;
         }
         if (q.type === "MULTIPLE") {
           try {
             const arr = JSON.parse(q.correctAnswer);
             if (!Array.isArray(arr) || arr.length === 0) {
-              setErrorMsg(`Укажите хотя бы один верный вариант для вопроса #${idx + 1}`);
+              toast.add({ title: `Укажите хотя бы один верный вариант для вопроса #${idx + 1}`, type: "error" });
               return;
             }
           } catch {
-            setErrorMsg(`Укажите хотя бы один верный вариант для вопроса #${idx + 1}`);
+            toast.add({ title: `Укажите хотя бы один верный вариант для вопроса #${idx + 1}`, type: "error" });
             return;
           }
         } else {
           if (!q.correctAnswer) {
-            setErrorMsg(`Отметьте верный вариант ответа для вопроса #${idx + 1}`);
+            toast.add({ title: `Отметьте верный вариант ответа для вопроса #${idx + 1}`, type: "error" });
             return;
           }
         }
       } else {
         if (!q.correctAnswer.trim()) {
-          setErrorMsg(`Укажите эталонный верный ответ для текстового вопроса #${idx + 1}`);
+          toast.add({ title: `Укажите эталонный верный ответ для текстового вопроса #${idx + 1}`, type: "error" });
           return;
         }
       }
@@ -694,7 +695,6 @@ export function EditTestView({
       return q;
     });
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await updateTestAction(initialTest.id, {
         groupSubjectId,
@@ -708,13 +708,13 @@ export function EditTestView({
       });
 
       if (res.success) {
-        setSuccessMsg("Изменения в тесте успешно сохранены!");
+        toast.add({ title: "Изменения в тесте успешно сохранены!", type: "success" });
         setTimeout(() => {
           router.push(`/dashboard/lms/tests?group=${groupId}`);
           router.refresh();
-        }, 1000);
+        }, 600);
       } else {
-        setErrorMsg(res.error || "Ошибка при обновлении теста");
+        toast.add({ title: res.error || "Ошибка при обновлении теста", type: "error" });
       }
     });
   };
@@ -815,21 +815,6 @@ export function EditTestView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">

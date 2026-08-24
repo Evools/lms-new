@@ -59,6 +59,7 @@ import {
   deleteMaterialAction,
 } from "@/app/dashboard/lms/actions";
 import { renderMarkdown } from "@/lib/markdown";
+import { toast } from "@/components/ui/toast";
 
 export interface TopicWithMaterialsDTO {
   id: string;
@@ -180,11 +181,10 @@ export function MaterialsView({
   // Chapter Handlers
   const handleCreateChapter = () => {
     if (!newChapterTitle.trim() || !newChapterSubjectId) {
-      setErrorMsg("Укажите дисциплину и название главы");
+      toast.add({ title: "Укажите дисциплину и название главы", type: "error" });
       return;
     }
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createTopicAction({
         groupSubjectId: newChapterSubjectId,
@@ -192,13 +192,12 @@ export function MaterialsView({
       });
 
       if (res.success) {
-        setSuccessMsg("Глава успешно создана!");
+        toast.add({ title: "Глава успешно создана!", type: "success" });
         setIsCreateChapterOpen(false);
         setNewChapterTitle("");
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при создании главы");
+        toast.add({ title: res.error || "Ошибка при создании главы", type: "error" });
       }
     });
   };
@@ -210,23 +209,21 @@ export function MaterialsView({
 
   const handleUpdateChapter = () => {
     if (!editChapterTarget || !editChapterTitle.trim()) {
-      setErrorMsg("Укажите название главы");
+      toast.add({ title: "Укажите название главы", type: "error" });
       return;
     }
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await updateTopicAction(editChapterTarget.id, {
         title: editChapterTitle,
       });
 
       if (res.success) {
-        setSuccessMsg("Глава успешно обновлена!");
+        toast.add({ title: "Глава успешно обновлена!", type: "success" });
         setEditChapterTarget(null);
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при обновлении главы");
+        toast.add({ title: res.error || "Ошибка при обновлении главы", type: "error" });
       }
     });
   };
@@ -234,17 +231,15 @@ export function MaterialsView({
   const handleDeleteChapter = () => {
     if (!deleteChapterTarget) return;
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await deleteTopicAction(deleteChapterTarget.id);
 
       if (res.success) {
-        setSuccessMsg("Глава успешно удалена!");
+        toast.add({ title: "Глава успешно удалена!", type: "success" });
         setDeleteChapterTarget(null);
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при удалении главы");
+        toast.add({ title: res.error || "Ошибка при удалении главы", type: "error" });
       }
     });
   };
@@ -253,19 +248,17 @@ export function MaterialsView({
   const handleDeleteMaterial = () => {
     if (!deleteMaterialTarget) return;
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await deleteMaterialAction(deleteMaterialTarget.id);
       if (res.success) {
-        setSuccessMsg("Материал удален!");
+        toast.add({ title: "Материал удален!", type: "success" });
         if (activeMaterial?.id === deleteMaterialTarget.id) {
           setActiveMaterial(materials.find((m) => m.id !== deleteMaterialTarget.id) || null);
         }
         setDeleteMaterialTarget(null);
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Не удалось удалить материал");
+        toast.add({ title: res.error || "Ошибка при удалении материала", type: "error" });
       }
     });
   };
@@ -358,21 +351,6 @@ export function MaterialsView({
 
   return (
     <div className="space-y-4 w-full text-xs">
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
-
       {/* STEP 1: SUBJECTS CATALOG VIEW (When no subject is selected) */}
       {!selectedSubjectId ? (
         <div className="space-y-4">

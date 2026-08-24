@@ -70,6 +70,7 @@ import {
   submitTestAnswersAction,
   deleteTestAction,
 } from "@/app/dashboard/lms/actions";
+import { toast } from "@/components/ui/toast";
 
 interface TestsViewProps {
   groups: GroupItemDTO[];
@@ -201,20 +202,18 @@ export function TestsView({
     });
   };
 
-  // Submit Create Test
   const handleCreateTest = () => {
     if (!newGroupSubjectId || !newTitle.trim()) {
-      setErrorMsg("Укажите дисциплину и заголовок теста");
+      toast.add({ title: "Укажите дисциплину и заголовок теста", type: "error" });
       return;
     }
 
-    const invalidQ = questionDrafts.find((q) => !q.questionText.trim() || !q.correctAnswer.trim());
-    if (invalidQ) {
-      setErrorMsg("Заполните тексты вопросов и выберите правильные ответы");
+    const invalidQuestion = questionDrafts.find((q) => !q.questionText.trim() || !q.correctAnswer.trim());
+    if (invalidQuestion) {
+      toast.add({ title: "Заполните тексты вопросов и выберите правильные ответы", type: "error" });
       return;
     }
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createTestAction({
         groupSubjectId: newGroupSubjectId,
@@ -222,35 +221,34 @@ export function TestsView({
         title: newTitle,
         description: newDescription,
         timeLimit: newTimeLimit ? Number(newTimeLimit) : undefined,
+        shuffleQuestions: true,
+        shuffleOptions: true,
         questions: questionDrafts,
       });
 
       if (res.success) {
-        setSuccessMsg("Тест успешно создан и опубликован!");
+        toast.add({ title: "Тест успешно создан и опубликован!", type: "success" });
         setIsCreateOpen(false);
         setNewTitle("");
         setNewDescription("");
         setQuestionDrafts([
           {
             questionText: "",
-            options: ["Вариант 1", "Вариант 2"],
+            options: ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"],
             correctAnswer: "Вариант 1",
             points: 1,
           },
         ]);
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Ошибка при создании теста");
+        toast.add({ title: res.error || "Ошибка при создании теста", type: "error" });
       }
     });
   };
 
-  // Student Submit Test Answers
   const handleStudentSubmitTest = () => {
     if (!activeTest) return;
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await submitTestAnswersAction({
         testId: activeTest.id,
@@ -261,26 +259,23 @@ export function TestsView({
         setTestResult({ score: res.score, maxScore: res.maxScore });
         router.refresh();
       } else {
-        setErrorMsg(res.error || "Ошибка при отправке ответов");
+        toast.add({ title: res.error || "Ошибка при отправке ответов", type: "error" });
       }
     });
   };
 
-  // Delete Test
   const handleConfirmDeleteTest = () => {
     if (!deleteTargetTest) return;
     const testId = deleteTargetTest.id;
     setDeleteTargetTest(null);
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await deleteTestAction(testId);
       if (res.success) {
-        setSuccessMsg("Тест удален");
+        toast.add({ title: "Тест удален", type: "success" });
         router.refresh();
-        setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setErrorMsg(res.error || "Не удалось удалить тест");
+        toast.add({ title: res.error || "Не удалось удалить тест", type: "error" });
       }
     });
   };
@@ -487,21 +482,6 @@ export function TestsView({
           </div>
         </div>
       </div>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* VIEW MODE 1: Compact Table View (Default) */}
       {viewMode === "table" ? (

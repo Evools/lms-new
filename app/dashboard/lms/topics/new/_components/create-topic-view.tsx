@@ -17,12 +17,11 @@ import {
   ChevronLeft,
   FolderKanban,
   Building2,
-  CheckCircle2,
-  AlertCircle,
   Plus,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, createTopicAction } from "../../../actions";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
+import { toast } from "@/components/ui/toast";
 
 interface CreateTopicViewProps {
   groups: GroupItemDTO[];
@@ -66,9 +65,6 @@ export function CreateTopicView({
   const [description, setDescription] = useState("");
   const [order, setOrder] = useState<number>(existingTopicsCount + 1);
 
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
   const handleGroupChange = (val: string) => {
     setGroupId(val);
     router.push(`/dashboard/lms/topics/new?group=${val}`);
@@ -76,11 +72,10 @@ export function CreateTopicView({
 
   const handleSubmit = () => {
     if (!groupSubjectId || !title.trim()) {
-      setErrorMsg("Укажите учебную дисциплину и название темы");
+      toast.add({ title: "Укажите учебную дисциплину и название темы", type: "error" });
       return;
     }
 
-    setErrorMsg(null);
     startTransition(async () => {
       const res = await createTopicAction({
         groupSubjectId,
@@ -90,13 +85,13 @@ export function CreateTopicView({
       });
 
       if (res.success) {
-        setSuccessMsg("Тема успешно создана!");
+        toast.add({ title: "Тема успешно создана!", type: "success" });
         setTimeout(() => {
           router.push(`/dashboard/lms/topics?group=${groupId}`);
           router.refresh();
-        }, 1000);
+        }, 600);
       } else {
-        setErrorMsg(res.error || "Ошибка при создании темы");
+        toast.add({ title: res.error || "Ошибка при создании темы", type: "error" });
       }
     });
   };
@@ -104,19 +99,20 @@ export function CreateTopicView({
   return (
     <div className="space-y-4 w-full">
       {/* Header Bar */}
-      <div className="flex items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-xs">
-        <div className="flex items-center gap-3">
-          <Link href={`/dashboard/lms/topics?group=${groupId}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Link href={`/dashboard/lms/topics?group=${groupId}`} className="shrink-0">
             <Button size="xs" variant="outline" className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-              <FolderKanban className="h-5 w-5 text-primary" /> Полнофункциональный конструктор уроков (тем)
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-1.5 truncate">
+              <FolderKanban className="h-4 sm:h-5 w-4 sm:w-5 text-primary shrink-0" />
+              <span className="truncate">Конструктор тем и уроков</span>
             </h1>
-            <p className="text-xs text-muted-foreground">
-              Универсальный WYSIWYG-редактор с Markdown-разметкой, пресетами и интерактивом
+            <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden xs:block">
+              Создайте тему учебной программы с разметкой и материалами
             </p>
           </div>
         </div>
@@ -125,21 +121,6 @@ export function CreateTopicView({
           <Plus className="h-3.5 w-3.5" /> Опубликовать тему
         </Button>
       </div>
-
-      {/* Alerts */}
-      {successMsg && (
-        <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Main Form Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
