@@ -518,7 +518,10 @@ export function MaterialsView({
           {/* Action Buttons */}
           {canCreate && (
             <div className="space-y-2">
-              <Link href={`/dashboard/lms/materials/new?group=${selectedGroupId}`} className="block">
+              <Link
+                href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
+                className="block"
+              >
                 <Button size="xs" className="w-full h-8 text-xs gap-1.5 font-medium shadow-xs">
                   <Plus className="h-3.5 w-3.5" /> Добавить материал
                 </Button>

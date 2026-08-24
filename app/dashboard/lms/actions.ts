@@ -647,7 +647,8 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
 }
 
 export async function createMaterialAction(data: {
-  topicId: string;
+  groupId?: string;
+  topicId?: string;
   type: MaterialType;
   title: string;
   content?: string;
@@ -660,13 +661,73 @@ export async function createMaterialAction(data: {
       return { success: false, error: "Недостаточно прав для публикации материала" };
     }
 
-    if (!data.topicId || !data.title.trim() || !data.type) {
-      return { success: false, error: "Укажите тему, тип и название материала" };
+    if (!data.title.trim() || !data.type) {
+      return { success: false, error: "Укажите название и тип материала" };
     }
 
-    await prisma.material.create({
+    let targetTopicId = data.topicId;
+
+    // If no topic selected, auto-resolve or create "Общие материалы" topic for this group
+    if (!targetTopicId || targetTopicId === "none" || targetTopicId === "auto") {
+      if (!data.groupId) {
+        return { success: false, error: "Укажите учебную группу или главу" };
+      }
+
+      // Find first groupSubject for this group
+      let groupSubject = await prisma.groupSubject.findFirst({
+        where: { groupId: data.groupId },
+      });
+
+      // If no groupSubject exists yet, assign a default subject
+      if (!groupSubject) {
+        let defaultSubject = await prisma.subject.findFirst({
+          where: { name: "Общие дисциплины" },
+        });
+
+        if (!defaultSubject) {
+          defaultSubject = await prisma.subject.create({
+            data: {
+              name: "Общие дисциплины",
+              code: "GEN-101",
+              description: "Общие учебные материалы и дисциплины группы",
+            },
+          });
+        }
+
+        groupSubject = await prisma.groupSubject.create({
+          data: {
+            groupId: data.groupId,
+            subjectId: defaultSubject.id,
+            teacherId: session.user.id,
+          },
+        });
+      }
+
+      // Find or create default "Общие материалы" topic
+      let defaultTopic = await prisma.topic.findFirst({
+        where: {
+          groupSubjectId: groupSubject.id,
+          title: "Общие материалы",
+        },
+      });
+
+      if (!defaultTopic) {
+        defaultTopic = await prisma.topic.create({
+          data: {
+            groupSubjectId: groupSubject.id,
+            title: "Общие материалы",
+            description: "Раздел для общих учебных материалов и конспектов",
+            order: 0,
+          },
+        });
+      }
+
+      targetTopicId = defaultTopic.id;
+    }
+
+    const createdMaterial = await prisma.material.create({
       data: {
-        topicId: data.topicId,
+        topicId: targetTopicId,
         authorId: session.user.id,
         type: data.type,
         title: data.title.trim(),
@@ -674,12 +735,25 @@ export async function createMaterialAction(data: {
         fileUrl: data.fileUrl?.trim() || null,
         linkUrl: data.linkUrl?.trim() || null,
       },
+      include: {
+        topic: {
+          select: {
+            id: true,
+            groupSubjectId: true,
+          },
+        },
+      },
     });
 
     revalidatePath("/dashboard/lms/materials");
     revalidatePath("/dashboard/lms/topics");
     revalidatePath("/dashboard/lms");
-    return { success: true };
+    return {
+      success: true,
+      materialId: createdMaterial.id,
+      topicId: targetTopicId,
+      subjectId: createdMaterial.topic?.groupSubjectId || undefined,
+    };
   } catch (err) {
     console.error("createMaterialAction error:", err);
     return { success: false, error: "Ошибка при публикации материала" };

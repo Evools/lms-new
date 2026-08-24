@@ -33,8 +33,10 @@ import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-ed
 
 interface CreateMaterialViewProps {
   groups: GroupItemDTO[];
+  subjects?: Array<{ id: string; subjectName: string }>;
   topics: Array<{ id: string; title: string }>;
   selectedGroupId: string;
+  selectedSubjectId?: string;
   selectedTopicId: string;
 }
 
@@ -53,18 +55,24 @@ const DEFAULT_TEMPLATES: WysiwygTemplate[] = [
 
 export function CreateMaterialView({
   groups,
+  subjects = [],
   topics,
   selectedGroupId,
+  selectedSubjectId = "",
   selectedTopicId,
 }: CreateMaterialViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [groupId, setGroupId] = useState(selectedGroupId);
-  const [topicId, setTopicId] = useState(selectedTopicId || topics[0]?.id || "");
+  const [topicId, setTopicId] = useState(selectedTopicId || topics[0]?.id || "auto");
   const [type, setType] = useState<MaterialType>(MaterialType.LECTURE);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+
+  const returnUrl = selectedSubjectId
+    ? `/dashboard/lms/materials?group=${groupId}&subject=${selectedSubjectId}`
+    : `/dashboard/lms/materials?group=${groupId}`;
 
   // Multiple Video URLs
   const [videoUrls, setVideoUrls] = useState<string[]>([]);
@@ -77,7 +85,7 @@ export function CreateMaterialView({
 
   const handleGroupChange = (val: string) => {
     setGroupId(val);
-    router.push(`/dashboard/lms/materials/new?group=${val}`);
+    router.push(`/dashboard/lms/materials/new?group=${val}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`);
   };
 
   const handleAddVideoUrl = () => {
@@ -126,8 +134,8 @@ export function CreateMaterialView({
   };
 
   const handleSubmit = () => {
-    if (!topicId || topicId === "none" || !title.trim()) {
-      setErrorMsg("Укажите главу и заголовок материала");
+    if (!title.trim()) {
+      setErrorMsg("Укажите заголовок материала");
       return;
     }
 
@@ -140,7 +148,8 @@ export function CreateMaterialView({
       const fileUrlData = cleanResources.length > 0 ? JSON.stringify(cleanResources) : null;
 
       const res = await createMaterialAction({
-        topicId,
+        groupId,
+        topicId: topicId === "auto" ? undefined : topicId,
         type,
         title,
         content,
@@ -151,9 +160,13 @@ export function CreateMaterialView({
       if (res.success) {
         setSuccessMsg("Материал успешно опубликован!");
         setTimeout(() => {
-          router.push(`/dashboard/lms/materials?group=${groupId}`);
+          const targetSubjectId = selectedSubjectId || (res as any).subjectId;
+          const targetUrl = targetSubjectId
+            ? `/dashboard/lms/materials?group=${groupId}&subject=${targetSubjectId}`
+            : `/dashboard/lms/materials?group=${groupId}`;
+          router.push(targetUrl);
           router.refresh();
-        }, 1000);
+        }, 800);
       } else {
         setErrorMsg(res.error || "Ошибка при публикации материала");
       }
@@ -165,7 +178,7 @@ export function CreateMaterialView({
       {/* Header Bar */}
       <div className="flex items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-xs">
         <div className="flex items-center gap-3">
-          <Link href={`/dashboard/lms/materials?group=${groupId}`}>
+          <Link href={returnUrl}>
             <Button size="xs" variant="outline" className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -359,12 +372,22 @@ export function CreateMaterialView({
             </div>
 
             <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Глава *</label>
-              <Select value={topicId} onValueChange={setTopicId}>
+              <div className="flex items-center justify-between">
+                <label className="font-medium text-foreground text-xs">Глава / Раздел</label>
+                <span className="text-[10px] text-muted-foreground">Опционально</span>
+              </div>
+              <Select value={topicId || "auto"} onValueChange={setTopicId}>
                 <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                  <SelectValue>{topics.find((t) => t.id === topicId)?.title || "Выберите главу"}</SelectValue>
+                  <SelectValue>
+                    {topicId === "auto" || !topicId
+                      ? "Общие материалы (авто)"
+                      : topics.find((t) => t.id === topicId)?.title || "Общие материалы (авто)"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="auto" className="text-xs font-medium text-primary">
+                    Общие материалы (авто)
+                  </SelectItem>
                   {topics.map((t) => (
                     <SelectItem key={t.id} value={t.id} className="text-xs">
                       {t.title}
@@ -372,6 +395,11 @@ export function CreateMaterialView({
                   ))}
                 </SelectContent>
               </Select>
+              {(!topicId || topicId === "auto") && (
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Материал будет опубликован в раздел «Общие материалы».
+                </p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -409,7 +437,7 @@ export function CreateMaterialView({
                 Опубликовать материал
               </Button>
 
-              <Link href={`/dashboard/lms/materials?group=${groupId}`} className="block">
+              <Link href={returnUrl} className="block">
                 <Button size="xs" variant="outline" className="w-full h-8 text-xs">
                   Отмена
                 </Button>
