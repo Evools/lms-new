@@ -1,6 +1,8 @@
 import { getNotificationsAction } from "./actions";
 import { NotificationsView } from "./_components/notifications-view";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Уведомления | LMS",
   description: "Журнал уведомлений и обновлений",

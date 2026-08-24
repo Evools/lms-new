@@ -18,6 +18,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -73,7 +83,8 @@ export function TopicsView({
   const [newGroupSubjectId, setNewGroupSubjectId] = useState(selectedGroupSubjectId || subjects[0]?.id || "");
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newOrder, setNewOrder] = useState<number>(topics.length + 1);
+  const [newOrder, setNewOrder] = useState<number>(1);
+  const [deleteTargetTopic, setDeleteTargetTopic] = useState<TopicDTO | null>(null);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -124,11 +135,14 @@ export function TopicsView({
     });
   };
 
-  const handleDeleteTopic = (id: string) => {
-    if (!confirm("Вы уверены, что хотите удалить эту тему со всеми материалами?")) return;
+  const handleConfirmDeleteTopic = () => {
+    if (!deleteTargetTopic) return;
+    const topicId = deleteTargetTopic.id;
+    setDeleteTargetTopic(null);
 
+    setErrorMsg(null);
     startTransition(async () => {
-      const res = await deleteTopicAction(id);
+      const res = await deleteTopicAction(topicId);
       if (res.success) {
         setSuccessMsg("Тема удалена");
         router.refresh();
@@ -297,9 +311,9 @@ export function TopicsView({
                       variant="ghost"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteTopic(topic.id);
+                        setDeleteTargetTopic(topic);
                       }}
-                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                       title="Удалить тему"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -455,6 +469,36 @@ export function TopicsView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Topic Confirmation AlertDialog */}
+      <AlertDialog
+        open={Boolean(deleteTargetTopic)}
+        onOpenChange={(open) => !open && setDeleteTargetTopic(null)}
+      >
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px] place-items-start text-left">
+          <AlertDialogHeader className="text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+              <Trash2 className="h-4 w-4 text-destructive" /> Удалить тему?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Вы действительно хотите удалить тему{" "}
+              <strong className="text-foreground">«{deleteTargetTopic?.title}»</strong>?
+              Все прикрепленные учебные материалы также будут удалены.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 w-full">
+            <AlertDialogCancel className="h-6 px-2.5 text-xs">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteTopic}
+              className="h-6 px-2.5 text-xs bg-destructive text-white hover:bg-destructive/90 font-medium"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

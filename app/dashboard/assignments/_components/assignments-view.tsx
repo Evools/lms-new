@@ -18,6 +18,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -506,6 +516,9 @@ export function AssignmentsView({
   // Student "My Result" Modal (separate from assignment description)
   const [viewMyResultAssignment, setViewMyResultAssignment] = useState<AssignmentDTO | null>(null);
 
+  // Delete Confirmation Modal
+  const [deleteTargetAssignment, setDeleteTargetAssignment] = useState<AssignmentDTO | null>(null);
+
   const currentGroupObj = groups.find((g) => g.id === currentGroupId);
 
   const handleGroupChange = (val: string) => {
@@ -566,18 +579,22 @@ export function AssignmentsView({
   };
 
   // Delete Assignment Handler
-  const handleDeleteAssignment = (assignmentId: string) => {
-    if (!confirm("Вы действительно хотите удалить это домашнее задание?")) return;
+  const handleConfirmDelete = () => {
+    if (!deleteTargetAssignment) return;
+    const assignmentId = deleteTargetAssignment.id;
+    setDeleteTargetAssignment(null);
 
     setErrorMsg(null);
     startTransition(async () => {
       const res = await deleteAssignmentAction(assignmentId);
       if (res.success) {
         setSuccessMsg("Задание удалено!");
+        toast.add({ title: "Задание успешно удалено", type: "success" });
         router.refresh();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
         setErrorMsg(res.error || "Не удалось удалить задание");
+        toast.add({ title: res.error || "Не удалось удалить задание", type: "error" });
       }
     });
   };
@@ -1083,8 +1100,8 @@ export function AssignmentsView({
                               <Button
                                 size="xs"
                                 variant="ghost"
-                                onClick={() => handleDeleteAssignment(assignment.id)}
-                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeleteTargetAssignment(assignment)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                 title="Удалить задание"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1231,8 +1248,8 @@ export function AssignmentsView({
                         <Button
                           size="xs"
                           variant="ghost"
-                          onClick={() => handleDeleteAssignment(assignment.id)}
-                          className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteTargetAssignment(assignment)}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                           title="Удалить"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -2425,6 +2442,36 @@ export function AssignmentsView({
         </DialogContent>
       )}
     </Dialog>
+
+    {/* Delete Assignment Confirmation AlertDialog */}
+    <AlertDialog
+      open={Boolean(deleteTargetAssignment)}
+      onOpenChange={(open) => !open && setDeleteTargetAssignment(null)}
+    >
+      <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px] place-items-start text-left">
+        <AlertDialogHeader className="text-left gap-1">
+          <AlertDialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+            <Trash2 className="h-4 w-4 text-destructive" /> Удалить задание?
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-xs text-muted-foreground">
+            Вы действительно хотите удалить домашнее задание{" "}
+            <strong className="text-foreground">«{deleteTargetAssignment?.title}»</strong>?
+            Все решения студентов по этому заданию также будут удалены.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 w-full">
+          <AlertDialogCancel className="h-6 px-2.5 text-xs">
+            Отмена
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmDelete}
+            className="h-6 px-2.5 text-xs bg-destructive text-white hover:bg-destructive/90 font-medium"
+          >
+            Удалить
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 );
 }

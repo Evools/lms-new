@@ -17,6 +17,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -105,6 +115,9 @@ export function TestsView({
   // Teacher Submissions View Modal State
   const [viewSubmissionsTest, setViewSubmissionsTest] = useState<TestDTO | null>(null);
   const [submissionSearch, setSubmissionSearch] = useState("");
+
+  // Delete Test Confirmation State
+  const [deleteTargetTest, setDeleteTargetTest] = useState<TestDTO | null>(null);
 
   // Quick Create Test Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -254,11 +267,14 @@ export function TestsView({
   };
 
   // Delete Test
-  const handleDeleteTest = (id: string) => {
-    if (!confirm("Вы уверены, что хотите удалить этот тест со всеми результатами?")) return;
+  const handleConfirmDeleteTest = () => {
+    if (!deleteTargetTest) return;
+    const testId = deleteTargetTest.id;
+    setDeleteTargetTest(null);
 
+    setErrorMsg(null);
     startTransition(async () => {
-      const res = await deleteTestAction(id);
+      const res = await deleteTestAction(testId);
       if (res.success) {
         setSuccessMsg("Тест удален");
         router.refresh();
@@ -623,8 +639,8 @@ export function TestsView({
                               <Button
                                 size="xs"
                                 variant="ghost"
-                                onClick={() => handleDeleteTest(test.id)}
-                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeleteTargetTest(test)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                 title="Удалить тест"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -765,8 +781,8 @@ export function TestsView({
                         <Button
                           size="xs"
                           variant="ghost"
-                          onClick={() => handleDeleteTest(test.id)}
-                          className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteTargetTest(test)}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                           title="Удалить"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -1266,6 +1282,36 @@ export function TestsView({
           </DialogContent>
         )}
       </Dialog>
+
+      {/* Delete Test Confirmation AlertDialog */}
+      <AlertDialog
+        open={Boolean(deleteTargetTest)}
+        onOpenChange={(open) => !open && setDeleteTargetTest(null)}
+      >
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px] place-items-start text-left">
+          <AlertDialogHeader className="text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+              <Trash2 className="h-4 w-4 text-destructive" /> Удалить тест?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Вы действительно хотите удалить тест{" "}
+              <strong className="text-foreground">«{deleteTargetTest?.title}»</strong>?
+              Все вопросы и результаты сдачи студентов также будут удалены.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 w-full">
+            <AlertDialogCancel className="h-6 px-2.5 text-xs">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteTest}
+              className="h-6 px-2.5 text-xs bg-destructive text-white hover:bg-destructive/90 font-medium"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

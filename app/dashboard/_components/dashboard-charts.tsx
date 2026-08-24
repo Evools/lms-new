@@ -19,6 +19,16 @@ import {
 import { ChartContainer, ChartTooltipContent, ChartConfig } from "@/components/ui/chart";
 import { CalendarCheck, TrendingUp, ClipboardCheck, BarChart3 } from "lucide-react";
 
+const emptySubscribe = () => () => {};
+
+function useMounted() {
+  return React.useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
+
 // -------------------------------------------------------------
 // ADMIN CHARTS
 // -------------------------------------------------------------
@@ -29,6 +39,7 @@ interface AdminGenderProps {
 }
 
 export function AdminGenderDistributionChart({ maleCount = 0, femaleCount = 0 }: AdminGenderProps) {
+  const isMounted = useMounted();
   const total = (maleCount + femaleCount) || 1;
   const malePercent = Math.round((maleCount / total) * 100);
   const femalePercent = 100 - malePercent;
@@ -39,34 +50,36 @@ export function AdminGenderDistributionChart({ maleCount = 0, femaleCount = 0 }:
   ];
 
   return (
-    <div className="h-[250px] w-full flex items-center justify-center">
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={55}
-            outerRadius={80}
-            paddingAngle={4}
-            dataKey="value"
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-            ))}
-          </Pie>
-          <Tooltip
-            formatter={(value?: any) => [`${value ?? 0} учащихся`, "Количество"]}
-            contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "6px", border: "1px solid var(--border)" }}
-          />
-          <Legend
-            verticalAlign="bottom"
-            height={36}
-            iconType="circle"
-            formatter={(value) => <span className="text-xs font-medium text-foreground">{value}</span>}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+    <div className="h-[250px] w-full min-w-0 min-h-0 flex items-center justify-center">
+      {isMounted ? (
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={55}
+              outerRadius={80}
+              paddingAngle={4}
+              dataKey="value"
+            >
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value?: any) => [`${value ?? 0} учащихся`, "Количество"]}
+              contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "6px", border: "1px solid var(--border)" }}
+            />
+            <Legend
+              verticalAlign="bottom"
+              height={36}
+              iconType="circle"
+              formatter={(value) => <span className="text-xs font-medium text-foreground">{value}</span>}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      ) : null}
     </div>
   );
 }
@@ -169,6 +182,7 @@ interface TeacherGradeProps {
 }
 
 export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pending = 0 }: TeacherGradeProps) {
+  const isMounted = useMounted();
   const total = accepted + revision + pending;
   if (total === 0) {
     return (
@@ -193,34 +207,36 @@ export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pend
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="h-[210px] w-full flex items-center justify-center">
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={48}
-            outerRadius={72}
-            paddingAngle={3}
-            dataKey="value"
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-            ))}
-          </Pie>
-          <Tooltip
-            formatter={(value?: any) => [`${value ?? 0} работ`, "Количество"]}
-            contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "11px" }}
-          />
-          <Legend
-            verticalAlign="bottom"
-            height={36}
-            iconType="circle"
-            formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+    <div className="h-[210px] w-full min-w-0 min-h-0 flex items-center justify-center">
+      {isMounted ? (
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={48}
+              outerRadius={72}
+              paddingAngle={3}
+              dataKey="value"
+            >
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value?: any) => [`${value ?? 0} работ`, "Количество"]}
+              contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "11px" }}
+            />
+            <Legend
+              verticalAlign="bottom"
+              height={36}
+              iconType="circle"
+              formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      ) : null}
     </div>
   );
 }
@@ -297,6 +313,7 @@ export function StudentAttendancePieChart({
   lateCount = 0,
   excusedCount = 0,
 }: StudentAttendanceProps) {
+  const isMounted = useMounted();
   const total = presentCount + absentCount + lateCount + excusedCount;
 
   if (total === 0) {
@@ -325,34 +342,36 @@ export function StudentAttendancePieChart({
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="w-full space-y-3">
-      <div className="h-[160px] w-full relative flex items-center justify-center">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={45}
-              outerRadius={68}
-              paddingAngle={3}
-              dataKey="value"
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(value?: any) => [`${value ?? 0} занятий`, "Количество"]}
-              contentStyle={{
-                backgroundColor: "var(--popover)",
-                borderRadius: "8px",
-                border: "1px solid var(--border)",
-                fontSize: "11px",
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+    <div className="w-full min-w-0 min-h-0 space-y-3">
+      <div className="h-[160px] w-full min-w-0 min-h-0 relative flex items-center justify-center">
+        {isMounted ? (
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={45}
+                outerRadius={68}
+                paddingAngle={3}
+                dataKey="value"
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value?: any) => [`${value ?? 0} занятий`, "Количество"]}
+                contentStyle={{
+                  backgroundColor: "var(--popover)",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  fontSize: "11px",
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : null}
         {/* Center Percentage Display */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span className="text-base font-bold text-foreground leading-none">{attendancePercent}%</span>
