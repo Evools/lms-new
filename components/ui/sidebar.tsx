@@ -513,15 +513,19 @@ function SidebarMenuButton({
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar()
-  const comp = useRender({
+  const isCollapsed = state === "collapsed" && !isMobile
+
+  const buttonProps = mergeProps<"button">(
+    {
+      className: cn(sidebarMenuButtonVariants({ variant, size }), className),
+    },
+    props
+  )
+
+  const buttonComp = useRender({
     defaultTagName: "button",
-    props: mergeProps<"button">(
-      {
-        className: cn(sidebarMenuButtonVariants({ variant, size }), className),
-      },
-      props
-    ),
-    render: !tooltip ? render : <TooltipTrigger render={render} />,
+    props: buttonProps,
+    render,
     state: {
       slot: "sidebar-menu-button",
       sidebar: "menu-button",
@@ -530,24 +534,22 @@ function SidebarMenuButton({
     },
   })
 
-  if (!tooltip) {
-    return comp
+  if (!tooltip || !isCollapsed) {
+    return buttonComp
   }
 
-  if (typeof tooltip === "string") {
-    tooltip = {
-      children: tooltip,
-    }
-  }
+  const tooltipProps =
+    typeof tooltip === "string"
+      ? { children: tooltip }
+      : tooltip
 
   return (
     <Tooltip>
-      {comp}
+      <TooltipTrigger render={buttonComp} />
       <TooltipContent
         side="right"
         align="center"
-        hidden={state !== "collapsed" || isMobile}
-        {...tooltip}
+        {...tooltipProps}
       />
     </Tooltip>
   )
