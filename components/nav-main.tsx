@@ -74,27 +74,27 @@ function NavMainCollapsibleItem({
           <SidebarMenuButton
             isActive={isCurrentActive}
             tooltip={item.title}
-            className="rounded-md font-medium text-xs h-8 px-2.5 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+            className="rounded-md font-medium text-xs h-8 px-2.5 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
           />
         }
       >
         <span
-          className={`shrink-0 transition-colors ${
+          className={`shrink-0 flex items-center justify-center transition-colors ${
             isCurrentActive ? "text-primary" : "text-muted-foreground"
           }`}
         >
           {item.icon}
         </span>
-        <span className="truncate">{item.title}</span>
+        <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
         {item.badge && (
           <Badge
             variant="secondary"
-            className="ml-auto text-[9px] px-1 py-0 font-medium shrink-0"
+            className="ml-auto text-[9px] px-1 py-0 font-medium shrink-0 group-data-[collapsible=icon]:hidden"
           >
             {item.badge}
           </Badge>
         )}
-        <ChevronRight className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90 text-muted-foreground shrink-0 h-3.5 w-3.5" />
+        <ChevronRight className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90 text-muted-foreground shrink-0 h-3.5 w-3.5 group-data-[collapsible=icon]:hidden" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <SidebarMenuSub className="my-1 border-l border-primary/20 pl-2 ml-3.5 space-y-0.5">
@@ -148,21 +148,21 @@ export function NavMain({
                     <SidebarMenuButton
                       isActive={isDirectActive}
                       tooltip={item.title}
-                      className="rounded-md font-medium text-xs h-8 px-2.5 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                      className="rounded-md font-medium text-xs h-8 px-2.5 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
                       render={<Link href={item.url} />}
                     >
                       <span
-                        className={`shrink-0 transition-colors ${
+                        className={`shrink-0 flex items-center justify-center transition-colors ${
                           isDirectActive ? "text-primary" : "text-muted-foreground"
                         }`}
                       >
                         {item.icon}
                       </span>
-                      <span className="truncate">{item.title}</span>
+                      <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
                       {item.badge && (
                         <Badge
                           variant={isDirectActive ? "default" : "secondary"}
-                          className={`ml-auto text-[9px] px-1.5 py-0 font-medium shrink-0 ${
+                          className={`ml-auto text-[9px] px-1.5 py-0 font-medium shrink-0 group-data-[collapsible=icon]:hidden ${
                             isDirectActive ? "bg-primary text-primary-foreground" : ""
                           }`}
                         >

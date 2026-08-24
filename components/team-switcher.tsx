@@ -46,14 +46,14 @@ export function TeamSwitcher({
               />
             }
           >
-            <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shrink-0">
               {activeTeam.logo}
             </div>
-            <div className="grid flex-1 text-left text-xs leading-tight min-w-0">
+            <div className="grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden">
               <span className="truncate font-semibold">{activeTeam.name}</span>
               <span className="truncate text-[11px] text-muted-foreground">{activeTeam.plan}</span>
             </div>
-            <ChevronsUpDown className="ml-auto size-4 text-muted-foreground shrink-0" />
+            <ChevronsUpDown className="ml-auto size-4 text-muted-foreground shrink-0 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-56 rounded-md"
