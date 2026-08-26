@@ -922,10 +922,10 @@ export function SettingsView({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <h2 className="font-bold text-foreground text-xs flex items-center gap-2">
-                  <Compass className="h-4 w-4 text-primary" /> Центр обучения и интерактивные туториалы
+                  <Compass className="h-4 w-4 text-primary" /> Путеводитель по Лицею LMS
                 </h2>
                 <p className="text-[11px] text-muted-foreground">
-                  Пошаговые иллюстрированные руководства по созданию тестов, домашних заданий, управлению группами и посещаемостью.
+                  Пошаговые интерактивные туры по созданию тестов, домашних заданий, управлению группами и посещаемостью.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -936,7 +936,7 @@ export function SettingsView({
                   onClick={openTourHubModal}
                   className="h-8 text-xs px-3 gap-1.5 font-medium border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
                 >
-                  <BookOpen className="h-3.5 w-3.5" /> База знаний и гайды
+                  <Compass className="h-3.5 w-3.5" /> Путеводитель и туры
                 </Button>
                 <Button
                   type="button"

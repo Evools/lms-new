@@ -399,13 +399,13 @@ export function TourHubModal({ userRole = "STUDENT" }: { userRole?: UserRole }) 
             </div>
             <div>
               <DialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                Справка и обучение Лицея LMS
+                Путеводитель по Лицею LMS
                 <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 border-primary/30 text-primary font-medium">
                   {roleLabel}
                 </Badge>
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Пошаговое интерактивное обучение, частые вопросы и горячие клавиши
+                Пошаговые интерактивные туры, частые вопросы и горячие клавиши
               </DialogDescription>
             </div>
           </div>
@@ -423,7 +423,7 @@ export function TourHubModal({ userRole = "STUDENT" }: { userRole?: UserRole }) 
                 }`}
             >
               <Compass className="h-3.5 w-3.5" />
-              <span>Интерактивное обучение</span>
+              <span>Интерактивные туры</span>
             </button>
             <button
               type="button"

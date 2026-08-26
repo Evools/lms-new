@@ -22,10 +22,10 @@ export function TourTriggerButton({
       className={`text-xs h-8 text-muted-foreground hover:text-foreground cursor-pointer ${
         showText ? "px-2.5 gap-1.5 font-medium" : "w-8"
       } ${className}`}
-      title="Центр обучения и туториалы"
+      title="Путеводитель по системе"
     >
       <Compass className="h-4 w-4 text-primary" />
-      {showText && <span>Обучение</span>}
+      {showText && <span>Путеводитель</span>}
     </Button>
   );
 }
