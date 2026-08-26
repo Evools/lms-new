@@ -1110,7 +1110,9 @@ export async function createTestAction(data: {
           create: data.questions.map((q, idx) => ({
             type: q.type || "SINGLE",
             questionText: q.questionText.trim(),
-            options: JSON.stringify(q.options.filter((o) => o.trim().length > 0)),
+            options: JSON.stringify(
+              q.options.filter((o) => (typeof o === "string" ? o.trim().length > 0 : !!o))
+            ),
             correctAnswer: q.correctAnswer.trim(),
             points: q.points ? Number(q.points) : 1,
             order: idx,
@@ -1351,7 +1353,9 @@ export async function updateTestAction(
         testId,
         type: q.type || "SINGLE",
         questionText: q.questionText.trim(),
-        options: JSON.stringify(q.options.filter((o) => o.trim().length > 0)),
+        options: JSON.stringify(
+          q.options.filter((o) => (typeof o === "string" ? o.trim().length > 0 : !!o))
+        ),
         correctAnswer: q.correctAnswer.trim(),
         points: q.points ? Number(q.points) : 1,
         order: idx,

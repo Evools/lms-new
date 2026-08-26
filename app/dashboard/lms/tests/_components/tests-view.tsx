@@ -872,18 +872,19 @@ export function TestsView({
                         </div>
                       ) : (
                         <div className="space-y-1 pt-1">
-                          {q.options.map((opt: string, optIdx: number) => {
+                          {q.options.map((opt: any, optIdx: number) => {
+                            const optText = typeof opt === "object" ? (opt.left ? `${opt.left} ➔ ${opt.right}` : JSON.stringify(opt)) : String(opt);
                             let isSelected = false;
 
                             if (qType === "MULTIPLE") {
                               try {
                                 const selectedArr: string[] = JSON.parse(studentAnswers[q.id] || "[]");
-                                isSelected = Array.isArray(selectedArr) && selectedArr.includes(opt);
+                                isSelected = Array.isArray(selectedArr) && selectedArr.includes(optText);
                               } catch {
                                 isSelected = false;
                               }
                             } else {
-                              isSelected = studentAnswers[q.id] === opt;
+                              isSelected = studentAnswers[q.id] === optText;
                             }
 
                             const handleOptionClick = () => {
@@ -896,10 +897,10 @@ export function TestsView({
                                   currentArr = [];
                                 }
 
-                                if (currentArr.includes(opt)) {
-                                  currentArr = currentArr.filter((item) => item !== opt);
+                                if (currentArr.includes(optText)) {
+                                  currentArr = currentArr.filter((item) => item !== optText);
                                 } else {
-                                  currentArr.push(opt);
+                                  currentArr.push(optText);
                                 }
 
                                 setStudentAnswers((prev) => ({
@@ -909,7 +910,7 @@ export function TestsView({
                               } else {
                                 setStudentAnswers((prev) => ({
                                   ...prev,
-                                  [q.id]: opt,
+                                  [q.id]: optText,
                                 }));
                               }
                             };
@@ -931,7 +932,7 @@ export function TestsView({
                                 >
                                   {isSelected && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                                 </div>
-                                <span>{opt}</span>
+                                <span>{optText}</span>
                               </div>
                             );
                           })}
@@ -1081,13 +1082,14 @@ export function TestsView({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {q.options.map((opt, optIdx) => {
-                        const isCorrect = q.correctAnswer === opt;
+                      {q.options.map((opt: any, optIdx: number) => {
+                        const optVal = typeof opt === "object" ? (opt.left ? `${opt.left} ➔ ${opt.right}` : JSON.stringify(opt)) : String(opt);
+                        const isCorrect = q.correctAnswer === optVal;
 
                         return (
                           <div key={optIdx} className="flex items-center gap-1">
                             <Input
-                              value={opt}
+                              value={optVal}
                               onChange={(e) => handleUpdateOption(qIdx, optIdx, e.target.value)}
                               className={`h-7 text-xs bg-background ${isCorrect ? "border-primary font-medium text-primary" : ""}`}
                             />
@@ -1095,7 +1097,7 @@ export function TestsView({
                               type="button"
                               size="xs"
                               variant={isCorrect ? "default" : "outline"}
-                              onClick={() => handleSetCorrectAnswer(qIdx, opt)}
+                              onClick={() => handleSetCorrectAnswer(qIdx, optVal)}
                               className="h-7 text-[10px] px-2 shrink-0 font-medium"
                             >
                               {isCorrect ? "Верно" : "Выбор"}

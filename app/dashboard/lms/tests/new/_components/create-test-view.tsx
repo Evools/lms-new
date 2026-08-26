@@ -92,33 +92,257 @@ export interface QuestionDraft {
   points: number;
 }
 
+function cleanBackticks(str: string): string {
+  const trimmed = str.trim();
+  if (trimmed.startsWith("`") && trimmed.endsWith("`") && trimmed.length >= 2) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
 export function parseBulkQuestions(rawText: string): QuestionDraft[] {
+  if (!rawText.trim()) return [];
+
+  // Step 1: Split into question blocks intelligently without breaking code blocks
+  const normalized = rawText.replace(/\r\n/g, "\n");
+  const rawLines = normalized.split("\n");
+
+  const questionBlocks: string[] = [];
+  let currentBlockLines: string[] = [];
+  let inCodeFence = false;
+
+  // Check if text has numbered questions like "1.", "2)", "#3", "Q1:"
+  const hasNumberedQuestions = rawLines.some((line) =>
+    /^\s*(\d+[\.\)]|\#\d+|[Qq]\d+[:\.]?)\s+\S/.test(line)
+  );
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("```")) {
+      inCodeFence = !inCodeFence;
+      currentBlockLines.push(line);
+      continue;
+    }
+
+    if (!inCodeFence) {
+      const isNewQuestionStart = hasNumberedQuestions
+        ? /^\s*(\d+[\.\)]|\#\d+|[Qq]\d+[:\.]?)\s+\S/.test(line)
+        : false;
+
+      if (isNewQuestionStart && currentBlockLines.length > 0) {
+        questionBlocks.push(currentBlockLines.join("\n").trim());
+        currentBlockLines = [line];
+        continue;
+      }
+    }
+
+    currentBlockLines.push(line);
+  }
+
+  if (currentBlockLines.length > 0 && currentBlockLines.some((l) => l.trim())) {
+    questionBlocks.push(currentBlockLines.join("\n").trim());
+  }
+
+  // If text didn't have numbered questions, fallback to empty-line splitting outside of code fences
+  let finalBlocks = questionBlocks;
+  if (!hasNumberedQuestions) {
+    finalBlocks = [];
+    let tempLines: string[] = [];
+    let insideFence = false;
+    for (const line of rawLines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("```")) {
+        insideFence = !insideFence;
+        tempLines.push(line);
+        continue;
+      }
+      if (!insideFence && trimmed === "") {
+        if (tempLines.some((l) => l.trim())) {
+          finalBlocks.push(tempLines.join("\n").trim());
+          tempLines = [];
+        }
+      } else {
+        tempLines.push(line);
+      }
+    }
+    if (tempLines.some((l) => l.trim())) {
+      finalBlocks.push(tempLines.join("\n").trim());
+    }
+  }
+
   const result: QuestionDraft[] = [];
-  const blocks = rawText.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
 
-  for (const block of blocks) {
-    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
-    if (lines.length === 0) continue;
+  for (const block of finalBlocks) {
+    if (!block.trim()) continue;
 
-    const questionLine = lines[0].replace(/^(\d+[\.\)]|\#\d+|[Qq]\d+[:\.]?)\s*/, "").trim();
-    if (!questionLine) continue;
+    // 1. Extract code block if present (```lang ... ```)
+    let blockWithoutCode = block;
+    let codeSnippet: string | undefined = undefined;
+    const codeMatch = block.match(/```(?:[a-zA-Z0-9_-]*)\n([\s\S]*?)\n```/);
+    if (codeMatch) {
+      codeSnippet = codeMatch[1].trim();
+      blockWithoutCode = block.replace(/```(?:[a-zA-Z0-9_-]*)\n[\s\S]*?\n```/, "");
+    }
 
-    const optLines = lines.slice(1);
-    if (optLines.length === 0) {
+    const rawBlockLines = blockWithoutCode
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (rawBlockLines.length === 0) continue;
+
+    // 2. Question title (first line, strip "1.", "#1", "Q1.", etc.)
+    const firstLine = rawBlockLines[0];
+    const questionText = firstLine
+      .replace(/^(\d+[\.\)]|\#\d+|[Qq]\d+[:\.]?)\s*/, "")
+      .trim();
+    if (!questionText) continue;
+
+    const remainingLines = rawBlockLines.slice(1);
+
+    // 3. Check for BLANKS (e.g. "В HTML [HTML] используется...")
+    const { blanks } = extractBlanksFromText(questionText);
+    if (blanks.length > 0 && remainingLines.length === 0) {
+      result.push({
+        type: "BLANKS",
+        questionText,
+        options: blanks,
+        correctAnswer: JSON.stringify(blanks),
+        points: 2,
+      });
+      continue;
+    }
+
+    // 4. Check for TEXT / Single answer line (e.g. "*echo" or "*Париж" or "Ответ: echo")
+    if (
+      remainingLines.length === 1 &&
+      (remainingLines[0].startsWith("*") ||
+        remainingLines[0].startsWith("+") ||
+        /^ответ\s*[:=]/i.test(remainingLines[0]))
+    ) {
+      let ans = remainingLines[0]
+        .replace(/^(\*|\+)\s*/, "")
+        .replace(/^ответ\s*[:=]\s*/i, "")
+        .trim();
+      ans = cleanBackticks(ans);
       result.push({
         type: "TEXT",
-        questionText: questionLine,
+        questionText,
         options: [],
-        correctAnswer: "",
+        correctAnswer: ans,
         points: 1,
       });
       continue;
     }
 
-    const options: string[] = [];
-    const correctOptions: string[] = [];
+    // If 0 remaining lines
+    if (remainingLines.length === 0) {
+      if (codeSnippet) {
+        result.push({
+          type: "CODE",
+          questionText,
+          codeSnippet,
+          options: ["Вариант 1", "Вариант 2"],
+          correctAnswer: "Вариант 1",
+          points: 1,
+        });
+      } else {
+        result.push({
+          type: "TEXT",
+          questionText,
+          options: [],
+          correctAnswer: "",
+          points: 1,
+        });
+      }
+      continue;
+    }
 
-    for (const optLine of optLines) {
+    // 5. Check for MATCHING
+    // Check Format A (Separate left and right items with same letters e.g. a)... and *a)...)
+    const leftLetterMap = new Map<string, string>();
+    const rightLetterMap = new Map<string, string>();
+    for (const l of remainingLines) {
+      const match = l.match(/^(\*|\+)?\s*\(?([a-zA-Z0-9])\)?[ \.]\s*(.*)$/);
+      if (match) {
+        const isMarked = !!match[1];
+        const key = match[2].toLowerCase();
+        const val = cleanBackticks(match[3].trim());
+        if (isMarked) {
+          rightLetterMap.set(key, val);
+        } else {
+          leftLetterMap.set(key, val);
+        }
+      }
+    }
+
+    const isMatchingFormatA =
+      leftLetterMap.size >= 2 &&
+      rightLetterMap.size >= 2 &&
+      [...leftLetterMap.keys()].some((k) => rightLetterMap.has(k));
+
+    if (isMatchingFormatA) {
+      const pairs: Array<{ left: string; right: string }> = [];
+      const map: Record<string, string> = {};
+      for (const [key, leftVal] of leftLetterMap.entries()) {
+        const rightVal = rightLetterMap.get(key) || "";
+        pairs.push({ left: leftVal, right: rightVal });
+        map[leftVal] = rightVal;
+      }
+      result.push({
+        type: "MATCHING",
+        questionText,
+        options: pairs,
+        correctAnswer: JSON.stringify(map),
+        points: 2,
+      });
+      continue;
+    }
+
+    // Check Format B (Single lines with arrows e.g. "Термин -> Определение" or "Термин ➔ Определение" or "Термин : Определение"):
+    const matchingArrowLines = remainingLines.filter((l) => {
+      const withoutBullet = l.replace(/^(\*|\+)?\s*\(?[a-zA-Z0-9]\)?[\.\)]\s*/, "");
+      return /(?:->|➔|=>|\s+:\s+|\s+=\s+)/.test(withoutBullet);
+    });
+    if (
+      matchingArrowLines.length >= 2 &&
+      matchingArrowLines.length === remainingLines.length
+    ) {
+      const pairs: Array<{ left: string; right: string }> = [];
+      const map: Record<string, string> = {};
+      for (const l of remainingLines) {
+        const withoutBullet = l.replace(/^(\*|\+)\s*/, "").replace(/^\(?[a-zA-Z0-9]\)?[ \.]\s*/, "").trim();
+        const parts = withoutBullet.split(/(?:->|➔|=>|\s+:\s+|\s+=\s+)/);
+        if (parts.length >= 2) {
+          const left = cleanBackticks(parts[0].trim());
+          const right = cleanBackticks(parts.slice(1).join(":").trim());
+          if (left && right) {
+            pairs.push({ left, right });
+            map[left] = right;
+          }
+        }
+      }
+      if (pairs.length >= 2) {
+        result.push({
+          type: "MATCHING",
+          questionText,
+          options: pairs,
+          correctAnswer: JSON.stringify(map),
+          points: 2,
+        });
+        continue;
+      }
+    }
+
+    // Parse options lines
+    interface ParsedOpt {
+      text: string;
+      isCorrect: boolean;
+    }
+    const parsedOptions: ParsedOpt[] = [];
+
+    for (const optLine of remainingLines) {
       let isCorrect = false;
       let cleanOpt = optLine;
 
@@ -127,43 +351,106 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         cleanOpt = cleanOpt.substring(1).trim();
       }
 
-      cleanOpt = cleanOpt.replace(/^(\([a-zA-Z0-9\*\+]\)|\[[xX \*\+]\]|[a-zA-Z0-9][\.\)]|\-)\s*/, "").trim();
+      // Strip bullet letters/digits like a), b), 1), A), [x], etc.
+      cleanOpt = cleanOpt
+        .replace(/^(\([a-zA-Z0-9\*\+]\)|\[[xX \*\+]\]|[a-zA-Z0-9][\.\)]|\-|\•)\s*/, "")
+        .trim();
 
-      if (cleanOpt.endsWith("*") || cleanOpt.endsWith("(+)") || cleanOpt.endsWith("(верно)")) {
+      if (
+        cleanOpt.endsWith("*") ||
+        cleanOpt.endsWith("(+)") ||
+        cleanOpt.endsWith("(верно)") ||
+        cleanOpt.endsWith("(правильно)")
+      ) {
         isCorrect = true;
-        cleanOpt = cleanOpt.replace(/(\*|\(\+\)|\(верно\))$/, "").trim();
+        cleanOpt = cleanOpt.replace(/(\*|\(\+\)|\(верно\)|\(правильно\))$/, "").trim();
       }
 
+      cleanOpt = cleanBackticks(cleanOpt);
+
       if (cleanOpt) {
-        options.push(cleanOpt);
-        if (isCorrect) {
-          correctOptions.push(cleanOpt);
-        }
+        parsedOptions.push({ text: cleanOpt, isCorrect });
       }
     }
 
-    if (correctOptions.length > 1) {
+    const optionsList = parsedOptions.map((o) => o.text);
+    const correctOptionsList = parsedOptions.filter((o) => o.isCorrect).map((o) => o.text);
+
+    // 6. Check for TRUE_FALSE
+    const lowerOptions = optionsList.map((o) => o.toLowerCase());
+    const isTrueFalse =
+      optionsList.length === 2 &&
+      ((lowerOptions.includes("верно") && lowerOptions.includes("неверно")) ||
+        (lowerOptions.includes("да") && lowerOptions.includes("нет")) ||
+        (lowerOptions.includes("true") && lowerOptions.includes("false")));
+
+    if (isTrueFalse) {
+      const correctVal = correctOptionsList[0] || optionsList[0];
       result.push({
-        type: "MULTIPLE",
-        questionText: questionLine,
-        options,
-        correctAnswer: JSON.stringify(correctOptions),
-        points: 2,
-      });
-    } else if (correctOptions.length === 1) {
-      result.push({
-        type: "SINGLE",
-        questionText: questionLine,
-        options,
-        correctAnswer: correctOptions[0],
+        type: "TRUE_FALSE",
+        questionText,
+        options: optionsList,
+        correctAnswer: correctVal,
         points: 1,
       });
-    } else if (options.length > 0) {
+      continue;
+    }
+
+    // 7. Check for ORDERING
+    const isOrderingTitle = /расставьте|порядок|последовательност|order/i.test(questionText);
+    const isAllMarkedWithStar =
+      optionsList.length >= 2 &&
+      parsedOptions.every((o) => o.isCorrect) &&
+      remainingLines.every((l) => l.startsWith("*") || l.startsWith("+"));
+
+    if (isOrderingTitle || isAllMarkedWithStar) {
+      result.push({
+        type: "ORDERING",
+        questionText,
+        options: optionsList,
+        correctAnswer: JSON.stringify(optionsList),
+        points: 2,
+      });
+      continue;
+    }
+
+    // 8. Check for CODE
+    if (codeSnippet) {
+      const correctVal = correctOptionsList[0] || optionsList[0] || "";
+      result.push({
+        type: "CODE",
+        questionText,
+        codeSnippet,
+        options: optionsList,
+        correctAnswer: correctVal,
+        points: 1,
+      });
+      continue;
+    }
+
+    // 9. MULTIPLE vs SINGLE
+    if (correctOptionsList.length > 1) {
+      result.push({
+        type: "MULTIPLE",
+        questionText,
+        options: optionsList,
+        correctAnswer: JSON.stringify(correctOptionsList),
+        points: 2,
+      });
+    } else if (correctOptionsList.length === 1) {
       result.push({
         type: "SINGLE",
-        questionText: questionLine,
-        options,
-        correctAnswer: options[0] || "",
+        questionText,
+        options: optionsList,
+        correctAnswer: correctOptionsList[0],
+        points: 1,
+      });
+    } else if (optionsList.length > 0) {
+      result.push({
+        type: "SINGLE",
+        questionText,
+        options: optionsList,
+        correctAnswer: optionsList[0] || "",
         points: 1,
       });
     }
@@ -172,7 +459,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
   return result;
 }
 
-function parseQuestionCode(fullText: string): { title: string; code?: string } {
+export function parseQuestionCode(fullText: string): { title: string; code?: string } {
   if (!fullText) return { title: "" };
   const match = fullText.match(/^([\s\S]*?)\n```(?:[a-z]*)\n([\s\S]*?)\n```$/);
   if (match) {
@@ -578,10 +865,20 @@ export function CreateTestView({
       toast.add({ title: "Не удалось распознать вопросы. Проверьте формат текста.", type: "error" });
       return;
     }
-    setQuestionDrafts((prev) => [...prev, ...parsed]);
+    setQuestionDrafts((prev) => {
+      const isInitialDefaults =
+        prev.length === 2 &&
+        prev[0].questionText.includes("Какой метод протокола HTTP") &&
+        prev[1].questionText.includes("Выберите все валидные форматы");
+      const isSingleEmpty = prev.length === 1 && !prev[0].questionText.trim();
+      if (isInitialDefaults || isSingleEmpty) {
+        return parsed;
+      }
+      return [...prev, ...parsed];
+    });
     setBulkImportText("");
     setIsBulkImportOpen(false);
-    setSuccessMsg(`Успешно импортировано вопросов: ${parsed.length}`);
+    toast.add({ title: `Успешно импортировано вопросов: ${parsed.length}`, type: "success" });
   };
 
   const handleAddMatchingPair = (qIdx: number) => {
@@ -1188,19 +1485,59 @@ export function CreateTestView({
                             ))}
                           </div>
                         </div>
+                      ) : q.type === "MATCHING" ? (
+                        <div className="p-3.5 rounded-lg border bg-background space-y-2">
+                          <div className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1.5">
+                            <Layers className="h-3.5 w-3.5 text-primary" /> Сопоставьте элементы:
+                          </div>
+                          <div className="space-y-2">
+                            {(Array.isArray(q.options) ? q.options : []).map((pair: any, pIdx: number) => {
+                              const leftVal = typeof pair === "object" ? pair.left : pair;
+                              const rightVal = typeof pair === "object" ? pair.right : "";
+                              return (
+                                <div key={pIdx} className="p-2.5 rounded-lg border bg-card flex items-center justify-between gap-3 text-xs">
+                                  <span className="font-medium text-foreground">{leftVal}</span>
+                                  <span className="text-muted-foreground font-bold">➔</span>
+                                  <span className="font-semibold text-primary">{rightVal}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : q.type === "NUMERICAL" ? (
+                        <div className="p-3.5 rounded-lg border bg-background space-y-2">
+                          <div className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1.5">
+                            <Hash className="h-3.5 w-3.5 text-primary" /> Числовой ответ:
+                          </div>
+                          {(() => {
+                            let numObj = { value: 0, tolerance: 0 };
+                            try {
+                              numObj = JSON.parse(q.correctAnswer || "{}");
+                            } catch {}
+                            return (
+                              <div className="p-2.5 rounded-lg border bg-card flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Эталонное значение:</span>
+                                <span className="font-mono font-bold text-primary">
+                                  {numObj.value} {numObj.tolerance ? `(± ${numObj.tolerance})` : ""}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       ) : (
                         <div className="space-y-1.5">
                           {q.options.map((opt, optIdx) => {
-                            const isCorrect = isOptionCorrect(q, opt);
+                            const optText = typeof opt === "object" ? (opt.left ? `${opt.left} ➔ ${opt.right}` : JSON.stringify(opt)) : String(opt);
+                            const isCorrect = isOptionCorrect(q, optText);
                             const isSelected =
                               q.type === "MULTIPLE"
-                                ? selectedMultiple.includes(opt)
-                                : selectedVal === opt;
+                                ? selectedMultiple.includes(optText)
+                                : selectedVal === optText;
 
                             return (
                               <div
                                 key={optIdx}
-                                onClick={() => handlePreviewSelect(qIdx, opt, q.type)}
+                                onClick={() => handlePreviewSelect(qIdx, optText, q.type)}
                                 className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
                                   isSelected
                                     ? "border-primary bg-primary/10 font-semibold text-primary shadow-xs"
@@ -1219,7 +1556,7 @@ export function CreateTestView({
                                   >
                                     {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                                   </div>
-                                  <span>{opt}</span>
+                                  <span>{optText}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1.5">

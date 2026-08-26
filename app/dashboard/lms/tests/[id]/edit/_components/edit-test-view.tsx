@@ -940,19 +940,59 @@ export function EditTestView({
                             ))}
                           </div>
                         </div>
+                      ) : q.type === "MATCHING" ? (
+                        <div className="p-3 rounded-lg border bg-background space-y-2">
+                          <div className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1.5">
+                            <Layers className="h-3.5 w-3.5 text-primary" /> Сопоставьте элементы:
+                          </div>
+                          <div className="space-y-2">
+                            {(Array.isArray(q.options) ? q.options : []).map((pair: any, pIdx: number) => {
+                              const leftVal = typeof pair === "object" ? pair.left : pair;
+                              const rightVal = typeof pair === "object" ? pair.right : "";
+                              return (
+                                <div key={pIdx} className="p-2 rounded-lg border bg-card flex items-center justify-between gap-3 text-xs">
+                                  <span className="font-medium text-foreground">{leftVal}</span>
+                                  <span className="text-muted-foreground font-bold">➔</span>
+                                  <span className="font-semibold text-primary">{rightVal}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : q.type === "NUMERICAL" ? (
+                        <div className="p-3 rounded-lg border bg-background space-y-2">
+                          <div className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1.5">
+                            <Hash className="h-3.5 w-3.5 text-primary" /> Числовой ответ:
+                          </div>
+                          {(() => {
+                            let numObj = { value: 0, tolerance: 0 };
+                            try {
+                              numObj = JSON.parse(q.correctAnswer || "{}");
+                            } catch {}
+                            return (
+                              <div className="p-2 rounded-lg border bg-card flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Эталонное значение:</span>
+                                <span className="font-mono font-bold text-primary">
+                                  {numObj.value} {numObj.tolerance ? `(± ${numObj.tolerance})` : ""}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       ) : (
                         <div className="space-y-1.5">
                           {q.options.map((opt, optIdx) => {
-                            const isCorrect = isOptionCorrect(q, opt);
+                            const optText = typeof opt === "object" ? (opt.left ? `${opt.left} ➔ ${opt.right}` : JSON.stringify(opt)) : String(opt);
+                            const isCorrect = isOptionCorrect(q, optText);
                             const isSelected =
                               q.type === "MULTIPLE"
-                                ? selectedMultiple.includes(opt)
-                                : selectedVal === opt;
+                                ? selectedMultiple.includes(optText)
+                                : selectedVal === optText;
 
                             return (
                               <div
                                 key={optIdx}
-                                onClick={() => handlePreviewSelect(qIdx, opt, q.type)}
+                                onClick={() => handlePreviewSelect(qIdx, optText, q.type)}
                                 className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
                                   isSelected
                                     ? "border-primary bg-primary/10 font-semibold text-primary shadow-xs"
@@ -971,7 +1011,7 @@ export function EditTestView({
                                   >
                                     {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                                   </div>
-                                  <span>{opt}</span>
+                                  <span>{optText}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1.5">
