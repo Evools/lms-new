@@ -905,7 +905,7 @@ export function CreateTestView({
         <SheetContent
           side="right"
           showCloseButton={false}
-          className="w-full sm:max-w-lg flex flex-col p-0 gap-0"
+          className="!w-full sm:!max-w-2xl lg:!max-w-3xl flex flex-col p-0 gap-0"
         >
           {/* Header */}
           <div className="p-4 border-b shrink-0">
