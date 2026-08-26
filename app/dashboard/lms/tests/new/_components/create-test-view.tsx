@@ -23,6 +23,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
   ChevronLeft,
   FileCheck2,
   Building2,
@@ -189,8 +195,154 @@ export function extractBlanksFromText(text: string): { templateParts: string[]; 
     lastIndex = regex.lastIndex;
   }
   templateParts.push(text.substring(lastIndex));
-
   return { templateParts, blanks };
+}
+
+const FORMAT_ITEMS = [
+  {
+    id: "single",
+    icon: CircleDot,
+    label: "Один правильный ответ",
+    example: `1. Вопрос?
+a) Вариант 1
+*b) Правильный ответ
+c) Вариант 3`,
+  },
+  {
+    id: "multiple",
+    icon: CheckSquare,
+    label: "Несколько правильных",
+    example: `2. Вопрос с несколькими ответами?
+*a) Правильный 1
+b) Неверный
+*c) Правильный 2
+d) Неверный`,
+  },
+  {
+    id: "truefalse",
+    icon: ToggleLeft,
+    label: "Да / Нет",
+    example: `3. Земля — третья планета?
+*Верно
+Неверно`,
+  },
+  {
+    id: "text",
+    icon: Type,
+    label: "Свободный текст",
+    example: `4. Столица Франции?
+*Париж`,
+  },
+  {
+    id: "ordering",
+    icon: ListOrdered,
+    label: "Последовательность",
+    example: `5. Расставьте шаги по порядку:
+*a) Шаг 1: Анализ
+*b) Шаг 2: Разработка
+*c) Шаг 3: Тестирование`,
+  },
+  {
+    id: "blanks",
+    icon: FormInput,
+    label: "Пропуски",
+    example: `6. [HTML] используется для разметки,\nа [CSS] — для стилей страниц.`,
+  },
+  {
+    id: "code",
+    icon: Code,
+    label: "Код / Сниппет",
+    example: `7. Что выведет код?\n\`\`\`\nconst x = 5 + 3;\nconsole.log(x);\n\`\`\`\n*a) 8\nb) 53\nc) undefined`,
+  },
+  {
+    id: "matching",
+    icon: ArrowUpDown,
+    label: "Сопоставление",
+    example: `8. Сопоставьте термины:\na) GET\nb) POST\nc) DELETE\n*a) Получить данные\n*b) Создать ресурс\n*c) Удалить ресурс`,
+  },
+  {
+    id: "numerical",
+    icon: Hash,
+    label: "Числовой ответ",
+    example: `9. Сколько байт в одном килобайте?\n*1024`,
+  },
+] as const;
+
+function BulkImportFormatsAccordion({
+  isOpen,
+  setIsOpen,
+}: {
+  isOpen: boolean;
+  setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const [openItemId, setOpenItemId] = React.useState<string | null>(null);
+
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      {/* Root toggle */}
+      <button
+        type="button"
+        onClick={() => { setIsOpen((v) => !v); setOpenItemId(null); }}
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors"
+      >
+        <span className="flex items-center gap-1.5">
+          <Layers className="h-3 w-3 text-primary" />
+          Поддерживаемые форматы
+        </span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {/* Grid trick: smooth height transition without JS measurement */}
+      <div
+        className="transition-[grid-template-rows] duration-200 ease-out"
+        style={{ display: "grid", gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t divide-y">
+            {FORMAT_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isItemOpen = openItemId === item.id;
+              return (
+                <div key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenItemId(isItemOpen ? null : item.id)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-[11px] hover:bg-muted/40 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5 text-foreground">
+                      <Icon className="h-3 w-3 text-primary shrink-0" />
+                      {item.label}
+                    </span>
+                    <ChevronDown
+                      className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${isItemOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {/* Inner grid trick for sub-items */}
+                  <div
+                    className="transition-[grid-template-rows] duration-150 ease-out"
+                    style={{ display: "grid", gridTemplateRows: isItemOpen ? "1fr" : "0fr" }}
+                  >
+                    <div className="overflow-hidden">
+                      <pre className="text-[10px] font-mono text-muted-foreground bg-background px-3 py-2.5 leading-relaxed whitespace-pre-wrap border-t">
+                        {item.example}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="px-3 py-2 bg-primary/5">
+              <p className="text-[10px] text-primary/80 leading-relaxed">
+                Отметьте правильные варианты символом <span className="font-mono font-bold">*</span> в начале строки.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function CreateTestView({
@@ -214,6 +366,7 @@ export function CreateTestView({
 
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [bulkImportText, setBulkImportText] = useState("");
+  const [isFormatsOpen, setIsFormatsOpen] = useState(false);
 
   const [isPreview, setIsPreview] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -740,43 +893,67 @@ export function CreateTestView({
         </div>
       </div>
 
-      {/* Bulk Import Dialog Modal */}
-      <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+
+      {/* Bulk Import — Sheet (right drawer) */}
+      <Sheet
+        open={isBulkImportOpen}
+        onOpenChange={(o) => {
+          setIsBulkImportOpen(o);
+          if (!o) setIsFormatsOpen(false);
+        }}
+      >
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className="w-full sm:max-w-lg flex flex-col p-0 gap-0"
+        >
+          {/* Header */}
+          <div className="p-4 border-b shrink-0">
+            <SheetTitle className="text-sm font-bold flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" /> Быстрый импорт вопросов
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Вставьте текст с вопросами. Система автоматически определит формулировки и правильные ответы.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            <div className="p-2.5 rounded-lg border bg-muted/40 text-[11px] text-muted-foreground space-y-1 font-mono">
-              <p className="font-sans font-semibold text-foreground">Пример поддерживаемого формата:</p>
-              <p>1. Какой метод HTTP используется для создания ресурса?</p>
-              <p>a) GET</p>
-              <p>*b) POST</p>
-              <p>c) PUT</p>
-              <p className="pt-1">2. Столица Франции?</p>
-              <p>*Париж</p>
-            </div>
-
-            <Textarea
-              placeholder="Вставьте вопросы сюда..."
-              value={bulkImportText}
-              onChange={(e) => setBulkImportText(e.target.value)}
-              className="min-h-[160px] text-xs font-mono bg-background"
-            />
+            </SheetTitle>
+            <SheetDescription className="text-xs text-muted-foreground mt-0.5">
+              Вставьте текст с вопросами. Система автоматически определит тип и правильные ответы.
+            </SheetDescription>
           </div>
 
-          <DialogFooter className="flex items-center justify-between sm:justify-between">
+          {/* Body */}
+          <div className="flex-1 flex flex-col p-4 gap-3 min-h-0 overflow-y-auto">
+            {/* Textarea — blurs when formats open */}
+            <div
+              className={`flex-1 flex flex-col gap-1.5 min-h-0 transition-all duration-200 ${
+                isFormatsOpen ? "blur-sm opacity-50 pointer-events-none select-none" : ""
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-foreground">Текст для импорта</p>
+                {bulkImportText.trim() && (
+                  <span className="text-[11px] text-muted-foreground">
+                    ~{bulkImportText.trim().split(/\n\s*\n/).filter(Boolean).length} вопр.
+                  </span>
+                )}
+              </div>
+              <Textarea
+                placeholder={"1. Какой метод HTTP используется для создания ресурса?\na) GET\n*b) POST\nc) PUT\n\n2. Столица Франции?\n*a) Париж\nb) Берлин"}
+                value={bulkImportText}
+                onChange={(e) => setBulkImportText(e.target.value)}
+                className="flex-1 min-h-[160px] text-xs font-mono bg-background resize-none"
+              />
+            </div>
+
+            {/* Accordion: formats */}
+            <div className="shrink-0">
+              <BulkImportFormatsAccordion isOpen={isFormatsOpen} setIsOpen={setIsFormatsOpen} />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between p-3 border-t bg-background shrink-0">
             <Button
               size="xs"
               variant="ghost"
               onClick={() => setIsBulkImportOpen(false)}
-              className="h-8 text-xs"
+              className="h-7 text-xs"
             >
               Отмена
             </Button>
@@ -784,13 +961,13 @@ export function CreateTestView({
               size="xs"
               onClick={handleApplyBulkImport}
               disabled={!bulkImportText.trim()}
-              className="h-8 px-4 text-xs font-bold gap-1.5"
+              className="h-7 px-4 text-xs font-medium gap-1.5"
             >
               <FileUp className="h-3.5 w-3.5" /> Импортировать вопросы
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
