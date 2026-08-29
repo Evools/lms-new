@@ -31,6 +31,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { parseStaffFile } from "@/lib/excel-import";
 import Link from "next/link";
 import {
   Settings,
@@ -234,8 +235,16 @@ export function SettingsView({
     setUploadedFileName(file.name);
 
     try {
-      const text = await file.text();
-      handleParseBulkText(text);
+      if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+        const staff = await parseStaffFile(file);
+        setParsedUsers(staff);
+        if (staff.length === 0) {
+          toast.add({ title: "Не удалось распознать сотрудников в файле", type: "error" });
+        }
+      } else {
+        const text = await file.text();
+        handleParseBulkText(text);
+      }
     } catch (err) {
       toast.add({ title: "Не удалось прочитать файл", type: "error" });
     }

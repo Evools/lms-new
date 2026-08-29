@@ -50,6 +50,12 @@ import {
   Upload,
   Download,
 } from "lucide-react";
+import {
+  parseExcelOrTableFile,
+  parseRawStudentText,
+  generateEmailFromName,
+  ParsedStudentRow,
+} from "@/lib/excel-import";
 
 export interface DBGroupItem {
   id: string;
@@ -63,19 +69,7 @@ interface StudentRegistrationFormProps {
   dbGroups?: DBGroupItem[];
 }
 
-export interface ImportedStudentRow {
-  id: string;
-  fullName: string;
-  nationalId?: string;
-  gender?: string;
-  phone?: string;
-  telegram?: string;
-  birthDate?: string;
-  email: string;
-  password?: string;
-  group: string;
-  enrollmentType: "Бюджет" | "Контракт";
-}
+export type ImportedStudentRow = ParsedStudentRow;
 
 export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegistrationFormProps) {
   const router = useRouter();
@@ -104,14 +98,10 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
   const [parentEmail, setParentEmail] = useState("");
 
   const [group, setGroup] = useState(groupsList[0] || "ИС-1-25");
-  const [course, setCourse] = useState("1");
   const [enrollmentType, setEnrollmentType] = useState<"Бюджет" | "Контракт">("Бюджет");
-  const [enrollmentDate, setEnrollmentDate] = useState(new Date().toISOString().split("T")[0]);
-  const [previousSchool, setPreviousSchool] = useState("");
-  const [specialNotes, setSpecialNotes] = useState("");
-
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [copiedPassword, setCopiedPassword] = useState(false);
 
   // Excel Bulk Import State
   const [importedStudents, setImportedStudents] = useState<ImportedStudentRow[]>([]);
@@ -119,8 +109,10 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
   const [defaultImportGroup, setDefaultImportGroup] = useState(groupsList[0] || "ИС-1-25");
   const [defaultImportType, setDefaultImportType] = useState<"Бюджет" | "Контракт">("Бюджет");
 
+  // Dynamic available groups including any imported or custom group
+  const allAvailableGroups = Array.from(new Set([...groupsList, defaultImportGroup, group].filter(Boolean)));
+
   // Common UI State
-  const [copiedPassword, setCopiedPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -150,31 +142,52 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
     return parts[0].slice(0, 2).toUpperCase();
   };
 
-  const handleNameChange = (val: string) => {
+  const handleFullNameChange = (val: string) => {
     setFullName(val);
-    if (!email || email.endsWith("@lyceum.edu") || email.endsWith("@student.lyceum.kg")) {
+    if (!email || email.endsWith("@lyceum.edu")) {
       setEmail(generateEmailFromName(val));
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent, addAnother = false) => {
+  const handleDownloadTemplate = () => {
+    const csvContent =
+      "\uFEFF" +
+      "№,ФИО Студента,ПИН КР,Пол,Телефон,Telegram / WhatsApp,Дата рождения\n" +
+      '1,"Абдыкадыров Бекзат Дурусбекович","20707200900462","Мужской","+996 (703) 07-00-29","703070029","07.07.2009"\n' +
+      '2,"Алмазбеков Асылбек Алмазбекович","22502200900165","Мужской","+996 (225) 54-71-54","+996 225 547 154","25.02.2009"\n' +
+      '3,"Анарбаев Каниет Рустамович","21705201100139","Мужской","+996 (703) 03-23-35","—","17.05.2011"\n';
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "shablon_vedomosti_studentov.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSingleSubmit = async (e: React.FormEvent, createAnother: boolean = false) => {
     e.preventDefault();
-    if (!fullName.trim()) return;
+    if (!fullName.trim() || !email.trim()) {
+      setErrorMessage("ФИО и Email обязательны для заполнения");
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
       const res = await createStudentAction({
-        name: fullName.trim(),
-        email: email.trim() || `${fullName.toLowerCase().split(" ")[0]}@lyceum.edu`,
-        phone: phone.trim() || undefined,
+        name: fullName,
+        email: email,
+        phone: phone || undefined,
         password: password || undefined,
         groupName: group,
         enrollmentType: enrollmentType,
-        nationalId: nationalId.trim() || undefined,
+        nationalId: nationalId || undefined,
         gender: gender,
-        telegram: telegram.trim() || undefined,
+        telegram: telegram || undefined,
         birthDate: birthDate || undefined,
       });
 
@@ -187,19 +200,18 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
 
       setSuccessMessage(true);
 
-      if (addAnother) {
+      if (createAnother) {
         setFullName("");
         setEmail("");
         setPhone("");
         setTelegram("");
+        setNationalId("");
+        setBirthDate("");
         setAddress("");
         setParentName("");
         setParentPhone("");
         setParentEmail("");
-        setNationalId("");
         setPassword("");
-        setSpecialNotes("");
-        setPreviousSchool("");
         setTimeout(() => setSuccessMessage(false), 3000);
       } else {
         setTimeout(() => {
@@ -212,157 +224,61 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
     }
   };
 
-  const normalizeKyrgyzPhone = (rawPhone: string) => {
-    if (!rawPhone) return "";
-    const digits = rawPhone.replace(/\D/g, "");
-    if (!digits) return "";
-    if (digits.startsWith("996") && digits.length === 12) {
-      return `+996 (${digits.slice(3, 6)}) ${digits.slice(6, 9)}-${digits.slice(9)}`;
-    }
-    if (digits.length === 9) {
-      return `+996 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-    }
-    if (digits.startsWith("0") && digits.length === 10) {
-      return `+996 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-    }
-    return rawPhone;
-  };
-
-  const generateEmailFromName = (fullName: string) => {
-    if (!fullName.trim()) return "student@lyceum.edu";
-    const latin = fullName
-      .trim()
-      .toLowerCase()
-      .replace(/а/g, "a").replace(/б/g, "b").replace(/в/g, "v").replace(/г/g, "g")
-      .replace(/д/g, "d").replace(/е/g, "e").replace(/ё/g, "yo").replace(/ж/g, "zh")
-      .replace(/з/g, "z").replace(/и/g, "i").replace(/й/g, "y").replace(/к/g, "k")
-      .replace(/л/g, "l").replace(/м/g, "m").replace(/н/g, "n").replace(/о/g, "o")
-      .replace(/п/g, "p").replace(/р/g, "r").replace(/с/g, "s").replace(/т/g, "t")
-      .replace(/у/g, "u").replace(/ф/g, "f").replace(/х/g, "kh").replace(/ц/g, "ts")
-      .replace(/ч/g, "ch").replace(/ш/g, "sh").replace(/щ/g, "shch").replace(/ъ/g, "")
-      .replace(/ы/g, "y").replace(/ь/g, "").replace(/э/g, "e").replace(/ю/g, "yu")
-      .replace(/я/g, "ya")
-      .replace(/[^a-z0-9\s]/g, "");
-
-    const parts = latin.split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) {
-      const surname = parts[0];
-      const firstname = parts[1];
-      return `${firstname}.${surname}@lyceum.edu`;
-    }
-    return `${parts[0] || "student"}@lyceum.edu`;
-  };
-
-  const parseStudentTableText = (text: string) => {
-    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    if (lines.length === 0) return;
-
-    let headerIndices = {
-      index: -1,
-      name: -1,
-      pin: -1,
-      gender: -1,
-      phone: -1,
-      telegram: -1,
-      birthDate: -1,
-    };
-
-    const firstLineParts = lines[0].split(/[\t,;]/).map((p) => p.trim().toLowerCase());
-    const hasHeader = firstLineParts.some((p) =>
-      p.includes("фио") || p.includes("студент") || p.includes("пин") || p.includes("телефон") || p.includes("пол") || p.includes("дата") || p.includes("telegram")
-    );
-
-    let startLine = 0;
-    if (hasHeader) {
-      startLine = 1;
-      firstLineParts.forEach((p, idx) => {
-        if (p.includes("№") || p === "no" || p === "n") headerIndices.index = idx;
-        else if (p.includes("фио") || p.includes("студент") || p.includes("имя")) headerIndices.name = idx;
-        else if (p.includes("пин") || p.includes("инн")) headerIndices.pin = idx;
-        else if (p.includes("пол") && !p.includes("телефон")) headerIndices.gender = idx;
-        else if (p.includes("тел") || p.includes("телефон") || p.includes("мобильн")) headerIndices.phone = idx;
-        else if (p.includes("telegram") || p.includes("whatsapp") || p.includes("мессенджер") || p.includes("телеграм")) headerIndices.telegram = idx;
-        else if (p.includes("рождения") || p.includes("д.р") || p.includes("дата")) headerIndices.birthDate = idx;
-      });
-    }
-
-    const parsedRows: ImportedStudentRow[] = [];
-
-    for (let i = startLine; i < lines.length; i++) {
-      const parts = lines[i].split(/[\t,;]/).map((p) => p.trim());
-      if (parts.length < 2) continue;
-
-      let name = "";
-      let pin = "";
-      let gender = "";
-      let phone = "";
-      let telegram = "";
-      let birthDate = "";
-      let email = "";
-
-      if (hasHeader) {
-        if (headerIndices.name !== -1) name = parts[headerIndices.name] || "";
-        if (headerIndices.pin !== -1) pin = parts[headerIndices.pin] || "";
-        if (headerIndices.gender !== -1) gender = parts[headerIndices.gender] || "";
-        if (headerIndices.phone !== -1) phone = parts[headerIndices.phone] || "";
-        if (headerIndices.telegram !== -1) telegram = parts[headerIndices.telegram] || "";
-        if (headerIndices.birthDate !== -1) birthDate = parts[headerIndices.birthDate] || "";
-      } else {
-        let idx = 0;
-        if (/^\d{1,3}$/.test(parts[0])) idx = 1;
-
-        name = parts[idx] || "";
-        pin = parts[idx + 1] || "";
-        gender = parts[idx + 2] || "";
-        phone = parts[idx + 3] || "";
-        telegram = parts[idx + 4] || "";
-        birthDate = parts[idx + 5] || "";
-      }
-
-      if (!name || name.toLowerCase().includes("фио") || name.toLowerCase().includes("студент")) continue;
-
-      const formattedPhone = normalizeKyrgyzPhone(phone);
-      const finalEmail = generateEmailFromName(name);
-      const autoPassword = "Lms" + (Math.floor(100000 + Math.random() * 900000)).toString();
-
-      parsedRows.push({
-        id: `imp-${i}-${Date.now()}`,
-        fullName: name,
-        nationalId: pin,
-        gender: gender || (name.endsWith("вна") || name.endsWith("ева") || name.endsWith("ова") || name.endsWith("кызы") ? "Женский" : "Мужской"),
-        phone: formattedPhone,
-        telegram: telegram !== "—" ? telegram : "",
-        birthDate: birthDate,
-        email: finalEmail,
-        password: autoPassword,
-        group: defaultImportGroup,
-        enrollmentType: defaultImportType,
-      });
-    }
-
-    if (parsedRows.length > 0) {
-      setImportedStudents(parsedRows);
-    }
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setExcelFileName(file.name);
+    setErrorMessage(null);
 
     try {
-      const text = await file.text();
-      parseStudentTableText(text);
-    } catch (err) {
-      setErrorMessage("Не удалось прочитать файл");
+      const res = await parseExcelOrTableFile(file, groupsList, defaultImportGroup, defaultImportType);
+      if (res.detectedGroup) {
+        setDefaultImportGroup(res.detectedGroup);
+      }
+      if (res.students.length === 0) {
+        setErrorMessage("Не удалось распознать записи студентов в файле. Проверьте наличие колонок (ФИО, ПИН, Телефон).");
+      } else {
+        setImportedStudents(res.students);
+      }
+    } catch (err: any) {
+      console.error("Excel parse error:", err);
+      setErrorMessage("Ошибка чтения файла Excel: " + (err.message || "Неверный формат"));
+    }
+  };
+
+  const handleImportGroupChange = (newGroup: string) => {
+    setDefaultImportGroup(newGroup);
+    setImportedStudents((prev) =>
+      prev.map((s) => ({
+        ...s,
+        group: newGroup,
+      }))
+    );
+  };
+
+  const handleImportTypeChange = (newType: "Бюджет" | "Контракт") => {
+    setDefaultImportType(newType);
+    setImportedStudents((prev) =>
+      prev.map((s) => ({
+        ...s,
+        enrollmentType: newType,
+      }))
+    );
+  };
+
+  const handlePastedText = (text: string) => {
+    if (!text.trim()) return;
+    const parsed = parseRawStudentText(text, defaultImportGroup, defaultImportType);
+    if (parsed.length > 0) {
+      setImportedStudents(parsed);
     }
   };
 
   const handleDownloadPasswordsCSV = () => {
     if (importedStudents.length === 0) return;
-    let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Временный Пароль\n";
+    let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Временный Пароль,Группа\n";
     importedStudents.forEach((st, idx) => {
-      csvContent += `${idx + 1},"${st.fullName}","${st.email}","${st.password || 'Lms123456'}"\n`;
+      csvContent += `${idx + 1},"${st.fullName}","${st.email}","${st.password || 'Lms123456'}","${st.group}"\n`;
     });
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -375,33 +291,15 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
     document.body.removeChild(link);
   };
 
-  const handleDownloadTemplate = () => {
-    const csvContent =
-      "\uFEFF" +
-      "№,ФИО Студента,ПИН КР,Пол,Телефон,Telegram / WhatsApp,Дата рождения\n" +
-      '1,"Абдыкадыров Бекзат Дурусбекович","20707200900462","Мужской","+996 703 070 029","703070029","07.07.2009"\n' +
-      '2,"Алмазбеков Асылбек Алмазбекович","22502200900165","Мужской","+996 225 547 154","+996 225 547 154","25.02.2009"\n' +
-      '3,"Анарбаев Каниет Рустамович","21705201100139","Мужской","0703 032 335","—","17.05.2011"\n';
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "shablon_vedomosti_studentov.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const handleLoadDemoData = () => {
     setExcelFileName("spisok_kursantov_2026.xlsx");
     setImportedStudents([
-      { id: "imp-1", fullName: "Абдыкадыров Бекзат Дурусбекович", nationalId: "20707200900462", gender: "Мужской", phone: "+996 703 070 029", telegram: "703070029", birthDate: "07.07.2009", email: "bekzat.abdykadyrov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
-      { id: "imp-2", fullName: "Алмазбеков Асылбек Алмазбекович", nationalId: "22502200900165", gender: "Мужской", phone: "+996 225 547 154", telegram: "+996 225 547 154", birthDate: "25.02.2009", email: "asylbek.almazbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
-      { id: "imp-3", fullName: "Анарбаев Каниет Рустамович", nationalId: "21705201100139", gender: "Мужской", phone: "0703 032 335", telegram: "—", birthDate: "17.05.2011", email: "kaniet.anarbaev@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-1", fullName: "Абдыкадыров Бекзат Дурусбекович", nationalId: "20707200900462", gender: "Мужской", phone: "+996 (703) 07-00-29", telegram: "703070029", birthDate: "07.07.2009", email: "bekzat.abdykadyrov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-2", fullName: "Алмазбеков Асылбек Алмазбекович", nationalId: "22502200900165", gender: "Мужской", phone: "+996 (225) 54-71-54", telegram: "+996 225 547 154", birthDate: "25.02.2009", email: "asylbek.almazbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-3", fullName: "Анарбаев Каниет Рустамович", nationalId: "21705201100139", gender: "Мужской", phone: "+996 (703) 03-23-35", telegram: "—", birthDate: "17.05.2011", email: "kaniet.anarbaev@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
       { id: "imp-4", fullName: "Анарбеков Шернияз Алтынбекович", nationalId: "21208201000077", gender: "Мужской", phone: "—", telegram: "—", birthDate: "12.08.2010", email: "sherniyaz.anarbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
-      { id: "imp-5", fullName: "Арстанбеков Асылбек", nationalId: "20401201101004", gender: "Мужской", phone: "+996 221 262 711", telegram: "@Asyl_prog", birthDate: "04.01.2011", email: "asylbek.arstanbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
-      { id: "imp-6", fullName: "Арынбаева Бегимай Манасбековна", nationalId: "10306200950246", gender: "Женский", phone: "0507 924 223", telegram: "0709 699 705", birthDate: "03.06.2009", email: "begimay.arynbaeva@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-5", fullName: "Арстанбеков Асылбек", nationalId: "20401201101004", gender: "Мужской", phone: "+996 (221) 26-27-11", telegram: "@Asyl_prog", birthDate: "04.01.2011", email: "asylbek.arstanbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
+      { id: "imp-6", fullName: "Арынбаева Бегимай Манасбековна", nationalId: "10306200950246", gender: "Женский", phone: "+996 (507) 92-42-23", telegram: "0709 699 705", birthDate: "03.06.2009", email: "begimay.arynbaeva@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
     ]);
   };
 
@@ -541,7 +439,7 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
       {/* MODE 1: Single Student Form */}
       {regMode === "single" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <form onSubmit={(e) => handleSubmit(e, false)} className="lg:col-span-2 space-y-4">
+          <form onSubmit={(e) => handleSingleSubmit(e, false)} className="lg:col-span-2 space-y-4">
             
             {/* Section 1: Personal Info */}
             <div className="rounded-xl border bg-card overflow-hidden">
@@ -560,7 +458,7 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                     required
                     placeholder="Фамилия Имя Отчество"
                     value={fullName}
-                    onChange={(e) => handleNameChange(e.target.value)}
+                    onChange={(e) => handleFullNameChange(e.target.value)}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -675,16 +573,12 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                   <label className="font-medium text-foreground text-xs">
                     Группа <span className="text-destructive">*</span>
                   </label>
-                  <Select value={group} onValueChange={(val) => {
-                    setGroup(val);
-                    if (val === "ИС-2-24") setCourse("2");
-                    else setCourse("1");
-                  }}>
+                  <Select value={group} onValueChange={(val) => setGroup(val)}>
                     <SelectTrigger className="h-8 text-xs bg-background">
                       <SelectValue>{group}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {groupsList.map((gName: string) => (
+                      {allAvailableGroups.map((gName: string) => (
                         <SelectItem key={gName} value={gName} className="text-xs">
                           {gName}
                         </SelectItem>
@@ -836,12 +730,12 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs">Целевая группа для списка</label>
-              <Select value={defaultImportGroup} onValueChange={(val) => val && setDefaultImportGroup(val)}>
+              <Select value={defaultImportGroup} onValueChange={(val) => val && handleImportGroupChange(val)}>
                 <SelectTrigger className="h-8 text-xs bg-background">
                   <SelectValue>{defaultImportGroup}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {groupsList.map((gName: string) => (
+                  {allAvailableGroups.map((gName: string) => (
                     <SelectItem key={gName} value={gName} className="text-xs">
                       {gName}
                     </SelectItem>
@@ -852,7 +746,7 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
 
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs">Форма обучения</label>
-              <Select value={defaultImportType} onValueChange={(val: "Бюджет" | "Контракт") => setDefaultImportType(val)}>
+              <Select value={defaultImportType} onValueChange={(val: "Бюджет" | "Контракт") => handleImportTypeChange(val)}>
                 <SelectTrigger className="h-8 text-xs bg-background">
                   <SelectValue>{defaultImportType}</SelectValue>
                 </SelectTrigger>
@@ -884,7 +778,7 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                         <FileSpreadsheet className="h-3.5 w-3.5" /> {excelFileName}
                       </span>
                     ) : (
-                      "Выберите файл экспортной ведомости на компьютере"
+                      "Выберите файл экспортной ведомости на компьютере (.xlsx, .xls, .csv)"
                     )}
                   </div>
                   <div className="text-[10px] text-muted-foreground pt-0.5">
@@ -899,7 +793,7 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
               <textarea
                 rows={3}
                 placeholder="Вставьте скопированные строки из другой системы (Ctrl+V)..."
-                onChange={(e) => parseStudentTableText(e.target.value)}
+                onChange={(e) => handlePastedText(e.target.value)}
                 className="w-full p-2.5 rounded-lg border bg-background text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>

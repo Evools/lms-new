@@ -150,44 +150,93 @@ export async function createStudentAction(input: CreateStudentInput & { role?: "
       where: { email: cleanEmail },
     });
 
+    let studentId = existing?.id;
+
     if (existing) {
-      return { success: false, error: "Пользователь с такой почтой уже существует" };
+      // Update info if provided
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          name: input.name.trim() || existing.name,
+          phone: input.phone?.trim() || existing.phone,
+        },
+      });
+    } else {
+      // Hash initial password
+      const rawPassword = input.password || "Lms" + Math.random().toString(36).substring(2, 8);
+      const hashedPassword = await bcrypt.hash(rawPassword, 10);
+
+      // Create user record in Prisma DB
+      const student = await prisma.user.create({
+        data: {
+          name: input.name.trim(),
+          email: cleanEmail,
+          phone: input.phone?.trim() || null,
+          password: hashedPassword,
+          role: input.role || "STUDENT",
+          isActive: true,
+        },
+      });
+      studentId = student.id;
     }
 
-    // Hash initial password
-    const rawPassword = input.password || "Lms" + Math.random().toString(36).substring(2, 8);
-    const hashedPassword = await bcrypt.hash(rawPassword, 10);
-
-    // Create user record in Prisma DB
-    const student = await prisma.user.create({
-      data: {
-        name: input.name.trim(),
-        email: cleanEmail,
-        phone: input.phone?.trim() || null,
-        password: hashedPassword,
-        role: input.role || "STUDENT",
-        isActive: true,
-      },
-    });
-
     // If group name is provided, enroll student into target group
-    if (input.groupName && input.groupName !== "Не распределен") {
-      const group = await prisma.group.findFirst({
+    if (studentId && input.groupName && input.groupName !== "Не распределен") {
+      let group = await prisma.group.findFirst({
         where: { name: input.groupName },
       });
 
-      if (group) {
-        await prisma.groupStudent.create({
+      if (!group) {
+        let academicYear = await prisma.academicYear.findFirst({
+          where: { isCurrent: true },
+        });
+        if (!academicYear) {
+          academicYear = await prisma.academicYear.findFirst({
+            orderBy: { createdAt: "desc" },
+          });
+        }
+        if (!academicYear) {
+          academicYear = await prisma.academicYear.create({
+            data: {
+              name: "2025-2026",
+              isCurrent: true,
+              startDate: new Date("2025-09-01"),
+              endDate: new Date("2026-06-30"),
+            },
+          });
+        }
+
+        group = await prisma.group.create({
           data: {
-            groupId: group.id,
-            studentId: student.id,
+            name: input.groupName,
+            academicYearId: academicYear.id,
           },
         });
+      }
+
+      if (group) {
+        const alreadyLinked = await prisma.groupStudent.findUnique({
+          where: {
+            groupId_studentId: {
+              groupId: group.id,
+              studentId,
+            },
+          },
+        });
+
+        if (!alreadyLinked) {
+          await prisma.groupStudent.create({
+            data: {
+              groupId: group.id,
+              studentId,
+            },
+          });
+        }
       }
     }
 
     revalidatePath("/dashboard/students");
-    return { success: true, studentId: student.id };
+    return { success: true, studentId: studentId! };
   } catch (error: any) {
     console.error("Error creating student in DB:", error);
     return { success: false, error: error.message || "Ошибка при сохранении в БД" };
