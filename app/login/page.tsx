@@ -40,9 +40,9 @@ export default function LoginPage() {
         } else {
           window.location.href = "/dashboard";
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setLoggingInRole(null);
-        if (err?.message !== "NEXT_REDIRECT") {
+        if (!(err instanceof Error && err.message === "NEXT_REDIRECT")) {
           setError("Произошла ошибка при входе. Попробуйте еще раз.");
         }
       }

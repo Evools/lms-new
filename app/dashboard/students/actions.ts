@@ -237,9 +237,9 @@ export async function createStudentAction(input: CreateStudentInput & { role?: "
 
     revalidatePath("/dashboard/students");
     return { success: true, studentId: studentId! };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error creating student in DB:", error);
-    return { success: false, error: error.message || "Ошибка при сохранении в БД" };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -267,9 +267,9 @@ export async function createBulkStudentsAction(studentsList: Array<CreateStudent
 
     revalidatePath("/dashboard/students");
     return { success: true, count: createdCount };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error bulk creating students in DB:", error);
-    return { success: false, error: error.message || "Ошибка при массовом сохранении в БД" };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -359,9 +359,9 @@ export async function updateStudentAction(
 
     revalidatePath("/dashboard/students");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error updating student:", error);
-    return { success: false, error: error.message || "Ошибка при обновлении студента" };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -390,9 +390,9 @@ export async function deleteStudentsAction(ids: string[]) {
 
     revalidatePath("/dashboard/students");
     return { success: true, count: ids.length };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error deleting students from DB:", error);
-    return { success: false, error: error.message || "Ошибка при удалении из БД" };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -426,9 +426,9 @@ export async function resetPasswordAction(studentId: string, newPassword: string
 
     revalidatePath("/dashboard/students");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error resetting password:", error);
-    return { success: false, error: error.message || "Ошибка при смене пароля" };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 

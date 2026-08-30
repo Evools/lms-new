@@ -125,9 +125,9 @@ export async function createSubjectAction(data: {
     });
     revalidatePath("/dashboard/subjects");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("createSubjectAction error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -152,9 +152,9 @@ export async function updateSubjectAction(
     });
     revalidatePath("/dashboard/subjects");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("updateSubjectAction error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -169,9 +169,9 @@ export async function deleteSubjectAction(subjectId: string) {
     await prisma.subject.delete({ where: { id: subjectId } });
     revalidatePath("/dashboard/subjects");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("deleteSubjectAction error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -207,9 +207,9 @@ export async function assignSubjectToGroupAction(data: {
     revalidatePath("/dashboard/subjects");
     revalidatePath("/dashboard/groups");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("assignSubjectToGroupAction error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -225,8 +225,8 @@ export async function removeSubjectFromGroupAction(bindingId: string) {
     revalidatePath("/dashboard/subjects");
     revalidatePath("/dashboard/groups");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("removeSubjectFromGroupAction error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }

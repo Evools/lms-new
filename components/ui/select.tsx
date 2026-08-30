@@ -5,8 +5,26 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { CheckIcon, ChevronDownIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-function Select({ ...props }: SelectPrimitive.Root.Props<any>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+interface SelectProps<Value = string, Multiple extends boolean = false>
+  extends Omit<SelectPrimitive.Root.Props<Value, Multiple>, "onValueChange"> {
+  onValueChange?: (value: Value, eventDetails?: unknown) => void;
+}
+
+function Select<Value = string, Multiple extends boolean = false>({
+  onValueChange,
+  ...props
+}: SelectProps<Value, Multiple>) {
+  return (
+    <SelectPrimitive.Root
+      data-slot="select"
+      onValueChange={(val, details) => {
+        if (onValueChange && val !== null && val !== undefined) {
+          onValueChange(val as Value, details);
+        }
+      }}
+      {...(props as SelectPrimitive.Root.Props<Value, Multiple>)}
+    />
+  );
 }
 
 function SelectTrigger({

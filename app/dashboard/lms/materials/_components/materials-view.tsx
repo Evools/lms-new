@@ -313,9 +313,9 @@ export function MaterialsView({
       try {
         const parsed = JSON.parse(fileUrlStr);
         if (Array.isArray(parsed)) {
-          parsed.forEach((item: any) => {
+          parsed.forEach((item: unknown) => {
             if (typeof item === "string" && item.trim()) list.push(item.trim());
-            else if (item && item.url) list.push(item.url);
+            else if (item && typeof item === "object" && "url" in item && typeof item.url === "string") list.push(item.url);
           });
         } else if (typeof fileUrlStr === "string") {
           list.push(fileUrlStr);

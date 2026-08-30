@@ -38,11 +38,13 @@ export type QuestionType =
   | "MATCHING"
   | "NUMERICAL";
 
+export type TakeQuestionOption = string | { left: string; right: string };
+
 interface QuestionItem {
   id: string;
   type: QuestionType;
   questionText: string;
-  options: any;
+  options: TakeQuestionOption[];
   points: number;
   correctAnswer?: string;
   explanation?: string;
@@ -499,9 +501,9 @@ export function TakeTestView({ test }: TakeTestViewProps) {
               let currentOrderingList: string[] = [];
               if (q.type === "ORDERING") {
                 try {
-                  currentOrderingList = selectedVal ? JSON.parse(selectedVal) : [...q.options];
+                  currentOrderingList = selectedVal ? JSON.parse(selectedVal) : (Array.isArray(q.options) ? q.options.map(String) : []);
                 } catch {
-                  currentOrderingList = [...q.options];
+                  currentOrderingList = Array.isArray(q.options) ? q.options.map(String) : [];
                 }
               }
 
@@ -612,10 +614,10 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                           <Layers className="h-3.5 w-3.5 text-primary" /> Сопоставьте элементы слева с элементами справа:
                         </div>
                         <div className="grid grid-cols-1 gap-2">
-                          {(Array.isArray(q.options) ? q.options : []).map((pair: any, pIdx: number) => {
-                            const leftKey = typeof pair === "object" ? pair.left : pair;
+                          {(Array.isArray(q.options) ? q.options : []).map((pair: unknown, pIdx: number) => {
+                            const leftKey = typeof pair === "object" && pair !== null && "left" in pair ? String((pair as { left: unknown }).left || "") : String(pair || "");
                             const rightOptions = Array.isArray(q.options)
-                              ? q.options.map((o: any) => (typeof o === "object" ? o.right : o))
+                              ? q.options.map((o: unknown) => (typeof o === "object" && o !== null && "right" in o ? String((o as { right: unknown }).right || "") : String(o || "")))
                               : [];
                             return (
                               <div
@@ -695,26 +697,30 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                           <FormInput className="h-3.5 w-3.5 text-primary" /> Впишите пропущенные слова по порядку:
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {(Array.isArray(q.options) ? q.options : []).map((opt: string, blankIdx: number) => (
-                            <div key={blankIdx} className="space-y-1">
-                              <label className="text-[10px] font-medium text-muted-foreground">
-                                Пропуск #{blankIdx + 1}
-                              </label>
-                              <Input
-                                placeholder={`Ответ на пропуск #${blankIdx + 1}...`}
-                                disabled={isTeacherOrAdmin}
-                                value={isTeacherOrAdmin ? opt : currentBlankList[blankIdx] || ""}
-                                onChange={(e) => handleBlankChange(q.id, q.options.length, blankIdx, e.target.value)}
-                                className="h-8 text-xs bg-background font-medium"
-                              />
-                            </div>
-                          ))}
+                          {(Array.isArray(q.options) ? q.options : []).map((rawOpt, blankIdx: number) => {
+                            const opt = typeof rawOpt === "string" ? rawOpt : (typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt ? rawOpt.left : String(rawOpt));
+                            return (
+                              <div key={blankIdx} className="space-y-1">
+                                <label className="text-[10px] font-medium text-muted-foreground">
+                                  Пропуск #{blankIdx + 1}
+                                </label>
+                                <Input
+                                  placeholder={`Ответ на пропуск #${blankIdx + 1}...`}
+                                  disabled={isTeacherOrAdmin}
+                                  value={isTeacherOrAdmin ? opt : currentBlankList[blankIdx] || ""}
+                                  onChange={(e) => handleBlankChange(q.id, q.options.length, blankIdx, e.target.value)}
+                                  className="h-8 text-xs bg-background font-medium"
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : (
                       /* SINGLE, MULTIPLE, TRUE_FALSE */
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {(Array.isArray(q.options) ? q.options : []).map((opt: string, optIdx: number) => {
+                        {(Array.isArray(q.options) ? q.options : []).map((rawOpt, optIdx: number) => {
+                          const opt = typeof rawOpt === "string" ? rawOpt : (typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt ? (rawOpt as { left: string }).left : String(rawOpt));
                           let isSelected =
                             q.type === "MULTIPLE"
                               ? selectedMultiple.includes(opt)

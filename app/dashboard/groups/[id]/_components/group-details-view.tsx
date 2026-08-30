@@ -1260,15 +1260,17 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                     <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
                       <label className="font-semibold text-foreground">Алгоритм распределения:</label>
                       <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
-                        {[
-                          { id: "FAIR", label: "Честный (учет прошлых)" },
-                          { id: "ALPHABETICAL", label: "По алфавиту" },
-                          { id: "RANDOM", label: "Случайный (рандом)" },
-                        ].map((alg) => (
+                        {(
+                          [
+                            { id: "FAIR", label: "Честный (учет прошлых)" },
+                            { id: "ALPHABETICAL", label: "По алфавиту" },
+                            { id: "RANDOM", label: "Случайный (рандом)" },
+                          ] as const
+                        ).map((alg) => (
                           <button
                             key={alg.id}
                             type="button"
-                            onClick={() => setDutyAlgorithm(alg.id as any)}
+                            onClick={() => setDutyAlgorithm(alg.id)}
                             className={`py-1.5 px-1 rounded-md transition-colors text-[11px] truncate ${
                               dutyAlgorithm === alg.id
                                 ? "bg-background border border-border text-primary shadow-2xs font-semibold"
@@ -1291,16 +1293,18 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                       </label>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
-                        {[
-                          { id: "NONE", label: "Без старшего" },
-                          { id: "MONITOR", label: "Староста" },
-                          { id: "DEPUTY", label: "Зам. старосты" },
-                          { id: "CUSTOM", label: "Другой студент" },
-                        ].map((mode) => (
+                        {(
+                          [
+                            { id: "NONE", label: "Без старшего" },
+                            { id: "MONITOR", label: "Староста" },
+                            { id: "DEPUTY", label: "Зам. старосты" },
+                            { id: "CUSTOM", label: "Другой студент" },
+                          ] as const
+                        ).map((mode) => (
                           <button
                             key={mode.id}
                             type="button"
-                            onClick={() => setResponsibleMode(mode.id as any)}
+                            onClick={() => setResponsibleMode(mode.id)}
                             className={`py-1.5 px-1 rounded-md transition-colors text-[11px] truncate ${
                               responsibleMode === mode.id
                                 ? "bg-background border border-border text-primary shadow-2xs font-semibold"

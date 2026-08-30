@@ -199,9 +199,9 @@ export async function createGroupAction(data: {
 
     revalidatePath("/dashboard/groups");
     return { success: true, id: created.id };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to create group:", error);
-    return { success: false, error: error.message || "Ошибка при создании группы в базе данных" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при создании группы в базе данных" };
   }
 }
 
@@ -241,9 +241,9 @@ export async function updateGroupAction(
     revalidatePath("/dashboard/groups");
     revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to update group:", error);
-    return { success: false, error: error.message || "Ошибка при обновлении группы в базе данных" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при обновлении группы в базе данных" };
   }
 }
 
@@ -408,9 +408,9 @@ export async function toggleGroupDutyAction(groupId: string, isDutyEnabled: bool
     revalidatePath("/dashboard/groups");
     revalidatePath("/dashboard/duty");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to toggle duty status:", error);
-    return { success: false, error: error.message || "Ошибка при изменении статуса дежурства" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при изменении статуса дежурства" };
   }
 }
 
@@ -443,9 +443,9 @@ export async function removeStudentFromGroupAction(groupId: string, studentId: s
     revalidatePath(`/dashboard/groups/${groupId}`);
     revalidatePath("/dashboard/students");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to remove student from group:", error);
-    return { success: false, error: error.message || "Ошибка при исключении студента из группы" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при исключении студента из группы" };
   }
 }
 
@@ -482,9 +482,9 @@ export async function setGroupLeadershipAction(
 
     revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to update leadership:", error);
-    return { success: false, error: error.message || "Ошибка при обновлении статуса старосты" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при обновлении статуса старосты" };
   }
 }
 
@@ -515,9 +515,9 @@ export async function createGroupAnnouncementAction(
     revalidatePath(`/dashboard/groups/${groupId}`);
     revalidatePath("/dashboard/announcements");
     return { success: true, id: announcement.id };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to create group announcement:", error);
-    return { success: false, error: error.message || "Ошибка при публикации объявления" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при публикации объявления" };
   }
 }
 
@@ -547,9 +547,9 @@ export async function updateGroupAnnouncementAction(
     revalidatePath(`/dashboard/groups/${groupId}`);
     revalidatePath("/dashboard/announcements");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to update group announcement:", error);
-    return { success: false, error: error.message || "Ошибка при обновлении объявления" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при обновлении объявления" };
   }
 }
 
@@ -567,8 +567,8 @@ export async function deleteGroupAnnouncementAction(groupId: string, announcemen
     revalidatePath(`/dashboard/groups/${groupId}`);
     revalidatePath("/dashboard/announcements");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to delete group announcement:", error);
-    return { success: false, error: error.message || "Ошибка при удалении объявления" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при удалении объявления" };
   }
 }

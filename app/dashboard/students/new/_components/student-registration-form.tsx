@@ -218,9 +218,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
           router.push("/dashboard/students");
         }, 1200);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsSubmitting(false);
-      setErrorMessage(err.message || "Ошибка соединения с сервером");
+      setErrorMessage(err instanceof Error ? err.message : "Ошибка соединения с сервером");
     }
   };
 
@@ -240,9 +240,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
       } else {
         setImportedStudents(res.students);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Excel parse error:", err);
-      setErrorMessage("Ошибка чтения файла Excel: " + (err.message || "Неверный формат"));
+      setErrorMessage("Ошибка чтения файла Excel: " + (err instanceof Error ? err.message : "Неверный формат"));
     }
   };
 
@@ -338,9 +338,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
       setTimeout(() => {
         router.push("/dashboard/students");
       }, 1200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsSubmitting(false);
-      setErrorMessage(err.message || "Ошибка соединения с сервером");
+      setErrorMessage(err instanceof Error ? err.message : "Ошибка соединения с сервером");
     }
   };
 

@@ -99,7 +99,7 @@ export function generateEmailFromName(fullName: string, existingEmails?: Set<str
 /**
  * Normalizes phone numbers to standard format: +996 (XXX) XX-XX-XX or clean international format
  */
-export function normalizeKyrgyzPhone(rawPhone: any): string {
+export function normalizeKyrgyzPhone(rawPhone: unknown): string {
   if (!rawPhone) return "";
   const str = String(rawPhone).trim();
   if (str === "—" || str === "-" || str.toLowerCase() === "null") return "";
@@ -123,7 +123,7 @@ export function normalizeKyrgyzPhone(rawPhone: any): string {
 /**
  * Formats dates from Date objects, Excel serial numbers, or date strings into DD.MM.YYYY
  */
-export function parseDateCell(val: any): string {
+export function parseDateCell(val: unknown): string {
   if (!val) return "";
   if (val instanceof Date && !isNaN(val.getTime())) {
     const day = String(val.getDate()).padStart(2, "0");
@@ -160,7 +160,7 @@ export function parseDateCell(val: any): string {
 /**
  * Formats Kyrgyz National PIN (14 digits) or passport number
  */
-export function parsePinCell(val: any): string {
+export function parsePinCell(val: unknown): string {
   if (!val) return "";
   if (typeof val === "number") {
     // Avoid scientific notation for 14 digit numbers
@@ -199,7 +199,7 @@ export function extractGroupFromFilename(filename: string, availableGroups: stri
  * Parses 2D array of rows from Excel or CSV sheet into structured student records.
  */
 export function parseStudentRowsFrom2DArray(
-  rawRows: any[][],
+  rawRows: unknown[][],
   defaultGroup: string,
   defaultType: "Бюджет" | "Контракт" = "Бюджет",
   detectedGroup?: string
@@ -444,7 +444,7 @@ export async function parseExcelOrTableFile(
   // Use first sheet
   const firstSheetName = sheetNames[0];
   const worksheet = workbook.Sheets[firstSheetName];
-  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, {
+  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, {
     header: 1,
     defval: "",
     blankrows: false,
@@ -504,7 +504,7 @@ export async function parseStaffFile(file: File): Promise<ParsedStaffRow[]> {
   if (!firstSheetName) return [];
 
   const worksheet = workbook.Sheets[firstSheetName];
-  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, {
+  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, {
     header: 1,
     defval: "",
     blankrows: false,
@@ -521,7 +521,7 @@ export async function parseStaffFile(file: File): Promise<ParsedStaffRow[]> {
 
     const name = String(row[0] || "").trim();
     const email = String(row[1] || "").trim();
-    let roleInput = String(row[2] || "").trim().toUpperCase();
+    const roleInput = String(row[2] || "").trim().toUpperCase();
     const phone = row[3] != null ? normalizeKyrgyzPhone(row[3]) : undefined;
 
     let role: "ADMIN" | "TEACHER" = "TEACHER";

@@ -60,12 +60,14 @@ export type QuestionTypeDTO =
   | "MATCHING"
   | "NUMERICAL";
 
+export type QuestionOptionItem = string | { left: string; right: string } | Record<string, unknown>;
+
 export interface TestQuestionDTO {
   id: string;
   testId: string;
   type: QuestionTypeDTO;
   questionText: string;
-  options: any[]; // parsed array or pair objects
+  options: QuestionOptionItem[]; // parsed array or pair objects
   correctAnswer: string;
   points: number;
   order: number;
@@ -1069,7 +1071,7 @@ export async function createTestAction(data: {
   questions: {
     type?: QuestionTypeDTO;
     questionText: string;
-    options: any[];
+    options: QuestionOptionItem[];
     correctAnswer: string;
     points?: number;
   }[];
@@ -1165,7 +1167,7 @@ export async function getTestForEditAction(testId: string) {
       }
       return {
         id: q.id,
-        type: (q.type as any) || "SINGLE",
+        type: (q.type as QuestionTypeDTO) || "SINGLE",
         questionText: q.questionText,
         options: opts,
         correctAnswer: q.correctAnswer,
@@ -1248,7 +1250,7 @@ export async function getTestForTakeAction(testId: string) {
       }
       return {
         id: q.id,
-        type: (q.type as any) || "SINGLE",
+        type: (q.type as QuestionTypeDTO) || "SINGLE",
         questionText: q.questionText,
         options: test.shuffleOptions && !existingSubmission ? [...opts].sort(() => Math.random() - 0.5) : opts,
         points: q.points || 1,
@@ -1304,7 +1306,7 @@ export async function updateTestAction(
     questions: Array<{
       type?: string;
       questionText: string;
-      options: any[];
+      options: QuestionOptionItem[];
       correctAnswer: string;
       points?: number;
     }>;
@@ -1666,7 +1668,7 @@ export async function getTestResultsAction(testId: string) {
         };
       }
 
-      let parsedUserAnswers: Record<string, any> = {};
+      let parsedUserAnswers: Record<string, unknown> = {};
       try {
         parsedUserAnswers = JSON.parse(sub.answers || "{}");
       } catch {
@@ -1791,7 +1793,7 @@ export async function getTestResultsAction(testId: string) {
     const submittedResults = studentsResults.filter((s) => s.hasSubmitted);
     const submittedCount = submittedResults.length;
 
-    const questionStats = test.questions.map((q: any, idx: number) => {
+    const questionStats = test.questions.map((q: (typeof test.questions)[number], idx: number) => {
       let fullCorrectCount = 0;
       let partialCount = 0;
       let wrongCount = 0;
@@ -1859,8 +1861,8 @@ export async function getTestResultsAction(testId: string) {
         timeLimit: test.timeLimit,
         totalMaxPoints,
       },
-      questions: test.questions.map((q: any) => {
-        let opts: any[] = [];
+      questions: test.questions.map((q: (typeof test.questions)[number]) => {
+        let opts: QuestionOptionItem[] = [];
         try {
           opts = JSON.parse(q.options);
         } catch {

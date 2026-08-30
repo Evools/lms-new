@@ -182,7 +182,7 @@ export function EditMaterialView({
       if (res.success) {
         toast.add({ title: "Изменения в материале успешно сохранены!", type: "success" });
         setTimeout(() => {
-          const finalSubjectId = (res as any).subjectId || targetSubjectId;
+          const finalSubjectId = res.subjectId || targetSubjectId;
           const finalUrl = finalSubjectId
             ? `/dashboard/lms/materials?group=${groupId}&subject=${finalSubjectId}&material=${initialMaterial.id}`
             : `/dashboard/lms/materials?group=${groupId}&material=${initialMaterial.id}`;

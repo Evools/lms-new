@@ -59,7 +59,7 @@ interface QuestionDTO {
   id: string;
   type?: string;
   questionText: string;
-  options: any;
+  options: unknown;
   correctAnswer: string;
   points: number;
 }

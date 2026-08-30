@@ -179,7 +179,7 @@ export function SettingsView({
     setEditUserName(u.name);
     setEditUserEmail(u.email);
     setEditUserPhone(u.phone || "");
-    setEditUserRole(u.role as any);
+    setEditUserRole(u.role);
     setEditUserPassword("");
   };
 
@@ -1232,7 +1232,7 @@ export function SettingsView({
                         ) : (
                           <Select
                             value={u.role}
-                            onValueChange={(val) => handleChangeRole(u.id, val as any)}
+                            onValueChange={(val) => handleChangeRole(u.id, val as "ADMIN" | "TEACHER" | "STUDENT")}
                             disabled={isPending}
                           >
                             <SelectTrigger className="h-6 text-[10px] px-2 border-primary/20 w-auto min-w-[110px]">
@@ -1423,7 +1423,7 @@ export function SettingsView({
 
                 <div className="space-y-1">
                   <label className="font-medium text-xs text-foreground font-semibold">Роль в лицее *</label>
-                  <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as any)}>
+                  <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as "ADMIN" | "TEACHER" | "STUDENT")}>
                     <SelectTrigger className="h-8 text-xs bg-background font-medium">
                       <SelectValue>{ROLE_LABELS[newUserRole]}</SelectValue>
                     </SelectTrigger>
@@ -1625,7 +1625,7 @@ export function SettingsView({
 
               <div className="space-y-1">
                 <label className="font-medium text-xs text-foreground font-semibold">Роль в лицее *</label>
-                <Select value={editUserRole} onValueChange={(v) => setEditUserRole(v as any)}>
+                <Select value={editUserRole} onValueChange={(v) => setEditUserRole(v as "ADMIN" | "TEACHER" | "STUDENT")}>
                   <SelectTrigger className="h-8 text-xs bg-background font-medium">
                     <SelectValue>{ROLE_LABELS[editUserRole]}</SelectValue>
                   </SelectTrigger>

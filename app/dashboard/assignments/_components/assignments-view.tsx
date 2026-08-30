@@ -335,7 +335,13 @@ function parseAttachmentLinks(fileUrl?: string | null): string[] {
     const parsed = JSON.parse(fileUrl);
     if (Array.isArray(parsed)) {
       return parsed
-        .map((item: any) => (typeof item === "string" ? item : item?.url || ""))
+        .map((item: unknown) => {
+          if (typeof item === "string") return item;
+          if (typeof item === "object" && item !== null && "url" in item) {
+            return String((item as { url?: unknown }).url || "");
+          }
+          return "";
+        })
         .filter(Boolean);
     }
   } catch {}

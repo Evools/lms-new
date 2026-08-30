@@ -83,11 +83,13 @@ export type QuestionType =
   | "MATCHING"
   | "NUMERICAL";
 
+export type QuestionOption = string | { left: string; right: string };
+
 export interface QuestionDraft {
   type: QuestionType;
   questionText: string;
   codeSnippet?: string;
-  options: any[];
+  options: QuestionOption[];
   correctAnswer: string;
   points: number;
 }
@@ -821,12 +823,12 @@ export function CreateTestView({
           if (!updated.codeSnippet) {
             updated.codeSnippet = "const a = 10;\nconst b = 20;\nconsole.log(a + b);";
           }
-          updated.correctAnswer = updated.options[0] || "";
+          updated.correctAnswer = String(updated.options[0] || "");
         } else if (newType === "MULTIPLE") {
           if (updated.options.length === 0) {
             updated.options = ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"];
           }
-          updated.correctAnswer = JSON.stringify([updated.options[0] || ""]);
+          updated.correctAnswer = JSON.stringify([String(updated.options[0] || "")]);
         } else if (newType === "MATCHING") {
           updated.options = [
             { left: "Термин A", right: "Определение 1" },
@@ -844,11 +846,11 @@ export function CreateTestView({
           try {
             const parsed = JSON.parse(updated.correctAnswer);
             updated.correctAnswer = Array.isArray(parsed)
-              ? parsed[0] || updated.options[0]
-              : updated.correctAnswer || updated.options[0];
+              ? String(parsed[0] || updated.options[0] || "")
+              : String(updated.correctAnswer || updated.options[0] || "");
           } catch {
-            if (!updated.options.includes(updated.correctAnswer)) {
-              updated.correctAnswer = updated.options[0] || "";
+            if (!updated.options.map(String).includes(updated.correctAnswer)) {
+              updated.correctAnswer = String(updated.options[0] || "");
             }
           }
         }
@@ -885,12 +887,19 @@ export function CreateTestView({
     setQuestionDrafts((prev) =>
       prev.map((q, i) => {
         if (i !== qIdx) return q;
-        const currentPairs = Array.isArray(q.options) ? [...q.options] : [];
+        const currentPairs: { left: string; right: string }[] = Array.isArray(q.options)
+          ? q.options.map((p) => (typeof p === "object" ? p : { left: String(p), right: "" }))
+          : [];
         const nextIdx = currentPairs.length + 1;
-        const newPairs = [...currentPairs, { left: `Термин ${nextIdx}`, right: `Определение ${nextIdx}` }];
+        const newPairs: { left: string; right: string }[] = [
+          ...currentPairs,
+          { left: `Термин ${nextIdx}`, right: `Определение ${nextIdx}` },
+        ];
         const map: Record<string, string> = {};
-        newPairs.forEach((p: any) => {
-          if (p && typeof p === "object" && p.left) map[p.left] = p.right || "";
+        newPairs.forEach((p) => {
+          if (p.left) {
+            map[p.left] = p.right || "";
+          }
         });
         return { ...q, options: newPairs, correctAnswer: JSON.stringify(map) };
       })
@@ -901,11 +910,15 @@ export function CreateTestView({
     setQuestionDrafts((prev) =>
       prev.map((q, i) => {
         if (i !== qIdx) return q;
-        const currentPairs = Array.isArray(q.options) ? [...q.options] : [];
+        const currentPairs: { left: string; right: string }[] = Array.isArray(q.options)
+          ? q.options.map((p) => (typeof p === "object" ? p : { left: String(p), right: "" }))
+          : [];
         const updatedPairs = currentPairs.map((p, idx) => (idx === pIdx ? { ...p, [key]: val } : p));
         const map: Record<string, string> = {};
-        updatedPairs.forEach((p: any) => {
-          if (p && typeof p === "object" && p.left) map[p.left] = p.right || "";
+        updatedPairs.forEach((p) => {
+          if (p.left) {
+            map[p.left] = p.right || "";
+          }
         });
         return { ...q, options: updatedPairs, correctAnswer: JSON.stringify(map) };
       })
@@ -916,12 +929,16 @@ export function CreateTestView({
     setQuestionDrafts((prev) =>
       prev.map((q, i) => {
         if (i !== qIdx) return q;
-        const currentPairs = Array.isArray(q.options) ? [...q.options] : [];
+        const currentPairs: { left: string; right: string }[] = Array.isArray(q.options)
+          ? q.options.map((p) => (typeof p === "object" ? p : { left: String(p), right: "" }))
+          : [];
         if (currentPairs.length <= 1) return q;
         const updatedPairs = currentPairs.filter((_, idx) => idx !== pIdx);
         const map: Record<string, string> = {};
-        updatedPairs.forEach((p: any) => {
-          if (p && typeof p === "object" && p.left) map[p.left] = p.right || "";
+        updatedPairs.forEach((p) => {
+          if (p.left) {
+            map[p.left] = p.right || "";
+          }
         });
         return { ...q, options: updatedPairs, correctAnswer: JSON.stringify(map) };
       })
@@ -1019,7 +1036,7 @@ export function CreateTestView({
             if (Array.isArray(correctArr)) {
               correctArr = correctArr.filter((item) => item !== removedOpt);
               if (correctArr.length === 0 && newOptions.length > 0) {
-                correctArr = [newOptions[0]];
+                correctArr = [String(newOptions[0])];
               }
               newCorrect = JSON.stringify(correctArr);
             }
@@ -1028,7 +1045,7 @@ export function CreateTestView({
           }
         } else {
           if (q.correctAnswer === removedOpt) {
-            newCorrect = newOptions[0] || "";
+            newCorrect = String(newOptions[0] || "");
           }
         }
 
@@ -1491,9 +1508,9 @@ export function CreateTestView({
                             <Layers className="h-3.5 w-3.5 text-primary" /> Сопоставьте элементы:
                           </div>
                           <div className="space-y-2">
-                            {(Array.isArray(q.options) ? q.options : []).map((pair: any, pIdx: number) => {
-                              const leftVal = typeof pair === "object" ? pair.left : pair;
-                              const rightVal = typeof pair === "object" ? pair.right : "";
+                            {(Array.isArray(q.options) ? q.options : []).map((pair: unknown, pIdx: number) => {
+                              const leftVal = typeof pair === "object" && pair !== null && "left" in pair ? String((pair as { left: unknown }).left || "") : String(pair || "");
+                              const rightVal = typeof pair === "object" && pair !== null && "right" in pair ? String((pair as { right: unknown }).right || "") : "";
                               return (
                                 <div key={pIdx} className="p-2.5 rounded-lg border bg-card flex items-center justify-between gap-3 text-xs">
                                   <span className="font-medium text-foreground">{leftVal}</span>
@@ -1946,9 +1963,9 @@ export function CreateTestView({
                             </div>
 
                             <div className="space-y-2">
-                              {(Array.isArray(q.options) ? q.options : []).map((pair: any, pIdx: number) => {
-                                const leftVal = typeof pair === "object" ? pair.left : pair;
-                                const rightVal = typeof pair === "object" ? pair.right : "";
+                              {(Array.isArray(q.options) ? q.options : []).map((pair: unknown, pIdx: number) => {
+                                const leftVal = typeof pair === "object" && pair !== null && "left" in pair ? String((pair as { left: unknown }).left || "") : String(pair || "");
+                                const rightVal = typeof pair === "object" && pair !== null && "right" in pair ? String((pair as { right: unknown }).right || "") : "";
                                 return (
                                   <div key={pIdx} className="flex items-center gap-2">
                                     <span className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -2053,7 +2070,7 @@ export function CreateTestView({
                                   </span>
 
                                   <Input
-                                    value={opt}
+                                    value={typeof opt === "string" ? opt : (typeof opt === "object" && opt !== null && "left" in opt ? opt.left : "")}
                                     onChange={(e) => handleUpdateOptionText(qIdx, optIdx, e.target.value)}
                                     className="h-7 text-xs bg-background flex-1 font-medium"
                                   />
@@ -2093,7 +2110,8 @@ export function CreateTestView({
                             </div>
 
                             <div className="space-y-2">
-                              {q.options.map((opt, optIdx) => {
+                              {q.options.map((rawOpt, optIdx) => {
+                                const opt = typeof rawOpt === "string" ? rawOpt : (typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt ? rawOpt.left : "");
                                 const isCorrect = isOptionCorrect(q, opt);
                                 const isDraggingOpt = draggedOption?.qIdx === qIdx && draggedOption?.optIdx === optIdx;
                                 const isOverOpt = dragOverOption?.qIdx === qIdx && dragOverOption?.optIdx === optIdx;

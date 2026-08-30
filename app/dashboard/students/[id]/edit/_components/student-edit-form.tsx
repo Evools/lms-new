@@ -114,9 +114,9 @@ export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEdi
       setTimeout(() => {
         router.push("/dashboard/students");
       }, 1000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsSubmitting(false);
-      setErrorMessage(err.message || "Ошибка соединения с сервером");
+      setErrorMessage(err instanceof Error ? err.message : "Ошибка соединения с сервером");
     }
   };
 

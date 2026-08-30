@@ -160,7 +160,7 @@ export function CreateMaterialView({
       if (res.success) {
         toast.add({ title: "Материал успешно опубликован!", type: "success" });
         setTimeout(() => {
-          const targetSubjectId = selectedSubjectId || (res as any).subjectId;
+          const targetSubjectId = selectedSubjectId || res.subjectId;
           const targetUrl = targetSubjectId
             ? `/dashboard/lms/materials?group=${groupId}&subject=${targetSubjectId}`
             : `/dashboard/lms/materials?group=${groupId}`;

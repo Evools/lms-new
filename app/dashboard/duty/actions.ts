@@ -259,8 +259,8 @@ export async function addDutyStudentAction(
     });
     revalidatePath("/dashboard/duty");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при назначении дежурного" };
   }
 }
 
@@ -293,8 +293,8 @@ export async function removeDutyStudentAction(
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при удалении дежурного" };
   }
 }
 
@@ -446,8 +446,8 @@ export async function replaceDutyStudentAction(
     }
     revalidatePath("/dashboard/duty");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при замене дежурного" };
   }
 }
 
@@ -630,9 +630,9 @@ export async function generateWeeklyDutyAction(
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to generate duty schedule:", error);
-    return { success: false, error: error.message || "Ошибка при генерации графика дежурств" };
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при генерации графика дежурств" };
   }
 }
 
@@ -704,7 +704,7 @@ export async function addDisciplinaryDutyAction(
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при добавлении дежурства" };
   }
 }

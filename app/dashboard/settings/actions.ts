@@ -10,7 +10,7 @@ export interface UserProfileDTO {
   name: string;
   email: string;
   phone?: string | null;
-  role: string;
+  role: "ADMIN" | "TEACHER" | "STUDENT";
   avatar?: string | null;
   isActive: boolean;
   createdAt: string;
@@ -213,8 +213,8 @@ export async function updateSystemConfigAction(data: Partial<SystemConfigDTO>) {
 
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -239,8 +239,8 @@ export async function updateProfileAction(data: {
     });
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -265,8 +265,8 @@ export async function changePasswordAction(data: {
     const hashed = await bcrypt.hash(data.newPassword, 12);
     await prisma.user.update({ where: { id: session.user.id }, data: { password: hashed } });
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -284,8 +284,8 @@ export async function toggleUserActiveAction(userId: string, isActive: boolean) 
     await prisma.user.update({ where: { id: userId }, data: { isActive } });
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -303,8 +303,8 @@ export async function changeUserRoleAction(userId: string, role: "ADMIN" | "TEAC
     await prisma.user.update({ where: { id: userId }, data: { role } });
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -357,8 +357,8 @@ export async function updateUserAction(
 
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -397,8 +397,8 @@ export async function createUserAction(data: {
     });
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -446,8 +446,8 @@ export async function createBulkUsersAction(
 
     revalidatePath("/dashboard/settings");
     return { success: true, count: createdCount };
-  } catch (error: any) {
-    return { success: false, error: error.message || "Ошибка при массовом импорте" };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -463,8 +463,8 @@ export async function setCurrentAcademicYearAction(yearId: string) {
     await prisma.academicYear.update({ where: { id: yearId }, data: { isCurrent: true } });
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -493,8 +493,8 @@ export async function createAcademicYearAction(data: {
     });
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -523,8 +523,8 @@ export async function updateAcademicYearAction(
     });
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -546,7 +546,7 @@ export async function deleteAcademicYearAction(yearId: string) {
     await prisma.academicYear.delete({ where: { id: yearId } });
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }

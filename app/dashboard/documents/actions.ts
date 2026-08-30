@@ -76,8 +76,8 @@ export async function createDocumentAction(data: {
     });
     revalidatePath("/dashboard/documents");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при создании документа" };
   }
 }
 
@@ -110,8 +110,8 @@ export async function updateDocumentAction(
     });
     revalidatePath("/dashboard/documents");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при обновлении документа" };
   }
 }
 
@@ -128,7 +128,7 @@ export async function deleteDocumentAction(documentId: string) {
     await prisma.document.delete({ where: { id: documentId } });
     revalidatePath("/dashboard/documents");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при удалении документа" };
   }
 }

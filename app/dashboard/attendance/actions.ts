@@ -246,9 +246,9 @@ export async function saveStudentAttendanceAction(
 
     revalidatePath("/dashboard/attendance");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to save student attendance:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при сохранении посещаемости" };
   }
 }
 
@@ -297,9 +297,9 @@ export async function saveBatchAttendanceAction(
 
     revalidatePath("/dashboard/attendance");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to save batch attendance:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при сохранении посещаемости" };
   }
 }
 
@@ -330,8 +330,8 @@ export async function clearAttendanceAction(
 
     revalidatePath("/dashboard/attendance");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to clear attendance:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при очистке посещаемости" };
   }
 }

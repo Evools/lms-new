@@ -68,7 +68,7 @@ export function AdminGenderDistributionChart({ maleCount = 0, femaleCount = 0 }:
               ))}
             </Pie>
             <Tooltip
-              formatter={(value?: any) => [`${value ?? 0} учащихся`, "Количество"]}
+              formatter={(value?: unknown) => [`${value ?? 0} учащихся`, "Количество"]}
               contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "6px", border: "1px solid var(--border)" }}
             />
             <Legend
@@ -225,7 +225,7 @@ export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pend
               ))}
             </Pie>
             <Tooltip
-              formatter={(value?: any) => [`${value ?? 0} работ`, "Количество"]}
+              formatter={(value?: unknown) => [`${value ?? 0} работ`, "Количество"]}
               contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "11px" }}
             />
             <Legend
@@ -361,7 +361,7 @@ export function StudentAttendancePieChart({
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value?: any) => [`${value ?? 0} занятий`, "Количество"]}
+                formatter={(value?: unknown) => [`${value ?? 0} занятий`, "Количество"]}
                 contentStyle={{
                   backgroundColor: "var(--popover)",
                   borderRadius: "8px",

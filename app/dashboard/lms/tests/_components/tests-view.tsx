@@ -872,8 +872,13 @@ export function TestsView({
                         </div>
                       ) : (
                         <div className="space-y-1 pt-1">
-                          {q.options.map((opt: any, optIdx: number) => {
-                            const optText = typeof opt === "object" ? (opt.left ? `${opt.left} ➔ ${opt.right}` : JSON.stringify(opt)) : String(opt);
+                          {q.options.map((opt: unknown, optIdx: number) => {
+                            const optText =
+                              typeof opt === "object" && opt !== null
+                                ? ("left" in opt && "right" in opt
+                                    ? `${(opt as { left: unknown }).left} ➔ ${(opt as { right: unknown }).right}`
+                                    : JSON.stringify(opt))
+                                : String(opt ?? "");
                             let isSelected = false;
 
                             if (qType === "MULTIPLE") {
@@ -1082,8 +1087,13 @@ export function TestsView({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {q.options.map((opt: any, optIdx: number) => {
-                        const optVal = typeof opt === "object" ? (opt.left ? `${opt.left} ➔ ${opt.right}` : JSON.stringify(opt)) : String(opt);
+                      {q.options.map((opt: unknown, optIdx: number) => {
+                        const optVal =
+                          typeof opt === "object" && opt !== null
+                            ? ("left" in opt && "right" in opt
+                                ? `${(opt as { left: unknown }).left} ➔ ${(opt as { right: unknown }).right}`
+                                : JSON.stringify(opt))
+                            : String(opt ?? "");
                         const isCorrect = q.correctAnswer === optVal;
 
                         return (

@@ -181,8 +181,8 @@ export async function updateProfileDetailsAction(data: {
     revalidatePath("/dashboard/profile");
     revalidatePath("/dashboard/settings");
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при обновлении профиля" };
   }
 }
 
@@ -206,7 +206,7 @@ export async function updateProfilePasswordAction(data: {
     const hashed = await bcrypt.hash(data.newPassword, 12);
     await prisma.user.update({ where: { id: session.user.id }, data: { password: hashed } });
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при смене пароля" };
   }
 }

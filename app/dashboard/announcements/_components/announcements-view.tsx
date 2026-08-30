@@ -55,6 +55,8 @@ import {
 } from "../actions";
 import { RichWysiwygEditor } from "@/components/rich-wysiwyg-editor";
 
+export type AnnouncementAudience = "LYCEUM" | "GROUP" | "TEACHERS";
+
 export interface FileAttachmentItem {
   id: string;
   fileName: string;
@@ -104,13 +106,13 @@ export function AnnouncementsView({
   // New Announcement Form State
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
-  const [newAudience, setNewAudience] = useState<"LYCEUM" | "GROUP" | "TEACHERS">("LYCEUM");
+  const [newAudience, setNewAudience] = useState<AnnouncementAudience>("LYCEUM");
   const [newPinned, setNewPinned] = useState(false);
 
   // Edit Form State
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
-  const [editAudience, setEditAudience] = useState<"LYCEUM" | "GROUP" | "TEACHERS">("LYCEUM");
+  const [editAudience, setEditAudience] = useState<AnnouncementAudience>("LYCEUM");
   const [editPinned, setEditPinned] = useState(false);
 
   const canCreate = userRole === "ADMIN" || userRole === "TEACHER";
@@ -351,7 +353,7 @@ export function AnnouncementsView({
                     <Select
                       value={newAudience}
                       onValueChange={(val) => {
-                        if (val) setNewAudience(val as any);
+                        if (val) setNewAudience(val as AnnouncementAudience);
                       }}
                     >
                       <SelectTrigger className="h-8 text-xs bg-background">
@@ -484,7 +486,7 @@ export function AnnouncementsView({
                 <Select
                   value={editAudience}
                   onValueChange={(val) => {
-                    if (val) setEditAudience(val as any);
+                    if (val) setEditAudience(val as AnnouncementAudience);
                   }}
                 >
                   <SelectTrigger className="h-8 text-xs bg-background">

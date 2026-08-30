@@ -243,9 +243,9 @@ export async function createAssignmentAction(data: {
 
     revalidatePath("/dashboard/assignments");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to create assignment:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при создании задания" };
   }
 }
 
@@ -266,9 +266,9 @@ export async function deleteAssignmentAction(assignmentId: string) {
 
     revalidatePath("/dashboard/assignments");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to delete assignment:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при удалении задания" };
   }
 }
 
@@ -343,9 +343,9 @@ export async function submitAssignmentAction(data: {
 
     revalidatePath("/dashboard/assignments");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to submit assignment:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при отправке задания" };
   }
 }
 
@@ -393,8 +393,8 @@ export async function reviewSubmissionAction(data: {
 
     revalidatePath("/dashboard/assignments");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to review submission:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при проверке работы" };
   }
 }
