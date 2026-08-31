@@ -20,14 +20,19 @@ async function main() {
     },
   });
 
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@lyceum.edu").trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD || "password123";
+  const adminName = process.env.ADMIN_NAME || "Администратор Лицея";
+  const adminHashedPassword = await bcrypt.hash(adminPassword, 10);
+
   // Admin
   const admin = await prisma.user.upsert({
-    where: { email: "admin@lyceum.edu" },
-    update: { password: hashedPassword },
+    where: { email: adminEmail },
+    update: { password: adminHashedPassword, name: adminName, role: Role.ADMIN },
     create: {
-      email: "admin@lyceum.edu",
-      password: hashedPassword,
-      name: "Администратор Лицея",
+      email: adminEmail,
+      password: adminHashedPassword,
+      name: adminName,
       role: Role.ADMIN,
     },
   });
