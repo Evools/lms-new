@@ -82,15 +82,57 @@ async function main() {
 
   const monitor = createdStudents[0];
 
+  // Specialties
+  const isSpecialty = await prisma.specialty.upsert({
+    where: { name: "Информационные системы и программирование" },
+    update: { code: "09.02.07" },
+    create: {
+      name: "Информационные системы и программирование",
+      code: "09.02.07",
+      description: "Разработка модулей программного обеспечения, веб-приложений и сопровождение баз данных",
+    },
+  });
+
+  await prisma.specialty.upsert({
+    where: { name: "Сетевое и системное администрирование" },
+    update: { code: "09.02.06" },
+    create: {
+      name: "Сетевое и системное администрирование",
+      code: "09.02.06",
+      description: "Администрирование сетевого оборудования и серверов",
+    },
+  });
+
+  await prisma.specialty.upsert({
+    where: { name: "Компьютерные системы и комплексы" },
+    update: { code: "09.02.01" },
+    create: {
+      name: "Компьютерные системы и комплексы",
+      code: "09.02.01",
+      description: "Микропроцессорные системы и схемотехника",
+    },
+  });
+
+  await prisma.specialty.upsert({
+    where: { name: "Дизайн (по отраслям)" },
+    update: { code: "54.02.01" },
+    create: {
+      name: "Дизайн (по отраслям)",
+      code: "54.02.01",
+      description: "Графический дизайн, веб-дизайн и компьютерная графика",
+    },
+  });
+
   // Group
   const group = await prisma.group.upsert({
     where: { name: "ИС-1-25" },
-    update: { curatorId: teacher.id, monitorId: monitor.id },
+    update: { curatorId: teacher.id, monitorId: monitor.id, specialtyId: isSpecialty.id },
     create: {
       name: "ИС-1-25",
       academicYearId: academicYear.id,
       curatorId: teacher.id,
       monitorId: monitor.id,
+      specialtyId: isSpecialty.id,
     },
   });
 

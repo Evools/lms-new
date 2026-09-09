@@ -4,6 +4,7 @@ import {
   getGroupByIdAction,
   getTeachersListAction,
   getAcademicYearsListAction,
+  getSpecialtiesListAction,
 } from "@/app/dashboard/groups/actions";
 import { GroupEditForm } from "./_components/group-edit-form";
 
@@ -29,9 +30,10 @@ export default async function EditGroupPage({ params }: PageProps) {
     notFound();
   }
 
-  const [teachers, academicYears] = await Promise.all([
+  const [teachers, academicYears, specialties] = await Promise.all([
     getTeachersListAction(),
     getAcademicYearsListAction(),
+    getSpecialtiesListAction(),
   ]);
 
   return (
@@ -40,6 +42,7 @@ export default async function EditGroupPage({ params }: PageProps) {
       userRole={session.user.role}
       teachersList={teachers}
       academicYearsList={academicYears}
+      specialtiesList={specialties}
     />
   );
 }

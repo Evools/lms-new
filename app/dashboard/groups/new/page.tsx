@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   getTeachersListAction,
   getAcademicYearsListAction,
+  getSpecialtiesListAction,
 } from "@/app/dashboard/groups/actions";
 import { GroupCreationForm } from "./_components/group-creation-form";
 
@@ -17,7 +18,17 @@ export default async function NewGroupPage() {
     redirect("/dashboard/groups");
   }
 
-  const teachers = await getTeachersListAction();
+  const [teachers, academicYears, specialties] = await Promise.all([
+    getTeachersListAction(),
+    getAcademicYearsListAction(),
+    getSpecialtiesListAction(),
+  ]);
 
-  return <GroupCreationForm teachersList={teachers} />;
+  return (
+    <GroupCreationForm
+      teachersList={teachers}
+      academicYearsList={academicYears}
+      specialtiesList={specialties}
+    />
+  );
 }

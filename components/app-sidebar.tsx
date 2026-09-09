@@ -119,6 +119,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               url: "/dashboard/subjects",
               icon: <BookMarked className="h-4 w-4" />,
             },
+            {
+              title: "Специальности",
+              url: "/dashboard/specialties",
+              icon: <GraduationCap className="h-4 w-4" />,
+            },
           ],
         },
         {
@@ -199,6 +204,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Дисциплины",
               url: "/dashboard/subjects",
               icon: <BookMarked className="h-4 w-4" />,
+            },
+            {
+              title: "Специальности",
+              url: "/dashboard/specialties",
+              icon: <GraduationCap className="h-4 w-4" />,
             },
           ],
         },

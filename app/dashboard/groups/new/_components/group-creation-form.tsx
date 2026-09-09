@@ -24,6 +24,14 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Users,
   ArrowLeft,
   GraduationCap,
@@ -35,8 +43,10 @@ import {
   Calendar,
   FolderPlus,
   BookOpen,
+  Plus,
 } from "lucide-react";
 import { createGroupAction } from "../../actions";
+import { createSpecialtyAction } from "@/app/dashboard/specialties/actions";
 
 interface TeacherOption {
   id: string;
@@ -50,14 +60,22 @@ interface AcademicYearOption {
   isCurrent?: boolean;
 }
 
+interface SpecialtyOption {
+  id: string;
+  name: string;
+  code?: string | null;
+}
+
 interface GroupCreationFormProps {
   teachersList?: TeacherOption[];
   academicYearsList?: AcademicYearOption[];
+  specialtiesList?: SpecialtyOption[];
 }
 
 export function GroupCreationForm({
   teachersList = [],
   academicYearsList = [],
+  specialtiesList = [],
 }: GroupCreationFormProps) {
   const router = useRouter();
 
@@ -68,7 +86,10 @@ export function GroupCreationForm({
 
   const [groupName, setGroupName] = useState("");
   const [course, setCourse] = useState("1");
-  const [specialty, setSpecialty] = useState("Информационные системы и программирование");
+  const [specialties, setSpecialties] = useState<SpecialtyOption[]>(specialtiesList);
+  const [specialtyId, setSpecialtyId] = useState<string>(
+    specialtiesList[0]?.id || "unassigned"
+  );
   const [curatorId, setCuratorId] = useState<string>("unassigned");
   const [academicYear, setAcademicYear] = useState(defaultYear);
 
@@ -76,7 +97,53 @@ export function GroupCreationForm({
   const [successMessage, setSuccessMessage] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Quick Add Specialty Dialog
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [quickCode, setQuickCode] = useState("");
+  const [quickName, setQuickName] = useState("");
+  const [quickDescription, setQuickDescription] = useState("");
+  const [quickError, setQuickError] = useState<string | null>(null);
+  const [isQuickSaving, setIsQuickSaving] = useState(false);
+
   const selectedCurator = teachersList.find((t) => t.id === curatorId);
+  const selectedSpecialty = specialties.find((s) => s.id === specialtyId);
+
+  const handleQuickAddSpecialty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickName.trim()) {
+      setQuickError("Укажите наименование специальности");
+      return;
+    }
+
+    setIsQuickSaving(true);
+    setQuickError(null);
+
+    const res = await createSpecialtyAction({
+      name: quickName.trim(),
+      code: quickCode.trim() || undefined,
+      description: quickDescription.trim() || undefined,
+    });
+
+    setIsQuickSaving(false);
+
+    if (!res.success || !res.specialty) {
+      setQuickError(res.error || "Не удалось сохранить специальность");
+      return;
+    }
+
+    const newOption: SpecialtyOption = {
+      id: res.specialty.id,
+      name: res.specialty.name,
+      code: res.specialty.code,
+    };
+
+    setSpecialties((prev) => [...prev, newOption]);
+    setSpecialtyId(newOption.id);
+    setIsQuickAddOpen(false);
+    setQuickName("");
+    setQuickCode("");
+    setQuickDescription("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +155,7 @@ export function GroupCreationForm({
     const res = await createGroupAction({
       name: groupName.trim(),
       curatorId: !curatorId || curatorId === "unassigned" || curatorId === "none" ? undefined : curatorId,
+      specialtyId: !specialtyId || specialtyId === "unassigned" ? undefined : specialtyId,
       academicYearName: academicYear,
     });
 
@@ -237,26 +305,39 @@ export function GroupCreationForm({
                 </div>
 
                 <div className="space-y-1 md:col-span-2">
-                  <Label className="text-xs font-semibold text-foreground">Специальность / Направление</Label>
-                  <Select value={specialty} onValueChange={setSpecialty}>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-foreground">
+                      Специальность / Направление подготовки
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setIsQuickAddOpen(true)}
+                      className="h-6 px-2 text-[11px] text-primary hover:text-primary hover:bg-primary/10 font-medium gap-1"
+                    >
+                      <Plus className="h-3 w-3" /> Добавить в справочник
+                    </Button>
+                  </div>
+                  <Select value={specialtyId} onValueChange={setSpecialtyId}>
                     <SelectTrigger className="h-8 text-xs bg-background font-medium">
                       <SelectValue placeholder="Выберите специальность" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Информационные системы и программирование" className="text-xs">
-                        Информационные системы и программирование
+                      <SelectItem value="unassigned" className="text-xs">
+                        Не выбрана
                       </SelectItem>
-                      <SelectItem value="Программное обеспечение вычислительной техники" className="text-xs">
-                        Программное обеспечение вычислительной техники
-                      </SelectItem>
-                      <SelectItem value="Сетевое и системное администрирование" className="text-xs">
-                        Сетевое и системное администрирование
-                      </SelectItem>
-                      <SelectItem value="Дизайн и компьютерная графика" className="text-xs">
-                        Дизайн и компьютерная графика
-                      </SelectItem>
+                      {specialties.map((s) => (
+                        <SelectItem key={s.id} value={s.id} className="text-xs">
+                          {s.code ? `${s.code} — ` : ""}
+                          {s.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-[10px] text-muted-foreground">
+                    Данные берутся из справочника специальностей лицея
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -335,9 +416,20 @@ export function GroupCreationForm({
                     {course} курс
                   </Badge>
                 </div>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">
-                  {specialty}
-                </p>
+                <div className="text-[11px] text-muted-foreground line-clamp-2">
+                  {selectedSpecialty ? (
+                    <span>
+                      {selectedSpecialty.code && (
+                        <span className="font-mono text-primary font-medium mr-1">
+                          [{selectedSpecialty.code}]
+                        </span>
+                      )}
+                      {selectedSpecialty.name}
+                    </span>
+                  ) : (
+                    <span className="italic">Специальность не выбрана</span>
+                  )}
+                </div>
               </div>
 
               <div className="pt-2 border-t space-y-1.5 text-xs">
@@ -379,6 +471,82 @@ export function GroupCreationForm({
           </Card>
         </div>
       </div>
+
+      {/* Quick Add Specialty Dialog */}
+      <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <DialogHeader className="gap-1 text-left">
+            <DialogTitle className="text-sm font-bold text-foreground">
+              Добавить специальность в справочник
+            </DialogTitle>
+            <DialogDescription className="text-[11px] text-muted-foreground">
+              Новая специальность сохранится в базе данных и сразу будет выбрана для создаваемой группы
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleQuickAddSpecialty} className="space-y-3">
+            {quickError && (
+              <div className="p-2 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-[11px] flex items-center gap-1.5">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>{quickError}</span>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Код специальности</Label>
+              <Input
+                placeholder="09.02.07"
+                value={quickCode}
+                onChange={(e) => setQuickCode(e.target.value)}
+                className="h-8 text-xs bg-background font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">
+                Наименование специальности <span className="text-primary">*</span>
+              </Label>
+              <Input
+                required
+                placeholder="Информационные системы и программирование"
+                value={quickName}
+                onChange={(e) => setQuickName(e.target.value)}
+                className="h-8 text-xs bg-background font-medium"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Краткое описание</Label>
+              <Input
+                placeholder="Квалификация или направление"
+                value={quickDescription}
+                onChange={(e) => setQuickDescription(e.target.value)}
+                className="h-8 text-xs bg-background font-medium"
+              />
+            </div>
+
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => setIsQuickAddOpen(false)}
+                className="h-6 px-2.5 text-xs font-medium"
+              >
+                Отмена
+              </Button>
+              <Button
+                type="submit"
+                size="xs"
+                disabled={isQuickSaving || !quickName.trim()}
+                className="h-6 px-2.5 text-xs font-medium"
+              >
+                {isQuickSaving ? "Сохранение..." : "Добавить и выбрать"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

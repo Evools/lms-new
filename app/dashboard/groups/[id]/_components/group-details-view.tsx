@@ -343,9 +343,16 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                   {group.course} Курс
                 </Badge>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {group.specialty}
-              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {group.specialtyCode && (
+                  <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 border-primary/20 text-primary bg-primary/5">
+                    {group.specialtyCode}
+                  </Badge>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  {group.specialty}
+                </p>
+              </div>
             </div>
           </div>
 

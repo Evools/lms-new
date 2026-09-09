@@ -77,7 +77,8 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
     const matchesSearch =
       g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (g.curatorName && g.curatorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (g.specialty && g.specialty.toLowerCase().includes(searchQuery.toLowerCase()));
+      (g.specialty && g.specialty.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (g.specialtyCode && g.specialtyCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesCourse = selectedCourseFilter === "ALL" || g.course === selectedCourseFilter;
 
@@ -258,8 +259,13 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                 </div>
 
                 {/* Specialty */}
-                <div className="text-xs text-muted-foreground truncate">
-                  {group.specialty || "Не указана"}
+                <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
+                  {group.specialtyCode && (
+                    <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 border-primary/20 text-primary bg-primary/5 shrink-0">
+                      {group.specialtyCode}
+                    </Badge>
+                  )}
+                  <span className="truncate">{group.specialty || "Не указана"}</span>
                 </div>
 
                 {/* Student Count */}
@@ -357,8 +363,11 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                         {group.course} курс
                       </Badge>
                     </div>
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                      {group.specialty || "Не указана"}
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5 flex items-center gap-1">
+                      {group.specialtyCode && (
+                        <span className="font-mono text-primary text-[10px]">[{group.specialtyCode}]</span>
+                      )}
+                      <span>{group.specialty || "Не указана"}</span>
                     </p>
                   </div>
                 </div>

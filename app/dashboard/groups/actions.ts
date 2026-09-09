@@ -9,6 +9,8 @@ export interface GroupDTO {
   name: string;
   course: number;
   specialty: string;
+  specialtyId?: string;
+  specialtyCode?: string;
   studentCount: number;
   curatorId?: string;
   curatorName?: string;
@@ -91,6 +93,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
       where: whereClause,
       orderBy: { name: "asc" },
       include: {
+        specialty: { select: { id: true, name: true, code: true } },
         curator: { select: { id: true, name: true } },
         monitor: { select: { id: true, name: true } },
         deputyMonitor: { select: { id: true, name: true } },
@@ -110,7 +113,9 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
         id: item.id,
         name: item.name,
         course,
-        specialty: "Информационные системы и программирование",
+        specialty: item.specialty?.name || "Не указана",
+        specialtyId: item.specialty?.id || undefined,
+        specialtyCode: item.specialty?.code || undefined,
         studentCount: item._count.students,
         curatorId: item.curator?.id || undefined,
         curatorName: item.curator?.name || undefined,
@@ -155,9 +160,23 @@ export async function getAcademicYearsListAction() {
   }
 }
 
+export async function getSpecialtiesListAction() {
+  try {
+    const specialties = await prisma.specialty.findMany({
+      orderBy: [{ code: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, code: true },
+    });
+    return specialties;
+  } catch (error) {
+    console.error("Failed to fetch specialties list:", error);
+    return [];
+  }
+}
+
 export async function createGroupAction(data: {
   name: string;
   curatorId?: string;
+  specialtyId?: string;
   academicYearName?: string;
 }) {
   const session = await auth();
@@ -189,11 +208,17 @@ export async function createGroupAction(data: {
       });
     }
 
+    const cleanSpecialtyId =
+      !data.specialtyId || data.specialtyId === "unassigned" || data.specialtyId === "none"
+        ? undefined
+        : data.specialtyId;
+
     const created = await prisma.group.create({
       data: {
         name: data.name.trim(),
         academicYearId: academicYear.id,
         curatorId: data.curatorId || undefined,
+        specialtyId: cleanSpecialtyId,
       },
     });
 
@@ -210,6 +235,7 @@ export async function updateGroupAction(
   data: {
     name: string;
     curatorId?: string;
+    specialtyId?: string;
     academicYearName?: string;
   }
 ) {
@@ -230,11 +256,17 @@ export async function updateGroupAction(
       return { success: false, error: `Группа с названием "${data.name.trim()}" уже существует в базе данных` };
     }
 
+    const cleanSpecialtyId =
+      !data.specialtyId || data.specialtyId === "unassigned" || data.specialtyId === "none"
+        ? null
+        : data.specialtyId;
+
     await prisma.group.update({
       where: { id: groupId },
       data: {
         name: data.name.trim(),
         curatorId: !data.curatorId || data.curatorId === "none" || data.curatorId === "unassigned" ? null : data.curatorId,
+        specialtyId: cleanSpecialtyId,
       },
     });
 
@@ -271,6 +303,7 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
     const item = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
+        specialty: { select: { id: true, name: true, code: true } },
         curator: { select: { id: true, name: true } },
         monitor: { select: { id: true, name: true } },
         deputyMonitor: { select: { id: true, name: true } },
@@ -372,7 +405,9 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       id: item.id,
       name: item.name,
       course,
-      specialty: "Информационные системы и программирование",
+      specialty: item.specialty?.name || "Не указана",
+      specialtyId: item.specialty?.id || undefined,
+      specialtyCode: item.specialty?.code || undefined,
       studentCount: item._count.students,
       curatorId: item.curator?.id || undefined,
       curatorName: item.curator?.name || undefined,
