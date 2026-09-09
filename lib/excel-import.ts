@@ -270,7 +270,7 @@ export function parseStudentRowsFrom2DArray(
           headerMap.telegram = colIdx;
         } else if (cell.includes("рождения") || cell.includes("туулган") || cell.includes("д.р") || cell.includes("д/р") || cell.includes("дата")) {
           headerMap.birthDate = colIdx;
-        } else if (cell.includes("группа") || cell.includes("тайпа") || cell.includes("group") || cell.includes("класс")) {
+        } else if (cell.includes("группа") || cell.includes("тайпа") || cell.includes("group")) {
           headerMap.group = colIdx;
         } else if (cell.includes("email") || cell.includes("почта") || cell.includes("mail")) {
           headerMap.email = colIdx;
@@ -388,7 +388,10 @@ export function parseStudentRowsFrom2DArray(
     const autoPassword = "Lms" + Math.floor(100000 + Math.random() * 900000).toString();
 
     // Group assignment
-    const targetGroup = rawGroup || detectedGroup || defaultGroup || "ИС-1-25";
+    let targetGroup = detectedGroup || defaultGroup || "ИС-1-25";
+    if (rawGroup && !/^\d+\s*класс/i.test(rawGroup)) {
+      targetGroup = rawGroup;
+    }
 
     // Enrollment type
     let finalType: "Бюджет" | "Контракт" = defaultType;

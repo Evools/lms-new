@@ -268,7 +268,7 @@ export function GroupEditForm({
                   <Label className="text-xs font-semibold text-foreground">Курс обучения</Label>
                   <Select value={course} onValueChange={setCourse}>
                     <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                      <SelectValue placeholder="Выберите курс" />
+                      <SelectValue>{course ? `${course} курс` : "Выберите курс"}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1" className="text-xs">1 курс</SelectItem>
@@ -283,7 +283,7 @@ export function GroupEditForm({
                   <Label className="text-xs font-semibold text-foreground">Учебный год</Label>
                   <Select value={academicYear} onValueChange={setAcademicYear}>
                     <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                      <SelectValue placeholder="Выберите учебный год" />
+                      <SelectValue>{academicYear ? `${academicYear} учебный год` : "Выберите учебный год"}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {academicYearsList && academicYearsList.length > 0 ? (
@@ -319,7 +319,11 @@ export function GroupEditForm({
                   </div>
                   <Select value={specialtyId} onValueChange={setSpecialtyId}>
                     <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                      <SelectValue placeholder="Выберите специальность" />
+                      <SelectValue>
+                        {selectedSpecialty
+                          ? `${selectedSpecialty.code ? `${selectedSpecialty.code} — ` : ""}${selectedSpecialty.name}`
+                          : "Не выбрана"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unassigned" className="text-xs">
@@ -355,7 +359,9 @@ export function GroupEditForm({
                   <Label className="text-xs font-semibold text-foreground">Куратор группы</Label>
                   <Select value={curatorId} onValueChange={setCuratorId}>
                     <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                      <SelectValue placeholder="Выберите куратора" />
+                      <SelectValue>
+                        {selectedCurator ? `${selectedCurator.name} (${selectedCurator.email})` : "Не назначен"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unassigned" className="text-xs">Не назначен</SelectItem>
