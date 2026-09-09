@@ -41,6 +41,7 @@ export interface StudentListItemDTO {
   status: "Зачислен" | "Ожидает группы" | "Отчислен";
   accountStatus: "Активен" | "Временный пароль" | "Заблокирован";
   avgGrade: string;
+  tempPassword?: string | null;
 }
 
 function parseGroupCourse(name: string): number {
@@ -117,8 +118,9 @@ export async function getStudentsAction(): Promise<StudentListItemDTO[]> {
         enrollmentType: "Бюджет",
         enrollmentDate: user.createdAt.toLocaleDateString("ru-RU"),
         status: groupName === "Не распределен" ? "Ожидает группы" : "Зачислен",
-        accountStatus: "Активен",
+        accountStatus: (user as any).tempPassword ? "Временный пароль" : "Активен",
         avgGrade: "—",
+        tempPassword: (user as any).tempPassword || null,
       };
     });
   } catch (error) {
@@ -173,6 +175,7 @@ export async function createStudentAction(input: CreateStudentInput & { role?: "
           email: cleanEmail,
           phone: input.phone?.trim() || null,
           password: hashedPassword,
+          tempPassword: rawPassword,
           role: input.role || "STUDENT",
           isActive: true,
         },
@@ -255,17 +258,132 @@ export async function createBulkStudentsAction(studentsList: Array<CreateStudent
       return { success: false, error: "Недостаточно прав" };
     }
 
-    let createdCount = 0;
+    const validItems = studentsList.filter((s) => s.name && s.email);
+    if (validItems.length === 0) {
+      return { success: true, count: 0 };
+    }
 
-    for (const item of studentsList) {
-      if (!item.name || !item.email) continue;
-      const res = await createStudentAction(item);
-      if (res.success) {
-        createdCount++;
+    // 1. Resolve academic year once
+    let academicYear = await prisma.academicYear.findFirst({
+      where: { isCurrent: true },
+    });
+    if (!academicYear) {
+      academicYear = await prisma.academicYear.findFirst({
+        orderBy: { createdAt: "desc" },
+      });
+    }
+    if (!academicYear) {
+      academicYear = await prisma.academicYear.create({
+        data: {
+          name: "2025-2026",
+          isCurrent: true,
+          startDate: new Date("2025-09-01"),
+          endDate: new Date("2026-06-30"),
+        },
+      });
+    }
+
+    // 2. Pre-resolve or create target groups
+    const uniqueGroupNames = Array.from(
+      new Set(validItems.map((s) => s.groupName).filter((g): g is string => !!g && g !== "Не распределен"))
+    );
+
+    const existingGroups = await prisma.group.findMany({
+      where: { name: { in: uniqueGroupNames } },
+      select: { id: true, name: true },
+    });
+    const groupMap = new Map<string, string>(existingGroups.map((g) => [g.name, g.id]));
+
+    for (const groupName of uniqueGroupNames) {
+      if (!groupMap.has(groupName)) {
+        const createdG = await prisma.group.create({
+          data: {
+            name: groupName,
+            academicYearId: academicYear.id,
+          },
+        });
+        groupMap.set(groupName, createdG.id);
       }
     }
 
+    // 3. Pre-fetch existing users by email
+    const cleanEmails = validItems.map((s) => s.email.trim().toLowerCase());
+    const existingUsers = await prisma.user.findMany({
+      where: { email: { in: cleanEmails } },
+      select: { id: true, email: true },
+    });
+    const existingUserMap = new Map<string, string>(
+      existingUsers.map((u) => [u.email.toLowerCase(), u.id])
+    );
+
+    // 4. Hash passwords in parallel
+    const rawPasswords = validItems.map(
+      (item) => item.password || "Lms" + Math.random().toString(36).substring(2, 8)
+    );
+    const hashedPasswords = await Promise.all(
+      rawPasswords.map((raw) => bcrypt.hash(raw, 10))
+    );
+
+    // 5. Process in concurrent chunks of 10
+    let createdCount = 0;
+    const CHUNK_SIZE = 10;
+
+    for (let i = 0; i < validItems.length; i += CHUNK_SIZE) {
+      const chunk = validItems.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (item, idx) => {
+          const globalIdx = i + idx;
+          const cleanEmail = item.email.trim().toLowerCase();
+          const existingId = existingUserMap.get(cleanEmail);
+          let studentId = existingId;
+
+          if (existingId) {
+            await prisma.user.update({
+              where: { id: existingId },
+              data: {
+                name: item.name.trim(),
+                phone: item.phone?.trim() || null,
+              },
+            });
+          } else {
+            const student = await prisma.user.create({
+              data: {
+                name: item.name.trim(),
+                email: cleanEmail,
+                phone: item.phone?.trim() || null,
+                password: hashedPasswords[globalIdx],
+                tempPassword: rawPasswords[globalIdx],
+                role: item.role || "STUDENT",
+                isActive: true,
+              },
+            });
+            studentId = student.id;
+          }
+
+          const targetGroupId = item.groupName ? groupMap.get(item.groupName) : undefined;
+          if (studentId && targetGroupId) {
+            await prisma.groupStudent.upsert({
+              where: {
+                groupId_studentId: {
+                  groupId: targetGroupId,
+                  studentId,
+                },
+              },
+              update: {},
+              create: {
+                groupId: targetGroupId,
+                studentId,
+              },
+            });
+          }
+
+          createdCount++;
+        })
+      );
+    }
+
     revalidatePath("/dashboard/students");
+    revalidatePath("/dashboard/groups");
     return { success: true, count: createdCount };
   } catch (error) {
     console.error("Error bulk creating students in DB:", error);
@@ -421,7 +539,7 @@ export async function resetPasswordAction(studentId: string, newPassword: string
 
     await prisma.user.update({
       where: { id: studentId },
-      data: { password: hashed },
+      data: { password: hashed, tempPassword: newPassword },
     });
 
     revalidatePath("/dashboard/students");

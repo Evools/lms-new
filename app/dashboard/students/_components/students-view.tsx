@@ -84,6 +84,7 @@ export interface StudentRegistryItem {
   accountStatus: "Активен" | "Временный пароль" | "Заблокирован";
   avgGrade: string;
   lastPasswordReset?: string;
+  tempPassword?: string | null;
 }
 
 export interface DBGroupItem {
@@ -121,6 +122,9 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
 
   // Single item deletion state for dialog
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<StudentRegistryItem | null>(null);
+
+  // Copied password state
+  const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -239,6 +243,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
                 ...s,
                 accountStatus: "Временный пароль",
                 lastPasswordReset: new Date().toLocaleDateString("ru-RU"),
+                tempPassword: generatedNewPassword,
               }
             : s
         )
@@ -426,6 +431,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
                 <th className="py-2.5 px-3 min-w-[100px]">Форма</th>
                 <th className="py-2.5 px-3 min-w-[120px]">Телефон</th>
                 <th className="py-2.5 px-3 min-w-[120px]">Статус</th>
+                {isAdminOrTeacher && <th className="py-2.5 px-3 min-w-[130px]">Пароль</th>}
                 {isAdminOrTeacher && <th className="py-2.5 px-3 text-right min-w-[90px]"></th>}
               </tr>
             </thead>
@@ -489,6 +495,33 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
                       {st.accountStatus}
                     </Badge>
                   </td>
+                  {isAdminOrTeacher && (
+                    <td className="py-2.5 px-3">
+                      {st.tempPassword ? (
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] bg-muted/40 border px-2 py-0.5 rounded-md w-fit">
+                          <span className="text-foreground select-all font-medium">{st.tempPassword}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(st.tempPassword!);
+                              setCopiedPasswordId(st.id);
+                              setTimeout(() => setCopiedPasswordId(null), 2000);
+                            }}
+                            className="text-muted-foreground hover:text-primary transition-colors ml-0.5"
+                            title="Скопировать пароль"
+                          >
+                            {copiedPasswordId === st.id ? (
+                              <Check className="h-3 w-3 text-primary" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-[10px] italic">Скрыт</span>
+                      )}
+                    </td>
+                  )}
                   {isAdminOrTeacher && (
                     <td className="py-2.5 px-3 text-right">
                       <div className="flex items-center justify-end gap-1">

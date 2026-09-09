@@ -49,6 +49,7 @@ import {
   Save,
   Upload,
   Download,
+  Loader2,
 } from "lucide-react";
 import {
   parseExcelOrTableFile,
@@ -657,11 +658,19 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" size="xs" className="h-8 text-xs" onClick={() => router.push("/dashboard/students")}>
+              <Button type="button" variant="outline" size="xs" disabled={isSubmitting} className="h-8 text-xs" onClick={() => router.push("/dashboard/students")}>
                 Отмена
               </Button>
               <Button size="xs" type="submit" disabled={isSubmitting || !fullName.trim()} className="h-8 text-xs gap-1.5">
-                <Save className="h-3.5 w-3.5" /> {isSubmitting ? "Сохранение..." : "Зарегистрировать"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Сохранение...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5" /> Зарегистрировать
+                  </>
+                )}
               </Button>
             </div>
           </form>
@@ -718,14 +727,29 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
             </div>
 
             <div className="flex items-center gap-2">
-              <Button size="xs" variant="ghost" onClick={handleLoadDemoData} className="h-8 text-xs gap-1 text-primary hover:bg-primary/10 font-medium">
+              <Button size="xs" variant="ghost" disabled={isSubmitting} onClick={handleLoadDemoData} className="h-8 text-xs gap-1 text-primary hover:bg-primary/10 font-medium">
                 <Sparkles className="h-3.5 w-3.5" /> Пример данных
               </Button>
-              <Button size="xs" variant="outline" onClick={handleDownloadTemplate} className="h-8 text-xs gap-1.5">
+              <Button size="xs" variant="outline" disabled={isSubmitting} onClick={handleDownloadTemplate} className="h-8 text-xs gap-1.5">
                 <Download className="h-3.5 w-3.5" /> Скачать шаблон CSV
               </Button>
             </div>
           </div>
+
+          {/* Loading indicator banner */}
+          {isSubmitting && (
+            <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/10 text-foreground flex items-center gap-3 animate-pulse">
+              <Loader2 className="h-5 w-5 text-primary animate-spin shrink-0" />
+              <div className="space-y-0.5">
+                <div className="font-bold text-xs text-primary">
+                  Идёт зачисление {importedStudents.length} студентов в базу данных...
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Создаются учётные записи, генерируются пароли и привязка к группе «{defaultImportGroup}». Пожалуйста, подождите...
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -867,11 +891,19 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                 </Button>
 
                 <div className="flex items-center gap-2">
-                  <Button size="xs" variant="outline" onClick={() => setImportedStudents([])} className="h-8 text-xs">
+                  <Button size="xs" variant="outline" disabled={isSubmitting} onClick={() => setImportedStudents([])} className="h-8 text-xs">
                     Очистить
                   </Button>
-                  <Button size="xs" onClick={handleBatchImportSubmit} disabled={isSubmitting} className="h-8 text-xs gap-1.5">
-                    <Save className="h-3.5 w-3.5" /> Зачислить всех ({importedStudents.length})
+                  <Button size="xs" onClick={handleBatchImportSubmit} disabled={isSubmitting} className="h-8 text-xs gap-1.5 min-w-[160px]">
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Зачисление ({importedStudents.length})...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-3.5 w-3.5" /> Зачислить всех ({importedStudents.length})
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
