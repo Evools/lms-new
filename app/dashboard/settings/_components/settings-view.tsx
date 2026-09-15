@@ -128,8 +128,7 @@ export function SettingsView({
   const [isPending, startTransition] = useTransition();
 
   const isAdmin = role === "ADMIN";
-  const isStudent = role === "STUDENT";
-  const [activeTab, setActiveTab] = useState<Tab>(isStudent ? "appearance" : "system");
+  const [activeTab, setActiveTab] = useState<Tab>(isAdmin ? "system" : "appearance");
 
   // Theme — use the global ThemeProvider
   const { theme, setTheme } = useTheme();

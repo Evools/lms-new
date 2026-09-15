@@ -58,6 +58,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
+    try {
+      const savedLogin = localStorage.getItem("remembered_login");
+      if (savedLogin) {
+        setIdentifier(savedLogin);
+        setRememberMe(true);
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
   }, []);
 
   // Automatic slide rotation
@@ -79,6 +88,16 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    try {
+      if (rememberMe && identifier.trim()) {
+        localStorage.setItem("remembered_login", identifier.trim());
+      } else {
+        localStorage.removeItem("remembered_login");
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
 
     const formData = new FormData();
     formData.append("identifier", identifier.trim());

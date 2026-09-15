@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import Link from "next/link";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -42,6 +42,7 @@ import {
   CheckCircle2,
   AlertCircle,
   FolderTree,
+  ChevronRight,
 } from "lucide-react";
 import type { SpecialtyDTO } from "../actions";
 import {
@@ -256,36 +257,73 @@ export function SpecialtiesView({ specialties, isAdmin }: SpecialtiesViewProps) 
       {/* Specialties Cards / Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredSpecialties.map((item) => (
-          <Card key={item.id} className="border shadow-none rounded-xl flex flex-col justify-between">
-            <CardHeader className="p-3 pb-2 space-y-1.5">
+          <div
+            key={item.id}
+            className="rounded-xl border bg-card p-3.5 hover:border-primary/40 transition-all flex flex-col justify-between group shadow-2xs space-y-3"
+          >
+            {/* Top Info Area */}
+            <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <div className="space-y-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+                    <GraduationCap className="h-3.5 w-3.5" />
+                  </div>
                   {item.code ? (
                     <Badge
                       variant="outline"
-                      className="text-[10px] font-mono border-primary/30 text-primary bg-primary/5 px-1.5 py-0"
+                      className="text-[10px] font-mono border-primary/30 text-primary bg-primary/5 font-semibold px-1.5 py-0"
                     >
                       {item.code}
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground px-1.5 py-0">
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground px-1.5 py-0 font-normal">
                       Код не указан
                     </Badge>
                   )}
-                  <CardTitle className="text-xs font-semibold text-foreground leading-snug line-clamp-2">
-                    {item.name}
-                  </CardTitle>
                 </div>
+
+                {isAdmin && (
+                  <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => openEditDialog(item)}
+                      className="h-6 w-6 text-muted-foreground hover:text-primary"
+                      title="Редактировать"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => setDeletingSpecialty(item)}
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      title="Удалить"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
-              {item.description && (
-                <CardDescription className="text-[11px] line-clamp-2 pt-0.5">
-                  {item.description}
-                </CardDescription>
-              )}
-            </CardHeader>
+              <div>
+                <h3 className="text-xs font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
+                  {item.name}
+                </h3>
+                {item.description ? (
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
+                    {item.description}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground/60 italic mt-0.5">
+                    Описание отсутствует
+                  </p>
+                )}
+              </div>
+            </div>
 
-            <CardContent className="p-3 pt-2 border-t bg-muted/10 flex items-center justify-between gap-2 text-xs">
+            {/* Bottom Meta & Navigation */}
+            <div className="pt-2.5 border-t flex items-center justify-between text-xs">
               <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
                 <Users className="h-3.5 w-3.5 text-primary" />
                 <span>
@@ -293,30 +331,15 @@ export function SpecialtiesView({ specialties, isAdmin }: SpecialtiesViewProps) 
                 </span>
               </div>
 
-              {isAdmin && (
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => openEditDialog(item)}
-                    className="h-6 px-2 text-xs font-medium"
-                    title="Редактировать"
-                  >
-                    <Pencil className="h-3 w-3 mr-1" /> Изменить
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setDeletingSpecialty(item)}
-                    className="h-6 px-2 text-xs text-destructive hover:bg-destructive/10 font-medium"
-                    title="Удалить"
-                  >
-                    <Trash2 className="h-3 w-3 mr-1" /> Удалить
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              <Link
+                href="/dashboard/groups"
+                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium"
+              >
+                <span>К группам</span>
+                <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
         ))}
 
         {filteredSpecialties.length === 0 && (
