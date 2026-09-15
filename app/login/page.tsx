@@ -4,13 +4,9 @@ import { useState, useTransition } from "react";
 import { loginAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Loader2,
   ShieldAlert,
-  ShieldCheck,
-  UserCheck,
-  GraduationCap,
   Building2,
   Lock,
   Mail,
@@ -21,43 +17,29 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loggingInRole, setLoggingInRole] = useState<string | null>(null);
 
-  const executeLogin = (idVal: string, pwdVal: string, roleKey?: string) => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    if (roleKey) setLoggingInRole(roleKey);
 
     const formData = new FormData();
-    formData.append("identifier", idVal.trim());
-    formData.append("password", pwdVal);
+    formData.append("identifier", identifier.trim());
+    formData.append("password", password);
 
     startTransition(async () => {
       try {
         const res = await loginAction(formData);
         if (res?.error) {
           setError(res.error);
-          setLoggingInRole(null);
         } else {
           window.location.href = "/dashboard";
         }
       } catch (err: unknown) {
-        setLoggingInRole(null);
         if (!(err instanceof Error && err.message === "NEXT_REDIRECT")) {
           setError("Произошла ошибка при входе. Попробуйте еще раз.");
         }
       }
     });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    executeLogin(identifier, password);
-  };
-
-  const handleQuickLogin = (roleEmail: string, roleKey: string) => {
-    setIdentifier(roleEmail);
-    setPassword("password123");
-    executeLogin(roleEmail, "password123", roleKey);
   };
 
   return (
@@ -133,7 +115,7 @@ export default function LoginPage() {
               className="w-full h-8 text-xs font-semibold gap-1.5 cursor-pointer touch-manipulation active:scale-[0.98]"
               disabled={isPending}
             >
-              {isPending && !loggingInRole ? (
+              {isPending ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Вход...
                 </>
@@ -142,57 +124,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          {/* Quick Role Login Footer */}
-          <div className="pt-3 border-t space-y-2">
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Быстрый вход в 1 клик:</span>
-              <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 font-medium">
-                password123
-              </Badge>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleQuickLogin("admin@lyceum.edu", "admin")}
-                className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border border-border bg-muted/40 hover:bg-primary/10 hover:border-primary/30 text-[11px] font-medium text-foreground transition-all cursor-pointer touch-manipulation active:scale-95 disabled:opacity-50"
-              >
-                {loggingInRole === "admin" ? (
-                  <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
-                ) : (
-                  <ShieldCheck className="h-3.5 w-3.5 text-primary shrink-0" />
-                )}
-                <span>Админ</span>
-              </button>
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleQuickLogin("teacher@lyceum.edu", "teacher")}
-                className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border border-border bg-muted/40 hover:bg-primary/10 hover:border-primary/30 text-[11px] font-medium text-foreground transition-all cursor-pointer touch-manipulation active:scale-95 disabled:opacity-50"
-              >
-                {loggingInRole === "teacher" ? (
-                  <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
-                ) : (
-                  <UserCheck className="h-3.5 w-3.5 text-primary shrink-0" />
-                )}
-                <span>Учитель</span>
-              </button>
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleQuickLogin("starosta@lyceum.edu", "student")}
-                className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border border-border bg-muted/40 hover:bg-primary/10 hover:border-primary/30 text-[11px] font-medium text-foreground transition-all cursor-pointer touch-manipulation active:scale-95 disabled:opacity-50"
-              >
-                {loggingInRole === "student" ? (
-                  <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
-                ) : (
-                  <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
-                )}
-                <span>Студент</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
