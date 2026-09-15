@@ -90,6 +90,7 @@ import {
   createAcademicYearAction,
   updateAcademicYearAction,
   deleteAcademicYearAction,
+  deleteUserAction,
   updateSystemConfigAction,
 } from "../actions";
 
@@ -172,6 +173,7 @@ export function SettingsView({
   const [editUserPhone, setEditUserPhone] = useState("");
   const [editUserRole, setEditUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT">("TEACHER");
   const [editUserPassword, setEditUserPassword] = useState("");
+  const [deleteUserTarget, setDeleteUserTarget] = useState<UserProfileDTO | null>(null);
 
   const openEditUser = (u: UserProfileDTO) => {
     setEditUserTarget(u);
@@ -397,6 +399,20 @@ export function SettingsView({
         router.refresh();
       } else {
         toast.add({ title: res.error || "Ошибка смены роли", type: "error" });
+      }
+    });
+  };
+
+  const handleDeleteUser = () => {
+    if (!deleteUserTarget) return;
+    startTransition(async () => {
+      const res = await deleteUserAction(deleteUserTarget.id);
+      if (res.success) {
+        toast.add({ title: "Сотрудник удален", type: "success" });
+        setDeleteUserTarget(null);
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка удаления сотрудника", type: "error" });
       }
     });
   };
@@ -1262,12 +1278,24 @@ export function SettingsView({
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           {u.id !== profile.id && (
-                            <Switch
-                              checked={u.isActive}
-                              disabled={isPending}
-                              onCheckedChange={(checked) => handleToggleUser(u.id, checked)}
-                              title={u.isActive ? "Заблокировать" : "Активировать"}
-                            />
+                            <>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setDeleteUserTarget(u)}
+                                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                                title="Удалить сотрудника"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Switch
+                                checked={u.isActive}
+                                disabled={isPending}
+                                onCheckedChange={(checked) => handleToggleUser(u.id, checked)}
+                                title={u.isActive ? "Заблокировать" : "Активировать"}
+                              />
+                            </>
                           )}
                         </div>
                       </td>
@@ -1740,6 +1768,26 @@ export function SettingsView({
             <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
               <Button variant="outline" size="xs" onClick={() => setDeleteYearTarget(null)}>Отмена</Button>
               <Button variant="destructive" size="xs" disabled={isPending} onClick={handleDeleteYear}>Удалить</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
+
+      {/* Modal: Delete User */}
+      <AlertDialog open={deleteUserTarget !== null} onOpenChange={(open) => !open && setDeleteUserTarget(null)}>
+        {deleteUserTarget && (
+          <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+            <AlertDialogHeader className="place-items-start text-left gap-1">
+              <AlertDialogTitle className="text-sm font-bold flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-destructive" /> Удалить сотрудника?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                Вы действительно хотите удалить сотрудника «{deleteUserTarget.name}» ({deleteUserTarget.email})? Это действие необратимо.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setDeleteUserTarget(null)}>Отмена</Button>
+              <Button variant="destructive" size="xs" disabled={isPending} onClick={handleDeleteUser}>Удалить</Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         )}

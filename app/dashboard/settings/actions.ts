@@ -550,3 +550,26 @@ export async function deleteAcademicYearAction(yearId: string) {
     return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
+
+/** Admin: delete user */
+export async function deleteUserAction(userId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор может удалять сотрудников" };
+  }
+  if (userId === session.user.id) {
+    return { success: false, error: "Нельзя удалить самого себя" };
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return { success: false, error: "Сотрудник не найден" };
+
+    await prisma.user.delete({ where: { id: userId } });
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error) {
+    console.error("deleteUserAction error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при удалении сотрудника" };
+  }
+}
