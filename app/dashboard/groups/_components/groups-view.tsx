@@ -111,7 +111,11 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
             </Badge>
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Управление учебными потоками, кураторами, старостами и составами групп
+            {isAdmin
+              ? "Управление учебными потоками, кураторами, старостами и составами групп"
+              : userRole === "TEACHER"
+              ? "Учебные группы, в которых вы являетесь преподавателем или куратором"
+              : "Ваша учебная группа"}
           </p>
         </div>
 
@@ -448,7 +452,11 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
           <Users className="h-8 w-8 mx-auto text-muted-foreground/40" />
           <h3 className="text-sm font-semibold text-foreground">Группы не найдены</h3>
           <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-            По вашему запросу не найдено ни одной группы. Сбросьте поиск или создайте новую группу.
+            {searchQuery || selectedCourseFilter !== "ALL"
+              ? "По вашему запросу не найдено ни одной группы. Сбросьте поиск или фильтр по курсу."
+              : userRole === "TEACHER"
+              ? "У вас пока нет прикрепленных учебных групп. Обратитесь к администратору для назначения дисциплин или кураторства."
+              : "На текущий момент в системе нет зарегистрированных групп."}
           </p>
         </div>
       )}

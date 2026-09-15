@@ -150,6 +150,7 @@ export function GroupEditForm({
 
     const res = await updateGroupAction(group.id, {
       name: groupName.trim(),
+      course: parseInt(course, 10) || 1,
       curatorId: !curatorId || curatorId === "unassigned" || curatorId === "none" ? undefined : curatorId,
       specialtyId: !specialtyId || specialtyId === "unassigned" ? undefined : specialtyId,
       academicYearName: academicYear,
@@ -273,8 +274,6 @@ export function GroupEditForm({
                     <SelectContent>
                       <SelectItem value="1" className="text-xs">1 курс</SelectItem>
                       <SelectItem value="2" className="text-xs">2 курс</SelectItem>
-                      <SelectItem value="3" className="text-xs">3 курс</SelectItem>
-                      <SelectItem value="4" className="text-xs">4 курс</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

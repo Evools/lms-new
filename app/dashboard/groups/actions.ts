@@ -67,10 +67,6 @@ function parseGroupCourse(name: string): number {
   const endMatch = name.match(/[\s-_](\d)$/);
   if (endMatch) return parseInt(endMatch[1], 10);
 
-  // Fallback: search any single digit 1-6
-  const anyDigit = name.match(/[^\d]([1-6])[^\d]?/);
-  if (anyDigit) return parseInt(anyDigit[1], 10);
-
   return 1;
 }
 
@@ -80,7 +76,10 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
     const role = session?.user?.role || "STUDENT";
     const userId = session?.user?.id;
 
-    // Students can only see their own group(s)
+    // Filter groups by user role:
+    // - ADMIN: sees all groups
+    // - TEACHER: sees only groups where they are curator OR teach a subject
+    // - STUDENT: sees only groups where they are enrolled
     let whereClause: Record<string, unknown> | undefined = undefined;
     if (role === "STUDENT" && userId) {
       const enrollments = await prisma.groupStudent.findMany({
@@ -88,6 +87,13 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
         select: { groupId: true },
       });
       whereClause = { id: { in: enrollments.map((e) => e.groupId) } };
+    } else if (role === "TEACHER" && userId) {
+      whereClause = {
+        OR: [
+          { curatorId: userId },
+          { groupSubjects: { some: { teacherId: userId } } },
+        ],
+      };
     }
 
     const list = await prisma.group.findMany({
@@ -108,7 +114,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
     }
 
     return list.map((item) => {
-      const course = parseGroupCourse(item.name);
+      const course = item.course ?? parseGroupCourse(item.name);
 
       return {
         id: item.id,
@@ -176,6 +182,7 @@ export async function getSpecialtiesListAction() {
 
 export async function createGroupAction(data: {
   name: string;
+  course?: number;
   curatorId?: string;
   specialtyId?: string;
   academicYearName?: string;
@@ -217,6 +224,7 @@ export async function createGroupAction(data: {
     const created = await prisma.group.create({
       data: {
         name: data.name.trim(),
+        course: data.course ?? 1,
         academicYearId: academicYear.id,
         curatorId: data.curatorId || undefined,
         specialtyId: cleanSpecialtyId,
@@ -235,6 +243,7 @@ export async function updateGroupAction(
   groupId: string,
   data: {
     name: string;
+    course?: number;
     curatorId?: string;
     specialtyId?: string;
     academicYearName?: string;
@@ -243,6 +252,21 @@ export async function updateGroupAction(
   const session = await auth();
   if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
     return { success: false, error: "Недостаточно прав для редактирования группы" };
+  }
+
+  if (session.user.role === "TEACHER") {
+    const hasAccess = await prisma.group.findFirst({
+      where: {
+        id: groupId,
+        OR: [
+          { curatorId: session.user.id },
+          { groupSubjects: { some: { teacherId: session.user.id } } },
+        ],
+      },
+    });
+    if (!hasAccess) {
+      return { success: false, error: "Вы можете редактировать только закрепленные за вами группы" };
+    }
   }
 
   try {
@@ -266,6 +290,7 @@ export async function updateGroupAction(
       where: { id: groupId },
       data: {
         name: data.name.trim(),
+        ...(data.course !== undefined ? { course: data.course } : {}),
         curatorId: !data.curatorId || data.curatorId === "none" || data.curatorId === "unassigned" ? null : data.curatorId,
         specialtyId: cleanSpecialtyId,
       },
@@ -313,11 +338,42 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       },
     });
 
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+    const userId = session?.user?.id;
+
+    // Check access permissions:
+    // - ADMIN: can view any group
+    // - TEACHER: can only view if curator or teaches a subject to this group
+    // - STUDENT: can only view if enrolled in this group
+    if (role === "STUDENT" && userId) {
+      const isEnrolled = await prisma.groupStudent.findUnique({
+        where: {
+          groupId_studentId: {
+            groupId,
+            studentId: userId,
+          },
+        },
+      });
+      if (!isEnrolled) return null;
+    } else if (role === "TEACHER" && userId) {
+      const hasAccess = await prisma.group.findFirst({
+        where: {
+          id: groupId,
+          OR: [
+            { curatorId: userId },
+            { groupSubjects: { some: { teacherId: userId } } },
+          ],
+        },
+      });
+      if (!hasAccess) return null;
+    }
+
     if (!item) {
       return null;
     }
 
-    const course = parseGroupCourse(item.name);
+    const course = item.course ?? parseGroupCourse(item.name);
 
     // Fetch enrolled students
     const groupStudents = await prisma.groupStudent.findMany({
@@ -436,6 +492,21 @@ export async function toggleGroupDutyAction(groupId: string, isDutyEnabled: bool
     (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
   ) {
     return { success: false, error: "Недостаточно прав" };
+  }
+
+  if (session.user.role === "TEACHER") {
+    const hasAccess = await prisma.group.findFirst({
+      where: {
+        id: groupId,
+        OR: [
+          { curatorId: session.user.id },
+          { groupSubjects: { some: { teacherId: session.user.id } } },
+        ],
+      },
+    });
+    if (!hasAccess) {
+      return { success: false, error: "У вас нет доступа к управлению дежурством этой группы" };
+    }
   }
   try {
     await prisma.group.update({
