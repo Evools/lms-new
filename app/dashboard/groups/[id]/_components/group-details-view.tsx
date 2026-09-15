@@ -72,6 +72,10 @@ import {
   Power,
   PowerOff,
   AlertTriangle,
+  Download,
+  Copy,
+  Check,
+  KeyRound,
 } from "lucide-react";
 import {
   GroupDetailsDTO,
@@ -234,6 +238,80 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
     startTransition(async () => {
       await setGroupLeadershipAction(group.id, studentId, role);
     });
+  };
+
+  // Student credentials download and copy handlers
+  const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
+
+  const handleCopyStudentCredentials = (student: GroupStudentDTO) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const pass = student.tempPassword || "Установлен личный пароль";
+    const text = `Студент: ${student.name}\nГруппа: ${group.name}\nЛогин (Email): ${student.email}\nПароль: ${pass}\nАдрес входа: ${origin}/login`;
+    navigator.clipboard.writeText(text);
+    setCopiedStudentId(student.id);
+    setTimeout(() => setCopiedStudentId(null), 2000);
+  };
+
+  const handleDownloadSingleStudentCredentials = (student: GroupStudentDTO) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const pass = student.tempPassword || "Установлен личный пароль (не временный)";
+
+    const textContent =
+`==================================================
+ЛИЦЕЙСКИЙ ПОРТАЛ LMS — РЕКВИЗИТЫ ВХОДА СТУДЕНТА
+==================================================
+
+ФИО Студента:   ${student.name}
+Учебная группа: ${group.name}
+Логин (Email):  ${student.email}
+Пароль:         ${pass}
+${student.phone ? `Телефон:        ${student.phone}\n` : ""}
+Адрес портала:  ${origin}/login
+
+ИНСТРУКЦИЯ ДЛЯ ВХОДА:
+1. Откройте в браузере страницу: ${origin}/login
+2. Введите ваш логин (email) и пароль.
+3. При первом входе рекомендуется настроить профиль.
+==================================================`;
+
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const safeStudentName = student.name.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "");
+    link.setAttribute("download", `dostup_${safeStudentName}.txt`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadGroupPasswordsCSV = () => {
+    if (!group.studentsList || group.studentsList.length === 0) return;
+
+    let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Временный Пароль,Группа,Телефон,Роль в группе\n";
+    group.studentsList.forEach((st, idx) => {
+      const roleLabel =
+        st.roleInGroup === "MONITOR"
+          ? "Староста"
+          : st.roleInGroup === "DEPUTY_MONITOR"
+          ? "Зам. старосты"
+          : "Студент";
+      const pass = st.tempPassword || "Установлен личный пароль";
+      const phone = st.phone || "—";
+      csvContent += `${idx + 1},"${st.name}","${st.email}","${pass}","${group.name}","${phone}","${roleLabel}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const safeGroupName = group.name.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_");
+    link.setAttribute("download", `loginy_i_paroli_${safeGroupName}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
@@ -457,6 +535,19 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                 <span className="text-xs text-muted-foreground">
                   {filteredStudents.length} чел.
                 </span>
+                {isAdminOrTeacher && group.studentsList.length > 0 && (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={handleDownloadGroupPasswordsCSV}
+                    className="h-8 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
+                    title="Скачать список логинов и паролей всей группы (.csv)"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Логины и пароли (.csv)</span>
+                    <span className="sm:hidden">Пароли (.csv)</span>
+                  </Button>
+                )}
                 {isAdminOrTeacher && (
                   <Button size="xs" className="h-8 text-xs gap-1.5" render={<Link href="/dashboard/students/new" />}>
                     <UserPlus className="h-3.5 w-3.5" /> Зачислить
@@ -549,7 +640,7 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                           <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="h-7 w-7 text-muted-foreground hover:text-foreground" />}>
                             <MoreVertical className="h-3.5 w-3.5" />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuLabel className="text-xs">Назначения в группе</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleSetLeadership(st.id, "MONITOR")}>
@@ -563,6 +654,21 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
                                 <Users className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> Снять полномочия
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleDownloadSingleStudentCredentials(st)}>
+                              <Download className="h-3.5 w-3.5 mr-2 text-primary" /> Скачать доступ (.txt)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCopyStudentCredentials(st)}>
+                              {copiedStudentId === st.id ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5 mr-2 text-primary" /> Скопировано!
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> Скопировать логин и пароль
+                                </>
+                              )}
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
                               <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать профиль
