@@ -4,16 +4,9 @@ import { useState, useTransition, useEffect } from "react";
 import { loginAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useTheme } from "@/components/theme-provider";
+import { cn } from "@/lib/utils";
 import {
   Loader2,
   ShieldAlert,
@@ -26,26 +19,53 @@ import {
   Sun,
   Moon,
   HelpCircle,
+  ChevronDown,
   X,
   ArrowRight,
   Sparkles,
   Info,
+  Check,
 } from "lucide-react";
+
+const SLIDES = [
+  {
+    title: "Инновационное обучение,\nуверенное будущее",
+    subtitle: "Единая платформа учебных курсов, дисциплин и проектной работы",
+  },
+  {
+    title: "Управление знаниями\nв едином пространстве",
+    subtitle: "Успеваемость, расписание и прямое взаимодействие с преподавателями",
+  },
+  {
+    title: "Современные сервисы\nнового поколения",
+    subtitle: "Защищенный и удобный доступ к материалам в любое время",
+  },
+];
 
 export default function LoginPage() {
   const [isPending, startTransition] = useTransition();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isCapsLockOn, setIsCapsLockOn] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Automatic slide rotation
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % SLIDES.length);
+    }, 6000);
+    return () => clearInterval(timer);
   }, []);
 
   const toggleTheme = () => {
@@ -80,16 +100,15 @@ export default function LoginPage() {
     });
   };
 
-
   const isNumericPhone =
     identifier.trim().startsWith("+") ||
     /^\d/.test(identifier.trim().replace(/\s/g, ""));
 
   return (
-    <div className="relative flex min-h-screen flex-col justify-between overflow-hidden bg-background text-xs select-none">
+    <div className="relative flex min-h-screen w-full items-center justify-center bg-background px-4 py-8 text-xs select-none sm:px-6">
       {/* Ambient background decoration */}
       <div
-        className="pointer-events-none absolute -top-32 left-1/2 h-[340px] w-[560px] -translate-x-1/2 rounded-full bg-primary/10 blur-[110px]"
+        className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[640px] -translate-x-1/2 rounded-full bg-primary/10 blur-[130px]"
         aria-hidden="true"
       />
       <div
@@ -97,89 +116,144 @@ export default function LoginPage() {
         aria-hidden="true"
       />
 
-      {/* Top Navigation Bar */}
-      <header className="relative z-10 flex items-center justify-between px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
-            <GraduationCap className="size-4" />
-          </div>
-          <span className="text-xs font-semibold tracking-tight text-foreground">
-            Лицей LMS
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Badge
-            variant="outline"
-            className="h-6 gap-1.5 px-2 text-[10px] font-normal border-border bg-card/60 backdrop-blur-xs text-muted-foreground"
-          >
-            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Портал активен
-          </Badge>
-
-          {mounted && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              onClick={toggleTheme}
-              className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
-              title={
-                resolvedTheme === "dark"
-                  ? "Включить светлую тему"
-                  : "Включить тёмную тему"
-              }
-            >
-              {resolvedTheme === "dark" ? (
-                <Sun className="size-3.5" />
-              ) : (
-                <Moon className="size-3.5" />
+      {/* Main split-card container (Matching user mockup) */}
+      <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xl backdrop-blur-xs sm:rounded-3xl">
+        <div className="grid grid-cols-1 md:grid-cols-2">
+          {/* LEFT SHOWCASE PANEL (Futuristic Lyceum Campus) */}
+          <div className="relative hidden flex-col justify-between overflow-hidden p-6 md:flex md:min-h-[520px]">
+            {/* Background Lyceum Campus Image (Light Mode) */}
+            <img
+              src="/images/auth/lyceum_light.jpg"
+              alt="Утренний кампус лицея"
+              className={cn(
+                "absolute inset-0 h-full w-full object-cover select-none pointer-events-none transition-opacity duration-700 ease-in-out",
+                resolvedTheme === "dark" ? "opacity-0" : "opacity-100"
               )}
-            </Button>
-          )}
-        </div>
-      </header>
+            />
 
-      {/* Main Login Card Section */}
-      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-6">
-        <div className="w-full max-w-[380px] space-y-4">
-          {/* Logo Brand Emblem */}
-          <div className="flex flex-col items-center text-center space-y-1">
-            <div className="flex size-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-xs ring-4 ring-primary/5">
-              <GraduationCap className="size-6" />
+            {/* Background Lyceum Campus Image (Dark Mode) */}
+            <img
+              src="/images/auth/lyceum_dark.jpg"
+              alt="Вечерний кампус лицея"
+              className={cn(
+                "absolute inset-0 h-full w-full object-cover select-none pointer-events-none transition-opacity duration-700 ease-in-out",
+                resolvedTheme === "dark" ? "opacity-100" : "opacity-0"
+              )}
+            />
+
+            {/* Cinematic contrast overlay for text legibility */}
+            <div
+              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30 transition-opacity duration-700"
+              aria-hidden="true"
+            />
+
+            {/* Left Header: Brand Logo + Theme Pill */}
+            <div className="relative z-10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex size-8 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md">
+                  <GraduationCap className="size-4" />
+                </div>
+                <span className="text-sm font-semibold tracking-tight text-white">
+                  LMS System
+                </span>
+              </div>
+
+              {mounted && (
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/90 backdrop-blur-md transition-colors hover:bg-white/20 cursor-pointer"
+                  title="Переключить тему оформления"
+                >
+                  {resolvedTheme === "dark" ? (
+                    <>
+                      <Sun className="size-3" />
+                      <span>Светлая</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="size-3" />
+                      <span>Тёмная</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
-            <h1 className="text-base font-bold tracking-tight text-foreground pt-1">
-              Лицей LMS
-            </h1>
-            <p className="text-[11px] text-muted-foreground">
-              Единая платформа образовательного процесса
-            </p>
+
+            {/* Left Footer: Inspiring Quote + Slider Indicator Dots */}
+            <div className="relative z-10 space-y-4">
+              <div className="min-h-[64px] space-y-1">
+                <h3 className="text-base font-bold leading-snug whitespace-pre-line text-white">
+                  {SLIDES[activeSlide].title}
+                </h3>
+                <p className="text-[11px] text-white/70">
+                  {SLIDES[activeSlide].subtitle}
+                </p>
+              </div>
+
+              {/* Slider Dots */}
+              <div className="flex items-center gap-1.5 pt-1">
+                {SLIDES.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveSlide(idx)}
+                    className={cn(
+                      "h-1 rounded-full transition-all duration-300 cursor-pointer",
+                      activeSlide === idx
+                        ? "w-7 bg-white"
+                        : "w-2 bg-white/35 hover:bg-white/60"
+                    )}
+                    aria-label={`Перейти к слайду ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* shadcn Card Container */}
-          <Card
-            size="sm"
-            className="border-border/80 bg-card/95 shadow-sm backdrop-blur-xs gap-3.5 py-4"
-          >
-            <CardHeader className="p-4 pb-0 space-y-1">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Lock className="size-3.5 text-primary" /> Вход в личный кабинет
-                </CardTitle>
-                <Badge
-                  variant="secondary"
-                  className="h-5 px-1.5 text-[10px] font-medium text-muted-foreground"
-                >
-                  Портал лицея
-                </Badge>
+          {/* RIGHT FORM PANEL (shadcn styled auth) */}
+          <div className="flex flex-col justify-between p-6 sm:p-8">
+            {/* Mobile Brand Header */}
+            <div className="mb-4 flex items-center justify-between md:hidden">
+              <div className="flex items-center gap-2">
+                <div className="flex size-7 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                  <GraduationCap className="size-4" />
+                </div>
+                <span className="text-xs font-semibold tracking-tight text-foreground">
+                  LMS System
+                </span>
               </div>
-              <CardDescription className="text-[11px] text-muted-foreground">
-                Введите логин (email или телефон) и пароль
-              </CardDescription>
-            </CardHeader>
 
-            <CardContent className="p-4 py-0 space-y-3">
-              <form onSubmit={handleSubmit} className="space-y-3">
+              {mounted && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={toggleTheme}
+                  className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
+                >
+                  {resolvedTheme === "dark" ? (
+                    <Sun className="size-3.5" />
+                  ) : (
+                    <Moon className="size-3.5" />
+                  )}
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-5">
+              {/* Form Title & Subtitle */}
+              <div className="space-y-1">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+                  Вход в систему
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  Введите ваши данные для доступа к платформе
+                </p>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-3.5">
                 {error && (
                   <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive flex items-center gap-2">
                     <ShieldAlert className="size-4 shrink-0" />
@@ -188,7 +262,7 @@ export default function LoginPage() {
                 )}
 
                 {/* Identifier Input */}
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <label
                     htmlFor="identifier"
                     className="font-medium text-foreground text-xs flex items-center justify-between"
@@ -205,14 +279,14 @@ export default function LoginPage() {
                       <button
                         type="button"
                         onClick={() => setIdentifier("")}
-                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5 cursor-pointer"
                       >
                         <X className="size-2.5" /> Очистить
                       </button>
                     )}
                   </label>
                   <div className="relative flex items-center">
-                    <div className="pointer-events-none absolute left-2.5 flex items-center text-muted-foreground">
+                    <div className="pointer-events-none absolute left-3 flex items-center text-muted-foreground">
                       {isNumericPhone ? (
                         <Phone className="size-3.5" />
                       ) : (
@@ -226,7 +300,7 @@ export default function LoginPage() {
                       required
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      className="h-8 pl-8 pr-3 text-xs bg-background"
+                      className="h-9 pl-9 pr-3 text-xs bg-background/60"
                       autoCapitalize="none"
                       autoCorrect="off"
                       autoComplete="username"
@@ -235,7 +309,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* Password Input */}
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label
                       htmlFor="password"
@@ -250,7 +324,7 @@ export default function LoginPage() {
                     )}
                   </div>
                   <div className="relative flex items-center">
-                    <div className="pointer-events-none absolute left-2.5 flex items-center text-muted-foreground">
+                    <div className="pointer-events-none absolute left-3 flex items-center text-muted-foreground">
                       <Lock className="size-3.5" />
                     </div>
                     <Input
@@ -263,13 +337,13 @@ export default function LoginPage() {
                       onKeyDown={handlePasswordKeyEvent}
                       onKeyUp={handlePasswordKeyEvent}
                       onBlur={() => setIsCapsLockOn(false)}
-                      className="h-8 pl-8 pr-8 text-xs bg-background"
+                      className="h-9 pl-9 pr-9 text-xs bg-background/60"
                       autoComplete="current-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2 flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
+                      className="absolute right-2 flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       title={showPassword ? "Скрыть пароль" : "Показать пароль"}
                       aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
                     >
@@ -282,16 +356,28 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                {/* Remember Me Checkbox */}
+                <div className="flex items-center pt-0.5 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer text-muted-foreground hover:text-foreground select-none">
+                    <Checkbox
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(!!checked)}
+                      className="size-3.5"
+                    />
+                    <span className="text-[11px] font-medium">Запомнить меня</span>
+                  </label>
+                </div>
+
                 {/* Submit Action Button */}
                 <Button
                   type="submit"
-                  size="sm"
-                  className="w-full h-8 text-xs font-medium gap-1.5 cursor-pointer touch-manipulation active:scale-[0.99] mt-1"
+                  size="default"
+                  className="w-full h-9 text-xs font-medium gap-1.5 cursor-pointer touch-manipulation active:scale-[0.99] mt-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
                   disabled={isPending}
                 >
                   {isPending ? (
                     <>
-                      <Loader2 className="size-3.5 animate-spin" /> Вход в систему...
+                      <Loader2 className="size-3.5 animate-spin" /> Авторизация...
                     </>
                   ) : (
                     <>
@@ -301,40 +387,49 @@ export default function LoginPage() {
                   )}
                 </Button>
               </form>
-            </CardContent>
+            </div>
 
-            {/* Assistance & Recovery */}
-            <CardFooter className="p-4 pt-2 pb-1 flex flex-col gap-2 border-t border-border/50 text-[11px]">
-              <div className="w-full flex items-center justify-center pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowHelp(!showHelp)}
-                  className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 text-[11px]"
-                >
-                  <HelpCircle className="size-3 text-primary" />
-                  <span>Помощь со входом</span>
-                </button>
-              </div>
+            {/* Bottom Recovery & Help Section */}
+            <div className="mt-6 border-t border-border/50 pt-3 flex flex-col items-center">
+              <button
+                type="button"
+                onClick={() => setShowHelp(!showHelp)}
+                className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 text-[11px] cursor-pointer"
+              >
+                <HelpCircle className="size-3 text-primary" />
+                <span>Восстановление доступа</span>
+                <ChevronDown
+                  className={cn(
+                    "size-3 text-muted-foreground transition-transform duration-300",
+                    showHelp && "rotate-180"
+                  )}
+                />
+              </button>
 
-              {showHelp && (
-                <div className="w-full rounded-lg border border-border/80 bg-muted/40 p-2.5 text-[11px] text-muted-foreground space-y-1">
-                  <div className="font-medium text-foreground flex items-center gap-1">
-                    <Info className="size-3 text-primary" /> Восстановление доступа
+              {/* Smooth Animated Help Accordion */}
+              <div
+                className={cn(
+                  "grid transition-all duration-300 ease-in-out overflow-hidden w-full",
+                  showHelp
+                    ? "grid-rows-[1fr] opacity-100 mt-2"
+                    : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none"
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div className="w-full rounded-lg border border-border/80 bg-muted/40 p-2.5 text-[11px] text-muted-foreground space-y-1 text-left">
+                    <div className="font-medium text-foreground flex items-center gap-1">
+                      <Info className="size-3 text-primary" /> Восстановление доступа
+                    </div>
+                    <p className="leading-relaxed">
+                      Логин и первичный пароль выдаются куратором группы или администратором лицея. Если вы забыли пароль или потеряли доступ, обратитесь к мастеру или куратору.
+                    </p>
                   </div>
-                  <p className="leading-relaxed">
-                    Логин и первичный пароль выдаются куратором группы или администратором лицея. Если вы забыли пароль или потеряли доступ, обратитесь в учебную часть.
-                  </p>
                 </div>
-              )}
-            </CardFooter>
-          </Card>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-
-      {/* Footer System Notice */}
-      <footer className="relative z-10 py-3 text-center text-[11px] text-muted-foreground border-t border-border/30 bg-background/50 backdrop-blur-xs">
-        © {new Date().getFullYear()} Лицей LMS. Защищенный доступ к учебным материалам
-      </footer>
+      </div>
     </div>
   );
 }
