@@ -50,10 +50,10 @@ import {
   Upload,
   Download,
   Loader2,
+  Clock,
 } from "lucide-react";
 import {
   parseExcelOrTableFile,
-  parseRawStudentText,
   generateEmailFromName,
   ParsedStudentRow,
 } from "@/lib/excel-import";
@@ -109,6 +109,19 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
   const [excelFileName, setExcelFileName] = useState<string | null>(null);
   const [defaultImportGroup, setDefaultImportGroup] = useState(groupsList[0] || "ИС-1-25");
   const [defaultImportType, setDefaultImportType] = useState<"Бюджет" | "Контракт">("Бюджет");
+
+  // Excel Bulk Import Progress State
+  interface BulkProgressState {
+    total: number;
+    current: number;
+    percent: number;
+    statusText: string;
+    currentBatch: number;
+    totalBatches: number;
+  }
+  const [bulkProgress, setBulkProgress] = useState<BulkProgressState | null>(null);
+  const [processedIds, setProcessedIds] = useState<Set<string>>(new Set());
+  const [currentProcessingIds, setCurrentProcessingIds] = useState<Set<string>>(new Set());
 
   // Dynamic available groups including any imported or custom group
   const allAvailableGroups = Array.from(new Set([...groupsList, defaultImportGroup, group].filter(Boolean)));
@@ -230,6 +243,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
     if (!file) return;
     setExcelFileName(file.name);
     setErrorMessage(null);
+    setBulkProgress(null);
+    setProcessedIds(new Set());
+    setCurrentProcessingIds(new Set());
 
     try {
       const res = await parseExcelOrTableFile(file, groupsList, defaultImportGroup, defaultImportType);
@@ -267,14 +283,6 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
     );
   };
 
-  const handlePastedText = (text: string) => {
-    if (!text.trim()) return;
-    const parsed = parseRawStudentText(text, defaultImportGroup, defaultImportType);
-    if (parsed.length > 0) {
-      setImportedStudents(parsed);
-    }
-  };
-
   const handleDownloadPasswordsCSV = () => {
     if (importedStudents.length === 0) return;
     let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Временный Пароль,Группа\n";
@@ -294,6 +302,9 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
 
   const handleLoadDemoData = () => {
     setExcelFileName("spisok_kursantov_2026.xlsx");
+    setBulkProgress(null);
+    setProcessedIds(new Set());
+    setCurrentProcessingIds(new Set());
     setImportedStudents([
       { id: "imp-1", fullName: "Абдыкадыров Бекзат Дурусбекович", nationalId: "20707200900462", gender: "Мужской", phone: "+996 (703) 07-00-29", telegram: "703070029", birthDate: "07.07.2009", email: "bekzat.abdykadyrov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
       { id: "imp-2", fullName: "Алмазбеков Асылбек Алмазбекович", nationalId: "22502200900165", gender: "Мужской", phone: "+996 (225) 54-71-54", telegram: "+996 225 547 154", birthDate: "25.02.2009", email: "asylbek.almazbekov@lyceum.edu", password: "Lms" + Math.floor(100000 + Math.random() * 900000), group: defaultImportGroup, enrollmentType: defaultImportType },
@@ -309,39 +320,110 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
   };
 
   const handleBatchImportSubmit = async () => {
-    if (importedStudents.length === 0) return;
+    if (importedStudents.length === 0 || isSubmitting) return;
     setIsSubmitting(true);
     setErrorMessage(null);
+    setSuccessMessage(false);
+
+    const totalStudents = importedStudents.length;
+    // Оптимальный размер пакета: не более 3–5 запросов к серверу суммарно,
+    // чтобы не создавать избыточную нагрузку на БД и сеть при любом объёме списка.
+    const CHUNK_SIZE = totalStudents <= 8
+      ? Math.max(2, Math.ceil(totalStudents / 2))
+      : totalStudents <= 25
+      ? 8
+      : Math.min(40, Math.ceil(totalStudents / 4));
+    const totalBatches = Math.ceil(totalStudents / CHUNK_SIZE);
+
+    setBulkProgress({
+      total: totalStudents,
+      current: 0,
+      percent: 0,
+      statusText: "Подготовка данных для зачисления...",
+      currentBatch: 0,
+      totalBatches,
+    });
+
+    const newProcessedIds = new Set<string>();
+    let hasError = false;
 
     try {
-      const payload = importedStudents.map((st) => ({
-        name: st.fullName,
-        email: st.email,
-        phone: st.phone,
-        password: st.password,
-        groupName: st.group,
-        enrollmentType: st.enrollmentType,
-        nationalId: st.nationalId,
-        gender: st.gender,
-        telegram: st.telegram,
-        birthDate: st.birthDate,
-      }));
+      for (let i = 0; i < totalStudents; i += CHUNK_SIZE) {
+        const chunk = importedStudents.slice(i, i + CHUNK_SIZE);
+        const chunkIds = new Set(chunk.map((s) => s.id));
+        const batchNumber = Math.floor(i / CHUNK_SIZE) + 1;
 
-      const res = await createBulkStudentsAction(payload);
-      setIsSubmitting(false);
+        setCurrentProcessingIds(chunkIds);
+        setBulkProgress({
+          total: totalStudents,
+          current: i,
+          percent: Math.round((i / totalStudents) * 100),
+          statusText: `Зачисление пакета ${batchNumber} из ${totalBatches} (${i + 1}–${Math.min(i + chunk.length, totalStudents)} из ${totalStudents})...`,
+          currentBatch: batchNumber,
+          totalBatches,
+        });
 
-      if (!res.success) {
-        setErrorMessage(res.error || "Ошибка при массовом зачислении в БД");
-        return;
+        const payload = chunk.map((st) => ({
+          name: st.fullName,
+          email: st.email,
+          phone: st.phone,
+          password: st.password,
+          groupName: st.group,
+          enrollmentType: st.enrollmentType,
+          nationalId: st.nationalId,
+          gender: st.gender,
+          telegram: st.telegram,
+          birthDate: st.birthDate,
+        }));
+
+        const res = await createBulkStudentsAction(payload);
+
+        if (!res.success) {
+          hasError = true;
+          setErrorMessage(res.error || `Ошибка при зачислении на пакете ${batchNumber}`);
+          break;
+        }
+
+        chunk.forEach((s) => newProcessedIds.add(s.id));
+        setProcessedIds(new Set(newProcessedIds));
+
+        const processedCount = Math.min(i + chunk.length, totalStudents);
+        const percent = Math.round((processedCount / totalStudents) * 100);
+
+        setBulkProgress({
+          total: totalStudents,
+          current: processedCount,
+          percent,
+          statusText:
+            processedCount === totalStudents
+              ? "Все учётные записи созданы!"
+              : `Зачислено ${processedCount} из ${totalStudents} студентов...`,
+          currentBatch: batchNumber,
+          totalBatches,
+        });
       }
 
-      setSuccessMessage(true);
-      setTimeout(() => {
-        router.push("/dashboard/students");
-      }, 1200);
+      setCurrentProcessingIds(new Set());
+
+      if (!hasError) {
+        setBulkProgress({
+          total: totalStudents,
+          current: totalStudents,
+          percent: 100,
+          statusText: "Все студенты успешно зачислены в базу данных!",
+          currentBatch: totalBatches,
+          totalBatches,
+        });
+        setSuccessMessage(true);
+        setTimeout(() => {
+          router.push("/dashboard/students");
+        }, 1500);
+      }
     } catch (err: unknown) {
-      setIsSubmitting(false);
+      setCurrentProcessingIds(new Set());
       setErrorMessage(err instanceof Error ? err.message : "Ошибка соединения с сервером");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -736,21 +818,6 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
             </div>
           </div>
 
-          {/* Loading indicator banner */}
-          {isSubmitting && (
-            <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/10 text-foreground flex items-center gap-3 animate-pulse">
-              <Loader2 className="h-5 w-5 text-primary animate-spin shrink-0" />
-              <div className="space-y-0.5">
-                <div className="font-bold text-xs text-primary">
-                  Идёт зачисление {importedStudents.length} студентов в базу данных...
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Создаются учётные записи, генерируются пароли и привязка к группе «{defaultImportGroup}». Пожалуйста, подождите...
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs">Целевая группа для списка</label>
@@ -782,45 +849,33 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="font-semibold text-xs text-foreground">1. Загрузите файл таблицы (.csv, .txt, .xlsx)</label>
-              <label className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all bg-card text-center relative">
-                <input
-                  type="file"
-                  accept=".csv,.txt,.tsv,.xlsx,.xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <Upload className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="font-semibold text-xs text-foreground">
-                    {excelFileName ? (
-                      <span className="text-primary font-bold flex items-center gap-1 justify-center">
-                        <FileSpreadsheet className="h-3.5 w-3.5" /> {excelFileName}
-                      </span>
-                    ) : (
-                      "Выберите файл экспортной ведомости на компьютере (.xlsx, .xls, .csv)"
-                    )}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground pt-0.5">
-                    Автоматически распознает столбцы: №, ФИО Студента, ПИН КР, Пол, Телефон, Telegram / WhatsApp, Дата рождения
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-semibold text-xs text-foreground">Или вставьте скопированный текст из Excel / Таблицы:</label>
-              <textarea
-                rows={3}
-                placeholder="Вставьте скопированные строки из другой системы (Ctrl+V)..."
-                onChange={(e) => handlePastedText(e.target.value)}
-                className="w-full p-2.5 rounded-lg border bg-background text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+          <div className="space-y-2">
+            <label className="font-semibold text-xs text-foreground">Загрузите файл ведомости (.xlsx, .xls, .csv)</label>
+            <label className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all bg-card text-center relative">
+              <input
+                type="file"
+                accept=".csv,.txt,.tsv,.xlsx,.xls"
+                onChange={handleFileUpload}
+                className="hidden"
               />
-            </div>
+              <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Upload className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="font-semibold text-xs text-foreground">
+                  {excelFileName ? (
+                    <span className="text-primary font-bold flex items-center gap-1 justify-center">
+                      <FileSpreadsheet className="h-3.5 w-3.5" /> {excelFileName}
+                    </span>
+                  ) : (
+                    "Выберите файл экспортной ведомости на компьютере (.xlsx, .xls, .csv)"
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground pt-0.5">
+                  Автоматически распознает столбцы: №, ФИО Студента, ПИН КР, Пол, Телефон, Telegram / WhatsApp, Дата рождения
+                </div>
+              </div>
+            </label>
           </div>
 
           {importedStudents.length > 0 && (
@@ -831,12 +886,62 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                 </span>
               </div>
 
+              {/* Real-time Progress Status Card */}
+              {bulkProgress && (
+                <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 text-foreground space-y-2.5 transition-all">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                        {bulkProgress.percent === 100 ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-xs text-foreground">
+                            {bulkProgress.percent === 100 ? "Зачисление завершено!" : "Идёт зачисление студентов в БД..."}
+                          </span>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono border-primary/30 text-primary bg-primary/10 font-medium">
+                            {bulkProgress.current} / {bulkProgress.total} чел.
+                          </Badge>
+                          {bulkProgress.totalBatches > 1 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-border text-muted-foreground">
+                              Пакет {bulkProgress.currentBatch} из {bulkProgress.totalBatches}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                          {bulkProgress.statusText}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="font-mono text-sm font-bold text-primary">
+                        {bulkProgress.percent}%
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Smooth Progress Bar Track */}
+                  <div className="w-full bg-primary/15 h-2 rounded-full overflow-hidden">
+                    <div
+                      className="bg-primary h-full transition-all duration-300 rounded-full"
+                      style={{ width: `${bulkProgress.percent}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="border rounded-lg overflow-x-auto bg-background">
                 <table className="w-full text-xs text-left">
                   <thead className="bg-muted/40 border-b text-[11px] font-semibold text-muted-foreground">
                     <tr>
                       <th className="py-2 px-2.5 text-center w-8">№</th>
-                      <th className="py-2 px-2.5 min-w-[180px]">ФИО Студента</th>
+                      <th className="py-2 px-2.5 min-w-[170px]">ФИО Студента</th>
+                      <th className="py-2 px-2.5 min-w-[105px]">Статус</th>
                       <th className="py-2 px-2.5 min-w-[120px]">ПИН КР</th>
                       <th className="py-2 px-2.5">Пол</th>
                       <th className="py-2 px-2.5 min-w-[120px]">Телефон</th>
@@ -847,35 +952,67 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                     </tr>
                   </thead>
                   <tbody className="divide-y text-xs">
-                    {importedStudents.map((st, idx) => (
-                      <tr key={st.id} className="hover:bg-muted/20">
-                        <td className="py-2 px-2.5 text-center text-muted-foreground font-mono text-[10px]">{idx + 1}</td>
-                        <td className="py-2 px-2.5 font-medium text-foreground">
-                          {st.fullName}
-                          <div className="text-[10px] text-muted-foreground font-mono">{st.email}</div>
-                        </td>
-                        <td className="py-2 px-2.5 font-mono text-[11px] text-muted-foreground">{st.nationalId || "—"}</td>
-                        <td className="py-2 px-2.5 text-muted-foreground">{st.gender || "—"}</td>
-                        <td className="py-2 px-2.5 font-mono text-[11px]">{st.phone || "—"}</td>
-                        <td className="py-2 px-2.5 text-muted-foreground">{st.telegram || "—"}</td>
-                        <td className="py-2 px-2.5 text-muted-foreground font-mono text-[11px]">{st.birthDate || "—"}</td>
-                        <td className="py-2 px-2.5">
-                          <Badge variant="outline" className="text-[9px] font-mono border-primary/30 text-primary bg-primary/5">
-                            {st.password || "Lms123456"}
-                          </Badge>
-                        </td>
-                        <td className="py-2 px-2.5 text-right">
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            onClick={() => handleRemoveImportRow(st.id)}
-                            className="text-muted-foreground hover:text-destructive h-6 w-6"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {importedStudents.map((st, idx) => {
+                      const isProcessed = processedIds.has(st.id);
+                      const isProcessing = currentProcessingIds.has(st.id);
+
+                      return (
+                        <tr
+                          key={st.id}
+                          className={`transition-colors ${
+                            isProcessing
+                              ? "bg-primary/10"
+                              : isProcessed
+                              ? "bg-primary/[0.04] hover:bg-primary/[0.07]"
+                              : "hover:bg-muted/20"
+                          }`}
+                        >
+                          <td className="py-2 px-2.5 text-center text-muted-foreground font-mono text-[10px]">{idx + 1}</td>
+                          <td className="py-2 px-2.5 font-medium text-foreground">
+                            {st.fullName}
+                            <div className="text-[10px] text-muted-foreground font-mono">{st.email}</div>
+                          </td>
+                          <td className="py-2 px-2.5">
+                            {isProcessed ? (
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 border-primary/30 text-primary bg-primary/10 gap-1 font-medium">
+                                <Check className="h-2.5 w-2.5" /> Зачислен
+                              </Badge>
+                            ) : isProcessing ? (
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 border-primary/40 text-primary bg-primary/10 gap-1 font-medium animate-pulse">
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" /> Запись...
+                              </Badge>
+                            ) : isSubmitting ? (
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
+                                <Clock className="h-2.5 w-2.5" /> В очереди
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-medium">Готов</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-2.5 font-mono text-[11px] text-muted-foreground">{st.nationalId || "—"}</td>
+                          <td className="py-2 px-2.5 text-muted-foreground">{st.gender || "—"}</td>
+                          <td className="py-2 px-2.5 font-mono text-[11px]">{st.phone || "—"}</td>
+                          <td className="py-2 px-2.5 text-muted-foreground">{st.telegram || "—"}</td>
+                          <td className="py-2 px-2.5 text-muted-foreground font-mono text-[11px]">{st.birthDate || "—"}</td>
+                          <td className="py-2 px-2.5">
+                            <Badge variant="outline" className="text-[9px] font-mono border-primary/30 text-primary bg-primary/5">
+                              {st.password || "Lms123456"}
+                            </Badge>
+                          </td>
+                          <td className="py-2 px-2.5 text-right">
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              disabled={isSubmitting || isProcessed}
+                              onClick={() => handleRemoveImportRow(st.id)}
+                              className="text-muted-foreground hover:text-destructive h-6 w-6 disabled:opacity-30"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -891,13 +1028,27 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                 </Button>
 
                 <div className="flex items-center gap-2">
-                  <Button size="xs" variant="outline" disabled={isSubmitting} onClick={() => setImportedStudents([])} className="h-8 text-xs">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setImportedStudents([]);
+                      setBulkProgress(null);
+                      setProcessedIds(new Set());
+                      setCurrentProcessingIds(new Set());
+                    }}
+                    className="h-8 text-xs"
+                  >
                     Очистить
                   </Button>
-                  <Button size="xs" onClick={handleBatchImportSubmit} disabled={isSubmitting} className="h-8 text-xs gap-1.5 min-w-[160px]">
+                  <Button size="xs" onClick={handleBatchImportSubmit} disabled={isSubmitting} className="h-8 text-xs gap-1.5 min-w-[170px]">
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Зачисление ({importedStudents.length})...
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>
+                          {bulkProgress ? `Зачисление: ${bulkProgress.percent}% (${bulkProgress.current}/${bulkProgress.total})` : "Зачисление..."}
+                        </span>
                       </>
                     ) : (
                       <>
