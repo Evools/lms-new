@@ -106,6 +106,67 @@ export interface TestDTO {
   submissions: TestSubmissionDTO[];
 }
 
+/** Helper to retrieve accessible groups and groupSubjects based on user role */
+async function getAccessibleLmsGroups(
+  role: string,
+  userId: string | undefined,
+  groupId?: string
+) {
+  let groupWhere: Record<string, unknown> | undefined = undefined;
+
+  if (role === "STUDENT" && userId) {
+    const enrollments = await prisma.groupStudent.findMany({
+      where: { studentId: userId },
+      select: { groupId: true },
+    });
+    const studentGroupIds = enrollments.map((e) => e.groupId);
+    groupWhere = { id: { in: studentGroupIds } };
+  } else if (role === "TEACHER" && userId) {
+    groupWhere = {
+      OR: [
+        { curatorId: userId },
+        { groupSubjects: { some: { teacherId: userId } } },
+      ],
+    };
+  }
+
+  const groups = await prisma.group.findMany({
+    where: groupWhere,
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  const allowedGroupIds = groups.map((g) => g.id);
+  let selectedGroupId = groupId || "";
+
+  if (role === "STUDENT" || role === "TEACHER") {
+    if (!selectedGroupId || !allowedGroupIds.includes(selectedGroupId)) {
+      selectedGroupId = allowedGroupIds[0] || "";
+    }
+  } else {
+    if (!selectedGroupId) {
+      selectedGroupId = groups[0]?.id || "";
+    }
+  }
+
+  let groupSubjectWhere: Record<string, unknown> = { groupId: selectedGroupId };
+
+  if (role === "TEACHER" && userId && selectedGroupId) {
+    const isCurator = await prisma.group.count({
+      where: { id: selectedGroupId, curatorId: userId },
+    });
+    if (!isCurator) {
+      groupSubjectWhere.teacherId = userId;
+    }
+  }
+
+  return {
+    groups,
+    selectedGroupId,
+    groupSubjectWhere,
+  };
+}
+
 // -------------------------------------------------------------
 // 1. LMS Overview Hub Data Action
 // -------------------------------------------------------------
@@ -115,34 +176,8 @@ export async function getLmsOverviewDataAction(groupId?: string) {
     const role = session?.user?.role || "STUDENT";
     const userId = session?.user?.id;
 
-    // For students — only show their own group(s)
-    let studentGroupIds: string[] | null = null;
-    if (role === "STUDENT" && userId) {
-      const enrollments = await prisma.groupStudent.findMany({
-        where: { studentId: userId },
-        select: { groupId: true },
-      });
-      studentGroupIds = enrollments.map((e) => e.groupId);
-    }
-
-    const groups = await prisma.group.findMany({
-      where: studentGroupIds ? { id: { in: studentGroupIds } } : undefined,
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    });
-
-    let selectedGroupId = groupId || "";
-
-    if (role === "STUDENT" && userId) {
-      // Students can only access their own group
-      if (!selectedGroupId || !studentGroupIds?.includes(selectedGroupId)) {
-        selectedGroupId = studentGroupIds?.[0] || groups[0]?.id || "";
-      }
-    }
-
-    if (!selectedGroupId) {
-      selectedGroupId = groups[0]?.id || "";
-    }
+    const { groups, selectedGroupId, groupSubjectWhere } =
+      await getAccessibleLmsGroups(role, userId, groupId);
 
     if (!selectedGroupId) {
       return {
@@ -158,7 +193,7 @@ export async function getLmsOverviewDataAction(groupId?: string) {
     }
 
     const groupSubjects = await prisma.groupSubject.findMany({
-      where: { groupId: selectedGroupId },
+      where: groupSubjectWhere,
       include: {
         subject: { select: { name: true } },
         teacher: { select: { name: true } },
@@ -255,34 +290,8 @@ export async function getTopicsDataAction(groupId?: string, groupSubjectId?: str
     const role = session?.user?.role || "STUDENT";
     const userId = session?.user?.id;
 
-    // For students — only show their own group(s)
-    let studentGroupIds: string[] | null = null;
-    if (role === "STUDENT" && userId) {
-      const enrollments = await prisma.groupStudent.findMany({
-        where: { studentId: userId },
-        select: { groupId: true },
-      });
-      studentGroupIds = enrollments.map((e) => e.groupId);
-    }
-
-    const groups = await prisma.group.findMany({
-      where: studentGroupIds ? { id: { in: studentGroupIds } } : undefined,
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    });
-
-    let selectedGroupId = groupId || "";
-
-    if (role === "STUDENT" && userId) {
-      // Students can only access their own group
-      if (!selectedGroupId || !studentGroupIds?.includes(selectedGroupId)) {
-        selectedGroupId = studentGroupIds?.[0] || groups[0]?.id || "";
-      }
-    }
-
-    if (!selectedGroupId) {
-      selectedGroupId = groups[0]?.id || "";
-    }
+    const { groups, selectedGroupId, groupSubjectWhere } =
+      await getAccessibleLmsGroups(role, userId, groupId);
 
     if (!selectedGroupId) {
       return {
@@ -296,7 +305,7 @@ export async function getTopicsDataAction(groupId?: string, groupSubjectId?: str
     }
 
     const groupSubjects = await prisma.groupSubject.findMany({
-      where: { groupId: selectedGroupId },
+      where: groupSubjectWhere,
       include: {
         subject: { select: { name: true } },
         teacher: { select: { name: true } },
@@ -478,34 +487,8 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
     const role = session?.user?.role || "STUDENT";
     const userId = session?.user?.id;
 
-    // For students — only show their own group(s)
-    let studentGroupIds: string[] | null = null;
-    if (role === "STUDENT" && userId) {
-      const enrollments = await prisma.groupStudent.findMany({
-        where: { studentId: userId },
-        select: { groupId: true },
-      });
-      studentGroupIds = enrollments.map((e) => e.groupId);
-    }
-
-    const groups = await prisma.group.findMany({
-      where: studentGroupIds ? { id: { in: studentGroupIds } } : undefined,
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    });
-
-    let selectedGroupId = groupId || "";
-
-    if (role === "STUDENT" && userId) {
-      // Students can only access their own group
-      if (!selectedGroupId || !studentGroupIds?.includes(selectedGroupId)) {
-        selectedGroupId = studentGroupIds?.[0] || groups[0]?.id || "";
-      }
-    }
-
-    if (!selectedGroupId) {
-      selectedGroupId = groups[0]?.id || "";
-    }
+    const { groups, selectedGroupId, groupSubjectWhere } =
+      await getAccessibleLmsGroups(role, userId, groupId);
 
     if (!selectedGroupId) {
       return {
@@ -519,7 +502,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
     }
 
     const groupSubjects = await prisma.groupSubject.findMany({
-      where: { groupId: selectedGroupId },
+      where: groupSubjectWhere,
       include: {
         subject: { select: { name: true } },
         teacher: { select: { name: true } },
@@ -889,34 +872,8 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
     const currentUserId = session?.user?.id;
     const role = session?.user?.role || "STUDENT";
 
-    // For students — only show their own group(s)
-    let studentGroupIds: string[] | null = null;
-    if (role === "STUDENT" && currentUserId) {
-      const enrollments = await prisma.groupStudent.findMany({
-        where: { studentId: currentUserId },
-        select: { groupId: true },
-      });
-      studentGroupIds = enrollments.map((e) => e.groupId);
-    }
-
-    const groups = await prisma.group.findMany({
-      where: studentGroupIds ? { id: { in: studentGroupIds } } : undefined,
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    });
-
-    let selectedGroupId = groupId || "";
-
-    if (role === "STUDENT" && currentUserId) {
-      // Students can only access their own group
-      if (!selectedGroupId || !studentGroupIds?.includes(selectedGroupId)) {
-        selectedGroupId = studentGroupIds?.[0] || groups[0]?.id || "";
-      }
-    } else {
-      if (!selectedGroupId) {
-        selectedGroupId = groups[0]?.id || "";
-      }
-    }
+    const { groups, selectedGroupId, groupSubjectWhere } =
+      await getAccessibleLmsGroups(role, currentUserId, groupId);
 
     if (!selectedGroupId) {
       return {
@@ -930,7 +887,7 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
     }
 
     const groupSubjects = await prisma.groupSubject.findMany({
-      where: { groupId: selectedGroupId },
+      where: groupSubjectWhere,
       include: {
         subject: { select: { name: true } },
         teacher: { select: { name: true } },

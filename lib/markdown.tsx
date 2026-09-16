@@ -1,343 +1,295 @@
+"use client";
+
 import React, { useState } from "react";
-import { ExternalLink, Check, Copy } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Highlight, themes } from "prism-react-renderer";
+import { Check, Copy, ExternalLink } from "lucide-react";
 
-/** Helper to format inline markdown tokens: **bold**, *italic*, ~~strikethrough~~, `code`, [title](url) */
-function formatInline(text: string): React.ReactNode {
-  if (!text) return text;
-
-  const parts: React.ReactNode[] = [];
-  const regex = /(\*\*.*?\*\*|\*.*?\*|~~.*?~~|`.*?`|\[.*?\]\(.*?\))/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let keyIdx = 0;
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(text.substring(lastIndex, match.index));
-    }
-
-    const token = match[0];
-    if (token.startsWith("**") && token.endsWith("**")) {
-      parts.push(
-        <strong key={keyIdx++} className="font-semibold text-foreground">
-          {token.slice(2, -2)}
-        </strong>
-      );
-    } else if (token.startsWith("*") && token.endsWith("*")) {
-      parts.push(<em key={keyIdx++}>{token.slice(1, -1)}</em>);
-    } else if (token.startsWith("~~") && token.endsWith("~~")) {
-      parts.push(
-        <del key={keyIdx++} className="opacity-70">
-          {token.slice(2, -2)}
-        </del>
-      );
-    } else if (token.startsWith("`") && token.endsWith("`")) {
-      parts.push(
-        <code
-          key={keyIdx++}
-          className="px-1 py-0.5 rounded bg-muted font-mono text-[11px] border border-border/60 text-primary font-medium"
-        >
-          {token.slice(1, -1)}
-        </code>
-      );
-    } else if (token.startsWith("[") && token.includes("](")) {
-      const titleMatch = token.match(/\[(.*?)\]/);
-      const urlMatch = token.match(/\((.*?)\)/);
-      if (titleMatch && urlMatch) {
-        parts.push(
-          <a
-            key={keyIdx++}
-            href={urlMatch[1]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline font-medium inline-flex items-center gap-0.5"
-          >
-            <span>{titleMatch[1]}</span>
-            <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-          </a>
-        );
-      }
-    }
-
-    lastIndex = regex.lastIndex;
+/** Normalize language name for Prism */
+function normalizeLanguage(lang?: string): string {
+  if (!lang) return "typescript";
+  const clean = lang.toLowerCase().trim();
+  switch (clean) {
+    case "js":
+    case "javascript":
+      return "javascript";
+    case "ts":
+    case "typescript":
+      return "typescript";
+    case "tsx":
+      return "tsx";
+    case "jsx":
+      return "jsx";
+    case "py":
+    case "python":
+      return "python";
+    case "html":
+    case "xml":
+    case "svg":
+      return "markup";
+    case "css":
+    case "scss":
+    case "sass":
+      return "css";
+    case "json":
+      return "json";
+    case "sql":
+      return "sql";
+    case "bash":
+    case "sh":
+    case "shell":
+    case "zsh":
+      return "bash";
+    case "cpp":
+    case "c":
+      return "cpp";
+    case "go":
+      return "go";
+    case "rust":
+    case "rs":
+      return "rust";
+    case "yaml":
+    case "yml":
+      return "yaml";
+    case "markdown":
+    case "md":
+      return "markdown";
+    default:
+      return clean || "clike";
   }
-
-  if (lastIndex < text.length) {
-    parts.push(text.substring(lastIndex));
-  }
-
-  return parts.length > 0 ? parts : text;
 }
 
-/** Syntax Highlighter for Code Block Lines */
-function highlightCodeLine(line: string, key: number): React.ReactNode {
-  if (!line.trim()) {
-    return <div key={key} className="h-4" />;
-  }
-
-  // Comments // ... or # ...
-  if (line.trim().startsWith("//") || line.trim().startsWith("#")) {
-    return (
-      <div key={key} className="text-muted-foreground/60 italic leading-relaxed whitespace-pre font-mono">
-        {line}
-      </div>
-    );
-  }
-
-  const tokens: React.ReactNode[] = [];
-  const regex =
-    /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/[^\n]*|\b(?:export|default|async|function|const|let|var|return|try|catch|import|from|if|else|await|new|type|interface|enum|class|extends|implements)\b|\b(?:true|false|null|undefined|\d+)\b|\b[a-zA-Z_]\w*(?=\s*\())/g;
-
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let subKey = 0;
-
-  while ((match = regex.exec(line)) !== null) {
-    if (match.index > lastIndex) {
-      tokens.push(line.substring(lastIndex, match.index));
-    }
-
-    const token = match[0];
-
-    if (token.startsWith("//")) {
-      tokens.push(
-        <span key={subKey++} className="text-muted-foreground/60 italic">
-          {token}
-        </span>
-      );
-    } else if (
-      (token.startsWith('"') && token.endsWith('"')) ||
-      (token.startsWith("'") && token.endsWith("'")) ||
-      (token.startsWith("`") && token.endsWith("`"))
-    ) {
-      tokens.push(
-        <span key={subKey++} className="text-primary font-medium">
-          {token}
-        </span>
-      );
-    } else if (
-      /^(export|default|async|function|const|let|var|return|try|catch|import|from|if|else|await|new|type|interface|enum|class|extends|implements)$/.test(
-        token
-      )
-    ) {
-      tokens.push(
-        <span key={subKey++} className="text-primary font-semibold">
-          {token}
-        </span>
-      );
-    } else if (/^(true|false|null|undefined|\d+)$/.test(token)) {
-      tokens.push(
-        <span key={subKey++} className="text-foreground font-medium opacity-90">
-          {token}
-        </span>
-      );
-    } else if (/^[a-zA-Z_]\w*$/.test(token)) {
-      tokens.push(
-        <span key={subKey++} className="text-foreground font-medium">
-          {token}
-        </span>
-      );
-    } else {
-      tokens.push(token);
-    }
-
-    lastIndex = regex.lastIndex;
-  }
-
-  if (lastIndex < line.length) {
-    tokens.push(line.substring(lastIndex));
-  }
-
-  return (
-    <div key={key} className="leading-relaxed whitespace-pre font-mono">
-      {tokens.length > 0 ? tokens : line}
-    </div>
-  );
-}
-
-/** Wrapper for Code Block with 1-click Copy button */
-function CodeBlockWithCopy({
-  rawCode,
-  children,
+/** Code block with Prism syntax highlighting and 1-click Copy */
+function CodeBlock({
+  code,
+  language,
 }: {
-  rawCode: string;
-  children: React.ReactNode;
+  code: string;
+  language: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const normalizedLang = normalizeLanguage(language);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(rawCode);
+    navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="relative group my-3">
-      <button
-        type="button"
-        onClick={handleCopy}
-        className="absolute top-2.5 right-2.5 z-10 px-2 py-1 rounded bg-background/90 hover:bg-background border border-border text-[10px] text-muted-foreground hover:text-foreground transition-all flex items-center gap-1 opacity-70 group-hover:opacity-100 shadow-none font-medium"
-        title="Скопировать код"
-      >
-        {copied ? (
-          <>
-            <Check className="h-3 w-3 text-emerald-500" />
-            <span className="text-emerald-500">Скопировано!</span>
-          </>
-        ) : (
-          <>
-            <Copy className="h-3 w-3" />
-            <span>Копировать</span>
-          </>
-        )}
-      </button>
-
-      <div className="p-3 rounded-lg bg-muted/60 font-mono text-[11px] overflow-x-auto border border-border/80 text-foreground whitespace-pre leading-relaxed font-mono select-text">
-        {children}
+    <div className="relative group my-2.5 rounded-lg border border-border/80 overflow-hidden bg-[#1e1e1e] text-zinc-100 shadow-sm text-xs">
+      {/* Header bar with Language tag and Copy button */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526] border-b border-border/40 text-[11px] text-zinc-400 font-mono select-none">
+        <span className="uppercase tracking-wider font-semibold text-[10px] text-zinc-300">
+          {language || "code"}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="h-6 px-2 rounded hover:bg-zinc-700/60 border border-transparent hover:border-zinc-600/60 text-[11px] text-zinc-300 hover:text-white transition-all flex items-center gap-1.5 font-sans cursor-pointer"
+          title="Скопировать код"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 text-emerald-400" />
+              <span className="text-emerald-400 font-medium">Скопировано!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" />
+              <span>Копировать</span>
+            </>
+          )}
+        </button>
       </div>
+
+      {/* Highlighted Code */}
+      <Highlight theme={themes.vsDark} code={code.trimEnd()} language={normalizedLang}>
+        {({ style, tokens, getLineProps, getTokenProps }) => (
+          <pre
+            style={style}
+            className="p-3 m-0 overflow-x-auto font-mono text-[11px] leading-relaxed select-text bg-[#1e1e1e]"
+          >
+            {tokens.map((line, i) => {
+              const lineProps = getLineProps({ line });
+              return (
+                <div key={i} {...lineProps} className="table-row">
+                  <span className="table-cell select-none pr-3 text-right text-zinc-600 font-mono text-[10px] opacity-70 w-6">
+                    {i + 1}
+                  </span>
+                  <span className="table-cell">
+                    {line.map((token, key) => {
+                      const tokenProps = getTokenProps({ token });
+                      return <span key={key} {...tokenProps} />;
+                    })}
+                  </span>
+                </div>
+              );
+            })}
+          </pre>
+        )}
+      </Highlight>
     </div>
   );
 }
 
-/** Renders multi-line Markdown text to real React elements with interactive checkbox & code syntax highlighting */
+export interface MarkdownViewerProps {
+  content: string;
+  className?: string;
+  onToggleCheckbox?: (lineIndex: number) => void;
+}
+
+export function MarkdownViewer({
+  content,
+  className = "",
+}: MarkdownViewerProps) {
+  if (!content) return null;
+
+  return (
+    <div className={`text-xs leading-relaxed text-foreground space-y-2 select-text ${className}`}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => (
+            <h1 className="text-sm font-bold text-foreground mt-3 mb-1.5 first:mt-0 tracking-tight">
+              {children}
+            </h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className="text-xs font-bold text-foreground mt-2.5 mb-1 tracking-tight">
+              {children}
+            </h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className="text-xs font-semibold text-foreground mt-2 mb-1">
+              {children}
+            </h3>
+          ),
+          h4: ({ children }) => (
+            <h4 className="text-[11px] font-semibold text-foreground mt-1.5 mb-0.5">
+              {children}
+            </h4>
+          ),
+          p: ({ children }) => (
+            <p className="my-1.5 leading-relaxed text-foreground/90 first:mt-0 last:mb-0">
+              {children}
+            </p>
+          ),
+          strong: ({ children }) => (
+            <strong className="font-semibold text-foreground">{children}</strong>
+          ),
+          em: ({ children }) => <em className="italic">{children}</em>,
+          del: ({ children }) => <del className="opacity-60 line-through">{children}</del>,
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-primary pl-3 py-1.5 my-2 italic bg-primary/5 rounded-r text-xs text-muted-foreground">
+              {children}
+            </blockquote>
+          ),
+          ul: ({ children }) => (
+            <ul className="list-disc pl-5 my-1.5 space-y-0.5 text-xs text-foreground/90 marker:text-primary">
+              {children}
+            </ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="list-decimal pl-5 my-1.5 space-y-0.5 text-xs text-foreground/90 marker:text-primary font-mono marker:font-sans">
+              {children}
+            </ol>
+          ),
+          li: ({ children }) => <li className="text-xs leading-relaxed">{children}</li>,
+          hr: () => <hr className="my-3 border-border/60" />,
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline font-medium inline-flex items-center gap-0.5"
+            >
+              <span>{children}</span>
+              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+            </a>
+          ),
+          table: ({ children }) => (
+            <div className="my-2.5 overflow-x-auto rounded-lg border border-border/80 bg-card">
+              <table className="w-full text-xs text-left border-collapse min-w-full">
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className="bg-muted/60 text-foreground font-semibold border-b border-border/80">
+              {children}
+            </thead>
+          ),
+          tbody: ({ children }) => (
+            <tbody className="divide-y divide-border/40 bg-card">{children}</tbody>
+          ),
+          tr: ({ children }) => (
+            <tr className="hover:bg-muted/30 transition-colors">{children}</tr>
+          ),
+          th: ({ children }) => (
+            <th className="px-3 py-2 text-[11px] font-semibold text-foreground">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="px-3 py-1.5 text-xs text-foreground/90 align-top">
+              {children}
+            </td>
+          ),
+          input: ({ type, checked }) => {
+            if (type === "checkbox") {
+              return (
+                <span
+                  className={`inline-flex items-center justify-center h-3.5 w-3.5 rounded-[4px] border mr-1.5 align-middle select-none ${
+                    checked
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border bg-background"
+                  }`}
+                >
+                  {checked && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                </span>
+              );
+            }
+            return null;
+          },
+          code: ({ className, children, ...props }) => {
+            const match = /language-(\w+)/.exec(className || "");
+            const isCodeBlock = match || String(children).includes("\n");
+
+            if (isCodeBlock) {
+              return (
+                <CodeBlock
+                  code={String(children).replace(/\n$/, "")}
+                  language={match ? match[1] : ""}
+                />
+              );
+            }
+
+            return (
+              <code
+                className="px-1.5 py-0.5 rounded bg-muted font-mono text-[11px] text-primary border border-border/40 font-medium"
+                {...props}
+              >
+                {children}
+              </code>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+/**
+ * Backward-compatible helper to render markdown text in any component.
+ */
 export function renderMarkdown(
   text: string,
   onToggleCheckbox?: (lineIndex: number) => void
 ): React.ReactNode {
   if (!text) return null;
-
-  const lines = text.split("\n");
-  const elements: React.ReactNode[] = [];
-  let inCodeBlock = false;
-  let codeBlockLines: string[] = [];
-
-  lines.forEach((line, index) => {
-    // Code block toggle
-    if (line.trim().startsWith("```")) {
-      if (inCodeBlock) {
-        const rawCode = codeBlockLines.join("\n");
-        elements.push(
-          <CodeBlockWithCopy key={index} rawCode={rawCode}>
-            {codeBlockLines.map((cLine, idx) => highlightCodeLine(cLine, idx))}
-          </CodeBlockWithCopy>
-        );
-        codeBlockLines = [];
-        inCodeBlock = false;
-      } else {
-        inCodeBlock = true;
-      }
-      return;
-    }
-
-    if (inCodeBlock) {
-      codeBlockLines.push(line);
-      return;
-    }
-
-    // Headings
-    if (line.startsWith("# ")) {
-      elements.push(
-        <h1 key={index} className="text-base font-semibold my-2 text-foreground">
-          {formatInline(line.slice(2))}
-        </h1>
-      );
-      return;
-    }
-    if (line.startsWith("## ")) {
-      elements.push(
-        <h2 key={index} className="text-sm font-semibold my-1.5 text-foreground">
-          {formatInline(line.slice(3))}
-        </h2>
-      );
-      return;
-    }
-    if (line.startsWith("### ")) {
-      elements.push(
-        <h3 key={index} className="text-xs font-semibold my-1 text-foreground">
-          {formatInline(line.slice(4))}
-        </h3>
-      );
-      return;
-    }
-
-    // Blockquote
-    if (line.startsWith("> ")) {
-      elements.push(
-        <blockquote
-          key={index}
-          className="border-l-2 border-primary pl-3 py-1.5 my-2 text-muted-foreground italic bg-primary/5 rounded-r text-xs"
-        >
-          {formatInline(line.slice(2))}
-        </blockquote>
-      );
-      return;
-    }
-
-    // Horizontal rule
-    if (line.trim() === "---" || line.trim() === "***") {
-      elements.push(<hr key={index} className="my-3 border-border/60" />);
-      return;
-    }
-
-    // Interactive Checkbox Lists
-    if (line.startsWith("- [ ] ") || line.startsWith("- [x] ")) {
-      const checked = line.startsWith("- [x] ");
-      elements.push(
-        <div
-          key={index}
-          onClick={() => onToggleCheckbox && onToggleCheckbox(index)}
-          className="flex items-center gap-2 my-1.5 pl-0.5 text-xs cursor-pointer select-none group"
-        >
-          <div
-            className={`h-4 w-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-all ${
-              checked
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-input bg-background group-hover:border-primary/60"
-            }`}
-          >
-            {checked && <Check className="h-3 w-3 stroke-[3]" />}
-          </div>
-          <span className={checked ? "line-through opacity-60" : "group-hover:text-primary transition-colors"}>
-            {formatInline(line.slice(6))}
-          </span>
-        </div>
-      );
-      return;
-    }
-
-    // Bullet Lists
-    if (line.startsWith("- ") || line.startsWith("* ")) {
-      elements.push(
-        <li key={index} className="ml-4 list-disc my-0.5 text-xs">
-          {formatInline(line.slice(2))}
-        </li>
-      );
-      return;
-    }
-
-    // Numbered Lists
-    if (/^\d+\.\s/.test(line)) {
-      const match = line.match(/^\d+\.\s/);
-      const textAfter = line.slice(match![0].length);
-      elements.push(
-        <li key={index} className="ml-4 list-decimal my-0.5 text-xs">
-          {formatInline(textAfter)}
-        </li>
-      );
-      return;
-    }
-
-    // Paragraph
-    if (line.trim() !== "") {
-      elements.push(
-        <p key={index} className="my-1 text-xs leading-relaxed">
-          {formatInline(line)}
-        </p>
-      );
-    } else {
-      elements.push(<div key={index} className="h-1.5" />);
-    }
-  });
-
-  return <div className="space-y-0.5">{elements}</div>;
+  return <MarkdownViewer content={text} onToggleCheckbox={onToggleCheckbox} />;
 }

@@ -55,13 +55,43 @@ export async function getAssignmentsDataAction(groupId?: string) {
     const currentUserId = session?.user?.id;
     const role = session?.user?.role || "STUDENT";
 
-    // 1. Fetch groups
+    // 1. Fetch groups with role-based filtering
+    let groupWhere: Record<string, unknown> | undefined = undefined;
+
+    if (role === "STUDENT" && currentUserId) {
+      const enrollments = await prisma.groupStudent.findMany({
+        where: { studentId: currentUserId },
+        select: { groupId: true },
+      });
+      const studentGroupIds = enrollments.map((e) => e.groupId);
+      groupWhere = { id: { in: studentGroupIds } };
+    } else if (role === "TEACHER" && currentUserId) {
+      groupWhere = {
+        OR: [
+          { curatorId: currentUserId },
+          { groupSubjects: { some: { teacherId: currentUserId } } },
+        ],
+      };
+    }
+
     const groups = await prisma.group.findMany({
+      where: groupWhere,
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
 
-    const selectedGroupId = groupId || groups[0]?.id || "";
+    const allowedGroupIds = groups.map((g) => g.id);
+    let selectedGroupId = groupId || "";
+
+    if (role === "STUDENT" || role === "TEACHER") {
+      if (!selectedGroupId || !allowedGroupIds.includes(selectedGroupId)) {
+        selectedGroupId = allowedGroupIds[0] || "";
+      }
+    } else {
+      if (!selectedGroupId) {
+        selectedGroupId = groups[0]?.id || "";
+      }
+    }
 
     if (!selectedGroupId) {
       return {
@@ -74,8 +104,19 @@ export async function getAssignmentsDataAction(groupId?: string) {
     }
 
     // 2. Fetch group subjects
+    let groupSubjectWhere: Record<string, unknown> = { groupId: selectedGroupId };
+
+    if (role === "TEACHER" && currentUserId && selectedGroupId) {
+      const isCurator = await prisma.group.count({
+        where: { id: selectedGroupId, curatorId: currentUserId },
+      });
+      if (!isCurator) {
+        groupSubjectWhere.teacherId = currentUserId;
+      }
+    }
+
     const groupSubjects = await prisma.groupSubject.findMany({
-      where: { groupId: selectedGroupId },
+      where: groupSubjectWhere,
       include: {
         subject: { select: { name: true } },
         teacher: { select: { name: true } },
@@ -93,12 +134,10 @@ export async function getAssignmentsDataAction(groupId?: string) {
       where: { groupId: selectedGroupId },
     });
 
-    // 4. Fetch assignments for this group
+    // 4. Fetch assignments for this group and accessible subjects
     const dbAssignments = await prisma.assignment.findMany({
       where: {
-        groupSubject: {
-          groupId: selectedGroupId,
-        },
+        groupSubjectId: { in: groupSubjects.map((gs) => gs.id) },
       },
       include: {
         groupSubject: {
