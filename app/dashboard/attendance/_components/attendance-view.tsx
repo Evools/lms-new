@@ -545,13 +545,6 @@ export function AttendanceView({
 
       {/* Attendance Table with Status Tabs Header */}
       <Card className="relative print:hidden p-0 border overflow-hidden" data-tour="attendance-table">
-        {/* Top Progress Loading Indicator */}
-        {isPending && (
-          <div className="absolute top-0 left-0 right-0 z-30 h-0.5 bg-primary/20 overflow-hidden">
-            <div className="h-full bg-primary animate-pulse w-full" />
-          </div>
-        )}
-
         {/* Loading Overlay */}
         {isPending && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px] transition-all">

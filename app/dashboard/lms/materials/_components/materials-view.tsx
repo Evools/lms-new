@@ -48,6 +48,7 @@ import {
   ChevronRight,
   BookMarked,
   Video,
+  Loader2,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -111,12 +112,16 @@ export function MaterialsView({
 
   const handleGroupChange = (newGroupId: string) => {
     setSelectedSubjectId(null);
-    router.push(`/dashboard/lms/materials?group=${newGroupId}`);
+    startTransition(() => {
+      router.push(`/dashboard/lms/materials?group=${newGroupId}`);
+    });
   };
 
   const handleSelectSubject = (subjectId: string) => {
     setSelectedSubjectId(subjectId);
-    router.push(`/dashboard/lms/materials?group=${selectedGroupId}&subject=${subjectId}`);
+    startTransition(() => {
+      router.push(`/dashboard/lms/materials?group=${selectedGroupId}&subject=${subjectId}`);
+    });
     const subj = subjects.find((s) => s.id === subjectId);
     if (subj) {
       const firstMatOfSubj = materials.find((m) => m.subjectName === subj.subjectName);
@@ -128,7 +133,9 @@ export function MaterialsView({
 
   const handleBackToSubjects = () => {
     setSelectedSubjectId(null);
-    router.push(`/dashboard/lms/materials?group=${selectedGroupId}`);
+    startTransition(() => {
+      router.push(`/dashboard/lms/materials?group=${selectedGroupId}`);
+    });
   };
 
   const displayTopics = topicsWithMaterials.filter((t) => {
@@ -381,16 +388,23 @@ export function MaterialsView({
               </div>
               <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-primary" />
-                Учебные дисциплины группы {currentGroupObj?.name}
+                <span>Учебные дисциплины группы {currentGroupObj?.name}</span>
+                {isPending && (
+                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 gap-1 border-primary/40 text-primary animate-pulse font-medium bg-primary/5">
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                    Обновление...
+                  </Badge>
+                )}
               </h1>
             </div>
 
             {/* Group Selector Dropdown */}
             <div className="flex items-center gap-2 shrink-0">
               <Building2 className="h-4 w-4 text-primary shrink-0" />
-              <Select value={selectedGroupId} onValueChange={handleGroupChange}>
+              <Select value={selectedGroupId} onValueChange={handleGroupChange} disabled={isPending}>
                 <SelectTrigger className="h-8 text-xs font-semibold bg-background sm:w-[200px]">
                   <SelectValue>{currentGroupObj ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
+                  {isPending && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto shrink-0" />}
                 </SelectTrigger>
                 <SelectContent>
                   {groups.map((g) => (
@@ -404,7 +418,17 @@ export function MaterialsView({
           </div>
 
           {/* Subjects Grid */}
-          <div className="space-y-3">
+          <div className="relative space-y-3">
+            {/* Loading Overlay */}
+            {isPending && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-xl transition-all min-h-[200px]">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span>Загрузка дисциплин...</span>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <BookMarked className="h-4 w-4 text-primary" /> Доступные дисциплины ({subjects.length})
@@ -446,7 +470,7 @@ export function MaterialsView({
                 </div>
               ))}
 
-              {subjects.length === 0 && (
+              {subjects.length === 0 && !isPending && (
                 <div className="col-span-full p-12 border rounded-xl bg-card text-center space-y-2 text-muted-foreground">
                   <BookMarked className="h-8 w-8 text-muted-foreground/30 mx-auto" />
                   <p className="font-semibold text-foreground text-xs">Дисциплины не назначены</p>
@@ -466,6 +490,7 @@ export function MaterialsView({
                 size="xs"
                 variant="outline"
                 onClick={handleBackToSubjects}
+                disabled={isPending}
                 className="h-7 text-xs px-2.5 gap-1.5 text-muted-foreground hover:text-foreground font-medium"
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> Назад к предметам
@@ -475,15 +500,22 @@ export function MaterialsView({
                 <BookMarked className="h-4 w-4 text-primary" />
                 <span className="font-bold text-foreground text-xs">{currentSubjectObj?.subjectName}</span>
                 <span className="text-[11px] text-muted-foreground">• Преподаватель: {currentSubjectObj?.teacherName}</span>
+                {isPending && (
+                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 gap-1 border-primary/40 text-primary animate-pulse font-medium bg-primary/5">
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                    Загрузка...
+                  </Badge>
+                )}
               </div>
             </div>
 
             {/* Quick Switch Subject Dropdown */}
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-[11px] text-muted-foreground">Предмет:</span>
-              <Select value={selectedSubjectId} onValueChange={handleSelectSubject}>
+              <Select value={selectedSubjectId} onValueChange={handleSelectSubject} disabled={isPending}>
                 <SelectTrigger className="h-7 text-xs font-semibold bg-background sm:w-[200px]">
                   <SelectValue>{currentSubjectObj?.subjectName}</SelectValue>
+                  {isPending && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto shrink-0" />}
                 </SelectTrigger>
                 <SelectContent>
                   {subjects.map((s) => (
@@ -497,7 +529,17 @@ export function MaterialsView({
           </div>
 
           {/* MAIN READER AREA (Topics Sidebar + Content) */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+          <div className="relative grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+            {/* Loading Overlay */}
+            {isPending && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-xl transition-all min-h-[300px]">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span>Загрузка материалов...</span>
+                </div>
+              </div>
+            )}
+
             {/* LEFT SIDEBAR: CHAPTERS & MATERIALS TREE FOR THIS SUBJECT */}
             <div className="md:col-span-4 lg:col-span-3 bg-card rounded-xl border p-3.5 space-y-3 shadow-xs sticky top-16 max-h-[calc(100vh-5rem)] overflow-y-auto z-10">
           {/* Header */}
