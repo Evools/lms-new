@@ -47,15 +47,51 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
   weeklyDays: DayDutyGroupDTO[];
   allSchedules: DutyItemDTO[];
   groupStudents: GroupStudentWithDutyInfo[];
+  selectedGroupId: string;
   isDutyEnabled?: boolean;
 }> {
   try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+    const userId = session?.user?.id;
+
+    let groupWhere: Record<string, unknown> | undefined = undefined;
+
+    if (role === "STUDENT" && userId) {
+      const enrollments = await prisma.groupStudent.findMany({
+        where: { studentId: userId },
+        select: { groupId: true },
+      });
+      const studentGroupIds = enrollments.map((e) => e.groupId);
+      groupWhere = { id: { in: studentGroupIds } };
+    } else if (role === "TEACHER" && userId) {
+      groupWhere = {
+        OR: [
+          { curatorId: userId },
+          { groupSubjects: { some: { teacherId: userId } } },
+        ],
+      };
+    }
+
     const groups = await prisma.group.findMany({
+      where: groupWhere,
       select: { id: true, name: true, isDutyEnabled: true },
       orderBy: { name: "asc" },
     });
 
-    const targetGroupId = selectedGroupId || groups[0]?.id;
+    const allowedGroupIds = groups.map((g) => g.id);
+    let targetGroupId = selectedGroupId || "";
+
+    if (role === "STUDENT" || role === "TEACHER") {
+      if (!targetGroupId || !allowedGroupIds.includes(targetGroupId)) {
+        targetGroupId = allowedGroupIds[0] || "";
+      }
+    } else {
+      if (!targetGroupId) {
+        targetGroupId = groups[0]?.id || "";
+      }
+    }
+
     const targetGroupObj = groups.find((g) => g.id === targetGroupId);
     const targetGroupIsDutyEnabled = targetGroupObj ? targetGroupObj.isDutyEnabled : true;
 
@@ -226,10 +262,23 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       isToday: new Date(s.date).toDateString() === now.toDateString(),
     }));
 
-    return { groups, weeklyDays, allSchedules, groupStudents, isDutyEnabled: targetGroupIsDutyEnabled };
+    return {
+      groups,
+      weeklyDays,
+      allSchedules,
+      groupStudents,
+      selectedGroupId: targetGroupId,
+      isDutyEnabled: targetGroupIsDutyEnabled,
+    };
   } catch (error) {
     console.error("Failed to fetch duty schedule:", error);
-    return { groups: [], weeklyDays: [], allSchedules: [], groupStudents: [] };
+    return {
+      groups: [],
+      weeklyDays: [],
+      allSchedules: [],
+      groupStudents: [],
+      selectedGroupId: "",
+    };
   }
 }
 

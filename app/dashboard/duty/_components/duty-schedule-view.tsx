@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -108,6 +108,12 @@ export function DutyScheduleView({
   const [currentGroupId, setCurrentGroupId] = useState<string>(
     selectedGroupId || (groupsList[0]?.id || "")
   );
+
+  useEffect(() => {
+    if (selectedGroupId) {
+      setCurrentGroupId(selectedGroupId);
+    }
+  }, [selectedGroupId]);
 
   const [activeTab, setActiveTab] = useState<"WEEKLY" | "STATS">("WEEKLY");
   const [searchQuery, setSearchQuery] = useState<string>("" );
@@ -369,7 +375,8 @@ export function DutyScheduleView({
               <ChevronLeft className="h-4 w-4" />
             </Link>
             <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" /> Панель управления дежурствами лицея
+              <Clock className="h-5 w-5 text-primary" />
+              <span>Дежурства {currentGroupObj ? `группы ${currentGroupObj.name}` : "лицея"}</span>
             </h1>
           </div>
           <p className="text-xs text-muted-foreground pl-6">
@@ -378,6 +385,25 @@ export function DutyScheduleView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2" data-tour="duty-header-actions">
+          {/* Group Selector Dropdown */}
+          {groupsList.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs shadow-2xs">
+              <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+              <Select value={currentGroupId} onValueChange={handleGroupChange}>
+                <SelectTrigger className="h-6 text-xs font-semibold border-0 bg-transparent p-0 shadow-none focus:ring-0 min-w-[130px]">
+                  <SelectValue>{currentGroupObj ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {groupsList.map((g) => (
+                    <SelectItem key={g.id} value={g.id} className="text-xs">
+                      Группа {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <Button variant="outline" size="xs" onClick={handlePrint} className="h-8 text-xs gap-1.5">
             <Printer className="h-3.5 w-3.5" /> Печать (A4)
           </Button>
@@ -542,8 +568,13 @@ export function DutyScheduleView({
           <CardHeader className="p-3 border-b bg-muted/30">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-xs font-bold text-foreground">
-                  Недельная ведомость дежурств
+                <CardTitle className="text-xs font-bold text-foreground flex items-center gap-2">
+                  <span>Недельная ведомость дежурств</span>
+                  {currentGroupObj && (
+                    <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
+                      Группа {currentGroupObj.name}
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription className="text-[11px] text-muted-foreground">
                   Расписание дежурных, внеочередные назначения и учет пропусков

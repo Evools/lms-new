@@ -20,8 +20,9 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
   const { group } = await searchParams;
   const role = session.user.role || "STUDENT";
 
-  const { groups, weeklyDays, groupStudents, isDutyEnabled } = await getDutyScheduleAction(group);
-  const targetGroupId = group || groups[0]?.id;
+  const { groups, weeklyDays, groupStudents, isDutyEnabled, selectedGroupId } =
+    await getDutyScheduleAction(group);
+  const targetGroupId = selectedGroupId || group || groups[0]?.id || "";
 
   const groupDutyStats = targetGroupId ? await getGroupDutyStatsAction(targetGroupId) : [];
 
