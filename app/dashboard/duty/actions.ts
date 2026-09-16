@@ -199,6 +199,34 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       }
     }
 
+    // Fetch all historical duty records before current week to ensure fair queue across weeks/holidays
+    const pastGroupDuties = targetGroupId
+      ? await prisma.dutySchedule.findMany({
+        where: {
+          groupId: targetGroupId,
+          date: { lt: startDate },
+          isLeader: false,
+        },
+        select: { studentId: true, date: true },
+        orderBy: { date: "desc" },
+      })
+      : [];
+
+    const pastDutyCount: Record<string, number> = {};
+    const lastDutyTime: Record<string, number> = {};
+    groupStudents.forEach((s) => {
+      pastDutyCount[s.id] = 0;
+      lastDutyTime[s.id] = 0;
+    });
+    pastGroupDuties.forEach((d) => {
+      if (pastDutyCount[d.studentId] !== undefined) {
+        pastDutyCount[d.studentId] = (pastDutyCount[d.studentId] || 0) + 1;
+      }
+      if (!lastDutyTime[d.studentId]) {
+        lastDutyTime[d.studentId] = new Date(d.date).getTime();
+      }
+    });
+
     const weeklyDays: DayDutyGroupDTO[] = [];
     const fallbackDutyCount: Record<string, number> = {};
     if (groupStudents.length > 0) {
@@ -239,12 +267,19 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
         isLeader: false,
       }));
 
-      // Fallback: compute fair rotation on the fly if duty is enabled and no DB schedule exists at all for this week
+      // Fallback: compute fair rotation on the fly taking into account ALL past history & skipped days
       if (targetGroupIsDutyEnabled && !hasAnyDbSchedule && !isSunday && dutyStudents.length === 0 && groupStudents.length > 0) {
         const perDay = Math.min(groupStudents.length, groupStudents.length >= 6 ? 3 : 2);
         const candidates = [...groupStudents].sort((a, b) => {
-          const diff = (fallbackDutyCount[a.id] || 0) - (fallbackDutyCount[b.id] || 0);
-          return diff !== 0 ? diff : groupStudents.indexOf(a) - groupStudents.indexOf(b);
+          const scoreA = (pastDutyCount[a.id] || 0) * 100 + (fallbackDutyCount[a.id] || 0) * 10;
+          const scoreB = (pastDutyCount[b.id] || 0) * 100 + (fallbackDutyCount[b.id] || 0) * 10;
+          if (scoreA !== scoreB) return scoreA - scoreB;
+
+          const timeA = lastDutyTime[a.id] || 0;
+          const timeB = lastDutyTime[b.id] || 0;
+          if (timeA !== timeB) return timeA - timeB;
+
+          return groupStudents.indexOf(a) - groupStudents.indexOf(b);
         });
 
         for (let k = 0; k < perDay; k++) {
@@ -739,23 +774,28 @@ export async function generateWeeklyDutyAction(
       ? perDayOverride
       : (candidateIds.length < 6 ? 1 : candidateIds.length < 18 ? 2 : 3);
 
-    // Check duty history from previous week (14 days ago up to Monday)
-    const fourteenDaysAgo = new Date(startDate.getTime() - 14 * 24 * 60 * 60 * 1000);
-
     const pastDuties = await prisma.dutySchedule.findMany({
       where: {
         groupId,
-        date: { gte: fourteenDaysAgo, lt: startDate },
+        date: { lt: startDate },
         isLeader: false,
       },
-      select: { studentId: true },
+      select: { studentId: true, date: true },
+      orderBy: { date: "desc" },
     });
 
     const pastDutyCount: Record<string, number> = {};
-    candidateIds.forEach((id) => { pastDutyCount[id] = 0; });
+    const lastDutyTime: Record<string, number> = {};
+    candidateIds.forEach((id) => {
+      pastDutyCount[id] = 0;
+      lastDutyTime[id] = 0;
+    });
     pastDuties.forEach((d) => {
       if (pastDutyCount[d.studentId] !== undefined) {
         pastDutyCount[d.studentId] = (pastDutyCount[d.studentId] || 0) + 1;
+      }
+      if (!lastDutyTime[d.studentId]) {
+        lastDutyTime[d.studentId] = new Date(d.date).getTime();
       }
     });
 
@@ -776,10 +816,15 @@ export async function generateWeeklyDutyAction(
 
       if (algorithm === "FAIR") {
         candidates.sort((a, b) => {
-          const scoreA = (pastDutyCount[a] || 0) * 10 + (dutyCount[a] || 0);
-          const scoreB = (pastDutyCount[b] || 0) * 10 + (dutyCount[b] || 0);
-          const diff = scoreA - scoreB;
-          return diff !== 0 ? diff : candidateIds.indexOf(a) - candidateIds.indexOf(b);
+          const scoreA = (pastDutyCount[a] || 0) * 100 + (dutyCount[a] || 0) * 10;
+          const scoreB = (pastDutyCount[b] || 0) * 100 + (dutyCount[b] || 0) * 10;
+          if (scoreA !== scoreB) return scoreA - scoreB;
+
+          const timeA = lastDutyTime[a] || 0;
+          const timeB = lastDutyTime[b] || 0;
+          if (timeA !== timeB) return timeA - timeB;
+
+          return candidateIds.indexOf(a) - candidateIds.indexOf(b);
         });
       } else if (algorithm === "RANDOM") {
         candidates.sort(() => Math.random() - 0.5);
