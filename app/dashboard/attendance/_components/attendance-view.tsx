@@ -164,33 +164,50 @@ export function AttendanceView({
   const shiftDate = (daysDelta: number) => {
     const { year, month, day } = parseYMD(currentDateStr);
     const newDateStr = formatYMD(year, month, day + daysDelta);
-    handleDateChange(newDateStr);
+    setCurrentDateStr(newDateStr);
+    startTransition(() => {
+      router.push(
+        `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${newDateStr}`
+      );
+    });
   };
 
   const setDateToToday = () => {
     const now = new Date();
     const newDateStr = formatYMD(now.getFullYear(), now.getMonth(), now.getDate());
-    handleDateChange(newDateStr);
+    setCurrentDateStr(newDateStr);
+    startTransition(() => {
+      router.push(
+        `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${newDateStr}`
+      );
+    });
   };
 
-  // Update filters
+  // Update filters with transition
   const handleGroupChange = (val: string) => {
     setCurrentGroupId(val);
-    router.push(`/dashboard/attendance?group=${val}&date=${currentDateStr}`);
+    setCurrentSubjectId("");
+    startTransition(() => {
+      router.push(`/dashboard/attendance?group=${val}&date=${currentDateStr}`);
+    });
   };
 
   const handleSubjectChange = (val: string) => {
     setCurrentSubjectId(val);
-    router.push(
-      `/dashboard/attendance?group=${currentGroupId}&subject=${val}&date=${currentDateStr}`
-    );
+    startTransition(() => {
+      router.push(
+        `/dashboard/attendance?group=${currentGroupId}&subject=${val}&date=${currentDateStr}`
+      );
+    });
   };
 
   const handleDateChange = (val: string) => {
     setCurrentDateStr(val);
-    router.push(
-      `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${val}`
-    );
+    startTransition(() => {
+      router.push(
+        `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${val}`
+      );
+    });
   };
 
   // Status Change Handler (In-memory ONLY, 0 DB queries)
@@ -377,6 +394,12 @@ export function AttendanceView({
               <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 font-normal text-muted-foreground">
                 {totalStudents} студентов
               </Badge>
+              {isPending && (
+                <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 gap-1 border-primary/40 text-primary animate-pulse font-medium bg-primary/5">
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                  Обновление...
+                </Badge>
+              )}
             </h1>
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
               <span>Присутствуют: <strong className="text-foreground">{presentCount}</strong></span>
@@ -462,12 +485,13 @@ export function AttendanceView({
       <div className="print:hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center" data-tour="attendance-filters">
         {/* Group Selector */}
         <div className="lg:col-span-3">
-          <Select value={currentGroupId} onValueChange={handleGroupChange}>
+          <Select value={currentGroupId} onValueChange={handleGroupChange} disabled={isPending}>
             <SelectTrigger className="h-8 text-xs font-medium bg-background">
               <div className="flex items-center gap-1.5 truncate">
                 <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                 <SelectValue>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
               </div>
+              {isPending && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto shrink-0" />}
             </SelectTrigger>
             <SelectContent>
               {groups.map((g) => (
@@ -479,7 +503,7 @@ export function AttendanceView({
 
         {/* Subject Selector */}
         <div className="lg:col-span-4">
-          <Select value={currentSubjectId} onValueChange={handleSubjectChange}>
+          <Select value={currentSubjectId} onValueChange={handleSubjectChange} disabled={isPending}>
             <SelectTrigger className="h-8 text-xs font-medium bg-background">
               <div className="flex items-center gap-1.5 truncate">
                 <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -487,6 +511,7 @@ export function AttendanceView({
                   {currentSubjectObj ? `${currentSubjectObj.subjectName} (${currentSubjectObj.teacherName})` : "Выберите предмет"}
                 </SelectValue>
               </div>
+              {isPending && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto shrink-0" />}
             </SelectTrigger>
             <SelectContent>
               {subjects.map((s) => (
@@ -498,14 +523,14 @@ export function AttendanceView({
 
         {/* Date Selector with Next/Prev Day */}
         <div className="lg:col-span-3 flex items-center gap-1">
-          <Button type="button" variant="outline" size="xs" onClick={() => shiftDate(-1)} className="h-8 w-8 p-0 shrink-0 cursor-pointer" title="Предыдущий день">
+          <Button type="button" variant="outline" size="xs" onClick={() => shiftDate(-1)} disabled={isPending} className="h-8 w-8 p-0 shrink-0 cursor-pointer" title="Предыдущий день">
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <Input type="date" value={currentDateStr} onChange={(e) => handleDateChange(e.target.value)} className="h-8 text-xs bg-background font-medium flex-1 text-center" />
-          <Button type="button" variant="outline" size="xs" onClick={() => shiftDate(1)} className="h-8 w-8 p-0 shrink-0 cursor-pointer" title="Следующий день">
+          <Input type="date" value={currentDateStr} onChange={(e) => handleDateChange(e.target.value)} disabled={isPending} className="h-8 text-xs bg-background font-medium flex-1 text-center" />
+          <Button type="button" variant="outline" size="xs" onClick={() => shiftDate(1)} disabled={isPending} className="h-8 w-8 p-0 shrink-0 cursor-pointer" title="Следующий день">
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
-          <Button type="button" variant="ghost" size="xs" onClick={setDateToToday} className="h-8 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer shrink-0">
+          <Button type="button" variant="ghost" size="xs" onClick={setDateToToday} disabled={isPending} className="h-8 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer shrink-0">
             Сегодня
           </Button>
         </div>
@@ -519,7 +544,24 @@ export function AttendanceView({
       </div>
 
       {/* Attendance Table with Status Tabs Header */}
-      <Card className="print:hidden p-0 border overflow-hidden" data-tour="attendance-table">
+      <Card className="relative print:hidden p-0 border overflow-hidden" data-tour="attendance-table">
+        {/* Top Progress Loading Indicator */}
+        {isPending && (
+          <div className="absolute top-0 left-0 right-0 z-30 h-0.5 bg-primary/20 overflow-hidden">
+            <div className="h-full bg-primary animate-pulse w-full" />
+          </div>
+        )}
+
+        {/* Loading Overlay */}
+        {isPending && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px] transition-all">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span>Загрузка данных...</span>
+            </div>
+          </div>
+        )}
+
         {/* Status Filter Tabs in Card Header */}
         <div className="p-2.5 border-b bg-muted/20 flex items-center gap-1 overflow-x-auto">
           <button

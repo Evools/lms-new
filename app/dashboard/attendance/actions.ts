@@ -81,23 +81,36 @@ export async function getAttendanceDataAction(
       };
     }
 
-    // 2. Fetch subjects for selected group (filtered for teacher unless curator or admin)
+    // 2. Fetch subjects and group students in parallel
     const isCuratorOfSelectedGroup = selectedGroupObj?.curatorId === currentUserId;
     let subjectWhereClause: Record<string, unknown> = { groupId: selectedGroup };
 
     if (role === "TEACHER" && currentUserId && !isCuratorOfSelectedGroup) {
-      // If regular teacher (not curator of this group), show only subjects taught by this teacher
       subjectWhereClause.teacherId = currentUserId;
     }
 
-    const groupSubjects = await prisma.groupSubject.findMany({
-      where: subjectWhereClause,
-      include: {
-        subject: { select: { name: true } },
-        teacher: { select: { name: true } },
-      },
-      orderBy: { subject: { name: "asc" } },
-    });
+    const [groupSubjects, group] = await Promise.all([
+      prisma.groupSubject.findMany({
+        where: subjectWhereClause,
+        include: {
+          subject: { select: { name: true } },
+          teacher: { select: { name: true } },
+        },
+        orderBy: { subject: { name: "asc" } },
+      }),
+      prisma.group.findUnique({
+        where: { id: selectedGroup },
+        include: {
+          monitor: { select: { id: true } },
+          students: {
+            include: {
+              student: { select: { id: true, name: true } },
+            },
+            orderBy: { student: { name: "asc" } },
+          },
+        },
+      }),
+    ]);
 
     const subjects: GroupSubjectItemDTO[] = groupSubjects.map((gs) => ({
       id: gs.id,
@@ -110,20 +123,6 @@ export async function getAttendanceDataAction(
         ? groupSubjectId
         : subjects[0]?.id || "";
 
-    // 3. Fetch students of selected group & monitor info
-    const group = await prisma.group.findUnique({
-      where: { id: selectedGroup },
-      include: {
-        monitor: { select: { id: true } },
-        students: {
-          include: {
-            student: { select: { id: true, name: true } },
-          },
-          orderBy: { student: { name: "asc" } },
-        },
-      },
-    });
-
     const isMonitor = Boolean(currentUserId && group?.monitor?.id === currentUserId);
     const canEdit = role === "ADMIN" || role === "TEACHER" || isMonitor;
 
@@ -133,7 +132,7 @@ export async function getAttendanceDataAction(
       isMonitor: group?.monitor?.id === gs.student.id,
     }));
 
-    // 4. Fetch attendance records for selected date and groupSubject
+    // 3. Fetch attendance records for selected date and groupSubject
     const targetDateStr = dateStr || new Date().toISOString().split("T")[0];
     const targetDate = new Date(targetDateStr);
     const nextDay = new Date(targetDate);
