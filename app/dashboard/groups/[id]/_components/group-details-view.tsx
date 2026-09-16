@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,6 +101,12 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  const [daysList, setDaysList] = useState<DayDutyGroupDTO[]>(weeklyDays);
+
+  useEffect(() => {
+    setDaysList(weeklyDays);
+  }, [weeklyDays]);
+
   const [searchStudent, setSearchStudent] = useState("");
   const [activeTab, setActiveTab] = useState<"STUDENTS" | "SUBJECTS" | "ANNOUNCEMENTS" | "DUTY">("STUDENTS");
 
@@ -182,31 +188,70 @@ export function GroupDetailsView({ group, userRole, weeklyDays = [] }: GroupDeta
 
   const handleConfirmAddDuty = () => {
     if (!dutyModalDay || !selectedDutyStudentId) return;
-    setDutyActionStatus(null);
+
+    const studentToAdd = group.studentsList.find((s) => s.id === selectedDutyStudentId);
+    if (!studentToAdd) return;
+
+    const targetDateStr = dutyModalDay.fullDate;
+    const prevDays = daysList;
+
+    // 1. Instant optimistic insertion
+    setDaysList((current) =>
+      current.map((day) =>
+        day.fullDate === targetDateStr
+          ? {
+              ...day,
+              dutyStudents: [
+                ...day.dutyStudents.filter((s) => s.id !== studentToAdd.id),
+                { id: studentToAdd.id, name: studentToAdd.name, isLeader: false },
+              ],
+            }
+          : day
+      )
+    );
+
+    setDutyActionStatus({ success: "Дежурный успешно добавлен!" });
+    setDutyModalDay(null);
+    setSelectedDutyStudentId("");
+    setTimeout(() => setDutyActionStatus(null), 3000);
+
+    // 2. Background server execution
     startTransition(async () => {
-      const res = await addDutyStudentAction(group.id, selectedDutyStudentId, dutyModalDay.fullDate);
-      if (res.success) {
-        setDutyActionStatus({ success: "Дежурный успешно добавлен!" });
-        setDutyModalDay(null);
-        setSelectedDutyStudentId("");
-        router.refresh();
-        setTimeout(() => setDutyActionStatus(null), 3000);
-      } else {
+      const res = await addDutyStudentAction(group.id, studentToAdd.id, targetDateStr);
+      if (!res.success) {
+        setDaysList(prevDays);
         setDutyActionStatus({ error: res.error || "Ошибка добавления дежурного" });
+      } else {
+        router.refresh();
       }
     });
   };
 
   const handleRemoveDutyStudent = (studentId: string, dateStr: string) => {
-    setDutyActionStatus(null);
+    const prevDays = daysList;
+    // 1. Instant optimistic removal
+    setDaysList((current) =>
+      current.map((day) =>
+        day.fullDate === dateStr
+          ? {
+              ...day,
+              dutyStudents: day.dutyStudents.filter((s) => s.id !== studentId),
+            }
+          : day
+      )
+    );
+
+    setDutyActionStatus({ success: "Дежурный успешно убран!" });
+    setTimeout(() => setDutyActionStatus(null), 3000);
+
+    // 2. Background server execution
     startTransition(async () => {
       const res = await removeDutyStudentAction(group.id, studentId, dateStr);
-      if (res.success) {
-        setDutyActionStatus({ success: "Дежурный успешно убран!" });
-        router.refresh();
-        setTimeout(() => setDutyActionStatus(null), 3000);
-      } else {
+      if (!res.success) {
+        setDaysList(prevDays);
         setDutyActionStatus({ error: res.error || "Ошибка при удалении из дежурства" });
+      } else {
+        router.refresh();
       }
     });
   };
@@ -1027,7 +1072,7 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                     disabled={!isDutyEnabled}
                     className="h-8 text-xs gap-1.5"
                     onClick={() => {
-                      const targetDay = weeklyDays.find((d) => d.isToday && !d.isSunday) || weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
+                      const targetDay = daysList.find((d) => d.isToday && !d.isSunday) || daysList.find((d) => !d.isSunday) || daysList[0];
                       if (targetDay) {
                         setDutyModalDay(targetDay);
                         const avail = group.studentsList.filter((s) => !targetDay.dutyStudents.some((ds) => ds.id === s.id));
@@ -1108,7 +1153,7 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                   </div>
 
                   <div className="divide-y">
-                    {weeklyDays.map((day) => {
+                    {daysList.map((day) => {
                       const availableStudents = group.studentsList.filter(
                         (s) => !day.dutyStudents.some((ds) => ds.id === s.id)
                       );
@@ -1166,25 +1211,36 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                                   </Avatar>
                                   <span className="truncate">{st.name}</span>
                                   {isAdminOrTeacher && (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger render={
-                                        <button
-                                          type="button"
-                                          className="p-1 rounded hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors ml-0.5"
-                                        />
-                                      }>
-                                        <MoreVertical className="h-3 w-3" />
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
-                                        <DropdownMenuItem
-                                          onClick={() => handleRemoveDutyStudent(st.id, day.fullDate)}
-                                          className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
-                                        >
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                          <span>Удалить из дежурных</span>
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    <div className="flex items-center gap-0.5 ml-0.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveDutyStudent(st.id, day.fullDate)}
+                                        className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                        title="Быстро убрать из дежурных"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger render={
+                                          <button
+                                            type="button"
+                                            className="p-0.5 rounded hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors"
+                                          />
+                                        }>
+                                          <MoreVertical className="h-3 w-3" />
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
+                                          <DropdownMenuItem
+                                            onClick={() => handleRemoveDutyStudent(st.id, day.fullDate)}
+                                            className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                            <span>Удалить из дежурных</span>
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </div>
                                   )}
                                 </div>
                               ))
@@ -1217,7 +1273,7 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                   </div>
                 </div>
 
-                {weeklyDays.length === 0 && isDutyEnabled && (
+                {daysList.length === 0 && isDutyEnabled && (
                   <div className="rounded-xl border border-dashed py-10 text-center text-muted-foreground space-y-2">
                     <Clock className="h-7 w-7 mx-auto text-muted-foreground/30" />
                     <div className="text-xs font-medium">График дежурств ещё не создан</div>
@@ -1709,7 +1765,7 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                 <Select
                   value={dutyModalDay.fullDate}
                   onValueChange={(val) => {
-                    const found = weeklyDays.find((d) => d.fullDate === val);
+                    const found = daysList.find((d) => d.fullDate === val);
                     if (found) {
                       setDutyModalDay(found);
                       const avail = group.studentsList.filter((s) => !found.dutyStudents.some((ds) => ds.id === s.id));
@@ -1723,7 +1779,7 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {weeklyDays
+                    {daysList
                       .filter((d) => !d.isSunday)
                       .map((d) => (
                         <SelectItem key={d.fullDate} value={d.fullDate} className="text-xs">
@@ -1747,13 +1803,13 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                     {[...group.studentsList]
                       .filter((s) => !dutyModalDay.dutyStudents.some((ds) => ds.id === s.id))
                       .sort((a, b) => {
-                        const aOnDuty = weeklyDays.some((d) => d.dutyStudents.some((ds) => ds.id === a.id));
-                        const bOnDuty = weeklyDays.some((d) => d.dutyStudents.some((ds) => ds.id === b.id));
+                        const aOnDuty = daysList.some((d) => d.dutyStudents.some((ds) => ds.id === a.id));
+                        const bOnDuty = daysList.some((d) => d.dutyStudents.some((ds) => ds.id === b.id));
                         if (aOnDuty !== bOnDuty) return aOnDuty ? 1 : -1;
                         return a.name.localeCompare(b.name);
                       })
                       .map((st) => {
-                        const isAlreadyOnDutyThisWeek = weeklyDays.some(
+                        const isAlreadyOnDutyThisWeek = daysList.some(
                           (d) => d.dutyStudents.some((ds) => ds.id === st.id)
                         );
                         return (

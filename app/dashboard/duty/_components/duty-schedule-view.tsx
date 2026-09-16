@@ -115,6 +115,12 @@ export function DutyScheduleView({
     }
   }, [selectedGroupId]);
 
+  const [daysList, setDaysList] = useState<DayDutyGroupDTO[]>(weeklyDays);
+
+  useEffect(() => {
+    setDaysList(weeklyDays);
+  }, [weeklyDays]);
+
   const [activeTab, setActiveTab] = useState<"WEEKLY" | "STATS">("WEEKLY");
   const [searchQuery, setSearchQuery] = useState<string>("" );
 
@@ -168,15 +174,30 @@ export function DutyScheduleView({
     });
   };
 
-  // Remove duty student
+  // Remove duty student with instant Optimistic UI update
   const handleRemoveDuty = (studentId: string, dateStr: string) => {
+    const prevDays = daysList;
+    // 1. Instant local removal
+    setDaysList((current) =>
+      current.map((day) =>
+        day.fullDate === dateStr
+          ? {
+              ...day,
+              dutyStudents: day.dutyStudents.filter((s) => s.id !== studentId),
+            }
+          : day
+      )
+    );
+    toast.add({ title: "Дежурный убран из расписания", type: "success" });
+
+    // 2. Background server execution
     startTransition(async () => {
       const res = await removeDutyStudentAction(currentGroupId, studentId, dateStr);
-      if (res.success) {
-        toast.add({ title: "Дежурный убран из расписания", type: "success" });
-        router.refresh();
-      } else {
+      if (!res.success) {
+        setDaysList(prevDays);
         toast.add({ title: res.error || "Ошибка удаления из дежурства", type: "error" });
+      } else {
+        router.refresh();
       }
     });
   };
@@ -184,14 +205,20 @@ export function DutyScheduleView({
   // Clear duty schedule
   const handleConfirmClear = () => {
     if (!currentGroupId) return;
+    const prevDays = daysList;
+    setDaysList((current) =>
+      current.map((day) => ({ ...day, dutyStudents: [], leaderStudent: undefined }))
+    );
+    setIsClearConfirmOpen(false);
+    toast.add({ title: `Расписание дежурств группы ${currentGroupObj?.name || ""} очищено`, type: "success" });
+
     startTransition(async () => {
       const res = await clearDutyScheduleAction(currentGroupId);
-      if (res.success) {
-        setIsClearConfirmOpen(false);
-        toast.add({ title: `Расписание дежурств группы ${currentGroupObj?.name || ""} очищено`, type: "success" });
-        router.refresh();
-      } else {
+      if (!res.success) {
+        setDaysList(prevDays);
         toast.add({ title: res.error || "Ошибка при очистке дежурств", type: "error" });
+      } else {
+        router.refresh();
       }
     });
   };
@@ -205,35 +232,53 @@ export function DutyScheduleView({
     toast.add({ title: "Пропуск зафиксирован. Вы можете назначить замену.", type: "success" });
   };
 
-  // Confirm Add (Standard or Penalty)
+  // Confirm Add (Standard or Penalty) with instant Optimistic UI update
   const handleConfirmAdd = () => {
     if (!pickerMode || !pickerStudentId) return;
 
-    startTransition(async () => {
-      let res;
-      if (pickerMode.type === "penalty") {
-        res = await addDisciplinaryDutyAction(
-          currentGroupId,
-          pickerStudentId,
-          pickerMode.fullDate,
-          penaltyReason
-        );
-      } else {
-        res = await addDutyStudentAction(currentGroupId, pickerStudentId, pickerMode.fullDate);
-      }
+    const studentToAdd = groupStudents.find((s) => s.id === pickerStudentId);
+    if (!studentToAdd) return;
 
-      if (res.success) {
-        toast.add({
-          title: pickerMode.type === "penalty"
-            ? `Внеочередное дежурство (${penaltyReason}) назначено!`
-            : "Дежурный успешно добавлен!",
-          type: "success",
-        });
-        setPickerMode(null);
-        setPickerStudentId("");
-        router.refresh();
-      } else {
+    const targetDateStr = pickerMode.fullDate;
+    const isPenalty = pickerMode.type === "penalty";
+    const currentReason = penaltyReason;
+    const prevDays = daysList;
+
+    // 1. Instant optimistic insertion
+    setDaysList((current) =>
+      current.map((day) =>
+        day.fullDate === targetDateStr
+          ? {
+              ...day,
+              dutyStudents: [
+                ...day.dutyStudents.filter((s) => s.id !== studentToAdd.id),
+                { id: studentToAdd.id, name: studentToAdd.name, isLeader: false },
+              ],
+            }
+          : day
+      )
+    );
+
+    setPickerMode(null);
+    setPickerStudentId("");
+    toast.add({
+      title: isPenalty
+        ? `Внеочередное дежурство (${currentReason}) назначено!`
+        : "Дежурный успешно добавлен!",
+      type: "success",
+    });
+
+    // 2. Background server execution
+    startTransition(async () => {
+      const res = isPenalty
+        ? await addDisciplinaryDutyAction(currentGroupId, studentToAdd.id, targetDateStr, currentReason)
+        : await addDutyStudentAction(currentGroupId, studentToAdd.id, targetDateStr);
+
+      if (!res.success) {
+        setDaysList(prevDays);
         toast.add({ title: res.error || "Ошибка сохранения дежурного", type: "error" });
+      } else {
+        router.refresh();
       }
     });
   };
@@ -257,7 +302,7 @@ export function DutyScheduleView({
   };
 
   // Filtered days by search query
-  const filteredWeeklyDays = weeklyDays.map((day) => {
+  const filteredWeeklyDays = daysList.map((day) => {
     if (!searchQuery.trim()) return day;
     const q = searchQuery.toLowerCase();
     const matchesStudents = day.dutyStudents.filter((st) =>
@@ -276,8 +321,8 @@ export function DutyScheduleView({
   });
 
   // Calculate Metrics
-  const totalShiftsThisWeek = weeklyDays.reduce((acc, d) => acc + (d.dutyStudents?.length || 0), 0);
-  const todayObj = weeklyDays.find((d) => d.isToday);
+  const totalShiftsThisWeek = daysList.reduce((acc, d) => acc + (d.dutyStudents?.length || 0), 0);
+  const todayObj = daysList.find((d) => d.isToday);
   const todayStudentsCount = todayObj?.dutyStudents?.length || 0;
 
   return (
@@ -685,34 +730,45 @@ export function DutyScheduleView({
                               )}
 
                               {isAdminOrTeacher && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger render={
-                                    <button
-                                      type="button"
-                                      className="p-1 rounded hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors ml-0.5"
-                                    />
-                                  }>
-                                    <MoreVertical className="h-3 w-3" />
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
-                                    {!absentReason && (
+                                <div className="flex items-center gap-0.5 ml-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveDuty(st.id, day.fullDate)}
+                                    className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    title="Быстро убрать из дежурных"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger render={
+                                      <button
+                                        type="button"
+                                        className="p-0.5 rounded hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors"
+                                      />
+                                    }>
+                                      <MoreVertical className="h-3 w-3" />
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
+                                      {!absentReason && (
+                                        <DropdownMenuItem
+                                          onClick={() => handleMarkAbsent(st.id, day.fullDate, "Прогул/Болезнь")}
+                                          className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
+                                        >
+                                          <UserX className="h-3.5 w-3.5 text-muted-foreground" />
+                                          <span>Отметить пропуск</span>
+                                        </DropdownMenuItem>
+                                      )}
                                       <DropdownMenuItem
-                                        onClick={() => handleMarkAbsent(st.id, day.fullDate, "Прогул/Болезнь")}
-                                        className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
+                                        onClick={() => handleRemoveDuty(st.id, day.fullDate)}
+                                        className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
                                       >
-                                        <UserX className="h-3.5 w-3.5 text-muted-foreground" />
-                                        <span>Отметить пропуск</span>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <span>Удалить из дежурных</span>
                                       </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuItem
-                                      onClick={() => handleRemoveDuty(st.id, day.fullDate)}
-                                      className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                      <span>Удалить из дежурных</span>
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
                               )}
                             </div>
                           );

@@ -135,14 +135,14 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
 
     const recentDutyRecords = targetGroupId
       ? await prisma.dutySchedule.findMany({
-          where: {
-            groupId: targetGroupId,
-            date: { gte: fourteenDaysAgo, lt: endDate },
-            isLeader: false,
-          },
-          select: { studentId: true, date: true },
-          orderBy: { date: "desc" },
-        })
+        where: {
+          groupId: targetGroupId,
+          date: { gte: fourteenDaysAgo, lt: endDate },
+          isLeader: false,
+        },
+        select: { studentId: true, date: true },
+        orderBy: { date: "desc" },
+      })
       : [];
 
     const recentDutyMap = new Map<string, { dateStr: string; isCurrentWeek: boolean }>();
@@ -229,7 +229,9 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
 
       let leaderObj = leaderSched
         ? { id: leaderSched.student.id, name: leaderSched.student.name }
-        : undefined;
+        : groupMonitorName && groupStudents.length > 0
+          ? groupStudents.find((s) => s.name === groupMonitorName)
+          : undefined;
 
       let dutyStudents: DutyStudentDTO[] = dutyScheds.map((s) => ({
         id: s.student.id,
@@ -237,7 +239,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
         isLeader: false,
       }));
 
-      // Fallback: compute fair rotation ONLY if duty is enabled and no DB schedule exists at all for this week
+      // Fallback: compute fair rotation on the fly if duty is enabled and no DB schedule exists at all for this week
       if (targetGroupIsDutyEnabled && !hasAnyDbSchedule && !isSunday && dutyStudents.length === 0 && groupStudents.length > 0) {
         const perDay = Math.min(groupStudents.length, groupStudents.length >= 6 ? 3 : 2);
         const candidates = [...groupStudents].sort((a, b) => {
@@ -282,7 +284,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       date: new Date(s.date).toLocaleDateString("ru-RU"),
       dayName:
         dayNames[
-          new Date(s.date).getDay() === 0 ? 6 : new Date(s.date).getDay() - 1
+        new Date(s.date).getDay() === 0 ? 6 : new Date(s.date).getDay() - 1
         ],
       isLeader: s.isLeader,
       isToday: new Date(s.date).toDateString() === now.toDateString(),
@@ -326,6 +328,59 @@ export async function addDutyStudentAction(
     const dayStart = targetDate;
     const dayEnd = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
 
+    const weekMonday = getMondayOfCurrentWeek();
+    const weekStart = parseDateToUtc(weekMonday);
+    const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const existingWeekRecords = await prisma.dutySchedule.count({
+      where: {
+        groupId,
+        date: { gte: weekStart, lt: weekEnd },
+      },
+    });
+
+    if (existingWeekRecords === 0) {
+      // Materialize auto-generated week first so all days are saved
+      const group = await prisma.group.findUnique({
+        where: { id: groupId },
+        include: {
+          students: { select: { studentId: true } },
+        },
+      });
+
+      if (group && group.students.length > 0) {
+        const studentIds = group.students.map((s) => s.studentId);
+        const perDay = Math.min(studentIds.length, studentIds.length >= 6 ? 3 : 2);
+        const dutyCounts: Record<string, number> = {};
+        studentIds.forEach((id) => { dutyCounts[id] = 0; });
+
+        for (let i = 0; i < 6; i++) {
+          const d = new Date(weekMonday.getFullYear(), weekMonday.getMonth(), weekMonday.getDate() + i);
+          const dayDate = parseDateToUtc(d);
+
+          const candidates = [...studentIds].sort((a, b) => {
+            const diff = (dutyCounts[a] || 0) - (dutyCounts[b] || 0);
+            return diff !== 0 ? diff : studentIds.indexOf(a) - studentIds.indexOf(b);
+          });
+
+          for (let k = 0; k < perDay; k++) {
+            const candId = candidates[k];
+            if (candId) {
+              dutyCounts[candId]++;
+              await prisma.dutySchedule.create({
+                data: {
+                  groupId,
+                  studentId: candId,
+                  date: dayDate,
+                  isLeader: false,
+                },
+              });
+            }
+          }
+        }
+      }
+    }
+
     // Check not already assigned on this exact day as regular duty student
     const existing = await prisma.dutySchedule.findFirst({
       where: {
@@ -366,14 +421,72 @@ export async function removeDutyStudentAction(
     const dayStart = targetDate;
     const dayEnd = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
 
-    await prisma.dutySchedule.deleteMany({
+    const weekMonday = getMondayOfCurrentWeek();
+    const weekStart = parseDateToUtc(weekMonday);
+    const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const existingWeekRecords = await prisma.dutySchedule.count({
       where: {
         groupId,
-        studentId,
-        date: { gte: dayStart, lt: dayEnd },
-        isLeader: false,
+        date: { gte: weekStart, lt: weekEnd },
       },
     });
+
+    if (existingWeekRecords === 0) {
+      // Materialize the auto-generated week into DB without the removed student
+      const group = await prisma.group.findUnique({
+        where: { id: groupId },
+        include: {
+          students: { select: { studentId: true } },
+        },
+      });
+
+      if (group && group.students.length > 0) {
+        const studentIds = group.students.map((s) => s.studentId);
+        const perDay = Math.min(studentIds.length, studentIds.length >= 6 ? 3 : 2);
+        const dutyCounts: Record<string, number> = {};
+        studentIds.forEach((id) => { dutyCounts[id] = 0; });
+
+        for (let i = 0; i < 6; i++) {
+          const d = new Date(weekMonday.getFullYear(), weekMonday.getMonth(), weekMonday.getDate() + i);
+          const dayDate = parseDateToUtc(d);
+          const isTargetDay = dayDate.getTime() === targetDate.getTime();
+
+          const candidates = [...studentIds].sort((a, b) => {
+            const diff = (dutyCounts[a] || 0) - (dutyCounts[b] || 0);
+            return diff !== 0 ? diff : studentIds.indexOf(a) - studentIds.indexOf(b);
+          });
+
+          for (let k = 0; k < perDay; k++) {
+            const candId = candidates[k];
+            if (candId) {
+              dutyCounts[candId]++;
+              // Skip the removed student on the target day
+              if (isTargetDay && candId === studentId) {
+                continue;
+              }
+              await prisma.dutySchedule.create({
+                data: {
+                  groupId,
+                  studentId: candId,
+                  date: dayDate,
+                  isLeader: false,
+                },
+              });
+            }
+          }
+        }
+      }
+    } else {
+      await prisma.dutySchedule.deleteMany({
+        where: {
+          groupId,
+          studentId,
+          date: { gte: dayStart, lt: dayEnd },
+          isLeader: false,
+        },
+      });
+    }
 
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
@@ -432,8 +545,8 @@ export async function getAllGroupsTodayDutyAction(): Promise<AllGroupsTodayDutyD
         leaderStudent: leaderSched
           ? { id: leaderSched.student.id, name: leaderSched.student.name }
           : g.monitor
-          ? { id: g.monitor.id, name: g.monitor.name }
-          : undefined,
+            ? { id: g.monitor.id, name: g.monitor.name }
+            : undefined,
         dutyStudents: dutyScheds.map((s) => ({
           id: s.student.id,
           name: s.student.name,
