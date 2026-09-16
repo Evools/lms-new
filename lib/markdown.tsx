@@ -181,11 +181,13 @@ export function MarkdownViewer({
           ),
           em: ({ children }) => <em className="italic">{children}</em>,
           del: ({ children }) => <del className="opacity-60 line-through">{children}</del>,
-          blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-primary pl-3 py-1.5 my-2 italic bg-primary/5 rounded-r text-xs text-muted-foreground">
-              {children}
-            </blockquote>
-          ),
+          blockquote: ({ children }) => {
+            return (
+              <blockquote className="border-l-2 border-primary pl-3 py-1.5 my-2.5 bg-primary/5 rounded-r text-xs text-foreground/90 leading-relaxed">
+                {children}
+              </blockquote>
+            );
+          },
           ul: ({ children }) => (
             <ul className="list-disc pl-5 my-1.5 space-y-0.5 text-xs text-foreground/90 marker:text-primary">
               {children}
