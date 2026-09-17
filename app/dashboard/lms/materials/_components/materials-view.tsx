@@ -7,6 +7,7 @@ import { MaterialType } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -173,6 +174,9 @@ export function MaterialsView({
     });
     return initial;
   });
+
+  // Mobile Materials List Drawer/Collapse State
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Create Chapter (Topic) Modal State
   const [isCreateChapterOpen, setIsCreateChapterOpen] = useState(false);
@@ -541,178 +545,195 @@ export function MaterialsView({
             )}
 
             {/* LEFT SIDEBAR: CHAPTERS & MATERIALS TREE FOR THIS SUBJECT */}
-            <div className="md:col-span-4 lg:col-span-3 bg-card rounded-xl border p-3.5 space-y-3 shadow-xs sticky top-16 max-h-[calc(100vh-5rem)] overflow-y-auto z-10">
+            <div className="md:col-span-4 lg:col-span-3 bg-card rounded-xl border p-3.5 space-y-3 shadow-xs md:sticky md:top-16 md:max-h-[calc(100vh-5rem)] static max-h-none overflow-y-auto md:z-10">
           {/* Header */}
           <div className="flex items-center justify-between border-b pb-2">
             <div>
               <h2 className="text-xs font-bold text-foreground">Материалы</h2>
-              <p className="text-[11px] text-muted-foreground">{materials.length} материалов</p>
+              <p className="text-[11px] text-muted-foreground">{displayMaterials.length} материалов</p>
             </div>
+
+            {/* Mobile Toggle Button */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+              className="md:hidden h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
+            >
+              <span>{isMobileSidebarOpen ? "Свернуть" : "Развернуть"}</span>
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", isMobileSidebarOpen && "rotate-180")} />
+            </Button>
           </div>
 
-          {/* Action Buttons */}
-          {canCreate && (
-            <div className="space-y-2">
-              <Link
-                href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
-                className="block"
-              >
-                <Button size="xs" className="w-full h-8 text-xs gap-1.5 font-medium shadow-xs">
-                  <Plus className="h-3.5 w-3.5" /> Добавить материал
+          <div className={cn("space-y-3 md:block", isMobileSidebarOpen ? "block" : "hidden")}>
+            {/* Action Buttons */}
+            {canCreate && (
+              <div className="space-y-2">
+                <Link
+                  href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
+                  className="block"
+                >
+                  <Button size="xs" className="w-full h-8 text-xs gap-1.5 font-medium shadow-xs">
+                    <Plus className="h-3.5 w-3.5" /> Добавить материал
+                  </Button>
+                </Link>
+
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => setIsCreateChapterOpen(true)}
+                  className="w-full h-8 text-xs gap-1.5 text-foreground hover:text-primary font-medium"
+                >
+                  <BookMarked className="h-3.5 w-3.5 text-primary" /> Создать главу
                 </Button>
-              </Link>
-
-              <Button
-                type="button"
-                size="xs"
-                variant="outline"
-                onClick={() => setIsCreateChapterOpen(true)}
-                className="w-full h-8 text-xs gap-1.5 text-foreground hover:text-primary font-medium"
-              >
-                <BookMarked className="h-3.5 w-3.5 text-primary" /> Создать главу
-              </Button>
-            </div>
-          )}
-
-          {/* Chapters Accordion List */}
-          <div className="space-y-1 pt-1 overflow-y-auto pr-1">
-            {displayTopics.map((topic, topicIdx) => {
-              const isExpanded = expandedTopics[topic.id] ?? true;
-              const topicMats = topic.materials || [];
-
-              return (
-                <div key={topic.id} className="space-y-0.5">
-                  {/* Chapter Header Item */}
-                  <div className="p-2 rounded-lg hover:bg-muted/60 transition-colors flex items-center justify-between group select-none">
-                    <div
-                      onClick={() => toggleTopicExpand(topic.id)}
-                      className="cursor-pointer flex-1 truncate space-y-0.5"
-                    >
-                      <span className="text-xs font-bold text-foreground truncate block">
-                        {topicIdx + 1}. {topic.title}
-                      </span>
-                      {topic.subjectName && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-primary/5 text-primary border-primary/20 font-medium">
-                          {topic.subjectName}
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[10px] text-muted-foreground mr-1">
-                        {topicMats.length} ресурсов
-                      </span>
-
-                      {canCreate && (
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditChapter(topic);
-                            }}
-                            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                            title="Редактировать главу"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteChapterTarget(topic);
-                            }}
-                            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                            title="Удалить главу"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      )}
-
-                      <ChevronDown
-                        onClick={() => toggleTopicExpand(topic.id)}
-                        className={`h-3.5 w-3.5 text-muted-foreground cursor-pointer transition-transform duration-200 ${
-                          isExpanded ? "rotate-0" : "-rotate-90"
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Nested Materials Items under this Chapter */}
-                  {isExpanded && (
-                    <div className="pl-2 space-y-0.5 border-l border-border/60 ml-2">
-                      {topicMats.map((mat, matIdx) => {
-                        const isSelected = currentMat?.id === mat.id;
-
-                        return (
-                          <div
-                            key={mat.id}
-                            onClick={() => setActiveMaterial(mat)}
-                            className={`p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat ${
-                              isSelected
-                                ? "bg-primary/10 text-primary font-medium border-l-4 border-l-primary shadow-xs"
-                                : "text-foreground hover:bg-muted/40 font-normal"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 truncate pr-1">
-                              <span className="text-[11px] truncate">
-                                {matIdx + 1}. {mat.title}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              {canCreate && (
-                                <div className="opacity-0 group-hover/mat:opacity-100 transition-opacity flex items-center gap-0.5">
-                                  <Link
-                                    href={`/dashboard/lms/materials/${mat.id}/edit?group=${selectedGroupId}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
-                                    title="Редактировать материал"
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </Link>
-
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDeleteMaterialTarget(mat);
-                                    }}
-                                    className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                    title="Удалить материал"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              )}
-
-                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                {getMaterialTypeIcon(mat.type)}
-                                <span>{getMaterialTypeLabel(mat.type)}</span>
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {topicMats.length === 0 && (
-                        <div className="py-2 pl-2 text-[10px] text-muted-foreground italic">
-                          Нет материалов в этой главе
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {topicsWithMaterials.length === 0 && (
-              <div className="py-8 text-center text-xs text-muted-foreground italic">
-                Главы еще не созданы
               </div>
             )}
+
+            {/* Chapters Accordion List */}
+            <div className="space-y-1 pt-1 overflow-y-auto pr-1">
+              {displayTopics.map((topic, topicIdx) => {
+                const isExpanded = expandedTopics[topic.id] ?? true;
+                const topicMats = topic.materials || [];
+
+                return (
+                  <div key={topic.id} className="space-y-0.5">
+                    {/* Chapter Header Item */}
+                    <div className="p-2 rounded-lg hover:bg-muted/60 transition-colors flex items-center justify-between group select-none">
+                      <div
+                        onClick={() => toggleTopicExpand(topic.id)}
+                        className="cursor-pointer flex-1 truncate space-y-0.5"
+                      >
+                        <span className="text-xs font-bold text-foreground truncate block">
+                          {topicIdx + 1}. {topic.title}
+                        </span>
+                        {topic.subjectName && (
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-primary/5 text-primary border-primary/20 font-medium">
+                            {topic.subjectName}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] text-muted-foreground mr-1">
+                          {topicMats.length} ресурсов
+                        </span>
+
+                        {canCreate && (
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditChapter(topic);
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                              title="Редактировать главу"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteChapterTarget(topic);
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                              title="Удалить главу"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+
+                        <ChevronDown
+                          onClick={() => toggleTopicExpand(topic.id)}
+                          className={`h-3.5 w-3.5 text-muted-foreground cursor-pointer transition-transform duration-200 ${
+                            isExpanded ? "rotate-0" : "-rotate-90"
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Nested Materials Items under this Chapter */}
+                    {isExpanded && (
+                      <div className="pl-2 space-y-0.5 border-l border-border/60 ml-2">
+                        {topicMats.map((mat, matIdx) => {
+                          const isSelected = currentMat?.id === mat.id;
+
+                          return (
+                            <div
+                              key={mat.id}
+                              onClick={() => {
+                                setActiveMaterial(mat);
+                                setIsMobileSidebarOpen(false);
+                              }}
+                              className={`p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat ${
+                                isSelected
+                                  ? "bg-primary/10 text-primary font-medium border-l-4 border-l-primary shadow-xs"
+                                  : "text-foreground hover:bg-muted/40 font-normal"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 truncate pr-1">
+                                <span className="text-[11px] truncate">
+                                  {matIdx + 1}. {mat.title}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                {canCreate && (
+                                  <div className="opacity-0 group-hover/mat:opacity-100 transition-opacity flex items-center gap-0.5">
+                                    <Link
+                                      href={`/dashboard/lms/materials/${mat.id}/edit?group=${selectedGroupId}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
+                                      title="Редактировать материал"
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </Link>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeleteMaterialTarget(mat);
+                                      }}
+                                      className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      title="Удалить материал"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )}
+
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                  {getMaterialTypeIcon(mat.type)}
+                                  <span>{getMaterialTypeLabel(mat.type)}</span>
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {topicMats.length === 0 && (
+                          <div className="py-2 pl-2 text-[10px] text-muted-foreground italic">
+                            Нет материалов в этой главе
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {topicsWithMaterials.length === 0 && (
+                <div className="py-8 text-center text-xs text-muted-foreground italic">
+                  Главы еще не созданы
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

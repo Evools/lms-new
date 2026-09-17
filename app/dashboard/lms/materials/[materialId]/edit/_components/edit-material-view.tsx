@@ -423,7 +423,7 @@ export function EditMaterialView({
         </div>
 
         {/* Right Sidebar Column */}
-        <div className="space-y-3 sticky top-20 z-10 self-start">
+        <div className="space-y-3 lg:sticky lg:top-20 static z-10 self-start">
           <div className="p-3.5 border rounded-xl bg-card space-y-3 text-xs shadow-xs">
             <h3 className="text-xs font-bold text-foreground border-b pb-1.5 flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-primary" /> Классификация
