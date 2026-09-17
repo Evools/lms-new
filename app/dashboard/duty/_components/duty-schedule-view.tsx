@@ -64,6 +64,7 @@ import {
   FileText,
   MoreVertical,
   Trash2,
+  Check,
 } from "lucide-react";
 import {
   DayDutyGroupDTO,
@@ -122,7 +123,7 @@ export function DutyScheduleView({
   }, [weeklyDays]);
 
   const [activeTab, setActiveTab] = useState<"WEEKLY" | "STATS">("WEEKLY");
-  const [searchQuery, setSearchQuery] = useState<string>("" );
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Absent tracking state map: key = `${studentId}_${fullDate}`, value = reason
   const [absentMap, setAbsentMap] = useState<Record<string, string>>({});
@@ -182,9 +183,9 @@ export function DutyScheduleView({
       current.map((day) =>
         day.fullDate === dateStr
           ? {
-              ...day,
-              dutyStudents: day.dutyStudents.filter((s) => s.id !== studentId),
-            }
+            ...day,
+            dutyStudents: day.dutyStudents.filter((s) => s.id !== studentId),
+          }
           : day
       )
     );
@@ -249,12 +250,12 @@ export function DutyScheduleView({
       current.map((day) =>
         day.fullDate === targetDateStr
           ? {
-              ...day,
-              dutyStudents: [
-                ...day.dutyStudents.filter((s) => s.id !== studentToAdd.id),
-                { id: studentToAdd.id, name: studentToAdd.name, isLeader: false },
-              ],
-            }
+            ...day,
+            dutyStudents: [
+              ...day.dutyStudents.filter((s) => s.id !== studentToAdd.id),
+              { id: studentToAdd.id, name: studentToAdd.name, isLeader: false },
+            ],
+          }
           : day
       )
     );
@@ -535,11 +536,11 @@ export function DutyScheduleView({
           <div className="space-y-0.5">
             <div className="text-[10px] text-muted-foreground font-medium">Состав группы</div>
             <div className="text-lg font-bold text-foreground">{groupStudents.length} учащихся</div>
-            <div className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5">
-              <ShieldCheck className="h-3 w-3" /> Без повторов
+            <div className="text-[9px] text-muted-foreground font-medium flex items-center gap-0.5">
+              <ShieldCheck className="h-3 w-3 text-primary" /> Без повторов
             </div>
           </div>
-          <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
             <Users className="h-5 w-5" />
           </div>
         </div>
@@ -570,11 +571,10 @@ export function DutyScheduleView({
           <button
             type="button"
             onClick={() => setActiveTab("WEEKLY")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              activeTab === "WEEKLY"
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${activeTab === "WEEKLY"
                 ? "bg-background text-foreground shadow-2xs border"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <Calendar className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
             График группы {currentGroupObj?.name ? `(${currentGroupObj.name})` : ""}
@@ -583,11 +583,10 @@ export function DutyScheduleView({
           <button
             type="button"
             onClick={() => setActiveTab("STATS")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              activeTab === "STATS"
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${activeTab === "STATS"
                 ? "bg-background text-foreground shadow-2xs border"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <BarChart3 className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
             Аудит и рейтинг
@@ -657,7 +656,7 @@ export function DutyScheduleView({
 
           <CardContent className="p-0">
             <div className="divide-y">
-              <div className="grid grid-cols-[110px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 <span>День / Дата</span>
                 <span>Дежурные студенты</span>
                 <span className="text-right">Действия</span>
@@ -671,27 +670,36 @@ export function DutyScheduleView({
                 return (
                   <div
                     key={day.fullDate}
-                    className={`grid grid-cols-[110px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${
-                      day.isToday
+                    className={`grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${day.isToday
                         ? "bg-primary/5"
                         : day.isSunday
-                        ? "bg-muted/20 opacity-60"
-                        : "hover:bg-muted/20"
-                    }`}
+                          ? "bg-muted/20 opacity-60"
+                          : "hover:bg-muted/20"
+                      }`}
                   >
                     {/* Day & Date */}
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-xs font-bold ${day.isToday ? "text-primary" : "text-foreground"}`}>
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-xs font-bold ${day.isToday
+                            ? "text-primary"
+                            : "text-foreground"
+                          }`}>
                           {day.dayName}
                         </span>
+                        <span className="text-[10px] text-muted-foreground font-mono">{day.dateStr}</span>
+                      </div>
+                      <div className="flex items-center gap-1 pt-0.5">
                         {day.isToday && (
                           <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 font-medium">
                             Сегодня
                           </Badge>
                         )}
+                        {day.isPast && !day.isSunday && (
+                          <Badge variant="outline" className="text-muted-foreground border-border bg-muted/40 text-[8px] px-1.5 py-0 font-medium inline-flex items-center gap-0.5">
+                            <Check className="h-2.5 w-2.5 text-primary" /> Отдежурили
+                          </Badge>
+                        )}
                       </div>
-                      <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{day.dateStr}</div>
                     </div>
 
                     {/* Duty Students */}
@@ -704,24 +712,30 @@ export function DutyScheduleView({
                           return (
                             <div
                               key={st.id}
-                              className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${
-                                absentReason
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${absentReason
                                   ? "border-destructive/30 bg-destructive/10 text-destructive line-through opacity-70"
                                   : day.isToday
-                                  ? "border-primary/30 bg-primary/10 text-primary"
-                                  : "border-border bg-muted/20 text-foreground"
-                              }`}
+                                    ? "border-primary/30 bg-primary/10 text-primary"
+                                    : day.isPast
+                                      ? "border-border bg-muted/30 text-foreground"
+                                      : "border-border bg-muted/10 text-foreground"
+                                }`}
                             >
                               <Avatar className="h-4 w-4 border shrink-0">
-                                <AvatarFallback className={`text-[7px] font-bold ${
-                                  absentReason ? "bg-destructive/20 text-destructive"
-                                  : day.isToday ? "bg-primary/20 text-primary"
-                                  : "bg-muted text-muted-foreground"
-                                }`}>
+                                <AvatarFallback className={`text-[7px] font-bold ${absentReason ? "bg-destructive/20 text-destructive"
+                                    : day.isToday ? "bg-primary/20 text-primary"
+                                      : "bg-muted text-muted-foreground"
+                                  }`}>
                                   {st.name.slice(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                               <span className="truncate">{st.name}</span>
+
+                              {day.isPast && !absentReason && (
+                                <span title="Дежурство выполнено" className="inline-flex items-center shrink-0">
+                                  <Check className="h-3 w-3 text-primary/70" />
+                                </span>
+                              )}
 
                               {absentReason && (
                                 <span className="text-[9px] font-normal no-underline text-destructive font-semibold">
@@ -815,15 +829,16 @@ export function DutyScheduleView({
 
           <CardContent className="p-0">
             <div className="divide-y text-xs">
-              <div className="grid grid-cols-[1fr_120px_140px_100px] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="grid grid-cols-[1fr_130px_140px_90px_80px] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 <span>Студент</span>
                 <span>Статус</span>
                 <span>Последнее дежурство</span>
-                <span className="text-right">Всего смен</span>
+                <span className="text-right">Выполнено</span>
+                <span className="text-right">В плане</span>
               </div>
 
               {groupDutyStats.map((st) => (
-                <div key={st.studentId} className="grid grid-cols-[1fr_120px_140px_100px] items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
+                <div key={st.studentId} className="grid grid-cols-[1fr_130px_140px_90px_80px] items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
                   <div className="flex items-center gap-2 font-medium">
                     <Avatar className="h-5 w-5 border shrink-0">
                       <AvatarFallback className="text-[8px] font-bold bg-muted text-muted-foreground">
@@ -839,9 +854,13 @@ export function DutyScheduleView({
                   </div>
 
                   <div>
-                    {st.totalDutiesCount > 0 ? (
-                      <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
-                        Активный
+                    {st.completedDutiesCount > 0 ? (
+                      <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/10 font-medium flex items-center gap-1 w-fit">
+                        <Check className="h-2.5 w-2.5" /> Отдежурил ({st.completedDutiesCount})
+                      </Badge>
+                    ) : st.scheduledDutiesCount > 0 ? (
+                      <Badge variant="outline" className="text-[9px] border-border text-muted-foreground bg-muted/40 font-medium">
+                        В плане ({st.scheduledDutiesCount})
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="text-[9px]">
@@ -854,8 +873,12 @@ export function DutyScheduleView({
                     {st.lastDutyDate}
                   </div>
 
-                  <div className="text-right font-bold text-foreground pr-2">
-                    {st.totalDutiesCount} дн.
+                  <div className="text-right font-bold text-foreground">
+                    {st.completedDutiesCount} дн.
+                  </div>
+
+                  <div className="text-right font-medium text-muted-foreground">
+                    {st.scheduledDutiesCount > 0 ? `+${st.scheduledDutiesCount} дн.` : "—"}
                   </div>
                 </div>
               ))}
@@ -923,9 +946,13 @@ export function DutyScheduleView({
                         <SelectItem key={st.id} value={st.id} className="text-xs">
                           <div className="flex items-center justify-between w-full gap-2">
                             <span>{st.name}</span>
-                            {st.recentDutyNote && (
-                              <span className="text-[10px] text-primary font-normal">
+                            {st.recentDutyNote ? (
+                              <span className="text-[10px] text-primary font-medium">
                                 ({st.recentDutyNote})
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/60 font-normal">
+                                (В очереди)
                               </span>
                             )}
                           </div>
