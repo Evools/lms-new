@@ -124,19 +124,15 @@ export default function LoginPage() {
     /^\d/.test(identifier.trim().replace(/\s/g, ""));
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center bg-background px-4 py-8 text-xs select-none sm:px-6">
-      {/* Ambient background decoration */}
-      <div
-        className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[640px] -translate-x-1/2 rounded-full bg-primary/10 blur-[130px]"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,var(--color-border)_1px,transparent_0)] [background-size:24px_24px] opacity-40 dark:opacity-20"
-        aria-hidden="true"
-      />
+    <div className="relative flex min-h-dvh w-full items-center justify-center overflow-x-hidden bg-background p-4 text-xs select-none sm:p-6 md:p-8">
+      {/* Ambient background decoration with strict overflow containment */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-40 left-1/2 h-[420px] w-[500px] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px] sm:w-[640px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,var(--color-border)_1px,transparent_0)] [background-size:24px_24px] opacity-40 dark:opacity-20" />
+      </div>
 
-      {/* Main split-card container (Matching user mockup) */}
-      <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xl backdrop-blur-xs sm:rounded-3xl">
+      {/* Main split-card container */}
+      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xl backdrop-blur-xs sm:max-w-md sm:rounded-3xl md:max-w-4xl">
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* LEFT SHOWCASE PANEL (Futuristic Lyceum Campus) */}
           <div className="relative hidden flex-col justify-between overflow-hidden p-6 md:flex md:min-h-[520px]">
@@ -231,36 +227,36 @@ export default function LoginPage() {
           </div>
 
           {/* RIGHT FORM PANEL (shadcn styled auth) */}
-          <div className="flex flex-col justify-between p-6 sm:p-8">
+          <div className="flex flex-col justify-between p-5 sm:p-6 md:p-8">
             {/* Mobile Brand Header */}
             <div className="mb-4 flex items-center justify-between md:hidden">
               <div className="flex items-center gap-2">
-                <div className="flex size-7 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                <div className="flex size-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
                   <GraduationCap className="size-4" />
                 </div>
-                <span className="text-xs font-semibold tracking-tight text-foreground">
+                <span className="text-sm font-semibold tracking-tight text-foreground">
                   LMS System
                 </span>
               </div>
 
               {mounted && (
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon-xs"
                   onClick={toggleTheme}
-                  className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
+                  className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Переключить тему оформления"
+                  aria-label="Переключить тему оформления"
                 >
                   {resolvedTheme === "dark" ? (
-                    <Sun className="size-3.5" />
+                    <Sun className="size-4" />
                   ) : (
-                    <Moon className="size-3.5" />
+                    <Moon className="size-4" />
                   )}
-                </Button>
+                </button>
               )}
             </div>
 
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Form Title & Subtitle */}
               <div className="space-y-1">
                 <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
@@ -286,11 +282,11 @@ export default function LoginPage() {
                     htmlFor="identifier"
                     className="font-medium text-foreground text-xs flex items-center justify-between"
                   >
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1.5">
                       {isNumericPhone ? (
-                        <Phone className="size-3 text-muted-foreground" />
+                        <Phone className="size-3.5 text-muted-foreground" />
                       ) : (
-                        <Mail className="size-3 text-muted-foreground" />
+                        <Mail className="size-3.5 text-muted-foreground" />
                       )}
                       Email или номер телефона
                     </span>
@@ -332,9 +328,9 @@ export default function LoginPage() {
                   <div className="flex items-center justify-between">
                     <label
                       htmlFor="password"
-                      className="font-medium text-foreground text-xs flex items-center gap-1"
+                      className="font-medium text-foreground text-xs flex items-center gap-1.5"
                     >
-                      <Lock className="size-3 text-muted-foreground" /> Пароль
+                      <Lock className="size-3.5 text-muted-foreground" /> Пароль
                     </label>
                     {isCapsLockOn && (
                       <span className="text-[10px] text-primary flex items-center gap-0.5 font-medium">
@@ -409,7 +405,7 @@ export default function LoginPage() {
             </div>
 
             {/* Bottom Recovery & Help Section */}
-            <div className="mt-6 border-t border-border/50 pt-3 flex flex-col items-center">
+            <div className="mt-5 border-t border-border/50 pt-3 flex flex-col items-center">
               <button
                 type="button"
                 onClick={() => setShowHelp(!showHelp)}
