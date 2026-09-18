@@ -47,6 +47,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   BookMarked,
   Video,
   Loader2,
@@ -351,6 +352,30 @@ export function MaterialsView({
   const currentMat = activeMaterial || materials[0] || null;
   const parsedVideos = parseVideoUrls(currentMat?.linkUrl);
   const parsedResources = parseResourceLinks(currentMat?.fileUrl, currentMat?.linkUrl);
+
+  // Ordered list of materials for previous / next navigation across chapters
+  const orderedMaterials = React.useMemo(() => {
+    if (displayTopics.length > 0) {
+      const topicMats = displayTopics.flatMap((t) => t.materials || []);
+      if (topicMats.length > 0) return topicMats;
+    }
+    return displayMaterials;
+  }, [displayTopics, displayMaterials]);
+
+  const currentIndex = orderedMaterials.findIndex((m) => m.id === currentMat?.id);
+  const prevMaterial = currentIndex > 0 ? orderedMaterials[currentIndex - 1] : null;
+  const nextMaterial = currentIndex >= 0 && currentIndex < orderedMaterials.length - 1 ? orderedMaterials[currentIndex + 1] : null;
+
+  const handleNavigateMaterial = (mat: MaterialDTO) => {
+    setActiveMaterial(mat);
+    if (mat.topicId) {
+      setExpandedTopics((prev) => ({
+        ...prev,
+        [mat.topicId]: true,
+      }));
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const getMaterialTypeLabel = (t: MaterialType) => {
     switch (t) {
@@ -816,7 +841,36 @@ export function MaterialsView({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-2 text-xs text-muted-foreground pt-2 sm:pt-0 border-t sm:border-t-0 shrink-0">
+                <div className="flex items-center justify-between sm:justify-end gap-2 text-xs text-muted-foreground pt-2 sm:pt-0 border-t sm:border-t-0 shrink-0 flex-wrap">
+                  {/* Prev / Next Quick Arrows in Header */}
+                  {orderedMaterials.length > 1 && (
+                    <div className="flex items-center gap-1 border-r pr-2 mr-1">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        disabled={!prevMaterial}
+                        onClick={() => prevMaterial && handleNavigateMaterial(prevMaterial)}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        title={prevMaterial ? `Предыдущий: ${prevMaterial.title}` : "Это первый материал"}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-[11px] text-muted-foreground select-none font-medium px-0.5 whitespace-nowrap">
+                        {currentIndex >= 0 ? `${currentIndex + 1}/${orderedMaterials.length}` : ""}
+                      </span>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        disabled={!nextMaterial}
+                        onClick={() => nextMaterial && handleNavigateMaterial(nextMaterial)}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        title={nextMaterial ? `Следующий: ${nextMaterial.title}` : "Это последний материал"}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+
                   {!isSidebarOpen && (
                     <Button
                       size="xs"
@@ -917,6 +971,52 @@ export function MaterialsView({
                       </a>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Bottom Navigation Bar: Previous & Next Lesson */}
+              {orderedMaterials.length > 1 && (
+                <div className="pt-4 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+                  {prevMaterial ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => handleNavigateMaterial(prevMaterial)}
+                      className="h-auto py-2 px-3 gap-2 text-foreground hover:text-primary hover:border-primary/40 font-medium justify-start text-left group w-full sm:w-auto"
+                    >
+                      <ChevronLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                      <div className="min-w-0 max-w-[200px] sm:max-w-[240px]">
+                        <span className="text-[10px] text-muted-foreground block leading-tight">Предыдущий материал</span>
+                        <span className="truncate block text-xs font-semibold leading-tight">{prevMaterial.title}</span>
+                      </div>
+                    </Button>
+                  ) : (
+                    <div className="hidden sm:block" />
+                  )}
+
+                  {currentIndex >= 0 && (
+                    <div className="text-[11px] text-muted-foreground font-medium text-center">
+                      Материал {currentIndex + 1} из {orderedMaterials.length}
+                    </div>
+                  )}
+
+                  {nextMaterial ? (
+                    <Button
+                      type="button"
+                      size="xs"
+                      onClick={() => handleNavigateMaterial(nextMaterial)}
+                      className="h-auto py-2 px-3 gap-2 font-medium justify-end text-right group w-full sm:w-auto ml-auto"
+                    >
+                      <div className="min-w-0 max-w-[200px] sm:max-w-[240px]">
+                        <span className="text-[10px] text-primary-foreground/75 block leading-tight">Следующий материал</span>
+                        <span className="truncate block text-xs font-semibold leading-tight">{nextMaterial.title}</span>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </Button>
+                  ) : (
+                    <div className="hidden sm:block" />
+                  )}
                 </div>
               )}
             </div>
