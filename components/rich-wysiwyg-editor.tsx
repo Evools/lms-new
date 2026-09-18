@@ -35,6 +35,7 @@ import {
   Copy,
   Check,
   ChevronDown,
+  ListCollapse,
 } from "lucide-react";
 import { renderMarkdown } from "@/lib/markdown";
 
@@ -436,6 +437,23 @@ export function RichWysiwygEditor({
             title="Блок кода с подсветкой синтаксиса"
           >
             <FileCode className="h-3.5 w-3.5" />
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() =>
+              insertFormatting(
+                "\n<details>\n<summary>Заголовок спойлера / этапа</summary>\n\n",
+                "\n\n</details>\n",
+                "Содержимое скрытого блока (текст, код, подсказки)..."
+              )
+            }
+            className="h-7 w-7 p-0"
+            title="Сворачиваемый блок (спойлер / этап)"
+          >
+            <ListCollapse className="h-3.5 w-3.5" />
           </Button>
 
           <Button

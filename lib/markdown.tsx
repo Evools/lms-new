@@ -3,8 +3,34 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { Highlight, themes } from "prism-react-renderer";
-import { Check, Copy, ExternalLink } from "lucide-react";
+import { Check, Copy, ExternalLink, ChevronRight } from "lucide-react";
+
+/** Safe sanitize schema allowing details/summary and standard formatting while preventing arbitrary unsafe HTML (scripts, iframes, on* handlers) */
+const markdownSanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames || []),
+    "details",
+    "summary",
+    "kbd",
+    "mark",
+    "sup",
+    "sub",
+    "abbr",
+  ],
+  attributes: {
+    ...defaultSchema.attributes,
+    details: ["open", "className"],
+    summary: ["className"],
+    code: [...(defaultSchema.attributes?.code || []), "className", "inline"],
+    span: [...(defaultSchema.attributes?.span || []), "className"],
+    div: [...(defaultSchema.attributes?.div || []), "className"],
+    a: [...(defaultSchema.attributes?.a || []), "target", "rel", "className"],
+  },
+};
 
 /** Normalize language name for Prism */
 function normalizeLanguage(lang?: string): string {
@@ -134,6 +160,87 @@ function CodeBlock({
   );
 }
 
+interface ElementWithNodeProps {
+  children?: React.ReactNode;
+  node?: {
+    tagName?: string;
+  };
+}
+
+function isSummaryElement(
+  child: React.ReactNode
+): child is React.ReactElement<ElementWithNodeProps> {
+  if (!React.isValidElement<ElementWithNodeProps>(child)) return false;
+  if (child.type === "summary") return true;
+  if (typeof child.type === "function" && child.type.name === "summary") return true;
+  if (child.props?.node?.tagName === "summary") return true;
+  return false;
+}
+
+/** Smooth animated Accordion component for Markdown details/summary */
+function MarkdownAccordion({
+  open: initialOpen,
+  className = "",
+  children,
+}: {
+  open?: boolean | string;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const isDefaultOpen =
+    initialOpen === "" ||
+    initialOpen === true ||
+    initialOpen === "open" ||
+    initialOpen === "true";
+  const [isOpen, setIsOpen] = useState(isDefaultOpen);
+
+  const childArray = React.Children.toArray(children);
+  const summaryElement = childArray.find(isSummaryElement);
+  const otherChildren = summaryElement
+    ? childArray.filter((c) => c !== summaryElement)
+    : childArray;
+
+  const summaryContent = summaryElement
+    ? summaryElement.props.children
+    : "Подробнее";
+
+  return (
+    <div
+      className={`my-2.5 rounded-lg border border-border/80 bg-card overflow-hidden text-xs shadow-2xs transition-colors ${className || ""}`}
+    >
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-expanded={isOpen}
+        className={`w-full flex items-center gap-2 px-3 py-2 cursor-pointer font-medium text-foreground bg-muted/30 hover:bg-muted/60 transition-colors select-none text-left ${
+          isOpen ? "border-b border-border/60" : ""
+        }`}
+      >
+        <ChevronRight
+          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ease-out ${
+            isOpen ? "rotate-90 text-primary" : "text-muted-foreground"
+          }`}
+        />
+        <span className="flex-1 leading-snug">{summaryContent}</span>
+      </button>
+
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+          isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className="overflow-hidden">
+          {otherChildren.length > 0 && (
+            <div className="p-3 pt-2.5 space-y-2 bg-background/50 text-foreground/90">
+              {otherChildren}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export interface MarkdownViewerProps {
   content: string;
   className?: string;
@@ -150,6 +257,7 @@ export function MarkdownViewer({
     <div className={`text-xs leading-relaxed text-foreground space-y-2 select-text ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, markdownSanitizeSchema]]}
         components={{
           h1: ({ children }) => (
             <h1 className="text-sm font-bold text-foreground mt-3 mb-1.5 first:mt-0 tracking-tight">
@@ -211,6 +319,12 @@ export function MarkdownViewer({
               <ExternalLink className="h-2.5 w-2.5 shrink-0" />
             </a>
           ),
+          details: ({ children, open, className }) => (
+            <MarkdownAccordion open={open as boolean | string | undefined} className={className}>
+              {children}
+            </MarkdownAccordion>
+          ),
+          summary: ({ children }) => <>{children}</>,
           table: ({ children }) => (
             <div className="my-2.5 overflow-x-auto rounded-lg border border-border/80 bg-card">
               <table className="w-full text-xs text-left border-collapse min-w-full">
@@ -255,7 +369,7 @@ export function MarkdownViewer({
             }
             return null;
           },
-          code: ({ className, children, ...props }) => {
+          code: ({ className, children, node: _node, ...props }) => {
             const match = /language-(\w+)/.exec(className || "");
             const isCodeBlock = match || String(children).includes("\n");
 
