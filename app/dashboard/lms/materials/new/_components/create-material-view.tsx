@@ -512,7 +512,7 @@ export function CreateMaterialView({
                 onClick={() => handleSubmit(isPublished)}
                 className="w-full h-8 text-xs gap-1.5 font-medium"
               >
-                <Save className="h-3.5 w-3.5" /> {isPublished ? "Опубликовать материал" : "Сохранить черновик"}
+                <Save className="h-3.5 w-3.5" /> {isPending ? "Создание..." : "Создать материал"}
               </Button>
 
               <Link href={returnUrl} className="block">

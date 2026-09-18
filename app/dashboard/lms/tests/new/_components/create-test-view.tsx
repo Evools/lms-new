@@ -1207,10 +1207,6 @@ export function CreateTestView({
           >
             <Eye className="h-3.5 w-3.5 text-primary" /> {isPreview ? "Редактор" : "Предпросмотр"}
           </Button>
-
-          <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-7 text-xs gap-1.5 font-medium px-3">
-            <Plus className="h-3.5 w-3.5" /> {isPublished ? "Опубликовать тест" : "Сохранить черновик"}
-          </Button>
         </div>
       </div>
 
@@ -2389,7 +2385,7 @@ export function CreateTestView({
             {/* Action Buttons */}
             <div className="pt-2 border-t space-y-1.5">
               <Button size="xs" disabled={isPending} onClick={handleSubmit} className="w-full h-8 text-xs gap-1.5 font-medium">
-                <Plus className="h-3.5 w-3.5" /> {isPublished ? "Опубликовать тест" : "Сохранить черновик"}
+                <Plus className="h-3.5 w-3.5" /> {isPending ? "Создание..." : "Создать тест"}
               </Button>
 
               <Link href={`/dashboard/lms/tests?group=${groupId}`} className="block">

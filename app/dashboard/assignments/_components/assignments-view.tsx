@@ -34,6 +34,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   ClipboardList,
   Plus,
@@ -1646,31 +1647,26 @@ export function AssignmentsView({
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Статус публикации</label>
-              <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
-                <button
-                  type="button"
-                  onClick={() => setNewIsPublished(true)}
-                  className={`py-1 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                    newIsPublished
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Eye className="h-3.5 w-3.5" /> Опубликован
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewIsPublished(false)}
-                  className={`py-1 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                    !newIsPublished
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <EyeOff className="h-3.5 w-3.5" /> Черновик
-                </button>
+            <div className="pt-2 border-t text-xs">
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <label htmlFor="modal-assignment-publish-switch" className="text-xs font-medium text-foreground cursor-pointer flex items-center gap-1.5">
+                  {newIsPublished ? (
+                    <>
+                      <Eye className="h-3.5 w-3.5 text-primary" />
+                      <span>Опубликовано</span>
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Черновик</span>
+                    </>
+                  )}
+                </label>
+                <Switch
+                  id="modal-assignment-publish-switch"
+                  checked={newIsPublished}
+                  onCheckedChange={(checked) => setNewIsPublished(checked)}
+                />
               </div>
             </div>
           </div>
@@ -1680,7 +1676,7 @@ export function AssignmentsView({
               Отмена
             </Button>
             <Button size="xs" disabled={isPending} onClick={handleCreateAssignment}>
-              {newIsPublished ? "Опубликовать" : "Сохранить в черновик"}
+              {isPending ? "Создание..." : "Создать задание"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -782,10 +782,6 @@ export function EditTestView({
           >
             <Eye className="h-3.5 w-3.5 text-primary" /> {isPreview ? "Редактор" : "Предпросмотр"}
           </Button>
-
-          <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-7 text-xs gap-1.5 font-medium px-3">
-            <Save className="h-3.5 w-3.5" /> Сохранить изменения
-          </Button>
         </div>
       </div>
 

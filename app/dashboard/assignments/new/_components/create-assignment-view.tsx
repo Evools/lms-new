@@ -457,31 +457,6 @@ export function CreateAssignmentView({
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="xs"
-            variant="outline"
-            disabled={isPending}
-            onClick={() => handleSubmit(false)}
-            className="h-7 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
-          >
-            <EyeOff className="h-3 w-3" />
-            <span>В черновик</span>
-          </Button>
-
-          <Button
-            size="xs"
-            disabled={isPending}
-            onClick={() => handleSubmit(true)}
-            className="h-8 text-xs gap-1.5 font-medium"
-            title="Опубликовать (Ctrl + Enter)"
-            data-tour="assignment-new-submit"
-          >
-            <Send className="h-3.5 w-3.5" />
-            {isPending ? "Публикация..." : "Опубликовать"}
-          </Button>
-        </div>
       </div>
 
       {/* Full-width Grid: Left = Editor Canvas (2 cols), Right = Settings Panel (1 col) */}
@@ -897,17 +872,8 @@ export function CreateAssignmentView({
               onClick={() => handleSubmit(isPublished)}
               className="w-full h-8 text-xs gap-1.5 font-medium shadow-none"
             >
-              {isPublished ? (
-                <>
-                  <Send className="h-3.5 w-3.5" />
-                  <span>{isPending ? "Публикация..." : "Опубликовать задание"}</span>
-                </>
-              ) : (
-                <>
-                  <EyeOff className="h-3.5 w-3.5" />
-                  <span>{isPending ? "Сохранение..." : "Сохранить в черновик"}</span>
-                </>
-              )}
+              <Send className="h-3.5 w-3.5" />
+              <span>{isPending ? "Создание..." : "Создать задание"}</span>
             </Button>
 
             <Link href={`/dashboard/assignments?group=${selectedGroupId}`} className="block w-full">
