@@ -13,6 +13,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   ChevronLeft,
   FileText,
@@ -27,8 +28,12 @@ import {
   BookOpen,
   Laptop,
   FlaskConical,
+  Eye,
+  EyeOff,
+  Save,
 } from "lucide-react";
 import { GroupItemDTO, createMaterialAction } from "../../../actions";
+import { cn } from "@/lib/utils";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
 import { toast } from "@/components/ui/toast";
 
@@ -98,20 +103,18 @@ export function initializeService(config: ServiceConfig) {
     id: "lab_work",
     name: "Лабораторная работа",
     content: `## Лабораторная работа
-**Тема:** Исследование и моделирование алгоритмов
+### Введение и постановка задачи
+Опишите комплексное техническое задание для выполнения лабораторной работы.
 
-### 1. Необходимое ПО и стек
-- Среда разработки: VS Code / WebStorm
-- Стек: Node.js, TypeScript
+### Архитектура и требования
+1. **Модульность:** Разделение логики на переиспользуемые модули.
+2. **Безопасность:** Валидация входных данных на сервере и клиенте.
+3. **Производительность:** Оптимизация запросов к базе данных.
 
-### 2. Ход работы
-1. Ознакомиться с исходными данными
-2. Выполнить замеры производительности
-3. Сформулировать вывод на основе полученных графиков
-
-### 3. Контрольные вопросы
-1. В чём различие между синхронным и асинхронным выполнением?
-2. Какие механизмы оптимизации памяти были применены?`,
+### Контрольные вопросы для защиты
+1. В чем отличие синхронных и асинхронных операций?
+2. Какие паттерны проектирования были применены?
+3. Каким образом обеспечивается изоляция данных?`,
   },
 ];
 
@@ -131,6 +134,7 @@ export function CreateMaterialView({
   const [type, setType] = useState<MaterialType>(MaterialType.LECTURE);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [isPublished, setIsPublished] = useState(true);
 
   const returnUrl = selectedSubjectId
     ? `/dashboard/lms/materials?group=${groupId}&subject=${selectedSubjectId}`
@@ -195,7 +199,8 @@ export function CreateMaterialView({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (targetPublish?: boolean) => {
+    const finalPublish = targetPublish !== undefined ? targetPublish : isPublished;
     if (!title.trim()) {
       toast.add({ title: "Укажите заголовок материала", type: "error" });
       return;
@@ -216,10 +221,14 @@ export function CreateMaterialView({
         content,
         fileUrl: fileUrlData || undefined,
         linkUrl: linkUrlData || undefined,
+        isPublished: finalPublish,
       });
 
       if (res.success) {
-        toast.add({ title: "Материал успешно опубликован!", type: "success" });
+        toast.add({
+          title: finalPublish ? "Материал успешно опубликован!" : "Материал сохранен как черновик!",
+          type: "success",
+        });
         setTimeout(() => {
           const targetSubjectId = selectedSubjectId || res.subjectId;
           const targetUrl = targetSubjectId
@@ -229,7 +238,7 @@ export function CreateMaterialView({
           router.refresh();
         }, 600);
       } else {
-        toast.add({ title: res.error || "Ошибка при публикации материала", type: "error" });
+        toast.add({ title: res.error || "Ошибка сохранения материала", type: "error" });
       }
     });
   };
@@ -237,7 +246,7 @@ export function CreateMaterialView({
   return (
     <div className="space-y-4 w-full">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-xs">
+      <div className="flex items-center justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-xs">
         <div className="flex items-center gap-2.5 min-w-0">
           <Link href={returnUrl} className="shrink-0">
             <Button size="xs" variant="outline" className="h-8 w-8 p-0">
@@ -254,15 +263,6 @@ export function CreateMaterialView({
             </p>
           </div>
         </div>
-
-        <Button
-          size="xs"
-          disabled={isPending}
-          onClick={handleSubmit}
-          className="h-8 text-xs gap-1.5 font-medium shrink-0 w-full sm:w-auto"
-        >
-          Опубликовать материал
-        </Button>
       </div>
 
       {/* Form Grid */}
@@ -483,10 +483,36 @@ export function CreateMaterialView({
               </Select>
             </div>
 
+            <div className="flex items-center justify-between gap-2 py-1">
+              <label htmlFor="create-material-publish-switch" className="text-xs font-medium text-foreground cursor-pointer flex items-center gap-1.5">
+                {isPublished ? (
+                  <>
+                    <Eye className="h-3.5 w-3.5 text-primary" />
+                    <span>Опубликован</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Черновик</span>
+                  </>
+                )}
+              </label>
+              <Switch
+                id="create-material-publish-switch"
+                checked={isPublished}
+                onCheckedChange={(checked) => setIsPublished(checked)}
+              />
+            </div>
+
             {/* Submit Action Buttons */}
             <div className="pt-2 border-t space-y-1.5">
-              <Button size="xs" disabled={isPending} onClick={handleSubmit} className="w-full h-8 text-xs gap-1.5 font-medium">
-                Опубликовать материал
+              <Button
+                size="xs"
+                disabled={isPending}
+                onClick={() => handleSubmit(isPublished)}
+                className="w-full h-8 text-xs gap-1.5 font-medium"
+              >
+                <Save className="h-3.5 w-3.5" /> {isPublished ? "Опубликовать материал" : "Сохранить черновик"}
               </Button>
 
               <Link href={returnUrl} className="block">

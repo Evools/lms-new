@@ -13,6 +13,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   ChevronLeft,
   FileText,
@@ -28,7 +29,10 @@ import {
   BookOpen,
   Laptop,
   FlaskConical,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { GroupItemDTO, updateMaterialAction } from "@/app/dashboard/lms/actions";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
 import { toast } from "@/components/ui/toast";
@@ -43,6 +47,7 @@ export interface MaterialEditData {
   content?: string | null;
   fileUrl?: string | null;
   linkUrl?: string | null;
+  isPublished: boolean;
 }
 
 interface EditMaterialViewProps {
@@ -140,6 +145,7 @@ export function EditMaterialView({
   const [type, setType] = useState<MaterialType>(initialMaterial.type);
   const [title, setTitle] = useState(initialMaterial.title);
   const [content, setContent] = useState(initialMaterial.content || "");
+  const [isPublished, setIsPublished] = useState(initialMaterial.isPublished ?? true);
 
   const targetSubjectId = selectedSubjectId || initialMaterial.subjectId;
   const returnUrl = targetSubjectId
@@ -218,7 +224,8 @@ export function EditMaterialView({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (targetPublish?: boolean) => {
+    const finalPublish = targetPublish !== undefined ? targetPublish : isPublished;
     if (!topicId || topicId === "none" || !title.trim()) {
       toast.add({ title: "Укажите главу и заголовок материала", type: "error" });
       return;
@@ -238,6 +245,7 @@ export function EditMaterialView({
         content,
         fileUrl: fileUrlData || undefined,
         linkUrl: linkUrlData || undefined,
+        isPublished: finalPublish,
       });
 
       if (res.success) {
@@ -259,7 +267,7 @@ export function EditMaterialView({
   return (
     <div className="space-y-4 w-full">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-xs">
+      <div className="flex items-center justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-xs">
         <div className="flex items-center gap-2.5 min-w-0">
           <Link href={returnUrl} className="shrink-0">
             <Button size="xs" variant="outline" className="h-8 w-8 p-0">
@@ -276,15 +284,6 @@ export function EditMaterialView({
             </p>
           </div>
         </div>
-
-        <Button
-          size="xs"
-          disabled={isPending}
-          onClick={handleSubmit}
-          className="h-8 text-xs gap-1.5 font-medium shrink-0 w-full sm:w-auto"
-        >
-          <Save className="h-3.5 w-3.5" /> Сохранить изменения
-        </Button>
       </div>
 
       {/* Form Grid */}
@@ -490,9 +489,35 @@ export function EditMaterialView({
               </Select>
             </div>
 
+            <div className="flex items-center justify-between gap-2 py-1">
+              <label htmlFor="material-publish-switch" className="text-xs font-medium text-foreground cursor-pointer flex items-center gap-1.5">
+                {isPublished ? (
+                  <>
+                    <Eye className="h-3.5 w-3.5 text-primary" />
+                    <span>Опубликован</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Черновик</span>
+                  </>
+                )}
+              </label>
+              <Switch
+                id="material-publish-switch"
+                checked={isPublished}
+                onCheckedChange={(checked) => setIsPublished(checked)}
+              />
+            </div>
+
             {/* Submit Action Buttons */}
             <div className="pt-2 border-t space-y-1.5">
-              <Button size="xs" disabled={isPending} onClick={handleSubmit} className="w-full h-8 text-xs gap-1.5 font-medium">
+              <Button
+                size="xs"
+                disabled={isPending}
+                onClick={() => handleSubmit(isPublished)}
+                className="w-full h-8 text-xs gap-1.5 font-medium"
+              >
                 <Save className="h-3.5 w-3.5" /> Сохранить изменения
               </Button>
 

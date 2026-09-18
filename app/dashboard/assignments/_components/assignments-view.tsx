@@ -71,6 +71,7 @@ import {
   Play,
   X,
   Download,
+  EyeOff,
 } from "lucide-react";
 import JSZip from "jszip";
 import {
@@ -82,6 +83,7 @@ import {
   deleteAssignmentAction,
   submitAssignmentAction,
   reviewSubmissionAction,
+  toggleAssignmentPublishAction,
 } from "../actions";
 import { renderMarkdown } from "@/lib/markdown";
 import { Textarea } from "@/components/ui/textarea";
@@ -383,7 +385,7 @@ export function AssignmentsView({
   const [currentGroupId, setCurrentGroupId] = useState<string>(selectedGroupId);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
-  const [activeTabFilter, setActiveTabFilter] = useState<"ALL" | "PENDING">("ALL");
+  const [activeTabFilter, setActiveTabFilter] = useState<"ALL" | "PENDING" | "DRAFTS">("ALL");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -395,6 +397,7 @@ export function AssignmentsView({
   const [newTitle, setNewTitle] = useState<string>("");
   const [newDescription, setNewDescription] = useState<string>("");
   const [newDueDate, setNewDueDate] = useState<string>("");
+  const [newIsPublished, setNewIsPublished] = useState<boolean>(true);
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([""]);
 
   // Modal 2: Student Submission Modal
@@ -566,6 +569,7 @@ export function AssignmentsView({
         description: newDescription,
         dueDate: newDueDate || undefined,
         fileUrl: serializedFileUrl,
+        isPublished: newIsPublished,
       });
 
       if (res.success) {
@@ -573,11 +577,34 @@ export function AssignmentsView({
         setNewTitle("");
         setNewDescription("");
         setNewDueDate("");
+        setNewIsPublished(true);
         setAttachmentUrls([""]);
-        toast.add({ title: "Домашнее задание успешно опубликовано!", type: "success" });
+        toast.add({
+          title: newIsPublished ? "Домашнее задание успешно опубликовано!" : "Черновик задания сохранён!",
+          type: "success",
+        });
         router.refresh();
       } else {
         toast.add({ title: res.error || "Не удалось создать задание", type: "error" });
+      }
+    });
+  };
+
+  // Toggle Publish Status
+  const handleTogglePublish = (assignmentId: string, currentPublished: boolean) => {
+    startTransition(async () => {
+      const res = await toggleAssignmentPublishAction(assignmentId);
+      if (res.success) {
+        toast.add({
+          title: res.isPublished ? "Задание опубликовано для студентов" : "Задание переведено в черновик",
+          type: "success",
+        });
+        if (viewTargetAssignment && viewTargetAssignment.id === assignmentId) {
+          setViewTargetAssignment((prev) => (prev ? { ...prev, isPublished: res.isPublished ?? prev.isPublished } : null));
+        }
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка при смене статуса", type: "error" });
       }
     });
   };
@@ -717,7 +744,10 @@ export function AssignmentsView({
   };
 
   // Calculate Metrics
-  const totalAssignments = assignments.length;
+  const publishedAssignments = assignments.filter((a) => a.isPublished);
+  const draftAssignments = assignments.filter((a) => !a.isPublished);
+  const totalAssignments = userRole === "STUDENT" ? assignments.length : publishedAssignments.length;
+  const draftsCount = draftAssignments.length;
   let totalSubmissionsCount = 0;
   let totalAcceptedCount = 0;
   let totalNeedRevisionCount = 0;
@@ -740,8 +770,12 @@ export function AssignmentsView({
     const matchesSubject = subjectFilter === "all" || a.groupSubjectId === subjectFilter;
 
     if (!matchesSearch || !matchesSubject) return false;
+
+    if (activeTabFilter === "DRAFTS") {
+      return !a.isPublished;
+    }
     if (activeTabFilter === "PENDING") {
-      return a.submissionsCount > a.acceptedCount;
+      return a.isPublished && a.submissionsCount > a.acceptedCount;
     }
     return true;
   });
@@ -856,7 +890,7 @@ export function AssignmentsView({
           </Select>
         </div>
 
-        {/* Tab Filters (All vs Pending) */}
+        {/* Tab Filters (All vs Pending vs Drafts) */}
         <div className="lg:col-span-3 flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border">
           <button
             type="button"
@@ -867,26 +901,45 @@ export function AssignmentsView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Все ({totalAssignments})
+            Все ({assignments.length})
           </button>
 
           {canCreate && (
-            <button
-              type="button"
-              onClick={() => setActiveTabFilter("PENDING")}
-              className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 ${
-                activeTabFilter === "PENDING"
-                  ? "bg-background text-primary shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              На проверку
-              {totalSubmissionsCount > totalAcceptedCount && (
-                <span className="text-[9px] px-1 rounded-full bg-primary/20 text-primary font-bold">
-                  {totalSubmissionsCount - totalAcceptedCount}
-                </span>
-              )}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTabFilter("PENDING")}
+                className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 ${
+                  activeTabFilter === "PENDING"
+                    ? "bg-background text-primary shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Проверка
+                {totalSubmissionsCount > totalAcceptedCount && (
+                  <span className="text-[9px] px-1 rounded-full bg-primary/20 text-primary font-bold">
+                    {totalSubmissionsCount - totalAcceptedCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTabFilter("DRAFTS")}
+                className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 ${
+                  activeTabFilter === "DRAFTS"
+                    ? "bg-background text-primary shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Черновики
+                {draftsCount > 0 && (
+                  <span className="text-[9px] px-1 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold">
+                    {draftsCount}
+                  </span>
+                )}
+              </button>
+            </>
           )}
         </div>
 
@@ -953,12 +1006,22 @@ export function AssignmentsView({
                     <tr key={assignment.id} className="hover:bg-muted/30 transition-colors">
                       {/* Title & Description */}
                       <td className="py-2.5 px-3 max-w-[300px]">
-                        <div
-                          onClick={() => setViewTargetAssignment(assignment)}
-                          className="font-bold text-foreground text-xs hover:text-primary transition-colors cursor-pointer truncate flex items-center gap-1.5"
-                        >
-                          <ClipboardList className="h-3.5 w-3.5 text-primary shrink-0" />
-                          <span className="truncate">{assignment.title}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <div
+                            onClick={() => setViewTargetAssignment(assignment)}
+                            className="font-bold text-foreground text-xs hover:text-primary transition-colors cursor-pointer truncate flex items-center gap-1.5"
+                          >
+                            <ClipboardList className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span className="truncate">{assignment.title}</span>
+                          </div>
+                          {!assignment.isPublished && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 inline-flex items-center gap-1"
+                            >
+                              <EyeOff className="h-2.5 w-2.5" /> Черновик
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-[10px] text-muted-foreground truncate pt-0.5">
                           {assignment.description
@@ -1071,6 +1134,20 @@ export function AssignmentsView({
                               <Button
                                 size="xs"
                                 variant="outline"
+                                onClick={() => handleTogglePublish(assignment.id, assignment.isPublished)}
+                                className={`h-7 w-7 p-0 ${
+                                  assignment.isPublished
+                                    ? "text-muted-foreground hover:text-primary"
+                                    : "text-muted-foreground hover:text-foreground bg-muted/40"
+                                }`}
+                                title={assignment.isPublished ? "Снять с публикации (в черновик)" : "Опубликовать задание"}
+                              >
+                                {assignment.isPublished ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                              </Button>
+
+                              <Button
+                                size="xs"
+                                variant="outline"
                                 onClick={() => setViewTargetAssignment(assignment)}
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
                                 title="Подробное описание"
@@ -1160,9 +1237,19 @@ export function AssignmentsView({
               >
                 {/* Header: Subject & Due Date */}
                 <div className="flex items-center justify-between gap-2 border-b pb-2">
-                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium px-1.5 py-0 truncate">
-                    {assignment.subjectName}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium px-1.5 py-0 truncate">
+                      {assignment.subjectName}
+                    </Badge>
+                    {!assignment.isPublished && (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 inline-flex items-center gap-0.5 shrink-0"
+                      >
+                        <EyeOff className="h-2.5 w-2.5" /> Черновик
+                      </Badge>
+                    )}
+                  </div>
 
                   {assignment.dueDate ? (
                     <span className="text-[10px] font-medium text-foreground bg-muted/60 px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-1 border">
@@ -1217,6 +1304,15 @@ export function AssignmentsView({
                       </Button>
 
                       <div className="flex items-center gap-1">
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => handleTogglePublish(assignment.id, assignment.isPublished)}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                          title={assignment.isPublished ? "Снять с публикации (в черновик)" : "Опубликовать"}
+                        >
+                          {assignment.isPublished ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        </Button>
                         <Button
                           size="xs"
                           variant="ghost"
@@ -1324,6 +1420,14 @@ export function AssignmentsView({
                 <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium">
                   {viewTargetAssignment.subjectName}
                 </Badge>
+                {!viewTargetAssignment.isPublished && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-2 py-0 inline-flex items-center gap-1"
+                  >
+                    <EyeOff className="h-3 w-3" /> Черновик
+                  </Badge>
+                )}
                 {viewTargetAssignment.dueDate && (
                   <Badge variant="secondary" className="text-[10px] gap-1 shrink-0 font-normal">
                     <Clock className="h-3 w-3 text-primary" />
@@ -1541,6 +1645,34 @@ export function AssignmentsView({
                 className="text-xs bg-background min-h-[100px]"
               />
             </div>
+
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Статус публикации</label>
+              <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+                <button
+                  type="button"
+                  onClick={() => setNewIsPublished(true)}
+                  className={`py-1 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                    newIsPublished
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Eye className="h-3.5 w-3.5" /> Опубликован
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewIsPublished(false)}
+                  className={`py-1 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                    !newIsPublished
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <EyeOff className="h-3.5 w-3.5" /> Черновик
+                </button>
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
@@ -1548,7 +1680,7 @@ export function AssignmentsView({
               Отмена
             </Button>
             <Button size="xs" disabled={isPending} onClick={handleCreateAssignment}>
-              Опубликовать
+              {newIsPublished ? "Опубликовать" : "Сохранить в черновик"}
             </Button>
           </DialogFooter>
         </DialogContent>

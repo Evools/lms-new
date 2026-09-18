@@ -53,6 +53,8 @@ import {
   Loader2,
   PanelLeftClose,
   PanelLeftOpen,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -62,6 +64,7 @@ import {
   updateTopicAction,
   deleteTopicAction,
   deleteMaterialAction,
+  toggleMaterialPublishAction,
 } from "@/app/dashboard/lms/actions";
 import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
@@ -289,6 +292,22 @@ export function MaterialsView({
         router.refresh();
       } else {
         toast.add({ title: res.error || "Ошибка при удалении материала", type: "error" });
+      }
+    });
+  };
+
+  const handleTogglePublish = (materialId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    startTransition(async () => {
+      const res = await toggleMaterialPublishAction(materialId);
+      if (res.success) {
+        toast.add({
+          title: res.isPublished ? "Материал опубликован!" : "Материал переведен в черновик",
+          type: "success",
+        });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка смены статуса", type: "error" });
       }
     });
   };
@@ -752,10 +771,15 @@ export function MaterialsView({
                                           : "text-foreground hover:bg-muted/40 font-normal"
                                       }`}
                                     >
-                                      <div className="flex items-center gap-2 truncate pr-1">
+                                      <div className="flex items-center gap-2 truncate pr-1 min-w-0">
                                         <span className="text-[11px] truncate">
                                           {matIdx + 1}. {mat.title}
                                         </span>
+                                        {!mat.isPublished && (
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-muted/60 text-muted-foreground border-dashed gap-0.5 shrink-0">
+                                            <EyeOff className="h-2.5 w-2.5" /> Черновик
+                                          </Badge>
+                                        )}
                                       </div>
 
                                       <div className="flex items-center gap-1 shrink-0">
@@ -804,9 +828,10 @@ export function MaterialsView({
                         );
                       })}
 
-                      {topicsWithMaterials.length === 0 && (
-                        <div className="py-8 text-center text-xs text-muted-foreground italic">
-                          Главы еще не созданы
+                      {displayTopics.length === 0 && (
+                        <div className="py-8 text-center space-y-1 text-muted-foreground">
+                          <p className="text-xs font-semibold">Главы не найдены</p>
+                          <p className="text-[11px]">Создайте первую главу для группировки материалов</p>
                         </div>
                       )}
                     </div>
@@ -822,7 +847,14 @@ export function MaterialsView({
               {/* Active Material Header */}
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b pb-3">
                 <div className="space-y-1.5 min-w-0">
-                  <h2 className="text-base font-bold text-foreground leading-tight break-words">{currentMat.title}</h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base font-bold text-foreground leading-tight break-words">{currentMat.title}</h2>
+                    {!currentMat.isPublished && (
+                      <Badge variant="outline" className="text-[10px] bg-muted/60 text-muted-foreground border-dashed gap-1 font-medium">
+                        <EyeOff className="h-3 w-3" /> Черновик
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                     <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium flex items-center gap-1">
                       {getMaterialTypeIcon(currentMat.type)}
@@ -918,6 +950,25 @@ export function MaterialsView({
                   )}
                 </div>
               </div>
+
+              {!currentMat.isPublished && (
+                <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-dashed text-xs">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <EyeOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span>Материал находится в черновике (скрыт от студентов)</span>
+                  </div>
+                  {canCreate && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => handleTogglePublish(currentMat.id)}
+                      className="h-6 text-xs px-2.5 font-medium gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                    >
+                      <Eye className="h-3 w-3" /> Опубликовать
+                    </Button>
+                  )}
+                </div>
+              )}
 
               {/* Multiple Video Players */}
               {parsedVideos.length > 0 && (

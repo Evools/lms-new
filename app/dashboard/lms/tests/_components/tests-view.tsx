@@ -50,6 +50,7 @@ import {
   HelpCircle,
   Award,
   Eye,
+  EyeOff,
   FileText,
   Check,
   Pencil,
@@ -69,6 +70,7 @@ import {
   createTestAction,
   submitTestAnswersAction,
   deleteTestAction,
+  toggleTestPublishAction,
 } from "@/app/dashboard/lms/actions";
 import { toast } from "@/components/ui/toast";
 
@@ -98,12 +100,14 @@ export function TestsView({
   selectedGroupId,
   selectedTopicId,
   canCreate,
+  userRole,
 }: TestsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
+  const [activeTabFilter, setActiveTabFilter] = useState<"ALL" | "DRAFTS">("ALL");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -127,6 +131,7 @@ export function TestsView({
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newTimeLimit, setNewTimeLimit] = useState<number | "">(15);
+  const [newIsPublished, setNewIsPublished] = useState<boolean>(true);
   const [questionDrafts, setQuestionDrafts] = useState<QuestionDraft[]>([
     {
       questionText: "",
@@ -223,14 +228,19 @@ export function TestsView({
         timeLimit: newTimeLimit ? Number(newTimeLimit) : undefined,
         shuffleQuestions: true,
         shuffleOptions: true,
+        isPublished: newIsPublished,
         questions: questionDrafts,
       });
 
       if (res.success) {
-        toast.add({ title: "Тест успешно создан и опубликован!", type: "success" });
+        toast.add({
+          title: newIsPublished ? "Тест успешно создан и опубликован!" : "Черновик теста сохранён!",
+          type: "success",
+        });
         setIsCreateOpen(false);
         setNewTitle("");
         setNewDescription("");
+        setNewIsPublished(true);
         setQuestionDrafts([
           {
             questionText: "",
@@ -242,6 +252,21 @@ export function TestsView({
         router.refresh();
       } else {
         toast.add({ title: res.error || "Ошибка при создании теста", type: "error" });
+      }
+    });
+  };
+
+  const handleTogglePublish = (testId: string, currentPublished: boolean) => {
+    startTransition(async () => {
+      const res = await toggleTestPublishAction(testId);
+      if (res.success) {
+        toast.add({
+          title: res.isPublished ? "Тест опубликован для студентов" : "Тест переведен в черновик",
+          type: "success",
+        });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка при смене статуса", type: "error" });
       }
     });
   };
@@ -291,11 +316,19 @@ export function TestsView({
 
     const matchesSubject = subjectFilter === "all" || t.groupSubjectId === subjectFilter;
 
-    return matchesQuery && matchesSubject;
+    if (!matchesQuery || !matchesSubject) return false;
+
+    if (activeTabFilter === "DRAFTS") {
+      return !t.isPublished;
+    }
+    return true;
   });
 
   // Calculate Overall Statistics for Header Metrics
-  const totalTests = tests.length;
+  const publishedTests = tests.filter((t) => t.isPublished);
+  const draftTests = tests.filter((t) => !t.isPublished);
+  const totalTests = userRole === "STUDENT" ? tests.length : publishedTests.length;
+  const draftsCount = draftTests.length;
   const totalSubmissions = tests.reduce((acc, t) => acc + t.submissionsCount, 0);
   const totalGradedSubmissions = tests.flatMap((t) => t.submissions);
   const avgPassRate =
@@ -395,7 +428,7 @@ export function TestsView({
         </div>
 
         {/* Subject Filter */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-2">
           <Select value={subjectFilter} onValueChange={setSubjectFilter}>
             <SelectTrigger className="h-8 text-xs bg-background font-medium">
               <div className="flex items-center gap-1.5 truncate">
@@ -421,7 +454,7 @@ export function TestsView({
         </div>
 
         {/* Topic Filter */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-2">
           <Select value={selectedTopicId || "all"} onValueChange={handleTopicChange}>
             <SelectTrigger className="h-8 text-xs bg-background font-medium">
               <div className="flex items-center gap-1.5 truncate">
@@ -442,6 +475,40 @@ export function TestsView({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Drafts Tab Filters */}
+        <div className="lg:col-span-2 flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border">
+          <button
+            type="button"
+            onClick={() => setActiveTabFilter("ALL")}
+            className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center ${
+              activeTabFilter === "ALL"
+                ? "bg-background text-primary shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Все ({tests.length})
+          </button>
+
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => setActiveTabFilter("DRAFTS")}
+              className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 ${
+                activeTabFilter === "DRAFTS"
+                  ? "bg-background text-primary shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Черновики
+              {draftsCount > 0 && (
+                <span className="text-[9px] px-1 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold">
+                  {draftsCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Search & View Mode Switcher */}
@@ -510,13 +577,23 @@ export function TestsView({
                     <tr key={test.id} className="hover:bg-muted/30 transition-colors">
                       {/* Title & Topic */}
                       <td className="py-2.5 px-3 max-w-[280px]">
-                        <Link
-                          href={canCreate ? `/dashboard/lms/tests/${test.id}/results` : `/dashboard/lms/tests/${test.id}/take`}
-                          className="font-bold text-foreground hover:text-primary transition-colors text-xs truncate flex items-center gap-1.5"
-                        >
-                          <FileCheck2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                          <span className="truncate">{test.title}</span>
-                        </Link>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Link
+                            href={canCreate ? `/dashboard/lms/tests/${test.id}/results` : `/dashboard/lms/tests/${test.id}/take`}
+                            className="font-bold text-foreground hover:text-primary transition-colors text-xs truncate flex items-center gap-1.5"
+                          >
+                            <FileCheck2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span className="truncate">{test.title}</span>
+                          </Link>
+                          {!test.isPublished && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 inline-flex items-center gap-0.5"
+                            >
+                              <EyeOff className="h-2.5 w-2.5" /> Черновик
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-[10px] text-muted-foreground truncate pt-0.5">
                           {test.topicTitle ? `Тема: ${test.topicTitle}` : test.description || "Без привязки к теме"}
                         </div>
@@ -582,6 +659,20 @@ export function TestsView({
                         <div className="flex items-center justify-end gap-1">
                           {canCreate ? (
                             <>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => handleTogglePublish(test.id, test.isPublished)}
+                                className={`h-7 w-7 p-0 ${
+                                  test.isPublished
+                                    ? "text-muted-foreground hover:text-primary"
+                                    : "text-muted-foreground hover:text-foreground bg-muted/40"
+                                }`}
+                                title={test.isPublished ? "Снять с публикации (в черновик)" : "Опубликовать тест"}
+                              >
+                                {test.isPublished ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                              </Button>
+
                               <Link href={`/dashboard/lms/tests/${test.id}/results`}>
                                 <Button
                                   size="xs"
@@ -687,6 +778,14 @@ export function TestsView({
                     >
                       {test.subjectName}
                     </Badge>
+                    {!test.isPublished && (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 inline-flex items-center gap-0.5 shrink-0"
+                      >
+                        <EyeOff className="h-2.5 w-2.5" /> Черновик
+                      </Badge>
+                    )}
                   </div>
 
                   {test.timeLimit ? (
@@ -738,6 +837,15 @@ export function TestsView({
                       </Link>
 
                       <div className="flex items-center gap-1">
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => handleTogglePublish(test.id, test.isPublished)}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                          title={test.isPublished ? "Снять с публикации (в черновик)" : "Опубликовать"}
+                        >
+                          {test.isPublished ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        </Button>
                         <Link href={`/dashboard/lms/tests/${test.id}/take`}>
                           <Button
                             size="xs"
@@ -1119,6 +1227,35 @@ export function TestsView({
                   </div>
                 </div>
               ))}
+
+              {/* Publication Status Toggle */}
+              <div className="space-y-1 pt-1">
+                <label className="font-medium text-foreground text-xs">Статус публикации</label>
+                <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setNewIsPublished(true)}
+                    className={`py-1 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                      newIsPublished
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Опубликован
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewIsPublished(false)}
+                    className={`py-1 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                      !newIsPublished
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <EyeOff className="h-3.5 w-3.5" /> Черновик
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1127,7 +1264,7 @@ export function TestsView({
               Отмена
             </Button>
             <Button size="xs" disabled={isPending} onClick={handleCreateTest}>
-              Опубликовать
+              {newIsPublished ? "Опубликовать" : "Сохранить в черновик"}
             </Button>
           </DialogFooter>
         </DialogContent>

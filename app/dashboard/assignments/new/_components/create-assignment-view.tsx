@@ -15,6 +15,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   ChevronLeft,
   ClipboardList,
@@ -49,7 +50,9 @@ import {
   FolderGit2,
   HelpCircle,
   Code2,
+  EyeOff,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { GroupItemDTO, GroupSubjectDTO, createAssignmentAction } from "@/app/dashboard/assignments/actions";
 import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
@@ -179,6 +182,7 @@ export function CreateAssignmentView({
   const [description, setDescription] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [maxScore, setMaxScore] = useState<string>("100");
+  const [isPublished, setIsPublished] = useState<boolean>(true);
   const [mode, setMode] = useState<"EDIT" | "PREVIEW">("EDIT");
 
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([""]);
@@ -392,7 +396,8 @@ export function CreateAssignmentView({
   };
 
   // Submit Handler
-  const handleSubmit = () => {
+  const handleSubmit = (targetPublish?: boolean) => {
+    const finalPublish = targetPublish !== undefined ? targetPublish : isPublished;
     if (!title.trim()) {
       toast.add({ title: "Укажите заголовок задания", type: "error" });
       return;
@@ -416,10 +421,14 @@ export function CreateAssignmentView({
         description,
         dueDate: dueDate || undefined,
         fileUrl: serializedFileUrl,
+        isPublished: finalPublish,
       });
 
       if (res.success) {
-        toast.add({ title: "Задание успешно создано!", type: "success" });
+        toast.add({
+          title: finalPublish ? "Задание успешно создано и опубликовано!" : "Задание сохранено как черновик!",
+          type: "success",
+        });
         router.push(`/dashboard/assignments?group=${selectedGroupId}`);
         router.refresh();
       } else {
@@ -449,22 +458,28 @@ export function CreateAssignmentView({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link href={`/dashboard/assignments?group=${selectedGroupId}`}>
-            <Button variant="outline" size="xs" className="h-7 text-xs font-medium">
-              Отмена
-            </Button>
-          </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="xs"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => handleSubmit(false)}
+            className="h-7 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
+          >
+            <EyeOff className="h-3 w-3" />
+            <span>В черновик</span>
+          </Button>
+
           <Button
             size="xs"
             disabled={isPending}
-            onClick={handleSubmit}
+            onClick={() => handleSubmit(true)}
             className="h-8 text-xs gap-1.5 font-medium"
             title="Опубликовать (Ctrl + Enter)"
             data-tour="assignment-new-submit"
           >
             <Send className="h-3.5 w-3.5" />
-            {isPending ? "Публикация..." : "Опубликовать задание"}
+            {isPending ? "Публикация..." : "Опубликовать"}
           </Button>
         </div>
       </div>
@@ -802,6 +817,29 @@ export function CreateAssignmentView({
                   />
                 </div>
               </div>
+
+              <div className="pt-2 border-t">
+                <div className="flex items-center justify-between gap-2 py-0.5">
+                  <label htmlFor="assignment-publish-switch" className="text-xs font-medium text-foreground cursor-pointer flex items-center gap-1.5">
+                    {isPublished ? (
+                      <>
+                        <Eye className="h-3.5 w-3.5 text-primary" />
+                        <span>Опубликовано</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>Черновик</span>
+                      </>
+                    )}
+                  </label>
+                  <Switch
+                    id="assignment-publish-switch"
+                    checked={isPublished}
+                    onCheckedChange={(checked) => setIsPublished(checked)}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -856,11 +894,20 @@ export function CreateAssignmentView({
             <Button
               size="xs"
               disabled={isPending}
-              onClick={handleSubmit}
+              onClick={() => handleSubmit(isPublished)}
               className="w-full h-8 text-xs gap-1.5 font-medium shadow-none"
             >
-              <Send className="h-3.5 w-3.5" />
-              {isPending ? "Публикация..." : "Опубликовать задание"}
+              {isPublished ? (
+                <>
+                  <Send className="h-3.5 w-3.5" />
+                  <span>{isPending ? "Публикация..." : "Опубликовать задание"}</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-3.5 w-3.5" />
+                  <span>{isPending ? "Сохранение..." : "Сохранить в черновик"}</span>
+                </>
+              )}
             </Button>
 
             <Link href={`/dashboard/assignments?group=${selectedGroupId}`} className="block w-full">

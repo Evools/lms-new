@@ -14,6 +14,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,7 @@ import {
   Layers,
   Hash,
   Sparkles,
+  EyeOff,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, createTestAction } from "../../../actions";
 import { toast } from "@/components/ui/toast";
@@ -652,6 +654,7 @@ export function CreateTestView({
   const [timeLimit, setTimeLimit] = useState<number | "">(15);
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [shuffleOptions, setShuffleOptions] = useState(false);
+  const [isPublished, setIsPublished] = useState(true);
 
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [bulkImportText, setBulkImportText] = useState("");
@@ -1145,11 +1148,15 @@ export function CreateTestView({
         timeLimit: timeLimit ? Number(timeLimit) : undefined,
         shuffleQuestions,
         shuffleOptions,
+        isPublished,
         questions: preparedQuestions,
       });
 
       if (res.success) {
-        toast.add({ title: "Тест успешно создан и опубликован!", type: "success" });
+        toast.add({
+          title: isPublished ? "Тест успешно создан и опубликован!" : "Черновик теста сохранён!",
+          type: "success",
+        });
         setTimeout(() => {
           router.push(`/dashboard/lms/tests?group=${groupId}`);
           router.refresh();
@@ -1202,7 +1209,7 @@ export function CreateTestView({
           </Button>
 
           <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-7 text-xs gap-1.5 font-medium px-3">
-            <Plus className="h-3.5 w-3.5" /> Опубликовать тест
+            <Plus className="h-3.5 w-3.5" /> {isPublished ? "Опубликовать тест" : "Сохранить черновик"}
           </Button>
         </div>
       </div>
@@ -2343,6 +2350,30 @@ export function CreateTestView({
               </div>
             </div>
 
+            {/* Publication Status */}
+            <div className="pt-2 border-t text-xs">
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <label htmlFor="create-test-publish-switch" className="text-xs font-medium text-foreground cursor-pointer flex items-center gap-1.5">
+                  {isPublished ? (
+                    <>
+                      <Eye className="h-3.5 w-3.5 text-primary" />
+                      <span>Опубликован</span>
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Черновик</span>
+                    </>
+                  )}
+                </label>
+                <Switch
+                  id="create-test-publish-switch"
+                  checked={isPublished}
+                  onCheckedChange={(checked) => setIsPublished(checked)}
+                />
+              </div>
+            </div>
+
             {/* Summary Stat Box */}
             <div className="p-2.5 rounded-lg border bg-muted/30 space-y-1">
               <div className="text-[11px] font-semibold text-foreground flex items-center justify-between">
@@ -2358,7 +2389,7 @@ export function CreateTestView({
             {/* Action Buttons */}
             <div className="pt-2 border-t space-y-1.5">
               <Button size="xs" disabled={isPending} onClick={handleSubmit} className="w-full h-8 text-xs gap-1.5 font-medium">
-                <Plus className="h-3.5 w-3.5" /> Опубликовать тест
+                <Plus className="h-3.5 w-3.5" /> {isPublished ? "Опубликовать тест" : "Сохранить черновик"}
               </Button>
 
               <Link href={`/dashboard/lms/tests?group=${groupId}`} className="block">

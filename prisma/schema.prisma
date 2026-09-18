@@ -202,16 +202,17 @@ model Topic {
 }
 
 model Material {
-  id        String       @id @default(cuid())
-  topicId   String
-  authorId  String
-  type      MaterialType
-  title     String
-  content   String?
-  fileUrl   String?
-  linkUrl   String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id          String       @id @default(cuid())
+  topicId     String
+  authorId    String
+  type        MaterialType
+  title       String
+  content     String?
+  fileUrl     String?
+  linkUrl     String?
+  isPublished Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   topic  Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
   author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -228,6 +229,7 @@ model Assignment {
   description    String
   fileUrl        String?
   dueDate        DateTime?
+  isPublished    Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

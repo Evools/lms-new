@@ -14,6 +14,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,7 @@ import {
   Layers,
   Hash,
   Sparkles,
+  EyeOff,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, updateTestAction } from "@/app/dashboard/lms/actions";
 import { toast } from "@/components/ui/toast";
@@ -87,6 +89,7 @@ export interface TestEditData {
   timeLimit: number | null;
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
+  isPublished?: boolean;
   groupId: string;
   groupSubjectId: string;
   topicId: string;
@@ -224,6 +227,7 @@ export function EditTestView({
   const [timeLimit, setTimeLimit] = useState<number | "">(initialTest.timeLimit ?? "");
   const [shuffleQuestions, setShuffleQuestions] = useState(initialTest.shuffleQuestions);
   const [shuffleOptions, setShuffleOptions] = useState(initialTest.shuffleOptions);
+  const [isPublished, setIsPublished] = useState<boolean>(initialTest.isPublished ?? true);
 
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [bulkImportText, setBulkImportText] = useState("");
@@ -721,11 +725,15 @@ export function EditTestView({
         timeLimit: timeLimit ? Number(timeLimit) : undefined,
         shuffleQuestions,
         shuffleOptions,
+        isPublished,
         questions: preparedQuestions,
       });
 
       if (res.success) {
-        toast.add({ title: "Изменения в тесте успешно сохранены!", type: "success" });
+        toast.add({
+          title: isPublished ? "Изменения в тесте сохранены и опубликованы!" : "Изменения сохранены (черновик)",
+          type: "success",
+        });
         setTimeout(() => {
           router.push(`/dashboard/lms/tests?group=${groupId}`);
           router.refresh();
@@ -1796,6 +1804,30 @@ export function EditTestView({
                 <div className={`w-7 h-4 rounded-full border p-0.5 transition-colors ${shuffleOptions ? "bg-primary border-primary" : "bg-muted border-border"}`}>
                   <div className={`w-2.5 h-2.5 rounded-full bg-white transition-transform ${shuffleOptions ? "translate-x-3" : "translate-x-0"}`} />
                 </div>
+              </div>
+            </div>
+
+            {/* Publication Status */}
+            <div className="pt-2 border-t text-xs">
+              <div className="flex items-center justify-between gap-2 py-0.5">
+                <label htmlFor="edit-test-publish-switch" className="text-xs font-medium text-foreground cursor-pointer flex items-center gap-1.5">
+                  {isPublished ? (
+                    <>
+                      <Eye className="h-3.5 w-3.5 text-primary" />
+                      <span>Опубликован</span>
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Черновик</span>
+                    </>
+                  )}
+                </label>
+                <Switch
+                  id="edit-test-publish-switch"
+                  checked={isPublished}
+                  onCheckedChange={(checked) => setIsPublished(checked)}
+                />
               </div>
             </div>
 

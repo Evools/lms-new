@@ -274,8 +274,8 @@ export default async function DashboardPage() {
       excusedAttendance,
     ] = await Promise.all([
       groupId
-        ? prisma.assignment.count({ where: { groupSubject: { groupId } } })
-        : prisma.assignment.count(),
+        ? prisma.assignment.count({ where: { groupSubject: { groupId }, isPublished: true } })
+        : prisma.assignment.count({ where: { isPublished: true } }),
       prisma.assignmentSubmission.count({ where: { studentId: userId } }),
       prisma.testSubmission.findMany({
         where: { studentId: userId },

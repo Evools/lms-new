@@ -31,6 +31,7 @@ export interface MaterialDTO {
   content?: string | null;
   fileUrl?: string | null;
   linkUrl?: string | null;
+  isPublished: boolean;
   createdAt: string;
 }
 
@@ -369,6 +370,7 @@ export async function getTopicsDataAction(groupId?: string, groupSubjectId?: str
         content: m.content,
         fileUrl: m.fileUrl,
         linkUrl: m.linkUrl,
+        isPublished: m.isPublished,
         createdAt: m.createdAt.toISOString(),
       })),
     }));
@@ -508,7 +510,10 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
         teacher: { select: { name: true } },
         topics: {
           include: {
-            materials: { select: { id: true } },
+            materials: {
+              where: role === "STUDENT" ? { isPublished: true } : undefined,
+              select: { id: true },
+            },
           },
         },
       },
@@ -533,6 +538,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
           },
         },
         materials: {
+          where: role === "STUDENT" ? { isPublished: true } : undefined,
           orderBy: { createdAt: "asc" },
           include: {
             author: { select: { name: true } },
@@ -546,6 +552,10 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
     const whereClause: Record<string, unknown> = {
       topicId: topicId ? topicId : { in: topicIds },
     };
+
+    if (role === "STUDENT") {
+      whereClause.isPublished = true;
+    }
 
     if (type && Object.values(MaterialType).includes(type as MaterialType)) {
       whereClause.type = type as MaterialType;
@@ -582,6 +592,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       content: m.content,
       fileUrl: m.fileUrl,
       linkUrl: m.linkUrl,
+      isPublished: m.isPublished,
       createdAt: m.createdAt.toISOString(),
     }));
 
@@ -605,6 +616,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
         content: m.content,
         fileUrl: m.fileUrl,
         linkUrl: m.linkUrl,
+        isPublished: m.isPublished,
         createdAt: m.createdAt.toISOString(),
       })),
     }));
@@ -639,6 +651,7 @@ export async function createMaterialAction(data: {
   content?: string;
   fileUrl?: string;
   linkUrl?: string;
+  isPublished?: boolean;
 }) {
   try {
     const session = await auth();
@@ -719,6 +732,7 @@ export async function createMaterialAction(data: {
         content: data.content?.trim() || null,
         fileUrl: data.fileUrl?.trim() || null,
         linkUrl: data.linkUrl?.trim() || null,
+        isPublished: data.isPublished !== undefined ? data.isPublished : true,
       },
       include: {
         topic: {
@@ -775,6 +789,7 @@ export async function updateMaterialAction(
     content?: string;
     fileUrl?: string;
     linkUrl?: string;
+    isPublished?: boolean;
   }
 ) {
   try {
@@ -796,6 +811,7 @@ export async function updateMaterialAction(
         content: data.content?.trim() || null,
         fileUrl: data.fileUrl?.trim() || null,
         linkUrl: data.linkUrl?.trim() || null,
+        ...(data.isPublished !== undefined ? { isPublished: data.isPublished } : {}),
       },
       include: {
         topic: {
@@ -818,6 +834,40 @@ export async function updateMaterialAction(
   } catch (err) {
     console.error("updateMaterialAction error:", err);
     return { success: false, error: "Ошибка при обновлении материала" };
+  }
+}
+
+export async function toggleMaterialPublishAction(materialId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для изменения статуса публикации" };
+    }
+
+    const material = await prisma.material.findUnique({
+      where: { id: materialId },
+      select: { id: true, isPublished: true },
+    });
+
+    if (!material) {
+      return { success: false, error: "Материал не найден" };
+    }
+
+    const newStatus = !material.isPublished;
+
+    const updated = await prisma.material.update({
+      where: { id: materialId },
+      data: { isPublished: newStatus },
+      select: { id: true, isPublished: true },
+    });
+
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+    return { success: true, isPublished: updated.isPublished };
+  } catch (err) {
+    console.error("toggleMaterialPublishAction error:", err);
+    return { success: false, error: "Ошибка при изменении статуса публикации" };
   }
 }
 
@@ -855,6 +905,7 @@ export async function getMaterialForEditAction(materialId: string) {
         content: material.content || "",
         fileUrl: material.fileUrl || "",
         linkUrl: material.linkUrl || "",
+        isPublished: material.isPublished,
       },
     };
   } catch (err) {
@@ -909,6 +960,10 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
     const whereClause: Record<string, unknown> = {
       groupSubjectId: { in: groupSubjects.map((gs) => gs.id) },
     };
+
+    if (role === "STUDENT") {
+      whereClause.isPublished = true;
+    }
 
     if (topicId) {
       whereClause.topicId = topicId;
@@ -1025,6 +1080,7 @@ export async function createTestAction(data: {
   timeLimit?: number;
   shuffleQuestions?: boolean;
   shuffleOptions?: boolean;
+  isPublished?: boolean;
   questions: {
     type?: QuestionTypeDTO;
     questionText: string;
@@ -1065,6 +1121,7 @@ export async function createTestAction(data: {
         timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
         shuffleQuestions: !!data.shuffleQuestions,
         shuffleOptions: !!data.shuffleOptions,
+        isPublished: data.isPublished !== undefined ? data.isPublished : true,
         questions: {
           create: data.questions.map((q, idx) => ({
             type: q.type || "SINGLE",
@@ -1086,6 +1143,39 @@ export async function createTestAction(data: {
   } catch (err) {
     console.error("createTestAction error:", err);
     return { success: false, error: "Ошибка при создании теста" };
+  }
+}
+
+export async function toggleTestPublishAction(testId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для изменения статуса публикации" };
+    }
+
+    const test = await prisma.test.findUnique({
+      where: { id: testId },
+      select: { id: true, isPublished: true },
+    });
+
+    if (!test) {
+      return { success: false, error: "Тест не найден" };
+    }
+
+    const newStatus = !test.isPublished;
+
+    const updated = await prisma.test.update({
+      where: { id: testId },
+      data: { isPublished: newStatus },
+      select: { id: true, isPublished: true },
+    });
+
+    revalidatePath("/dashboard/lms/tests");
+    revalidatePath("/dashboard/lms");
+    return { success: true, isPublished: updated.isPublished };
+  } catch (err) {
+    console.error("toggleTestPublishAction error:", err);
+    return { success: false, error: "Ошибка при изменении статуса публикации" };
   }
 }
 
@@ -1141,6 +1231,7 @@ export async function getTestForEditAction(testId: string) {
         timeLimit: test.timeLimit,
         shuffleQuestions: test.shuffleQuestions,
         shuffleOptions: test.shuffleOptions,
+        isPublished: test.isPublished,
         groupId: test.groupSubject.groupId,
         groupSubjectId: test.groupSubjectId,
         topicId: test.topicId || "",
@@ -1181,6 +1272,10 @@ export async function getTestForTakeAction(testId: string) {
 
     const userRole = session.user.role || "STUDENT";
     const isTeacherOrAdmin = userRole === "ADMIN" || userRole === "TEACHER";
+
+    if (!isTeacherOrAdmin && !test.isPublished) {
+      return { success: false, error: "Этот тест находится в режиме черновика и временно недоступен" };
+    }
 
     const existingSubmission = await prisma.testSubmission.findUnique({
       where: {
@@ -1260,6 +1355,7 @@ export async function updateTestAction(
     timeLimit?: number;
     shuffleQuestions?: boolean;
     shuffleOptions?: boolean;
+    isPublished?: boolean;
     questions: Array<{
       type?: string;
       questionText: string;
@@ -1300,6 +1396,7 @@ export async function updateTestAction(
         timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
         shuffleQuestions: !!data.shuffleQuestions,
         shuffleOptions: !!data.shuffleOptions,
+        ...(data.isPublished !== undefined ? { isPublished: data.isPublished } : {}),
       },
     });
 

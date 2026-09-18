@@ -40,6 +40,7 @@ export interface AssignmentDTO {
   description: string;
   fileUrl?: string | null;
   dueDate?: string | null;
+  isPublished: boolean;
   createdAt: string;
   submissionsCount: number;
   acceptedCount: number;
@@ -135,10 +136,16 @@ export async function getAssignmentsDataAction(groupId?: string) {
     });
 
     // 4. Fetch assignments for this group and accessible subjects
+    const assignmentWhere: Record<string, unknown> = {
+      groupSubjectId: { in: groupSubjects.map((gs) => gs.id) },
+    };
+
+    if (role === "STUDENT") {
+      assignmentWhere.isPublished = true;
+    }
+
     const dbAssignments = await prisma.assignment.findMany({
-      where: {
-        groupSubjectId: { in: groupSubjects.map((gs) => gs.id) },
-      },
+      where: assignmentWhere,
       include: {
         groupSubject: {
           include: {
@@ -193,6 +200,7 @@ export async function getAssignmentsDataAction(groupId?: string) {
         description: a.description,
         fileUrl: a.fileUrl,
         dueDate: a.dueDate ? a.dueDate.toISOString() : null,
+        isPublished: a.isPublished,
         createdAt: a.createdAt.toISOString(),
         submissionsCount: submissionsList.length,
         acceptedCount,
@@ -229,6 +237,7 @@ export async function createAssignmentAction(data: {
   description: string;
   dueDate?: string;
   fileUrl?: string;
+  isPublished?: boolean;
 }) {
   const session = await auth();
   if (
@@ -243,6 +252,7 @@ export async function createAssignmentAction(data: {
   }
 
   try {
+    const isPublished = data.isPublished !== undefined ? data.isPublished : true;
     const newAssignment = await prisma.assignment.create({
       data: {
         groupSubjectId: data.groupSubjectId,
@@ -251,6 +261,7 @@ export async function createAssignmentAction(data: {
         description: data.description.trim(),
         fileUrl: data.fileUrl?.trim() || null,
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        isPublished,
       },
       include: {
         groupSubject: {
@@ -266,9 +277,9 @@ export async function createAssignmentAction(data: {
       },
     });
 
-    // Notify all students in this group
+    // Notify all students in this group only if published
     const students = newAssignment.groupSubject.group.students;
-    if (students.length > 0) {
+    if (isPublished && students.length > 0) {
       await prisma.notification.createMany({
         data: students.map((s) => ({
           userId: s.studentId,
@@ -285,6 +296,66 @@ export async function createAssignmentAction(data: {
   } catch (error) {
     console.error("Failed to create assignment:", error);
     return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при создании задания" };
+  }
+}
+
+/** Toggle assignment publication state */
+export async function toggleAssignmentPublishAction(assignmentId: string) {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+  ) {
+    return { success: false, error: "Недостаточно прав для изменения статуса публикации" };
+  }
+
+  try {
+    const assignment = await prisma.assignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        groupSubject: {
+          include: {
+            subject: true,
+            group: {
+              include: {
+                students: { select: { studentId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      return { success: false, error: "Задание не найдено" };
+    }
+
+    const newStatus = !assignment.isPublished;
+
+    const updated = await prisma.assignment.update({
+      where: { id: assignmentId },
+      data: { isPublished: newStatus },
+      select: { id: true, isPublished: true, title: true },
+    });
+
+    // If publishing, notify students
+    if (newStatus && assignment.groupSubject.group.students.length > 0) {
+      await prisma.notification.createMany({
+        data: assignment.groupSubject.group.students.map((s) => ({
+          userId: s.studentId,
+          title: `Новое задание: ${updated.title}`,
+          message: `Опубликовано задание по дисциплине "${assignment.groupSubject.subject.name}".`,
+          type: "ASSIGNMENT",
+          link: "/dashboard/assignments",
+        })),
+      });
+    }
+
+    revalidatePath("/dashboard/assignments");
+    return { success: true, isPublished: updated.isPublished };
+  } catch (error) {
+    console.error("Failed to toggle assignment publish:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка" };
   }
 }
 
@@ -323,6 +394,15 @@ export async function submitAssignmentAction(data: {
   }
 
   try {
+    const assignment = await prisma.assignment.findUnique({
+      where: { id: data.assignmentId },
+      select: { isPublished: true },
+    });
+
+    if (!assignment || !assignment.isPublished) {
+      return { success: false, error: "Задание находится в режиме черновика и временно недоступно" };
+    }
+
     // Block resubmission if work is already ACCEPTED
     const existing = await prisma.assignmentSubmission.findUnique({
       where: {
