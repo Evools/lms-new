@@ -20,6 +20,8 @@ export interface DutyStudentDTO {
   id: string;
   name: string;
   isLeader: boolean;
+  attendanceStatus?: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | null;
+  attendanceComment?: string | null;
 }
 
 export interface DayDutyGroupDTO {
@@ -30,7 +32,12 @@ export interface DayDutyGroupDTO {
   isPast: boolean;
   isSunday: boolean;
   /** Leader (e.g. monitor / старший дежурный) */
-  leaderStudent?: { id: string; name: string };
+  leaderStudent?: {
+    id: string;
+    name: string;
+    attendanceStatus?: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | null;
+    attendanceComment?: string | null;
+  };
   /** 2–3 duty students for this day */
   dutyStudents: DutyStudentDTO[];
 }
@@ -199,72 +206,52 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       orderBy: { date: "asc" },
     });
 
-    // Auto-materialize: If group has duty enabled and no schedule exists in DB for this week, persist it
-    if (targetGroupIsDutyEnabled && targetGroupId && dbSchedules.length === 0 && groupStudents.length > 0) {
-      const perDay = Math.min(groupStudents.length, groupStudents.length >= 18 ? 3 : groupStudents.length >= 6 ? 2 : 1);
-      const newDutyRecords: { groupId: string; studentId: string; date: Date; isLeader: boolean }[] = [];
-      const tempDutyCount: Record<string, number> = {};
-      groupStudents.forEach((s) => { tempDutyCount[s.id] = 0; });
+    // Query group attendances for this week to reflect real-time attendance in duty roster
+    const groupSubjects = targetGroupId
+      ? await prisma.groupSubject.findMany({
+          where: { groupId: targetGroupId },
+          select: { id: true },
+        })
+      : [];
+    const groupSubjectIds = groupSubjects.map((gs) => gs.id);
 
-      const monitorStudent = groupMonitorName ? groupStudents.find((s) => s.name === groupMonitorName) : null;
-
-      for (let i = 0; i < 6; i++) {
-        const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
-        const dayUtc = parseDateToUtc(d);
-
-        if (monitorStudent) {
-          newDutyRecords.push({
-            groupId: targetGroupId,
-            studentId: monitorStudent.id,
-            date: dayUtc,
-            isLeader: true,
-          });
-        }
-
-        const candidates = [...groupStudents].sort((a, b) => {
-          const scoreA = (pastDutyCount[a.id] || 0) * 100 + (tempDutyCount[a.id] || 0) * 10;
-          const scoreB = (pastDutyCount[b.id] || 0) * 100 + (tempDutyCount[b.id] || 0) * 10;
-          if (scoreA !== scoreB) return scoreA - scoreB;
-          const timeA = lastDutyTime[a.id] || 0;
-          const timeB = lastDutyTime[b.id] || 0;
-          if (timeA !== timeB) return timeA - timeB;
-          return groupStudents.indexOf(a) - groupStudents.indexOf(b);
-        });
-
-        for (let k = 0; k < perDay; k++) {
-          const cand = candidates[k];
-          if (cand) {
-            tempDutyCount[cand.id] = (tempDutyCount[cand.id] || 0) + 1;
-            newDutyRecords.push({
-              groupId: targetGroupId,
-              studentId: cand.id,
-              date: dayUtc,
-              isLeader: false,
-            });
-          }
-        }
-      }
-
-      if (newDutyRecords.length > 0) {
-        await prisma.dutySchedule.createMany({
-          data: newDutyRecords,
-          skipDuplicates: true,
-        });
-
-        // Re-query newly created records
-        dbSchedules = await prisma.dutySchedule.findMany({
+    const weekAttendances = groupSubjectIds.length > 0
+      ? await prisma.attendance.findMany({
           where: {
+            groupSubjectId: { in: groupSubjectIds },
             date: { gte: startDate, lt: endDate },
-            groupId: targetGroupId,
           },
-          include: {
-            student: { select: { id: true, name: true } },
-            group: { select: { id: true, name: true } },
+          select: {
+            studentId: true,
+            date: true,
+            status: true,
+            comment: true,
           },
-          orderBy: { date: "asc" },
+        })
+      : [];
+
+    // Helper map: key = `${studentId}_${dayDateStr}`
+    const attendanceByStudentAndDay = new Map<
+      string,
+      { status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED"; comment: string | null }
+    >();
+    weekAttendances.forEach((att) => {
+      const attDateStr = formatLocalDateString(new Date(att.date));
+      const key = `${att.studentId}_${attDateStr}`;
+      const existing = attendanceByStudentAndDay.get(key);
+      // Priority: ABSENT > EXCUSED > LATE > PRESENT
+      if (
+        !existing ||
+        att.status === "ABSENT" ||
+        (att.status === "EXCUSED" && existing.status !== "ABSENT") ||
+        (att.status === "LATE" && existing.status === "PRESENT")
+      ) {
+        attendanceByStudentAndDay.set(key, {
+          status: att.status as any,
+          comment: att.comment,
         });
       }
-    }
+    });
 
     // Calculate recentDutyMap with real DB data
     const recentDutyRecords = targetGroupId
@@ -333,17 +320,35 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       const leaderSched = dayScheds.find((s) => s.isLeader);
       const dutyScheds = dayScheds.filter((s) => !s.isLeader);
 
-      const leaderObj = leaderSched
+      const rawLeaderObj = leaderSched
         ? { id: leaderSched.student.id, name: leaderSched.student.name }
         : groupMonitorName && groupStudents.length > 0
           ? groupStudents.find((s) => s.name === groupMonitorName)
           : undefined;
 
-      const dutyStudents: DutyStudentDTO[] = dutyScheds.map((s) => ({
-        id: s.student.id,
-        name: s.student.name,
-        isLeader: false,
-      }));
+      const leaderAtt = rawLeaderObj
+        ? attendanceByStudentAndDay.get(`${rawLeaderObj.id}_${dStr}`)
+        : undefined;
+
+      const leaderObj = rawLeaderObj
+        ? {
+            id: rawLeaderObj.id,
+            name: rawLeaderObj.name,
+            attendanceStatus: leaderAtt?.status || null,
+            attendanceComment: leaderAtt?.comment || null,
+          }
+        : undefined;
+
+      const dutyStudents: DutyStudentDTO[] = dutyScheds.map((s) => {
+        const att = attendanceByStudentAndDay.get(`${s.student.id}_${dStr}`);
+        return {
+          id: s.student.id,
+          name: s.student.name,
+          isLeader: false,
+          attendanceStatus: att?.status || null,
+          attendanceComment: att?.comment || null,
+        };
+      });
 
       const isPast = dayUtc.getTime() < todayUtc.getTime() && !isToday;
 

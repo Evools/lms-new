@@ -155,11 +155,39 @@ export async function getAttendanceDataAction(
       };
     });
 
+    // 4. Fetch duty records for selected date and group
+    const targetDateUtc = new Date(
+      Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0)
+    );
+    const nextDayUtc = new Date(targetDateUtc.getTime() + 24 * 60 * 60 * 1000);
+
+    const dbDuties = selectedGroup
+      ? await prisma.dutySchedule.findMany({
+          where: {
+            groupId: selectedGroup,
+            date: { gte: targetDateUtc, lt: nextDayUtc },
+          },
+          select: {
+            studentId: true,
+            isLeader: true,
+          },
+        })
+      : [];
+
+    const dutyMap: Record<string, { isDuty: boolean; isLeader: boolean }> = {};
+    dbDuties.forEach((d) => {
+      dutyMap[d.studentId] = {
+        isDuty: true,
+        isLeader: d.isLeader,
+      };
+    });
+
     return {
       groups,
       subjects,
       students,
       attendanceMap,
+      dutyMap,
       selectedGroupId: selectedGroup,
       selectedGroupSubjectId,
       dateStr: targetDateStr,
@@ -172,6 +200,7 @@ export async function getAttendanceDataAction(
       subjects: [],
       students: [],
       attendanceMap: {},
+      dutyMap: {},
       selectedGroupId: "",
       selectedGroupSubjectId: "",
       dateStr: dateStr || new Date().toISOString().split("T")[0],

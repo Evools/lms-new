@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition, useMemo, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AttendanceStatus } from "@prisma/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +34,9 @@ import {
   Loader2,
   RotateCcw,
   AlertTriangle,
+  Clock,
+  Shield,
+  RefreshCw,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -62,6 +66,7 @@ interface AttendanceViewProps {
   subjects: GroupSubjectItemDTO[];
   students: StudentInfo[];
   attendanceMap: Record<string, { status: AttendanceStatus; comment: string }>;
+  dutyMap?: Record<string, { isDuty: boolean; isLeader: boolean }>;
   selectedGroupId: string;
   selectedGroupSubjectId: string;
   dateStr: string;
@@ -76,6 +81,7 @@ export function AttendanceView({
   subjects = [],
   students = [],
   attendanceMap = {},
+  dutyMap = {},
   selectedGroupId,
   selectedGroupSubjectId,
   dateStr,
@@ -323,58 +329,59 @@ export function AttendanceView({
     });
   }, [students, searchQuery, statusFilterTab, records]);
 
+  // Calculate if any students scheduled on duty today are absent/excused
+  const absentDutyInAttendance = useMemo(() => {
+    return students.filter((st) => {
+      const isDuty = dutyMap[st.studentId];
+      const rec = records[st.studentId];
+      return Boolean(
+        isDuty &&
+          (rec?.status === AttendanceStatus.ABSENT ||
+            rec?.status === AttendanceStatus.EXCUSED)
+      );
+    });
+  }, [students, dutyMap, records]);
 
   return (
-    <div className="space-y-3 pb-8 text-xs">
-      <style jsx global>{`
-        @media print {
-          body * { visibility: hidden; }
-          #printable-attendance-sheet, #printable-attendance-sheet * { visibility: visible; }
-          #printable-attendance-sheet { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
-        }
-      `}</style>
-
-      {/* Printable Sheet */}
-      <div id="printable-attendance-sheet" className="hidden print:block space-y-6 font-sans">
-        <div className="text-center border-b-2 border-black pb-4 space-y-1">
-          <h1 className="text-xl font-bold uppercase tracking-wider">КЛАССНЫЙ ЖУРНАЛ ПОСЕЩАЕМОСТИ</h1>
-          <div className="text-sm font-semibold">
-            Группа: <strong>{currentGroupObj?.name || "—"}</strong> | Дисциплина: <strong>{currentSubjectObj?.subjectName || "—"}</strong>
+    <div className="space-y-4 pb-8 text-xs font-sans">
+      {/* Printable Sheet (Hidden on screen, Visible on print) */}
+      <div id="printable-attendance-sheet" className="hidden print:block space-y-4">
+        <div className="text-center border-b pb-4">
+          <h1 className="text-lg font-bold uppercase">Журнал учета посещаемости занятий</h1>
+          <div className="text-sm font-medium mt-1">
+            Группа: {currentGroupObj?.name || "—"} | Предмет: {currentSubjectObj?.subjectName || "—"}
           </div>
-          <div className="text-xs text-gray-600">
+          <div className="text-xs text-muted-foreground mt-0.5">
             Преподаватель: {currentSubjectObj?.teacherName || "—"} | Дата: {formatDisplayDate(currentDateStr)}
           </div>
         </div>
 
-        <table className="w-full border-collapse border border-black text-xs">
+        <table className="w-full border-collapse border border-foreground/20 text-xs">
           <thead>
-            <tr className="bg-gray-100 border-b border-black text-left">
-              <th className="border border-black p-2 w-10 text-center">№</th>
-              <th className="border border-black p-2">Ф.И.О. Учащегося</th>
-              <th className="border border-black p-2 w-36 text-center">Статус</th>
-              <th className="border border-black p-2">Примечание</th>
+            <tr className="bg-muted/40">
+              <th className="border border-foreground/20 p-2 text-center w-12">№</th>
+              <th className="border border-foreground/20 p-2 text-left">ФИО Учащегося</th>
+              <th className="border border-foreground/20 p-2 text-center w-32">Статус</th>
+              <th className="border border-foreground/20 p-2 text-left">Примечание</th>
             </tr>
           </thead>
           <tbody>
-            {students.map((st, idx) => {
-              const rec = records[st.studentId];
-              const statusText =
-                rec?.status === AttendanceStatus.PRESENT
-                  ? "Присутствует"
-                  : rec?.status === AttendanceStatus.ABSENT
-                  ? "Отсутствует"
-                  : rec?.status === AttendanceStatus.LATE
-                  ? "Опоздал"
-                  : "Уважительная";
-
+            {filteredStudents.map((st, idx) => {
+              const rec = records[st.studentId] || { status: AttendanceStatus.PRESENT, comment: "" };
               return (
-                <tr key={st.studentId} className="border-b border-black">
-                  <td className="border border-black p-2 text-center">{idx + 1}</td>
-                  <td className="border border-black p-2 font-medium">
-                    {st.studentName} {st.isMonitor ? "(Староста)" : ""}
+                <tr key={st.studentId} className="border-b border-foreground/10">
+                  <td className="border border-foreground/20 p-2 text-center font-mono">{idx + 1}</td>
+                  <td className="border border-foreground/20 p-2 font-medium">{st.studentName}</td>
+                  <td className="border border-foreground/20 p-2 text-center">
+                    {rec.status === AttendanceStatus.PRESENT
+                      ? "Был"
+                      : rec.status === AttendanceStatus.ABSENT
+                      ? "НБ"
+                      : rec.status === AttendanceStatus.LATE
+                      ? "Опоздал"
+                      : "Справка"}
                   </td>
-                  <td className="border border-black p-2 text-center font-bold">{statusText}</td>
-                  <td className="border border-black p-2">{rec?.comment || "—"}</td>
+                  <td className="border border-foreground/20 p-2 text-muted-foreground">{rec.comment || "—"}</td>
                 </tr>
               );
             })}
@@ -382,38 +389,28 @@ export function AttendanceView({
         </table>
       </div>
 
-      {/* Screen Navigation Header */}
-      <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-3 bg-card p-3 rounded-xl border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
-            <UserCheck className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-sm font-bold text-foreground flex items-center gap-2 flex-wrap">
-              Журнал посещаемости
-              <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 font-normal text-muted-foreground">
-                {totalStudents} студентов
-              </Badge>
-              {isPending && (
-                <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 gap-1 border-primary/40 text-primary animate-pulse font-medium bg-primary/5">
-                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                  Обновление...
-                </Badge>
-              )}
+      {/* Screen Header */}
+      <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard"
+              className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+            <h1 className="text-base font-bold text-foreground flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-primary" />
+              <span>Электронный журнал посещаемости</span>
             </h1>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
-              <span>Присутствуют: <strong className="text-foreground">{presentCount}</strong></span>
-              <span>•</span>
-              <span>НБ: <strong className="text-destructive">{absentCount}</strong></span>
-              <span>•</span>
-              <span>Опоздали: <strong className="text-amber-600 dark:text-amber-400">{lateCount}</strong></span>
-              <span>•</span>
-              <span>Справка: <strong className="text-sky-600 dark:text-sky-400">{excusedCount}</strong></span>
-            </div>
           </div>
+          <p className="text-xs text-muted-foreground pl-6">
+            Оперативная фиксация присутствия, интеграция с графиком дежурств и экспорт ведомостей
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0" data-tour="attendance-header-actions">
+        {/* Action Buttons Toolbar */}
+        <div className="flex flex-wrap items-center gap-2" data-tour="attendance-actions">
           {isAdminOrTeacher && (
             <>
               <Button
@@ -423,11 +420,10 @@ export function AttendanceView({
                 onClick={handleMarkAllPresent}
                 disabled={isPending || students.length === 0}
                 className="h-8 text-xs gap-1.5 font-medium cursor-pointer"
-                title="Отметить всех учащихся присутствующими (локально)"
+                title="Отметить всех присутствующими"
               >
-                <CheckCheck className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Все присутствуют</span>
-                <span className="sm:hidden">Все были</span>
+                <CheckCheck className="h-3.5 w-3.5 text-primary" />
+                <span className="hidden sm:inline">Все были</span>
               </Button>
 
               <Button
@@ -481,6 +477,27 @@ export function AttendanceView({
           </Button>
         </div>
       </div>
+
+      {/* Absent Duty Alerts Banner in Attendance */}
+      {absentDutyInAttendance.length > 0 && (
+        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+            <span>
+              <strong>Внимание:</strong> {absentDutyInAttendance.length === 1 ? "Студент" : "Студенты"}{" "}
+              <strong>{absentDutyInAttendance.map((s) => s.studentName).join(", ")}</strong> назначен(ы) дежурным(и) на эту дату, но отмечен(ы) как отсутствующие.
+            </span>
+          </div>
+          {currentGroupId && (
+            <Link
+              href={`/dashboard/duty?group=${currentGroupId}`}
+              className="inline-flex items-center gap-1 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 px-2.5 py-1 rounded-md shrink-0 transition-colors shadow-2xs"
+            >
+              <RefreshCw className="h-3 w-3" /> Назначить замену в дежурствах ↗
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Screen Filters Bar */}
       <div className="print:hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center" data-tour="attendance-filters">
@@ -627,6 +644,12 @@ export function AttendanceView({
 
             {filteredStudents.map((st, idx) => {
               const rec = records[st.studentId] || { status: AttendanceStatus.PRESENT, comment: "" };
+              const dutyInfo = dutyMap[st.studentId];
+              const isAbsentDuty = Boolean(
+                dutyInfo &&
+                  (rec.status === AttendanceStatus.ABSENT ||
+                    rec.status === AttendanceStatus.EXCUSED)
+              );
 
               const borderAccentColor =
                 rec.status === AttendanceStatus.ABSENT
@@ -645,7 +668,7 @@ export function AttendanceView({
                   {/* DESKTOP ROW (md and up) */}
                   <div className="hidden md:grid md:grid-cols-[36px_1fr_auto_240px] lg:grid-cols-[40px_1fr_auto_280px] items-center gap-3 px-3.5 py-2">
                     <span className="text-center text-[11px] font-mono text-muted-foreground">{idx + 1}</span>
-                    <div className="flex items-center gap-2 font-medium min-w-0">
+                    <div className="flex items-center gap-2 font-medium min-w-0 flex-wrap">
                       <Avatar className="h-6 w-6 border shrink-0">
                         <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
                           {st.studentName.slice(0, 2).toUpperCase()}
@@ -656,6 +679,33 @@ export function AttendanceView({
                         <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
                           <Crown className="h-2.5 w-2.5" /> Староста
                         </Badge>
+                      )}
+                      {dutyInfo && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] py-0 px-1.5 h-3.5 gap-0.5 font-medium shrink-0 ${
+                            isAbsentDuty
+                              ? "border-destructive/40 bg-destructive/10 text-destructive"
+                              : "border-primary/40 bg-primary/10 text-primary"
+                          }`}
+                          title={dutyInfo.isLeader ? "Ответственный / старший дежурный на сегодня" : "Дежурный на сегодня"}
+                        >
+                          <Clock className="h-2.5 w-2.5" />
+                          {dutyInfo.isLeader ? "Старший дежурный" : "Дежурный"}
+                        </Badge>
+                      )}
+                      {isAbsentDuty && (
+                        <span className="text-[10px] text-destructive font-semibold flex items-center gap-0.5">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          <span>Дежурит сегодня!</span>
+                          <Link
+                            href={`/dashboard/duty?group=${currentGroupId}`}
+                            className="underline text-primary hover:opacity-80 ml-0.5"
+                            title="Перейти в график дежурств для назначения замены"
+                          >
+                            Заменить ↗
+                          </Link>
+                        </span>
                       )}
                     </div>
 
@@ -774,7 +824,32 @@ export function AttendanceView({
                                 <Crown className="h-2.5 w-2.5" /> Староста
                               </Badge>
                             )}
+                            {dutyInfo && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] py-0 px-1.5 h-3.5 gap-0.5 font-medium shrink-0 ${
+                                  isAbsentDuty
+                                    ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                    : "border-primary/40 bg-primary/10 text-primary"
+                                }`}
+                              >
+                                <Clock className="h-2.5 w-2.5" />
+                                {dutyInfo.isLeader ? "Старший дежурный" : "Дежурный"}
+                              </Badge>
+                            )}
                           </div>
+                          {isAbsentDuty && (
+                            <div className="text-[10px] text-destructive font-semibold flex items-center gap-1 mt-1">
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              <span>Назначен дежурным!</span>
+                              <Link
+                                href={`/dashboard/duty?group=${currentGroupId}`}
+                                className="underline text-primary"
+                              >
+                                Заменить ↗
+                              </Link>
+                            </div>
+                          )}
                         </div>
                       </div>
 

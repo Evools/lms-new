@@ -22,6 +22,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
     subjects,
     students,
     attendanceMap,
+    dutyMap,
     selectedGroupId,
     selectedGroupSubjectId,
     dateStr,
@@ -35,6 +36,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       subjects={subjects}
       students={students}
       attendanceMap={attendanceMap}
+      dutyMap={dutyMap}
       selectedGroupId={selectedGroupId}
       selectedGroupSubjectId={selectedGroupSubjectId}
       dateStr={dateStr}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -71,6 +71,7 @@ import {
   generateWeeklyDutyAction,
   addDutyStudentAction,
   removeDutyStudentAction,
+  replaceDutyStudentAction,
   clearDutyScheduleAction,
   addDisciplinaryDutyAction,
   StudentDutyStatDTO,
@@ -224,6 +225,54 @@ export function DutyScheduleView({
     });
   };
 
+  // Replace duty student
+  const handleConfirmReplace = () => {
+    if (!replaceTarget || !replacementStudentId) return;
+
+    const repStudent = groupStudents.find((s) => s.id === replacementStudentId);
+    if (!repStudent) return;
+
+    const { fullDate, absentStudentId } = replaceTarget;
+    const prevDays = daysList;
+
+    // Instant optimistic swap
+    setDaysList((current) =>
+      current.map((day) =>
+        day.fullDate === fullDate
+          ? {
+              ...day,
+              dutyStudents: [
+                ...day.dutyStudents.filter((s) => s.id !== absentStudentId),
+                { id: repStudent.id, name: repStudent.name, isLeader: false },
+              ],
+            }
+          : day
+      )
+    );
+
+    setReplaceTarget(null);
+    setReplacementStudentId("");
+    toast.add({
+      title: `Дежурный успешно заменен на ${repStudent.name}!`,
+      type: "success",
+    });
+
+    startTransition(async () => {
+      const res = await replaceDutyStudentAction(
+        currentGroupId,
+        absentStudentId,
+        repStudent.id,
+        fullDate
+      );
+      if (!res.success) {
+        setDaysList(prevDays);
+        toast.add({ title: res.error || "Ошибка при замене дежурного", type: "error" });
+      } else {
+        router.refresh();
+      }
+    });
+  };
+
   // Mark student absent
   const handleMarkAbsent = (studentId: string, fullDate: string, reason: string = "Прогул/Отсутствие") => {
     setAbsentMap((prev) => ({
@@ -297,6 +346,24 @@ export function DutyScheduleView({
     setPickerStudentId(available[0]?.id || "");
   };
 
+  // Open replace dialog
+  const openReplaceModal = (
+    day: DayDutyGroupDTO,
+    studentId: string,
+    studentName: string
+  ) => {
+    const existing = day.dutyStudents.map((s) => s.id);
+    const available = groupStudents.filter((s) => !existing.includes(s.id));
+    setReplaceTarget({
+      fullDate: day.fullDate,
+      dayName: `${day.dayName} (${day.dateStr})`,
+      absentStudentId: studentId,
+      absentStudentName: studentName,
+      existingIds: existing,
+    });
+    setReplacementStudentId(available[0]?.id || "");
+  };
+
   // Printable Handler
   const handlePrint = () => {
     window.print();
@@ -320,6 +387,44 @@ export function DutyScheduleView({
     }
     return { ...day, dutyStudents: [] };
   });
+
+  // Calculate absent duty alerts across the week
+  const absentDutyAlerts = useMemo(() => {
+    const alerts: {
+      studentName: string;
+      dateStr: string;
+      dayName: string;
+      fullDate: string;
+      studentId: string;
+      existingIds: string[];
+      reason: string;
+    }[] = [];
+
+    daysList.forEach((day) => {
+      if (day.isSunday) return;
+      const existing = day.dutyStudents.map((s) => s.id);
+      day.dutyStudents.forEach((st) => {
+        const isAbsentInDb = st.attendanceStatus === "ABSENT" || st.attendanceStatus === "EXCUSED";
+        const localAbsent = absentMap[`${st.id}_${day.fullDate}`];
+        if (isAbsentInDb || localAbsent) {
+          alerts.push({
+            studentName: st.name,
+            dateStr: day.dateStr,
+            dayName: day.dayName,
+            fullDate: day.fullDate,
+            studentId: st.id,
+            existingIds: existing,
+            reason:
+              localAbsent ||
+              (st.attendanceStatus === "EXCUSED"
+                ? "Уважительная причина"
+                : "Отсутствует на занятиях (Н/Б)"),
+          });
+        }
+      });
+    });
+    return alerts;
+  }, [daysList, absentMap]);
 
   // Calculate Metrics
   const totalShiftsThisWeek = daysList.reduce((acc, d) => acc + (d.dutyStudents?.length || 0), 0);
@@ -606,6 +711,57 @@ export function DutyScheduleView({
         )}
       </div>
 
+      {/* Absent Duty Alerts Banner */}
+      {absentDutyAlerts.length > 0 && (
+        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+              <span>Обнаружены дежурные с пропусками занятий ({absentDutyAlerts.length})</span>
+            </div>
+            <span className="text-[11px] text-muted-foreground">
+              Рекомендуется назначить замену из присутствующих студентов
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+            {absentDutyAlerts.map((a, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between gap-2 p-2 rounded-lg bg-background/90 border border-destructive/20 text-foreground text-xs shadow-2xs"
+              >
+                <div className="min-w-0">
+                  <div className="font-semibold truncate">{a.studentName}</div>
+                  <div className="text-[10px] text-destructive font-medium truncate">
+                    {a.dayName} ({a.dateStr}) • {a.reason}
+                  </div>
+                </div>
+                {isAdminOrTeacher && (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="h-6 px-2 text-[11px] border-primary/30 text-primary hover:bg-primary/10 gap-1 shrink-0 font-medium"
+                    onClick={() => {
+                      const available = groupStudents.filter((s) => !a.existingIds.includes(s.id));
+                      setReplaceTarget({
+                        fullDate: a.fullDate,
+                        dayName: `${a.dayName} (${a.dateStr})`,
+                        absentStudentId: a.studentId,
+                        absentStudentName: a.studentName,
+                        existingIds: a.existingIds,
+                      });
+                      setReplacementStudentId(available[0]?.id || "");
+                    }}
+                  >
+                    <RefreshCw className="h-3 w-3" /> Заменить
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* TAB 1: WEEKLY GROUP SCHEDULE */}
       {activeTab === "WEEKLY" && (
         <Card className="print:hidden p-0 border overflow-hidden" data-tour="duty-roster">
@@ -621,7 +777,7 @@ export function DutyScheduleView({
                   )}
                 </CardTitle>
                 <CardDescription className="text-[11px] text-muted-foreground">
-                  Расписание дежурных, внеочередные назначения и учет пропусков
+                  Расписание дежурных, внеочередные назначения, сверка с посещаемостью и замены
                 </CardDescription>
               </div>
 
@@ -655,162 +811,253 @@ export function DutyScheduleView({
           </CardHeader>
 
           <CardContent className="p-0">
-            <div className="divide-y">
-              <div className="grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <span>День / Дата</span>
-                <span>Дежурные студенты</span>
-                <span className="text-right">Действия</span>
+            {totalShiftsThisWeek === 0 ? (
+              <div className="p-8 text-center space-y-3">
+                <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                  <Clock className="h-6 w-6" />
+                </div>
+                <div className="space-y-1 max-w-sm mx-auto">
+                  <div className="text-sm font-bold text-foreground">График дежурств пуст</div>
+                  <div className="text-xs text-muted-foreground">
+                    На этой неделе дежурные еще не назначены. Вы можете назначить учащихся вручную на каждый день или запустить автоматическую ротацию.
+                  </div>
+                </div>
+                {isAdminOrTeacher && isDutyEnabled && (
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => {
+                        const targetDay = weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
+                        if (targetDay) openAddModal(targetDay, "add");
+                      }}
+                      className="h-8 text-xs gap-1.5"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" /> Назначить вручную
+                    </Button>
+                    <Button
+                      size="xs"
+                      onClick={handleAutoRotation}
+                      disabled={isPending || !currentGroupId}
+                      className="h-8 text-xs gap-1.5 font-medium"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      {isPending ? "Расчет..." : "Запустить авто-ротацию"}
+                    </Button>
+                  </div>
+                )}
               </div>
+            ) : (
+              <div className="divide-y">
+                <div className="grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <span>День / Дата</span>
+                  <span>Дежурные студенты</span>
+                  <span className="text-right">Действия</span>
+                </div>
 
-              {filteredWeeklyDays.map((day) => {
-                const availableStudents = groupStudents.filter(
-                  (s) => !day.dutyStudents.some((ds) => ds.id === s.id)
-                );
+                {filteredWeeklyDays.map((day) => {
+                  const availableStudents = groupStudents.filter(
+                    (s) => !day.dutyStudents.some((ds) => ds.id === s.id)
+                  );
 
-                return (
-                  <div
-                    key={day.fullDate}
-                    className={`grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${day.isToday
-                        ? "bg-primary/5"
-                        : day.isSunday
-                          ? "bg-muted/20 opacity-60"
-                          : "hover:bg-muted/20"
-                      }`}
-                  >
-                    {/* Day & Date */}
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-xs font-bold ${day.isToday
-                            ? "text-primary"
-                            : "text-foreground"
-                          }`}>
-                          {day.dayName}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-mono">{day.dateStr}</span>
+                  return (
+                    <div
+                      key={day.fullDate}
+                      className={`grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${day.isToday
+                          ? "bg-primary/5"
+                          : day.isSunday
+                            ? "bg-muted/20 opacity-60"
+                            : "hover:bg-muted/20"
+                        }`}
+                    >
+                      {/* Day & Date */}
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-xs font-bold ${day.isToday
+                              ? "text-primary"
+                              : "text-foreground"
+                            }`}>
+                            {day.dayName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono">{day.dateStr}</span>
+                        </div>
+                        <div className="flex items-center gap-1 pt-0.5">
+                          {day.isToday && (
+                            <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 font-medium">
+                              Сегодня
+                            </Badge>
+                          )}
+                          {day.isPast && !day.isSunday && (
+                            <Badge variant="outline" className="text-muted-foreground border-border bg-muted/40 text-[8px] px-1.5 py-0 font-medium inline-flex items-center gap-0.5">
+                              <Check className="h-2.5 w-2.5 text-primary" /> Отдежурили
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 pt-0.5">
-                        {day.isToday && (
-                          <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 font-medium">
-                            Сегодня
-                          </Badge>
-                        )}
-                        {day.isPast && !day.isSunday && (
-                          <Badge variant="outline" className="text-muted-foreground border-border bg-muted/40 text-[8px] px-1.5 py-0 font-medium inline-flex items-center gap-0.5">
-                            <Check className="h-2.5 w-2.5 text-primary" /> Отдежурили
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Duty Students */}
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                      {day.isSunday ? (
-                        <span className="text-[11px] text-muted-foreground/60 italic">Выходной день</span>
-                      ) : day.dutyStudents && day.dutyStudents.length > 0 ? (
-                        day.dutyStudents.map((st) => {
-                          const absentReason = absentMap[`${st.id}_${day.fullDate}`];
-                          return (
-                            <div
-                              key={st.id}
-                              className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${absentReason
-                                  ? "border-destructive/30 bg-destructive/10 text-destructive line-through opacity-70"
-                                  : day.isToday
-                                    ? "border-primary/30 bg-primary/10 text-primary"
-                                    : day.isPast
-                                      ? "border-border bg-muted/30 text-foreground"
-                                      : "border-border bg-muted/10 text-foreground"
-                                }`}
-                            >
-                              <Avatar className="h-4 w-4 border shrink-0">
-                                <AvatarFallback className={`text-[7px] font-bold ${absentReason ? "bg-destructive/20 text-destructive"
-                                    : day.isToday ? "bg-primary/20 text-primary"
-                                      : "bg-muted text-muted-foreground"
-                                  }`}>
-                                  {st.name.slice(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="truncate">{st.name}</span>
+                      {/* Duty Students */}
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        {day.isSunday ? (
+                          <span className="text-[11px] text-muted-foreground/60 italic">Выходной день</span>
+                        ) : day.dutyStudents && day.dutyStudents.length > 0 ? (
+                          day.dutyStudents.map((st) => {
+                            const isAbsentInDb = st.attendanceStatus === "ABSENT" || st.attendanceStatus === "EXCUSED";
+                            const isLateInDb = st.attendanceStatus === "LATE";
+                            const isPresentInDb = st.attendanceStatus === "PRESENT";
+                            const localAbsent = absentMap[`${st.id}_${day.fullDate}`];
+                            const isAbsent = isAbsentInDb || Boolean(localAbsent);
+                            const absentLabel = localAbsent || (st.attendanceStatus === "EXCUSED" ? "Уваж." : "Н/Б");
 
-                              {day.isPast && !absentReason && (
-                                <span title="Дежурство выполнено" className="inline-flex items-center shrink-0">
-                                  <Check className="h-3 w-3 text-primary/70" />
+                            return (
+                              <div
+                                key={st.id}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${isAbsent
+                                    ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                    : day.isToday
+                                      ? "border-primary/30 bg-primary/10 text-primary"
+                                      : day.isPast
+                                        ? "border-border bg-muted/30 text-foreground"
+                                        : "border-border bg-muted/10 text-foreground"
+                                  }`}
+                              >
+                                <Avatar className="h-4 w-4 border shrink-0">
+                                  <AvatarFallback className={`text-[7px] font-bold ${isAbsent
+                                      ? "bg-destructive/20 text-destructive"
+                                      : day.isToday
+                                        ? "bg-primary/20 text-primary"
+                                        : "bg-muted text-muted-foreground"
+                                    }`}>
+                                    {st.name.slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+
+                                <span className={`truncate ${isAbsent ? "line-through opacity-85" : ""}`}>
+                                  {st.name}
                                 </span>
-                              )}
 
-                              {absentReason && (
-                                <span className="text-[9px] font-normal no-underline text-destructive font-semibold">
-                                  ({absentReason})
-                                </span>
-                              )}
+                                {isAbsent && (
+                                  <span className="text-[9px] font-bold no-underline text-destructive inline-flex items-center gap-0.5">
+                                    <AlertCircle className="h-2.5 w-2.5" />
+                                    {absentLabel}
+                                  </span>
+                                )}
 
-                              {isAdminOrTeacher && (
-                                <div className="flex items-center gap-0.5 ml-0.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveDuty(st.id, day.fullDate)}
-                                    className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                    title="Быстро убрать из дежурных"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
+                                {isPresentInDb && !isAbsent && (
+                                  <span title="Был на занятиях" className="text-[8px] text-primary inline-flex items-center gap-0.5">
+                                    <Check className="h-2.5 w-2.5" /> Присутствовал
+                                  </span>
+                                )}
 
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger render={
+                                {isLateInDb && !isAbsent && (
+                                  <span title="Опоздал на занятия" className="text-[8px] text-muted-foreground inline-flex items-center gap-0.5">
+                                    ⏱️ Опоздал
+                                  </span>
+                                )}
+
+                                {day.isPast && !isAbsent && !isPresentInDb && (
+                                  <span title="Дежурство выполнено" className="inline-flex items-center shrink-0">
+                                    <Check className="h-3 w-3 text-primary/70" />
+                                  </span>
+                                )}
+
+                                {isAdminOrTeacher && (
+                                  <div className="flex items-center gap-0.5 ml-0.5">
+                                    {isAbsent && (
                                       <button
                                         type="button"
-                                        className="p-0.5 rounded hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors"
-                                      />
-                                    }>
-                                      <MoreVertical className="h-3 w-3" />
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
-                                      {!absentReason && (
+                                        onClick={() => openReplaceModal(day, st.id, st.name)}
+                                        className="h-5 px-1.5 text-[9px] rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium flex items-center gap-0.5"
+                                        title="Назначить замену дежурного"
+                                      >
+                                        <RefreshCw className="h-2.5 w-2.5" /> Заменить
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveDuty(st.id, day.fullDate)}
+                                      className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      title="Быстро убрать из дежурных"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger render={
+                                        <button
+                                          type="button"
+                                          className="p-0.5 rounded hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors"
+                                        />
+                                      }>
+                                        <MoreVertical className="h-3 w-3" />
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
                                         <DropdownMenuItem
-                                          onClick={() => handleMarkAbsent(st.id, day.fullDate, "Прогул/Болезнь")}
+                                          onClick={() => openReplaceModal(day, st.id, st.name)}
                                           className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
                                         >
-                                          <UserX className="h-3.5 w-3.5 text-muted-foreground" />
-                                          <span>Отметить пропуск</span>
+                                          <RefreshCw className="h-3.5 w-3.5 text-primary" />
+                                          <span>Назначить замену</span>
                                         </DropdownMenuItem>
-                                      )}
-                                      <DropdownMenuItem
-                                        onClick={() => handleRemoveDuty(st.id, day.fullDate)}
-                                        className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                        <span>Удалить из дежурных</span>
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground/50">Не назначены</span>
-                      )}
-                    </div>
+                                        {!isAbsent && (
+                                          <DropdownMenuItem
+                                            onClick={() => handleMarkAbsent(st.id, day.fullDate, "Прогул/Болезнь")}
+                                            className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
+                                          >
+                                            <UserX className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span>Отметить пропуск</span>
+                                          </DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuItem
+                                          onClick={() => handleRemoveDuty(st.id, day.fullDate)}
+                                          className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                          <span>Удалить из дежурных</span>
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-muted-foreground/50">Дежурные не назначены</span>
+                            {isAdminOrTeacher && (
+                              <button
+                                type="button"
+                                onClick={() => openAddModal(day, "add")}
+                                className="text-[10px] text-primary hover:underline font-medium"
+                              >
+                                + Назначить
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center justify-end gap-1.5 shrink-0">
-                      {!day.isSunday && isAdminOrTeacher && (
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => openAddModal(day, "add")}
-                          disabled={availableStudents.length === 0}
-                          className="h-7 text-xs px-2.5 gap-1 border-primary/20 text-primary hover:bg-primary/10"
-                        >
-                          <UserPlus className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">Назначить</span>
-                        </Button>
-                      )}
+                      {/* Actions */}
+                      <div className="flex items-center justify-end gap-1.5 shrink-0">
+                        {!day.isSunday && isAdminOrTeacher && (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => openAddModal(day, "add")}
+                            disabled={availableStudents.length === 0}
+                            className="h-7 text-xs px-2.5 gap-1 border-primary/20 text-primary hover:bg-primary/10"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Назначить</span>
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -977,6 +1224,79 @@ export function DutyScheduleView({
                     <UserPlus className="h-3.5 w-3.5 mr-1" /> Назначить
                   </>
                 )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* Dialog for Replacing an Absent Duty Student */}
+      <Dialog open={replaceTarget !== null} onOpenChange={(open) => !open && setReplaceTarget(null)}>
+        {replaceTarget && (
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+            <DialogHeader className="pb-2 border-b gap-1">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <RefreshCw className="h-4 w-4 text-primary" /> Назначение замены дежурного
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                День: <strong>{replaceTarget.dayName}</strong> • Отсутствует:{" "}
+                <strong className="text-destructive">{replaceTarget.absentStudentName}</strong>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-1 text-xs">
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Выберите заменяющего студента</label>
+                <Select
+                  value={replacementStudentId}
+                  onValueChange={(val) => val && setReplacementStudentId(val)}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue>
+                      {groupStudents.find((s) => s.id === replacementStudentId)?.name || "Выберите студента из группы"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...groupStudents]
+                      .filter((s) => !replaceTarget.existingIds.includes(s.id) && s.id !== replaceTarget.absentStudentId)
+                      .sort((a, b) => {
+                        const aRecent = a.isRecentDuty ? 1 : 0;
+                        const bRecent = b.isRecentDuty ? 1 : 0;
+                        if (aRecent !== bRecent) return aRecent - bRecent;
+                        return a.name.localeCompare(b.name);
+                      })
+                      .map((st) => (
+                        <SelectItem key={st.id} value={st.id} className="text-xs">
+                          <div className="flex items-center justify-between w-full gap-2">
+                            <span>{st.name}</span>
+                            {st.recentDutyNote ? (
+                              <span className="text-[10px] text-primary font-medium">
+                                ({st.recentDutyNote})
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/60 font-normal">
+                                (В очереди)
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" size="xs" onClick={() => setReplaceTarget(null)}>
+                Отмена
+              </Button>
+              <Button
+                size="xs"
+                disabled={!replacementStudentId || isPending}
+                onClick={handleConfirmReplace}
+                className="font-medium gap-1"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Назначить замену
               </Button>
             </DialogFooter>
           </DialogContent>
