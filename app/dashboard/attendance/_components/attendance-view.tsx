@@ -383,13 +383,13 @@ export function AttendanceView({
       </div>
 
       {/* Screen Navigation Header */}
-      <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border">
+      <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-3 bg-card p-3 rounded-xl border">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
             <UserCheck className="h-4 w-4" />
           </div>
-          <div>
-            <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold text-foreground flex items-center gap-2 flex-wrap">
               Журнал посещаемости
               <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 font-normal text-muted-foreground">
                 {totalStudents} студентов
@@ -401,7 +401,7 @@ export function AttendanceView({
                 </Badge>
               )}
             </h1>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
               <span>Присутствуют: <strong className="text-foreground">{presentCount}</strong></span>
               <span>•</span>
               <span>НБ: <strong className="text-destructive">{absentCount}</strong></span>
@@ -413,7 +413,7 @@ export function AttendanceView({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0" data-tour="attendance-header-actions">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0" data-tour="attendance-header-actions">
           {isAdminOrTeacher && (
             <>
               <Button
@@ -426,7 +426,8 @@ export function AttendanceView({
                 title="Отметить всех учащихся присутствующими (локально)"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
-                Все присутствуют
+                <span className="hidden sm:inline">Все присутствуют</span>
+                <span className="sm:hidden">Все были</span>
               </Button>
 
               <Button
@@ -444,12 +445,12 @@ export function AttendanceView({
                 {isPending ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Сохранение...
+                    <span>Сохранение...</span>
                   </>
                 ) : (
                   <>
                     <Save className="h-3.5 w-3.5" />
-                    Сохранить
+                    <span>Сохранить</span>
                   </>
                 )}
               </Button>
@@ -464,7 +465,7 @@ export function AttendanceView({
                 title="Аннулировать отметки за этот день"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Аннулировать
+                <span className="hidden sm:inline">Аннулировать</span>
               </Button>
             </>
           )}
@@ -476,7 +477,7 @@ export function AttendanceView({
             onClick={handlePrint}
             className="h-8 text-xs gap-1.5 font-medium cursor-pointer"
           >
-            <Printer className="h-3.5 w-3.5" /> Печать
+            <Printer className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Печать</span>
           </Button>
         </div>
       </div>
@@ -484,9 +485,9 @@ export function AttendanceView({
       {/* Screen Filters Bar */}
       <div className="print:hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center" data-tour="attendance-filters">
         {/* Group Selector */}
-        <div className="lg:col-span-3">
+        <div className="sm:col-span-1 lg:col-span-3">
           <Select value={currentGroupId} onValueChange={handleGroupChange} disabled={isPending}>
-            <SelectTrigger className="h-8 text-xs font-medium bg-background">
+            <SelectTrigger className="h-8 text-xs font-medium bg-background w-full">
               <div className="flex items-center gap-1.5 truncate">
                 <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                 <SelectValue>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
@@ -502,9 +503,9 @@ export function AttendanceView({
         </div>
 
         {/* Subject Selector */}
-        <div className="lg:col-span-4">
+        <div className="sm:col-span-1 lg:col-span-4">
           <Select value={currentSubjectId} onValueChange={handleSubjectChange} disabled={isPending}>
-            <SelectTrigger className="h-8 text-xs font-medium bg-background">
+            <SelectTrigger className="h-8 text-xs font-medium bg-background w-full">
               <div className="flex items-center gap-1.5 truncate">
                 <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
                 <SelectValue>
@@ -522,11 +523,11 @@ export function AttendanceView({
         </div>
 
         {/* Date Selector with Next/Prev Day */}
-        <div className="lg:col-span-3 flex items-center gap-1">
+        <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-1">
           <Button type="button" variant="outline" size="xs" onClick={() => shiftDate(-1)} disabled={isPending} className="h-8 w-8 p-0 shrink-0 cursor-pointer" title="Предыдущий день">
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <Input type="date" value={currentDateStr} onChange={(e) => handleDateChange(e.target.value)} disabled={isPending} className="h-8 text-xs bg-background font-medium flex-1 text-center" />
+          <Input type="date" value={currentDateStr} onChange={(e) => handleDateChange(e.target.value)} disabled={isPending} className="h-8 text-xs bg-background font-medium flex-1 min-w-0 text-center" />
           <Button type="button" variant="outline" size="xs" onClick={() => shiftDate(1)} disabled={isPending} className="h-8 w-8 p-0 shrink-0 cursor-pointer" title="Следующий день">
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
@@ -536,7 +537,7 @@ export function AttendanceView({
         </div>
 
         {/* Search Student Box */}
-        <div className="lg:col-span-2 relative">
+        <div className="sm:col-span-2 lg:col-span-2 relative">
           <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
           <Input placeholder="Поиск учащегося..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-xs pl-8 pr-7 bg-background" />
           {searchQuery && <button type="button" onClick={() => setSearchQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"><X className="h-3.5 w-3.5" /></button>}
@@ -616,7 +617,8 @@ export function AttendanceView({
 
         <CardContent className="p-0">
           <div className="divide-y text-xs">
-            <div className="grid grid-cols-[36px_1fr_auto_220px] sm:grid-cols-[36px_1fr_auto_280px] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            {/* Desktop Table Header */}
+            <div className="hidden md:grid md:grid-cols-[36px_1fr_auto_240px] lg:grid-cols-[40px_1fr_auto_280px] items-center gap-3 px-3.5 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
               <span className="text-center">№</span>
               <span>Студент</span>
               <span className="text-center">Статус</span>
@@ -638,114 +640,233 @@ export function AttendanceView({
               return (
                 <div
                   key={st.studentId}
-                  className={`grid grid-cols-[36px_1fr_auto_220px] sm:grid-cols-[36px_1fr_auto_280px] items-center gap-3 px-3 py-2 transition-colors ${borderAccentColor}`}
+                  className={`transition-colors ${borderAccentColor}`}
                 >
-                  <span className="text-center text-[11px] font-mono text-muted-foreground">{idx + 1}</span>
-                  <div className="flex items-center gap-2 font-medium min-w-0">
-                    <Avatar className="h-6 w-6 border shrink-0">
-                      <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
-                        {st.studentName.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="truncate text-foreground text-xs">{st.studentName}</span>
-                    {st.isMonitor && (
-                      <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
-                        <Crown className="h-2.5 w-2.5" /> Староста
-                      </Badge>
+                  {/* DESKTOP ROW (md and up) */}
+                  <div className="hidden md:grid md:grid-cols-[36px_1fr_auto_240px] lg:grid-cols-[40px_1fr_auto_280px] items-center gap-3 px-3.5 py-2">
+                    <span className="text-center text-[11px] font-mono text-muted-foreground">{idx + 1}</span>
+                    <div className="flex items-center gap-2 font-medium min-w-0">
+                      <Avatar className="h-6 w-6 border shrink-0">
+                        <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
+                          {st.studentName.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate text-foreground text-xs">{st.studentName}</span>
+                      {st.isMonitor && (
+                        <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
+                          <Crown className="h-2.5 w-2.5" /> Староста
+                        </Badge>
+                      )}
+                    </div>
+
+                    {isAdminOrTeacher ? (
+                      <div className="grid grid-cols-4 gap-0.5 p-0.5 bg-muted/60 rounded-lg border text-xs shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(st.studentId, AttendanceStatus.PRESENT)}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
+                            rec.status === AttendanceStatus.PRESENT
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                          title="Присутствует"
+                        >
+                          Был
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(st.studentId, AttendanceStatus.ABSENT)}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
+                            rec.status === AttendanceStatus.ABSENT
+                              ? "bg-destructive text-white shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                          title="Отсутствует (НБ)"
+                        >
+                          НБ
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(st.studentId, AttendanceStatus.LATE)}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
+                            rec.status === AttendanceStatus.LATE
+                              ? "bg-amber-500 text-white shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                          title="Опоздал"
+                        >
+                          Опоздал
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(st.studentId, AttendanceStatus.EXCUSED)}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
+                            rec.status === AttendanceStatus.EXCUSED
+                              ? "bg-sky-500 text-white shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                          title="Уважительная причина (справка)"
+                        >
+                          Справка
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-center">
+                        <Badge
+                          variant="outline"
+                          className={`text-[11px] font-medium ${
+                            rec.status === AttendanceStatus.PRESENT
+                              ? "bg-primary/10 text-primary border-primary/20"
+                              : rec.status === AttendanceStatus.ABSENT
+                              ? "bg-destructive/10 text-destructive border-destructive/20"
+                              : rec.status === AttendanceStatus.LATE
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                              : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
+                          }`}
+                        >
+                          {rec.status === "PRESENT"
+                            ? "Присутствует"
+                            : rec.status === "ABSENT"
+                            ? "Отсутствует (НБ)"
+                            : rec.status === "LATE"
+                            ? "Опоздал"
+                            : "Справка"}
+                        </Badge>
+                      </div>
                     )}
+
+                    <div>
+                      {isAdminOrTeacher ? (
+                        <Input
+                          placeholder="Примечание..."
+                          value={rec.comment}
+                          onChange={(e) => handleCommentChange(st.studentId, e.target.value)}
+                          className="h-7 text-xs bg-background"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground truncate block">
+                          {rec.comment || "—"}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {isAdminOrTeacher ? (
-                    <div className="grid grid-cols-4 gap-0.5 p-0.5 bg-muted/60 rounded-lg border text-xs shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleStatusChange(st.studentId, AttendanceStatus.PRESENT)}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
-                          rec.status === AttendanceStatus.PRESENT
-                            ? "bg-primary text-primary-foreground shadow-2xs"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                        }`}
-                        title="Присутствует"
-                      >
-                        Был
-                      </button>
+                  {/* MOBILE CARD VIEW (< md) */}
+                  <div className="md:hidden p-3 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-[11px] font-mono text-muted-foreground shrink-0 w-4 text-center">{idx + 1}</span>
+                        <Avatar className="h-7 w-7 border shrink-0">
+                          <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                            {st.studentName.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-foreground text-xs leading-snug break-words">
+                              {st.studentName}
+                            </span>
+                            {st.isMonitor && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
+                                <Crown className="h-2.5 w-2.5" /> Староста
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleStatusChange(st.studentId, AttendanceStatus.ABSENT)}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
-                          rec.status === AttendanceStatus.ABSENT
-                            ? "bg-destructive text-white shadow-2xs"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                        }`}
-                        title="Отсутствует (НБ)"
-                      >
-                        НБ
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleStatusChange(st.studentId, AttendanceStatus.LATE)}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
-                          rec.status === AttendanceStatus.LATE
-                            ? "bg-amber-500 text-white shadow-2xs"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                        }`}
-                        title="Опоздал"
-                      >
-                        Опоздал
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleStatusChange(st.studentId, AttendanceStatus.EXCUSED)}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
-                          rec.status === AttendanceStatus.EXCUSED
-                            ? "bg-sky-500 text-white shadow-2xs"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                        }`}
-                        title="Уважительная причина (справка)"
-                      >
-                        Справка
-                      </button>
+                      {!isAdminOrTeacher && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-medium shrink-0 ${
+                            rec.status === AttendanceStatus.PRESENT
+                              ? "bg-primary/10 text-primary border-primary/20"
+                              : rec.status === AttendanceStatus.ABSENT
+                              ? "bg-destructive/10 text-destructive border-destructive/20"
+                              : rec.status === AttendanceStatus.LATE
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                              : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
+                          }`}
+                        >
+                          {rec.status === "PRESENT"
+                            ? "Присутствует"
+                            : rec.status === "ABSENT"
+                            ? "Отсутствует (НБ)"
+                            : rec.status === "LATE"
+                            ? "Опоздал"
+                            : "Справка"}
+                        </Badge>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex justify-center">
-                      <Badge
-                        variant="outline"
-                        className={`text-[11px] font-medium ${
-                          rec.status === AttendanceStatus.PRESENT
-                            ? "bg-primary/10 text-primary border-primary/20"
-                            : rec.status === AttendanceStatus.ABSENT
-                            ? "bg-destructive/10 text-destructive border-destructive/20"
-                            : rec.status === AttendanceStatus.LATE
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                            : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
-                        }`}
-                      >
-                        {rec.status === "PRESENT"
-                          ? "Присутствует"
-                          : rec.status === "ABSENT"
-                          ? "Отсутствует (НБ)"
-                          : rec.status === "LATE"
-                          ? "Опоздал"
-                          : "Справка"}
-                      </Badge>
-                    </div>
-                  )}
 
-                  <div>
+                    {isAdminOrTeacher && (
+                      <div className="grid grid-cols-4 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(st.studentId, AttendanceStatus.PRESENT)}
+                          className={`py-1.5 rounded-md text-xs font-medium transition-colors text-center cursor-pointer ${
+                            rec.status === AttendanceStatus.PRESENT
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          Был
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(st.studentId, AttendanceStatus.ABSENT)}
+                          className={`py-1.5 rounded-md text-xs font-medium transition-colors text-center cursor-pointer ${
+                            rec.status === AttendanceStatus.ABSENT
+                              ? "bg-destructive text-white shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          НБ
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(st.studentId, AttendanceStatus.LATE)}
+                          className={`py-1.5 rounded-md text-xs font-medium transition-colors text-center cursor-pointer ${
+                            rec.status === AttendanceStatus.LATE
+                              ? "bg-amber-500 text-white shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          Опоздал
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(st.studentId, AttendanceStatus.EXCUSED)}
+                          className={`py-1.5 rounded-md text-xs font-medium transition-colors text-center cursor-pointer ${
+                            rec.status === AttendanceStatus.EXCUSED
+                              ? "bg-sky-500 text-white shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          Справка
+                        </button>
+                      </div>
+                    )}
+
                     {isAdminOrTeacher ? (
                       <Input
-                        placeholder="Примечание..."
+                        placeholder="Примечание (причина, комментарий...)"
                         value={rec.comment}
                         onChange={(e) => handleCommentChange(st.studentId, e.target.value)}
-                        className="h-7 text-xs bg-background"
+                        className="h-8 text-xs bg-background w-full"
                       />
                     ) : (
-                      <span className="text-xs text-muted-foreground truncate block">
-                        {rec.comment || "—"}
-                      </span>
+                      rec.comment && (
+                        <div className="text-[11px] text-muted-foreground bg-muted/30 px-2.5 py-1.5 rounded border">
+                          Примечание: {rec.comment}
+                        </div>
+                      )
                     )}
                   </div>
                 </div>
