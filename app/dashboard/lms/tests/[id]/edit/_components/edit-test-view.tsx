@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, updateTestAction } from "@/app/dashboard/lms/actions";
 import { toast } from "@/components/ui/toast";
+import { QuestionsMiniMap } from "../../../_components/questions-mini-map";
 
 export type QuestionType =
   | "SINGLE"
@@ -655,6 +656,17 @@ export function EditTestView({
   };
 
   const totalPoints = questionDrafts.reduce((sum, q) => sum + (q.points || 1), 0);
+
+  const scrollToQuestion = (idx: number) => {
+    const el = document.getElementById(`question-card-${idx}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-primary");
+      }, 1500);
+    }
+  };
 
   const handleSubmit = () => {
     if (!title.trim()) {
@@ -1694,8 +1706,14 @@ export function EditTestView({
           )}
         </div>
 
-        {/* Right Column: Settings & Summary */}
+        {/* Right Column: Navigator & Settings */}
         <div className="space-y-3 sticky top-20 z-10 self-start">
+          <QuestionsMiniMap
+            questions={questionDrafts}
+            onSelectQuestion={scrollToQuestion}
+            onAddQuestion={() => handleAddQuestionAt()}
+          />
+
           <div className="p-3.5 border rounded-xl bg-card space-y-2.5 text-xs shadow-xs">
             <h3 className="text-xs font-bold text-foreground border-b pb-1.5 flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-primary" /> Параметры привязки

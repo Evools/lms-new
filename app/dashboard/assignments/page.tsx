@@ -4,7 +4,12 @@ import { getAssignmentsDataAction } from "./actions";
 import { AssignmentsView } from "./_components/assignments-view";
 
 interface PageProps {
-  searchParams: Promise<{ group?: string }>;
+  searchParams: Promise<{
+    group?: string;
+    subject?: string;
+    tab?: string;
+    search?: string;
+  }>;
 }
 
 export default async function AssignmentsPage({ searchParams }: PageProps) {
@@ -14,7 +19,7 @@ export default async function AssignmentsPage({ searchParams }: PageProps) {
     redirect("/login");
   }
 
-  const { group } = await searchParams;
+  const { group, subject, tab, search } = await searchParams;
   const role = session.user.role || "STUDENT";
 
   const { groups, subjects, assignments, selectedGroupId, canCreate } =
@@ -28,6 +33,9 @@ export default async function AssignmentsPage({ searchParams }: PageProps) {
       assignments={assignments}
       selectedGroupId={selectedGroupId}
       canCreate={canCreate}
+      initialSubjectFilter={subject}
+      initialTabFilter={tab as "ALL" | "PENDING" | "DRAFTS" | undefined}
+      initialSearchQuery={search}
     />
   );
 }

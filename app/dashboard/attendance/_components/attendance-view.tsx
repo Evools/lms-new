@@ -37,6 +37,7 @@ import {
   Clock,
   Shield,
   RefreshCw,
+  Keyboard,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -45,6 +46,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import {
   GroupItemDTO,
@@ -98,6 +101,9 @@ export function AttendanceView({
   const [statusFilterTab, setStatusFilterTab] = useState<FilterStatusTab>("ALL");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [isClearDialogOpen, setIsClearDialogOpen] = useState<boolean>(false);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState<boolean>(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+  const [focusedStudentIndex, setFocusedStudentIndex] = useState<number | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -167,52 +173,84 @@ export function AttendanceView({
     });
   };
 
+  // Unsaved changes browser prompt
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Request navigation with unsaved changes interception
+  const requestNavigation = (navAction: () => void) => {
+    if (hasUnsavedChanges) {
+      setPendingNavigation(() => navAction);
+      setIsDiscardDialogOpen(true);
+    } else {
+      navAction();
+    }
+  };
+
   const shiftDate = (daysDelta: number) => {
     const { year, month, day } = parseYMD(currentDateStr);
     const newDateStr = formatYMD(year, month, day + daysDelta);
-    setCurrentDateStr(newDateStr);
-    startTransition(() => {
-      router.push(
-        `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${newDateStr}`
-      );
+    requestNavigation(() => {
+      setCurrentDateStr(newDateStr);
+      startTransition(() => {
+        router.push(
+          `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${newDateStr}`
+        );
+      });
     });
   };
 
   const setDateToToday = () => {
     const now = new Date();
     const newDateStr = formatYMD(now.getFullYear(), now.getMonth(), now.getDate());
-    setCurrentDateStr(newDateStr);
-    startTransition(() => {
-      router.push(
-        `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${newDateStr}`
-      );
+    requestNavigation(() => {
+      setCurrentDateStr(newDateStr);
+      startTransition(() => {
+        router.push(
+          `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${newDateStr}`
+        );
+      });
     });
   };
 
   // Update filters with transition
   const handleGroupChange = (val: string) => {
-    setCurrentGroupId(val);
-    setCurrentSubjectId("");
-    startTransition(() => {
-      router.push(`/dashboard/attendance?group=${val}&date=${currentDateStr}`);
+    requestNavigation(() => {
+      setCurrentGroupId(val);
+      setCurrentSubjectId("");
+      startTransition(() => {
+        router.push(`/dashboard/attendance?group=${val}&date=${currentDateStr}`);
+      });
     });
   };
 
   const handleSubjectChange = (val: string) => {
-    setCurrentSubjectId(val);
-    startTransition(() => {
-      router.push(
-        `/dashboard/attendance?group=${currentGroupId}&subject=${val}&date=${currentDateStr}`
-      );
+    requestNavigation(() => {
+      setCurrentSubjectId(val);
+      startTransition(() => {
+        router.push(
+          `/dashboard/attendance?group=${currentGroupId}&subject=${val}&date=${currentDateStr}`
+        );
+      });
     });
   };
 
   const handleDateChange = (val: string) => {
-    setCurrentDateStr(val);
-    startTransition(() => {
-      router.push(
-        `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${val}`
-      );
+    requestNavigation(() => {
+      setCurrentDateStr(val);
+      startTransition(() => {
+        router.push(
+          `/dashboard/attendance?group=${currentGroupId}&subject=${currentSubjectId}&date=${val}`
+        );
+      });
     });
   };
 
@@ -287,20 +325,6 @@ export function AttendanceView({
     });
   }, [currentSubjectId, currentDateStr, students]);
 
-  // Keyboard shortcut Ctrl+S / Cmd+S
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        if (hasUnsavedChanges && !isPending) {
-          handleSaveAll();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasUnsavedChanges, isPending, handleSaveAll]);
-
   const handlePrint = () => window.print();
 
   const totalStudents = students.length;
@@ -328,6 +352,63 @@ export function AttendanceView({
       return stStatus === statusFilterTab;
     });
   }, [students, searchQuery, statusFilterTab, records]);
+
+  // Keyboard shortcuts: Ctrl+S and Roll Call mode (1, 2, 3, 4, Arrows)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Save shortcut Ctrl+S / Cmd+S
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (hasUnsavedChanges && !isPending) {
+          handleSaveAll();
+        }
+        return;
+      }
+
+      // Ignore other single key shortcuts if user is typing inside an input/textarea/select
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === "input" || activeTag === "textarea" || activeTag === "select") {
+        return;
+      }
+
+      if (!isAdminOrTeacher || filteredStudents.length === 0) return;
+
+      // 2. Navigation: ArrowDown, ArrowUp, J, K
+      if (e.key === "ArrowDown" || e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setFocusedStudentIndex((prev) => {
+          if (prev === null) return 0;
+          return Math.min(filteredStudents.length - 1, prev + 1);
+        });
+      } else if (e.key === "ArrowUp" || e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setFocusedStudentIndex((prev) => {
+          if (prev === null) return 0;
+          return Math.max(0, prev - 1);
+        });
+      }
+
+      // 3. Status hotkeys on focused student
+      if (focusedStudentIndex !== null && filteredStudents[focusedStudentIndex]) {
+        const targetStudent = filteredStudents[focusedStudentIndex];
+        if (e.key === "1") {
+          e.preventDefault();
+          handleStatusChange(targetStudent.studentId, AttendanceStatus.PRESENT);
+        } else if (e.key === "2") {
+          e.preventDefault();
+          handleStatusChange(targetStudent.studentId, AttendanceStatus.ABSENT);
+        } else if (e.key === "3") {
+          e.preventDefault();
+          handleStatusChange(targetStudent.studentId, AttendanceStatus.LATE);
+        } else if (e.key === "4") {
+          e.preventDefault();
+          handleStatusChange(targetStudent.studentId, AttendanceStatus.EXCUSED);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [hasUnsavedChanges, isPending, handleSaveAll, isAdminOrTeacher, filteredStudents, focusedStudentIndex]);
 
   // Calculate if any students scheduled on duty today are absent/excused
   const absentDutyInAttendance = useMemo(() => {
@@ -561,6 +642,36 @@ export function AttendanceView({
         </div>
       </div>
 
+      {/* Hotkeys Toolbar */}
+      {isAdminOrTeacher && (
+        <div className="print:hidden flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-muted/40 border text-[11px] text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1.5 font-medium text-foreground">
+            <Keyboard className="h-3.5 w-3.5 text-primary" />
+            <span>Горячие клавиши (Roll Call):</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap text-[10px]">
+            <span>
+              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">↑/↓</kbd> выбор
+            </span>
+            <span>
+              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">1</kbd> Был
+            </span>
+            <span>
+              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">2</kbd> НБ
+            </span>
+            <span>
+              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">3</kbd> Опоздал
+            </span>
+            <span>
+              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">4</kbd> Справка
+            </span>
+            <span>
+              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">Ctrl+S</kbd> Сохранить
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Attendance Table with Status Tabs Header */}
       <Card className="relative print:hidden p-0 border overflow-hidden" data-tour="attendance-table">
         {/* Loading Overlay */}
@@ -660,10 +771,15 @@ export function AttendanceView({
                   ? "border-l-4 border-l-sky-500 bg-sky-500/5"
                   : "border-l-4 border-l-primary/40 hover:bg-muted/20";
 
+              const isFocused = focusedStudentIndex === idx;
+
               return (
                 <div
                   key={st.studentId}
-                  className={`transition-colors ${borderAccentColor}`}
+                  onClick={() => setFocusedStudentIndex(idx)}
+                  className={`transition-all outline-none ${borderAccentColor} ${
+                    isFocused ? "ring-2 ring-primary/80 ring-inset bg-primary/5 shadow-2xs" : ""
+                  }`}
                 >
                   {/* DESKTOP ROW (md and up) */}
                   <div className="hidden md:grid md:grid-cols-[36px_1fr_auto_240px] lg:grid-cols-[40px_1fr_auto_280px] items-center gap-3 px-3.5 py-2">
@@ -995,6 +1111,66 @@ export function AttendanceView({
               className="h-7 px-3 text-xs"
             >
               {isPending ? "Аннулирование..." : "Аннулировать"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Discard Unsaved Changes Modal */}
+      <AlertDialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px] place-items-start text-left">
+          <AlertDialogHeader className="text-left gap-1">
+            <AlertDialogTitle className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+              <AlertTriangle className="h-4 w-4 text-primary" /> Несохранённые изменения
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              У вас есть несохраненные отметки посещаемости. Если вы перейдете сейчас без сохранения, изменения будут утеряны.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={() => {
+                setIsDiscardDialogOpen(false);
+                setPendingNavigation(null);
+              }}
+              className="h-7 px-2.5 text-xs"
+            >
+              Остаться
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={() => {
+                setIsDiscardDialogOpen(false);
+                setHasUnsavedChanges(false);
+                if (pendingNavigation) {
+                  pendingNavigation();
+                  setPendingNavigation(null);
+                }
+              }}
+              className="h-7 px-2.5 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+            >
+              Сбросить
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              onClick={() => {
+                handleSaveAll();
+                setIsDiscardDialogOpen(false);
+                if (pendingNavigation) {
+                  pendingNavigation();
+                  setPendingNavigation(null);
+                }
+              }}
+              className="h-7 px-2.5 text-xs font-medium"
+            >
+              Сохранить и перейти
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
