@@ -24,6 +24,38 @@ export interface StudentAttendanceDTO {
   isMonitor: boolean;
 }
 
+export interface StudentPeriodStatsDTO {
+  studentId: string;
+  studentName: string;
+  isMonitor: boolean;
+  totalLessons: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  attendanceRate: number;
+}
+
+export interface AttendancePeriodStatsDTO {
+  startDate: string;
+  endDate: string;
+  totalLessons: number;
+  groupAttendanceRate: number;
+  totalPresent: number;
+  totalAbsent: number;
+  totalLate: number;
+  totalExcused: number;
+  students: StudentPeriodStatsDTO[];
+  lessonsByDate: Array<{
+    date: string;
+    subjectName: string;
+    presentCount: number;
+    absentCount: number;
+    lateCount: number;
+    excusedCount: number;
+  }>;
+}
+
 export async function getAttendanceDataAction(
   groupId?: string,
   groupSubjectId?: string,
@@ -363,3 +395,225 @@ export async function clearAttendanceAction(
     return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при очистке посещаемости" };
   }
 }
+
+/** Get aggregated attendance statistics for a given group, date range and optional subject */
+export async function getAttendancePeriodStatsAction(
+  groupId: string,
+  startDateStr: string,
+  endDateStr: string,
+  groupSubjectId?: string
+): Promise<{ success: boolean; data?: AttendancePeriodStatsDTO; error?: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return { success: false, error: "Не авторизован" };
+    }
+
+    if (!groupId || !startDateStr || !endDateStr) {
+      return { success: false, error: "Укажите группу и диапазон дат" };
+    }
+
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+    const endDateInclusive = new Date(endDate);
+    endDateInclusive.setDate(endDate.getDate() + 1);
+
+    // 1. Fetch group students
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        monitor: { select: { id: true } },
+        students: {
+          include: {
+            student: { select: { id: true, name: true } },
+          },
+          orderBy: { student: { name: "asc" } },
+        },
+      },
+    });
+
+    if (!group) {
+      return { success: false, error: "Группа не найдена" };
+    }
+
+    const students = group.students.map((gs) => ({
+      studentId: gs.student.id,
+      studentName: gs.student.name,
+      isMonitor: group.monitor?.id === gs.student.id,
+    }));
+
+    // 2. Build where filter for attendances
+    const whereClause: Record<string, unknown> = {
+      date: {
+        gte: startDate,
+        lt: endDateInclusive,
+      },
+    };
+
+    if (groupSubjectId && groupSubjectId !== "all") {
+      whereClause.groupSubjectId = groupSubjectId;
+    } else {
+      whereClause.groupSubject = {
+        groupId,
+      };
+    }
+
+    // 3. Query all attendance entries in range
+    const records = await prisma.attendance.findMany({
+      where: whereClause,
+      include: {
+        groupSubject: {
+          include: {
+            subject: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    // 4. Aggregations per student
+    const studentStatsMap: Record<
+      string,
+      {
+        total: number;
+        present: number;
+        absent: number;
+        late: number;
+        excused: number;
+      }
+    > = {};
+
+    students.forEach((st) => {
+      studentStatsMap[st.studentId] = {
+        total: 0,
+        present: 0,
+        absent: 0,
+        late: 0,
+        excused: 0,
+      };
+    });
+
+    // Group-level totals
+    let totalGroupPresent = 0;
+    let totalGroupAbsent = 0;
+    let totalGroupLate = 0;
+    let totalGroupExcused = 0;
+
+    // Track dates & lessons
+    const lessonsByDateMap: Record<
+      string,
+      {
+        date: string;
+        subjectName: string;
+        presentCount: number;
+        absentCount: number;
+        lateCount: number;
+        excusedCount: number;
+      }
+    > = {};
+
+    records.forEach((rec) => {
+      const studentId = rec.studentId;
+      if (!studentStatsMap[studentId]) {
+        studentStatsMap[studentId] = {
+          total: 0,
+          present: 0,
+          absent: 0,
+          late: 0,
+          excused: 0,
+        };
+      }
+
+      studentStatsMap[studentId].total += 1;
+
+      const dateKey = `${rec.date.toISOString().split("T")[0]}_${rec.groupSubjectId}`;
+      if (!lessonsByDateMap[dateKey]) {
+        lessonsByDateMap[dateKey] = {
+          date: rec.date.toISOString().split("T")[0],
+          subjectName: rec.groupSubject?.subject?.name || "Занятие",
+          presentCount: 0,
+          absentCount: 0,
+          lateCount: 0,
+          excusedCount: 0,
+        };
+      }
+
+      switch (rec.status) {
+        case AttendanceStatus.PRESENT:
+          studentStatsMap[studentId].present += 1;
+          totalGroupPresent += 1;
+          lessonsByDateMap[dateKey].presentCount += 1;
+          break;
+        case AttendanceStatus.ABSENT:
+          studentStatsMap[studentId].absent += 1;
+          totalGroupAbsent += 1;
+          lessonsByDateMap[dateKey].absentCount += 1;
+          break;
+        case AttendanceStatus.LATE:
+          studentStatsMap[studentId].late += 1;
+          totalGroupLate += 1;
+          lessonsByDateMap[dateKey].lateCount += 1;
+          break;
+        case AttendanceStatus.EXCUSED:
+          studentStatsMap[studentId].excused += 1;
+          totalGroupExcused += 1;
+          lessonsByDateMap[dateKey].excusedCount += 1;
+          break;
+      }
+    });
+
+    // Max lessons recorded for any student or total unique lessons in period
+    const totalRecordedLessons = Object.keys(lessonsByDateMap).length;
+
+    const studentResultList: StudentPeriodStatsDTO[] = students.map((st) => {
+      const s = studentStatsMap[st.studentId] || {
+        total: 0,
+        present: 0,
+        absent: 0,
+        late: 0,
+        excused: 0,
+      };
+
+      const attendedScore = s.present + s.late + s.excused;
+      const rate = s.total > 0 ? Math.round((attendedScore / s.total) * 100) : 100;
+
+      return {
+        studentId: st.studentId,
+        studentName: st.studentName,
+        isMonitor: st.isMonitor,
+        totalLessons: s.total,
+        presentCount: s.present,
+        absentCount: s.absent,
+        lateCount: s.late,
+        excusedCount: s.excused,
+        attendanceRate: rate,
+      };
+    });
+
+    const allEntries = totalGroupPresent + totalGroupAbsent + totalGroupLate + totalGroupExcused;
+    const groupAttended = totalGroupPresent + totalGroupLate + totalGroupExcused;
+    const groupRate = allEntries > 0 ? Math.round((groupAttended / allEntries) * 100) : 100;
+
+    const statsDto: AttendancePeriodStatsDTO = {
+      startDate: startDateStr,
+      endDate: endDateStr,
+      totalLessons: totalRecordedLessons,
+      groupAttendanceRate: groupRate,
+      totalPresent: totalGroupPresent,
+      totalAbsent: totalGroupAbsent,
+      totalLate: totalGroupLate,
+      totalExcused: totalGroupExcused,
+      students: studentResultList,
+      lessonsByDate: Object.values(lessonsByDateMap).sort((a, b) => a.date.localeCompare(b.date)),
+    };
+
+    return { success: true, data: statsDto };
+  } catch (error) {
+    console.error("Failed to fetch attendance period stats:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Произошла ошибка при загрузке статистики",
+    };
+  }
+}
+
