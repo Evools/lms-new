@@ -52,10 +52,12 @@ model User {
   name         String
   avatar       String?
   phone        String?
-  role         Role     @default(STUDENT)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  role             Role     @default(STUDENT)
+  isActive         Boolean  @default(true)
+  isDutyExempt     Boolean  @default(false)
+  dutyExemptReason String? // e.g. "ЛОВЗ", "По состоянию здоровья"
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Group roles
   curatedGroups      Group[]        @relation("GroupCurator")

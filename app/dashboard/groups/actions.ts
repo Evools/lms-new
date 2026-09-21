@@ -29,6 +29,8 @@ export interface GroupStudentDTO {
   roleInGroup: "STUDENT" | "MONITOR" | "DEPUTY_MONITOR";
   joinedAt: string;
   tempPassword?: string | null;
+  isDutyExempt?: boolean;
+  dutyExemptReason?: string | null;
 }
 
 export interface GroupSubjectDTO {
@@ -386,6 +388,8 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
             email: true,
             phone: true,
             tempPassword: true,
+            isDutyExempt: true,
+            dutyExemptReason: true,
           },
         },
       },
@@ -408,6 +412,8 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
         roleInGroup,
         joinedAt: new Date(gs.joinedAt).toLocaleDateString("ru-RU"),
         tempPassword: gs.student.tempPassword || null,
+        isDutyExempt: gs.student.isDutyExempt,
+        dutyExemptReason: gs.student.dutyExemptReason,
       };
     });
 

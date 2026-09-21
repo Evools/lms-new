@@ -68,6 +68,7 @@ import {
   SlidersHorizontal,
   Power,
   PowerOff,
+  Accessibility,
 } from "lucide-react";
 import {
   DayDutyGroupDTO,
@@ -78,6 +79,7 @@ import {
   clearDutyScheduleAction,
   addDisciplinaryDutyAction,
   toggleGroupDutyAction,
+  toggleStudentDutyExemptionAction,
   StudentDutyStatDTO,
   GroupStudentWithDutyInfo,
 } from "../actions";
@@ -135,6 +137,7 @@ export function DutyScheduleView({
   // Detailed Duty Settings state
   const [dutyEnabledLocal, setDutyEnabledLocal] = useState<boolean>(isDutyEnabled);
   const [dutyPerDaySetting, setDutyPerDaySetting] = useState<number>(0); // 0 = Auto
+  const [dutyCountPerDay, setDutyCountPerDay] = useState<string>("auto");
   const [activeDutyDays, setActiveDutyDays] = useState<number[]>([0, 1, 2, 3, 4, 5]); // Mon-Sat
   const [responsibleMode, setResponsibleMode] = useState<"NONE" | "MONITOR" | "DEPUTY" | "CUSTOM">("MONITOR");
   const [customResponsibleStudentId, setCustomResponsibleStudentId] = useState<string>("");
@@ -145,6 +148,78 @@ export function DutyScheduleView({
   useEffect(() => {
     setDutyEnabledLocal(isDutyEnabled);
   }, [isDutyEnabled]);
+
+  // Load persistent settings for current group from localStorage
+  useEffect(() => {
+    if (!currentGroupId || typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem(`lms_duty_settings_${currentGroupId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.dutyPerDaySetting === "number") {
+          setDutyPerDaySetting(parsed.dutyPerDaySetting);
+          setDutyCountPerDay(parsed.dutyPerDaySetting === 0 ? "auto" : String(parsed.dutyPerDaySetting));
+        }
+        if (Array.isArray(parsed.activeDutyDays)) {
+          setActiveDutyDays(parsed.activeDutyDays);
+        }
+        if (parsed.responsibleMode) {
+          setResponsibleMode(parsed.responsibleMode);
+        }
+        if (parsed.customResponsibleStudentId) {
+          setCustomResponsibleStudentId(parsed.customResponsibleStudentId);
+        }
+        if (parsed.dutyAlgorithm) {
+          setDutyAlgorithm(parsed.dutyAlgorithm);
+        }
+        if (Array.isArray(parsed.excludedStudentIds)) {
+          setExcludedStudentIds(parsed.excludedStudentIds);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [currentGroupId]);
+
+  const handleTogglePermanentExemption = (studentId: string, isExempt: boolean, reason?: string) => {
+    startTransition(async () => {
+      const res = await toggleStudentDutyExemptionAction(
+        studentId,
+        isExempt,
+        reason || (isExempt ? "ЛОВЗ (Ограниченные возможности здоровья)" : null),
+        currentGroupId
+      );
+      if (res.success) {
+        toast.add({
+          title: isExempt
+            ? "Студенту присвоен статус ЛОВЗ (освобожден от дежурств)"
+            : "Освобождение от дежурств снято",
+          type: "success",
+        });
+        // Remove from temporary manual exclusion list when toggling ЛОВЗ
+        setExcludedStudentIds((prev) => prev.filter((id) => id !== studentId));
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка сохранения статуса освобождения", type: "error" });
+      }
+    });
+  };
+
+  const saveGroupSettingsToStorage = (settings: {
+    dutyPerDaySetting: number;
+    activeDutyDays: number[];
+    responsibleMode: "NONE" | "MONITOR" | "DEPUTY" | "CUSTOM";
+    customResponsibleStudentId: string;
+    dutyAlgorithm: "FAIR" | "ALPHABETICAL" | "RANDOM";
+    excludedStudentIds: string[];
+  }) => {
+    if (!currentGroupId || typeof window === "undefined") return;
+    try {
+      localStorage.setItem(`lms_duty_settings_${currentGroupId}`, JSON.stringify(settings));
+    } catch {
+      // ignore
+    }
+  };
 
   // Absent tracking state map: key = `${studentId}_${fullDate}`, value = reason
   const [absentMap, setAbsentMap] = useState<Record<string, string>>({});
@@ -195,6 +270,16 @@ export function DutyScheduleView({
   // Save detailed duty settings and generate schedule
   const handleApplyDetailedDutySettings = () => {
     if (!currentGroupId) return;
+    const currentSettings = {
+      dutyPerDaySetting,
+      activeDutyDays,
+      responsibleMode,
+      customResponsibleStudentId,
+      dutyAlgorithm,
+      excludedStudentIds,
+    };
+    saveGroupSettingsToStorage(currentSettings);
+
     startTransition(async () => {
       const res = await generateWeeklyDutyAction(currentGroupId, {
         isDutyEnabled: dutyEnabledLocal,
@@ -227,15 +312,21 @@ export function DutyScheduleView({
     router.push(`/dashboard/duty?group=${groupId}`);
   };
 
-  // Duty count per day setting
-  const [dutyCountPerDay, setDutyCountPerDay] = useState<string>("auto");
-
-  // Generate auto-rotation
+  // Generate auto-rotation (respecting all configured group settings)
   const handleAutoRotation = () => {
     if (!currentGroupId) return;
     startTransition(async () => {
-      const countParam = dutyCountPerDay === "auto" ? undefined : Number(dutyCountPerDay);
-      const res = await generateWeeklyDutyAction(currentGroupId, countParam);
+      const effectivePerDay = dutyPerDaySetting > 0 ? dutyPerDaySetting : (dutyCountPerDay === "auto" ? undefined : Number(dutyCountPerDay));
+      const res = await generateWeeklyDutyAction(currentGroupId, {
+        isDutyEnabled: dutyEnabledLocal,
+        perDay: effectivePerDay,
+        activeDays: activeDutyDays,
+        includeLeader: responsibleMode !== "NONE",
+        responsibleMode,
+        customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
+        algorithm: dutyAlgorithm,
+        excludedStudentIds,
+      });
       if (res.success) {
         toast.add({ title: "Честная авто-ротация успешно сформирована!", type: "success" });
         router.refresh();
@@ -405,7 +496,7 @@ export function DutyScheduleView({
   // Open add dialog
   const openAddModal = (day: DayDutyGroupDTO, type: "add" | "penalty" = "add") => {
     const existing = day.dutyStudents.map((s) => s.id);
-    const available = groupStudents.filter((s) => !existing.includes(s.id));
+    const available = groupStudents.filter((s) => !existing.includes(s.id) && !s.isDutyExempt);
     setPickerMode({
       type,
       fullDate: day.fullDate,
@@ -422,7 +513,7 @@ export function DutyScheduleView({
     studentName: string
   ) => {
     const existing = day.dutyStudents.map((s) => s.id);
-    const available = groupStudents.filter((s) => !existing.includes(s.id));
+    const available = groupStudents.filter((s) => !existing.includes(s.id) && !s.isDutyExempt);
     setReplaceTarget({
       fullDate: day.fullDate,
       dayName: `${day.dayName} (${day.dateStr})`,
@@ -648,7 +739,12 @@ export function DutyScheduleView({
               <span className="text-[11px] text-muted-foreground whitespace-nowrap">Дежурных в день:</span>
               <Select
                 value={dutyCountPerDay}
-                onValueChange={(val) => val && setDutyCountPerDay(val)}
+                onValueChange={(val) => {
+                  if (val) {
+                    setDutyCountPerDay(val);
+                    setDutyPerDaySetting(val === "auto" ? 0 : Number(val));
+                  }
+                }}
               >
                 <SelectTrigger className="h-6 text-xs w-28 border-0 bg-transparent p-0 shadow-none focus:ring-0">
                   <SelectValue>{dutyCountPerDay === "auto" ? "Авторасчет" : `${dutyCountPerDay} чел.`}</SelectValue>
@@ -1212,7 +1308,11 @@ export function DutyScheduleView({
                   </div>
 
                   <div>
-                    {st.completedDutiesCount > 0 ? (
+                    {st.isDutyExempt ? (
+                      <Badge variant="outline" className="text-[9px] border-sky-500/30 text-sky-600 dark:text-sky-400 bg-sky-500/10 font-medium flex items-center gap-1 w-fit">
+                        <Accessibility className="h-2.5 w-2.5 shrink-0" /> {st.dutyExemptReason || "ЛОВЗ"}
+                      </Badge>
+                    ) : st.completedDutiesCount > 0 ? (
                       <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/10 font-medium flex items-center gap-1 w-fit">
                         <Check className="h-2.5 w-2.5" /> Отдежурил ({st.completedDutiesCount})
                       </Badge>
@@ -1251,7 +1351,7 @@ export function DutyScheduleView({
           <CardHeader className="p-0 pb-3 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-primary" /> Настройки автоматической ротации
+                <SlidersHorizontal className="h-4 w-4 text-primary" /> Настройки дежурства
               </CardTitle>
               <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
                 Параметры дежурств, алгоритм распределения, старший дежурный и освобожденные студенты группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}
@@ -1341,7 +1441,10 @@ export function DutyScheduleView({
                       <button
                         key={item.value}
                         type="button"
-                        onClick={() => setDutyPerDaySetting(item.value)}
+                        onClick={() => {
+                          setDutyPerDaySetting(item.value);
+                          setDutyCountPerDay(item.value === 0 ? "auto" : String(item.value));
+                        }}
                         className={`py-1.5 rounded-md transition-colors font-medium ${dutyPerDaySetting === item.value
                           ? "bg-background border border-border text-primary shadow-2xs"
                           : "text-muted-foreground hover:text-foreground"
@@ -1470,10 +1573,12 @@ export function DutyScheduleView({
                 </div>
               </div>
 
-              {/* Column 2: Exempted Students (Исключения) */}
+              {/* Column 2: Exempted Students (Исключения / ЛОВЗ) */}
               <div className="space-y-2 p-3 rounded-xl border bg-muted/10 flex flex-col">
                 <div className="flex items-center justify-between">
-                  <label className="font-semibold text-foreground">Освобождение от дежурств (Исключения):</label>
+                  <label className="font-semibold text-foreground flex items-center gap-1.5">
+                    <Accessibility className="h-4 w-4 text-primary" /> Освобождение от дежурств (ЛОВЗ):
+                  </label>
                   {excludedStudentIds.length > 0 ? (
                     <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] px-1.5 py-0 font-medium">
                       Освобождено: {excludedStudentIds.length} чел.
@@ -1483,7 +1588,7 @@ export function DutyScheduleView({
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Отметьте студентов, которые не должны включаться в ротацию (освобождены по здоровью и т.д.):
+                  Отметьте студентов для исключения из графика или закрепите постоянный статус <strong>ЛОВЗ</strong>:
                 </p>
 
                 {groupStudents.length > 6 && (
@@ -1503,31 +1608,87 @@ export function DutyScheduleView({
                     .filter((s) => s.name.toLowerCase().includes(exemptionSearch.toLowerCase()))
                     .map((st) => {
                       const isExempt = excludedStudentIds.includes(st.id);
+                      const isPermanentExempt = !!st.isDutyExempt;
                       return (
                         <div
                           key={st.id}
                           onClick={() => {
+                            if (isPermanentExempt) {
+                              toast.add({
+                                title: "Студент постоянно освобожден по статусу ЛОВЗ",
+                                type: "info",
+                              });
+                              return;
+                            }
                             setExcludedStudentIds((prev) =>
                               isExempt ? prev.filter((id) => id !== st.id) : [...prev, st.id]
                             );
                           }}
-                          className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs ${isExempt
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "hover:bg-muted/50 text-foreground"
-                            }`}
+                          className={`flex items-center justify-between p-2 rounded-md transition-colors text-xs ${
+                            isPermanentExempt
+                              ? "bg-sky-500/5 text-foreground cursor-default"
+                              : isExempt
+                              ? "bg-primary/5 text-primary font-medium cursor-pointer"
+                              : "hover:bg-muted/50 text-foreground cursor-pointer"
+                          }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] ${isExempt ? "bg-primary text-primary-foreground border-primary" : "border-border"
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isPermanentExempt ? (
+                              <div
+                                className="h-4 w-4 rounded border border-sky-500/40 bg-sky-500/10 flex items-center justify-center text-[10px] shrink-0 text-sky-600 dark:text-sky-400"
+                                title="Постоянное освобождение (ЛОВЗ)"
+                              >
+                                <Accessibility className="h-2.5 w-2.5" />
+                              </div>
+                            ) : (
+                              <div
+                                className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] shrink-0 ${
+                                  isExempt ? "bg-primary text-primary-foreground border-primary" : "border-border"
                                 }`}
-                            >
-                              {isExempt && <Check className="h-3 w-3" />}
-                            </div>
+                              >
+                                {isExempt && <Check className="h-3 w-3" />}
+                              </div>
+                            )}
                             <span className="truncate">{st.name}</span>
+                            {isPermanentExempt && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] px-1.5 py-0 h-4 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400 font-medium shrink-0 flex items-center gap-1"
+                                title={st.dutyExemptReason || "ЛОВЗ"}
+                              >
+                                <Accessibility className="h-2.5 w-2.5" />
+                                <span>ЛОВЗ</span>
+                              </Badge>
+                            )}
                           </div>
-                          <span className="text-[10px] text-muted-foreground">
-                            {isExempt ? "Освобожден" : "Дежурит"}
-                          </span>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTogglePermanentExemption(st.id, !isPermanentExempt);
+                              }}
+                              disabled={isPending}
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                                isPermanentExempt
+                                  ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400 hover:bg-sky-500/20"
+                                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                              }`}
+                              title={isPermanentExempt ? "Снять постоянный статус ЛОВЗ" : "Установить постоянный статус ЛОВЗ"}
+                            >
+                              {isPermanentExempt ? "Снять ЛОВЗ" : "+ ЛОВЗ"}
+                            </button>
+                            <span className="text-[10px] w-24 text-right truncate">
+                              {isPermanentExempt ? (
+                                <span className="text-sky-600 dark:text-sky-400 font-medium">ЛОВЗ (Освобожден)</span>
+                              ) : isExempt ? (
+                                <span className="text-primary font-medium">Исключен</span>
+                              ) : (
+                                <span className="text-muted-foreground">Дежурит</span>
+                              )}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}
@@ -1601,7 +1762,7 @@ export function DutyScheduleView({
                   </SelectTrigger>
                   <SelectContent>
                     {[...groupStudents]
-                      .filter((s) => !pickerMode.existingIds.includes(s.id))
+                      .filter((s) => !pickerMode.existingIds.includes(s.id) && !s.isDutyExempt)
                       .sort((a, b) => {
                         const aRecent = a.isRecentDuty ? 1 : 0;
                         const bRecent = b.isRecentDuty ? 1 : 0;
@@ -1677,7 +1838,7 @@ export function DutyScheduleView({
                   </SelectTrigger>
                   <SelectContent>
                     {[...groupStudents]
-                      .filter((s) => !replaceTarget.existingIds.includes(s.id) && s.id !== replaceTarget.absentStudentId)
+                      .filter((s) => !replaceTarget.existingIds.includes(s.id) && s.id !== replaceTarget.absentStudentId && !s.isDutyExempt)
                       .sort((a, b) => {
                         const aRecent = a.isRecentDuty ? 1 : 0;
                         const bRecent = b.isRecentDuty ? 1 : 0;

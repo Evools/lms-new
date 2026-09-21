@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { toast } from "@/components/ui/toast";
 import {
   Select,
   SelectTrigger,
@@ -73,6 +74,7 @@ import {
   Copy,
   Check,
   KeyRound,
+  Accessibility,
 } from "lucide-react";
 import {
   GroupDetailsDTO,
@@ -89,6 +91,7 @@ import {
   DayDutyGroupDTO,
   GroupStudentWithDutyInfo,
   StudentDutyStatDTO,
+  toggleStudentDutyExemptionAction,
 } from "@/app/dashboard/duty/actions";
 import { DutyScheduleView } from "@/app/dashboard/duty/_components/duty-schedule-view";
 
@@ -159,6 +162,28 @@ export function GroupDetailsView({
     });
   };
 
+  const handleToggleExemption = (studentId: string, isExempt: boolean) => {
+    startTransition(async () => {
+      const res = await toggleStudentDutyExemptionAction(
+        studentId,
+        isExempt,
+        isExempt ? "Освобожден" : null,
+        group.id
+      );
+      if (res.success) {
+        toast.add({
+          title: isExempt
+            ? "Студенту присвоен статус ЛОВЗ (освобожден от дежурств)"
+            : "Освобождение от дежурств снято",
+          type: "success",
+        });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка сохранения статуса", type: "error" });
+      }
+    });
+  };
+
   // Student credentials download and copy handlers
   const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
 
@@ -176,7 +201,7 @@ export function GroupDetailsView({
     const pass = student.tempPassword || "Установлен личный пароль (не временный)";
 
     const textContent =
-`==================================================
+      `==================================================
 ЛИЦЕЙСКИЙ ПОРТАЛ LMS — РЕКВИЗИТЫ ВХОДА СТУДЕНТА
 ==================================================
 
@@ -214,8 +239,8 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
         st.roleInGroup === "MONITOR"
           ? "Староста"
           : st.roleInGroup === "DEPUTY_MONITOR"
-          ? "Зам. старосты"
-          : "Студент";
+            ? "Зам. старосты"
+            : "Студент";
       const pass = st.tempPassword || "Установлен личный пароль";
       const phone = st.phone || "—";
       csvContent += `${idx + 1},"${st.name}","${st.email}","${pass}","${group.name}","${phone}","${roleLabel}"\n`;
@@ -386,11 +411,10 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
           <button
             type="button"
             onClick={() => setActiveTab("STUDENTS")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
-              activeTab === "STUDENTS"
-                ? "bg-background border border-border shadow-2xs text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${activeTab === "STUDENTS"
+              ? "bg-background border border-border shadow-2xs text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+              }`}
           >
             <GraduationCap className="h-3.5 w-3.5 shrink-0" />
             <span>Состав студентов ({group.studentsList.length})</span>
@@ -399,11 +423,10 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
           <button
             type="button"
             onClick={() => setActiveTab("SUBJECTS")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
-              activeTab === "SUBJECTS"
-                ? "bg-background border border-border shadow-2xs text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${activeTab === "SUBJECTS"
+              ? "bg-background border border-border shadow-2xs text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+              }`}
           >
             <BookOpen className="h-3.5 w-3.5 shrink-0" />
             <span>Предметы ({group.subjectsList.length})</span>
@@ -412,11 +435,10 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
           <button
             type="button"
             onClick={() => setActiveTab("ANNOUNCEMENTS")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
-              activeTab === "ANNOUNCEMENTS"
-                ? "bg-background border border-border shadow-2xs text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${activeTab === "ANNOUNCEMENTS"
+              ? "bg-background border border-border shadow-2xs text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+              }`}
           >
             <Megaphone className="h-3.5 w-3.5 shrink-0" />
             <span>Объявления ({group.announcementsList.length})</span>
@@ -425,11 +447,10 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
           <button
             type="button"
             onClick={() => setActiveTab("DUTY")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
-              activeTab === "DUTY"
-                ? "bg-background border border-border shadow-2xs text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${activeTab === "DUTY"
+              ? "bg-background border border-border shadow-2xs text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+              }`}
           >
             <Clock className="h-3.5 w-3.5 shrink-0" />
             <span>График дежурств</span>
@@ -519,6 +540,15 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                               <ShieldCheck className="h-2.5 w-2.5 shrink-0" /> Зам. старосты
                             </Badge>
                           )}
+                          {st.isDutyExempt && (
+                            <Badge
+                              variant="outline"
+                              className="shrink-0 text-[9px] px-1.5 py-0 gap-1 font-medium whitespace-nowrap border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                              title={st.dutyExemptReason || "Освобожден от дежурств (ЛОВЗ)"}
+                            >
+                              <Accessibility className="h-2.5 w-2.5 shrink-0" /> ЛОВЗ
+                            </Badge>
+                          )}
                         </div>
                         {/* Mobile contacts */}
                         <div className="md:hidden flex flex-col gap-0.5 text-[10px] text-muted-foreground mt-0.5">
@@ -573,6 +603,11 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                                 <Users className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> Снять полномочия
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleToggleExemption(st.id, !st.isDutyExempt)}>
+                              <Accessibility className="h-3.5 w-3.5 mr-2 text-sky-600 dark:text-sky-400" />
+                              {st.isDutyExempt ? "Снять статус ЛОВЗ" : "Освободить от дежурств (ЛОВЗ)"}
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleDownloadSingleStudentCredentials(st)}>
                               <Download className="h-3.5 w-3.5 mr-2 text-primary" /> Скачать доступ (.txt)
@@ -725,11 +760,10 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                             <button
                               type="button"
                               onClick={() => setIsImportant(false)}
-                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
-                                !isImportant
-                                  ? "border-primary bg-primary/8 ring-1 ring-primary/30"
-                                  : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
-                              }`}
+                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${!isImportant
+                                ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                                : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                                }`}
                             >
                               <div className={`mt-0.5 p-1 rounded-md shrink-0 ${!isImportant ? "bg-primary/15" : "bg-muted"}`}>
                                 <Megaphone className={`h-3.5 w-3.5 ${!isImportant ? "text-primary" : "text-muted-foreground"}`} />
@@ -743,11 +777,10 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                             <button
                               type="button"
                               onClick={() => setIsImportant(true)}
-                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
-                                isImportant
-                                  ? "border-primary bg-primary/8 ring-1 ring-primary/30"
-                                  : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
-                              }`}
+                              className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all ${isImportant
+                                ? "border-primary bg-primary/8 ring-1 ring-primary/30"
+                                : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                                }`}
                             >
                               <div className={`mt-0.5 p-1 rounded-md shrink-0 ${isImportant ? "bg-primary/15" : "bg-muted"}`}>
                                 <Sparkles className={`h-3.5 w-3.5 ${isImportant ? "text-primary" : "text-muted-foreground"}`} />
@@ -806,16 +839,14 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
               {group.announcementsList.map((ann: GroupAnnouncementDTO) => (
                 <div
                   key={ann.id}
-                  className={`rounded-xl border overflow-hidden transition-all ${
-                    ann.isImportant
-                      ? "border-primary/40 bg-primary/5 dark:bg-primary/10"
-                      : "border-border hover:border-muted-foreground/20 bg-background"
-                  }`}
+                  className={`rounded-xl border overflow-hidden transition-all ${ann.isImportant
+                    ? "border-primary/40 bg-primary/5 dark:bg-primary/10"
+                    : "border-border hover:border-muted-foreground/20 bg-background"
+                    }`}
                 >
                   {/* Header strip */}
-                  <div className={`flex items-center justify-between px-3 py-2 border-b gap-3 ${
-                    ann.isImportant ? "border-primary/20 bg-primary/5" : "border-border bg-muted/30"
-                  }`}>
+                  <div className={`flex items-center justify-between px-3 py-2 border-b gap-3 ${ann.isImportant ? "border-primary/20 bg-primary/5" : "border-border bg-muted/30"
+                    }`}>
                     <div className="flex items-center gap-2 min-w-0">
                       <Avatar className="h-6 w-6 border shrink-0">
                         <AvatarFallback className="bg-primary/10 text-primary text-[9px] font-bold">
@@ -958,11 +989,10 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                   <button
                     type="button"
                     onClick={() => setEditIsImportant(false)}
-                    className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${
-                      !editIsImportant
-                        ? "border-primary bg-primary/10 text-primary font-medium"
-                        : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
-                    }`}
+                    className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${!editIsImportant
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
+                      }`}
                   >
                     <Megaphone className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
                     <div>
@@ -974,11 +1004,10 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                   <button
                     type="button"
                     onClick={() => setEditIsImportant(true)}
-                    className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${
-                      editIsImportant
-                        ? "border-primary bg-primary/10 text-primary font-medium"
-                        : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
-                    }`}
+                    className={`p-2.5 rounded-lg border text-left flex items-start gap-2 transition-all ${editIsImportant
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border hover:bg-muted/30 text-muted-foreground font-medium"
+                      }`}
                   >
                     <Sparkles className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                     <div>
