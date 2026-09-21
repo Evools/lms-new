@@ -87,38 +87,22 @@ import {
   updateGroupAnnouncementAction,
   deleteGroupAnnouncementAction,
 } from "../../actions";
-import {
-  DayDutyGroupDTO,
-  GroupStudentWithDutyInfo,
-  StudentDutyStatDTO,
-  toggleStudentDutyExemptionAction,
-} from "@/app/dashboard/duty/actions";
-import { DutyScheduleView } from "@/app/dashboard/duty/_components/duty-schedule-view";
+import { toggleStudentDutyExemptionAction } from "@/app/dashboard/duty/actions";
 
 interface GroupDetailsViewProps {
   group: GroupDetailsDTO;
   userRole: string;
-  weeklyDays?: DayDutyGroupDTO[];
-  dutyGroupStudents?: GroupStudentWithDutyInfo[];
-  groupDutyStats?: StudentDutyStatDTO[];
-  dutyGroupsList?: { id: string; name: string; isDutyEnabled?: boolean }[];
-  isDutyEnabled?: boolean;
 }
 
 export function GroupDetailsView({
   group,
   userRole,
-  weeklyDays = [],
-  dutyGroupStudents = [],
-  groupDutyStats = [],
-  dutyGroupsList = [],
-  isDutyEnabled = true,
 }: GroupDetailsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [searchStudent, setSearchStudent] = useState("");
-  const [activeTab, setActiveTab] = useState<"STUDENTS" | "SUBJECTS" | "ANNOUNCEMENTS" | "DUTY">("STUDENTS");
+  const [activeTab, setActiveTab] = useState<"STUDENTS" | "SUBJECTS" | "ANNOUNCEMENTS">("STUDENTS");
 
   // Announcement modal state
   const [isAddAnnOpen, setIsAddAnnOpen] = useState(false);
@@ -328,6 +312,15 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="xs"
+            render={<Link href={`/dashboard/duty?group=${group.id}`} />}
+            className="text-xs h-7 gap-1 text-primary border-primary/30 hover:bg-primary/10"
+            title="Открыть график дежурств этой группы"
+          >
+            <Clock className="h-3.5 w-3.5" /> Дежурства
+          </Button>
           {isAdminOrTeacher && (
             <Button
               variant="outline"
@@ -442,18 +435,6 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
           >
             <Megaphone className="h-3.5 w-3.5 shrink-0" />
             <span>Объявления ({group.announcementsList.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("DUTY")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${activeTab === "DUTY"
-              ? "bg-background border border-border shadow-2xs text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span>График дежурств</span>
           </button>
         </div>
 
@@ -912,21 +893,6 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
               )}
             </div>
           </div>
-        )}
-
-
-        {/* TAB 4: AUTOMATED & MANUAL DUTY SCHEDULE CALENDAR & STATS */}
-        {activeTab === "DUTY" && (
-          <DutyScheduleView
-            userRole={userRole}
-            groupsList={dutyGroupsList.length > 0 ? dutyGroupsList : [{ id: group.id, name: group.name, isDutyEnabled: group.isDutyEnabled }]}
-            weeklyDays={weeklyDays}
-            groupStudents={dutyGroupStudents}
-            groupDutyStats={groupDutyStats}
-            selectedGroupId={group.id}
-            isDutyEnabled={isDutyEnabled}
-            embedded={true}
-          />
         )}
 
       </div>
