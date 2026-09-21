@@ -65,6 +65,9 @@ import {
   MoreVertical,
   Trash2,
   Check,
+  SlidersHorizontal,
+  Power,
+  PowerOff,
 } from "lucide-react";
 import {
   DayDutyGroupDTO,
@@ -74,6 +77,7 @@ import {
   replaceDutyStudentAction,
   clearDutyScheduleAction,
   addDisciplinaryDutyAction,
+  toggleGroupDutyAction,
   StudentDutyStatDTO,
   GroupStudentWithDutyInfo,
 } from "../actions";
@@ -86,6 +90,7 @@ interface DutyScheduleViewProps {
   groupDutyStats: StudentDutyStatDTO[];
   selectedGroupId?: string;
   isDutyEnabled?: boolean;
+  embedded?: boolean;
 }
 
 type StudentPickerMode = {
@@ -103,6 +108,7 @@ export function DutyScheduleView({
   groupDutyStats = [],
   selectedGroupId,
   isDutyEnabled = true,
+  embedded = false,
 }: DutyScheduleViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -123,8 +129,22 @@ export function DutyScheduleView({
     setDaysList(weeklyDays);
   }, [weeklyDays]);
 
-  const [activeTab, setActiveTab] = useState<"WEEKLY" | "STATS">("WEEKLY");
+  const [activeTab, setActiveTab] = useState<"WEEKLY" | "STATS" | "SETTINGS">("WEEKLY");
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Detailed Duty Settings state
+  const [dutyEnabledLocal, setDutyEnabledLocal] = useState<boolean>(isDutyEnabled);
+  const [dutyPerDaySetting, setDutyPerDaySetting] = useState<number>(0); // 0 = Auto
+  const [activeDutyDays, setActiveDutyDays] = useState<number[]>([0, 1, 2, 3, 4, 5]); // Mon-Sat
+  const [responsibleMode, setResponsibleMode] = useState<"NONE" | "MONITOR" | "DEPUTY" | "CUSTOM">("MONITOR");
+  const [customResponsibleStudentId, setCustomResponsibleStudentId] = useState<string>("");
+  const [dutyAlgorithm, setDutyAlgorithm] = useState<"FAIR" | "ALPHABETICAL" | "RANDOM">("FAIR");
+  const [excludedStudentIds, setExcludedStudentIds] = useState<string[]>([]);
+  const [exemptionSearch, setExemptionSearch] = useState<string>("");
+
+  useEffect(() => {
+    setDutyEnabledLocal(isDutyEnabled);
+  }, [isDutyEnabled]);
 
   // Absent tracking state map: key = `${studentId}_${fullDate}`, value = reason
   const [absentMap, setAbsentMap] = useState<Record<string, string>>({});
@@ -151,6 +171,55 @@ export function DutyScheduleView({
 
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
   const currentGroupObj = groupsList.find((g) => g.id === currentGroupId);
+
+  // Toggle group duty status
+  const handleToggleDutyStatus = (enabled: boolean) => {
+    if (!currentGroupId) return;
+    startTransition(async () => {
+      const res = await toggleGroupDutyAction(currentGroupId, enabled);
+      if (res.success) {
+        setDutyEnabledLocal(enabled);
+        toast.add({
+          title: enabled
+            ? "Дежурства для группы успешно включены!"
+            : "Дежурства для группы отключены. График приостановлен.",
+          type: "success",
+        });
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка при изменении статуса дежурств", type: "error" });
+      }
+    });
+  };
+
+  // Save detailed duty settings and generate schedule
+  const handleApplyDetailedDutySettings = () => {
+    if (!currentGroupId) return;
+    startTransition(async () => {
+      const res = await generateWeeklyDutyAction(currentGroupId, {
+        isDutyEnabled: dutyEnabledLocal,
+        perDay: dutyPerDaySetting > 0 ? dutyPerDaySetting : undefined,
+        activeDays: activeDutyDays,
+        includeLeader: responsibleMode !== "NONE",
+        responsibleMode,
+        customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
+        algorithm: dutyAlgorithm,
+        excludedStudentIds,
+      });
+      if (res.success) {
+        toast.add({
+          title: dutyEnabledLocal
+            ? "График дежурств успешно сформирован с учетом настроек!"
+            : "Настройки сохранены. Дежурства отключены.",
+          type: "success",
+        });
+        setActiveTab("WEEKLY");
+        router.refresh();
+      } else {
+        toast.add({ title: res.error || "Ошибка при генерации графика", type: "error" });
+      }
+    });
+  };
 
   // Group Switcher
   const handleGroupChange = (groupId: string) => {
@@ -240,12 +309,12 @@ export function DutyScheduleView({
       current.map((day) =>
         day.fullDate === fullDate
           ? {
-              ...day,
-              dutyStudents: [
-                ...day.dutyStudents.filter((s) => s.id !== absentStudentId),
-                { id: repStudent.id, name: repStudent.name, isLeader: false },
-              ],
-            }
+            ...day,
+            dutyStudents: [
+              ...day.dutyStudents.filter((s) => s.id !== absentStudentId),
+              { id: repStudent.id, name: repStudent.name, isLeader: false },
+            ],
+          }
           : day
       )
     );
@@ -519,12 +588,14 @@ export function DutyScheduleView({
       <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Link
-              href={currentGroupId ? `/dashboard/groups/${currentGroupId}` : "/dashboard/groups"}
-              className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Link>
+            {!embedded && (
+              <Link
+                href={currentGroupId ? `/dashboard/groups/${currentGroupId}` : "/dashboard/groups"}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+            )}
             <h1 className="text-base font-bold text-foreground flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
               <span>Дежурства {currentGroupObj ? `группы ${currentGroupObj.name}` : "лицея"}</span>
@@ -537,7 +608,7 @@ export function DutyScheduleView({
 
         <div className="flex flex-wrap items-center gap-2" data-tour="duty-header-actions">
           {/* Group Selector Dropdown */}
-          {groupsList.length > 0 && (
+          {!embedded && groupsList.length > 0 && (
             <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs shadow-2xs">
               <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
               <Select value={currentGroupId} onValueChange={handleGroupChange}>
@@ -560,6 +631,19 @@ export function DutyScheduleView({
           </Button>
 
           {isAdminOrTeacher && (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setActiveTab(activeTab === "SETTINGS" ? "WEEKLY" : "SETTINGS")}
+              className={`h-8 text-xs gap-1.5 font-medium ${activeTab === "SETTINGS" ? "bg-primary/10 border-primary/40 text-primary" : ""
+                }`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Настройки</span>
+            </Button>
+          )}
+
+          {isAdminOrTeacher && dutyEnabledLocal && (
             <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs">
               <span className="text-[11px] text-muted-foreground whitespace-nowrap">Дежурных в день:</span>
               <Select
@@ -580,7 +664,7 @@ export function DutyScheduleView({
               </Select>
             </div>
           )}
-          {isAdminOrTeacher && isDutyEnabled && (
+          {isAdminOrTeacher && dutyEnabledLocal && (
             <div className="flex items-center gap-1.5 shrink-0">
               <Button
                 size="xs"
@@ -652,20 +736,33 @@ export function DutyScheduleView({
       </div>
 
       {/* Alert Messages */}
-      {!isDutyEnabled && (
-        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs flex items-center justify-between gap-3">
+      {!dutyEnabledLocal && (
+        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
             <span>
               Дежурства для группы <strong>{currentGroupObj?.name || ""}</strong> отключены в настройках группы. График не рассчитывается.
             </span>
           </div>
-          {currentGroupId && (
-            <Link href={`/dashboard/groups/${currentGroupId}`}>
-              <Button size="xs" variant="outline" className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 shrink-0">
-                Настройки группы
+          {isAdminOrTeacher && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="xs"
+                onClick={() => handleToggleDutyStatus(true)}
+                disabled={isPending || !currentGroupId}
+                className="h-7 text-xs gap-1 font-medium bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Power className="h-3.5 w-3.5" /> Включить
               </Button>
-            </Link>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => setActiveTab("SETTINGS")}
+                className="h-7 text-xs gap-1 font-medium"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Настройки
+              </Button>
+            </div>
           )}
         </div>
       )}
@@ -677,8 +774,8 @@ export function DutyScheduleView({
             type="button"
             onClick={() => setActiveTab("WEEKLY")}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${activeTab === "WEEKLY"
-                ? "bg-background text-foreground shadow-2xs border"
-                : "text-muted-foreground hover:text-foreground"
+              ? "bg-background text-foreground shadow-2xs border"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             <Calendar className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
@@ -689,13 +786,27 @@ export function DutyScheduleView({
             type="button"
             onClick={() => setActiveTab("STATS")}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${activeTab === "STATS"
-                ? "bg-background text-foreground shadow-2xs border"
-                : "text-muted-foreground hover:text-foreground"
+              ? "bg-background text-foreground shadow-2xs border"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             <BarChart3 className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
             Аудит и рейтинг
           </button>
+
+          {isAdminOrTeacher && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("SETTINGS")}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${activeTab === "SETTINGS"
+                ? "bg-background text-foreground shadow-2xs border"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
+              Настройки дежурства
+            </button>
+          )}
         </div>
 
         {activeTab === "WEEKLY" && (
@@ -864,18 +975,18 @@ export function DutyScheduleView({
                     <div
                       key={day.fullDate}
                       className={`grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${day.isToday
-                          ? "bg-primary/5"
-                          : day.isSunday
-                            ? "bg-muted/20 opacity-60"
-                            : "hover:bg-muted/20"
+                        ? "bg-primary/5"
+                        : day.isSunday
+                          ? "bg-muted/20 opacity-60"
+                          : "hover:bg-muted/20"
                         }`}
                     >
                       {/* Day & Date */}
                       <div className="space-y-0.5 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`text-xs font-bold ${day.isToday
-                              ? "text-primary"
-                              : "text-foreground"
+                            ? "text-primary"
+                            : "text-foreground"
                             }`}>
                             {day.dayName}
                           </span>
@@ -912,20 +1023,20 @@ export function DutyScheduleView({
                               <div
                                 key={st.id}
                                 className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${isAbsent
-                                    ? "border-destructive/40 bg-destructive/10 text-destructive"
-                                    : day.isToday
-                                      ? "border-primary/30 bg-primary/10 text-primary"
-                                      : day.isPast
-                                        ? "border-border bg-muted/30 text-foreground"
-                                        : "border-border bg-muted/10 text-foreground"
+                                  ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                  : day.isToday
+                                    ? "border-primary/30 bg-primary/10 text-primary"
+                                    : day.isPast
+                                      ? "border-border bg-muted/30 text-foreground"
+                                      : "border-border bg-muted/10 text-foreground"
                                   }`}
                               >
                                 <Avatar className="h-4 w-4 border shrink-0">
                                   <AvatarFallback className={`text-[7px] font-bold ${isAbsent
-                                      ? "bg-destructive/20 text-destructive"
-                                      : day.isToday
-                                        ? "bg-primary/20 text-primary"
-                                        : "bg-muted text-muted-foreground"
+                                    ? "bg-destructive/20 text-destructive"
+                                    : day.isToday
+                                      ? "bg-primary/20 text-primary"
+                                      : "bg-muted text-muted-foreground"
                                     }`}>
                                     {st.name.slice(0, 2).toUpperCase()}
                                   </AvatarFallback>
@@ -1129,6 +1240,314 @@ export function DutyScheduleView({
                   </div>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* TAB 3: DUTY ROTATION SETTINGS */}
+      {activeTab === "SETTINGS" && (
+        <Card className="print:hidden p-4 space-y-4 text-xs bg-card border shadow-xs">
+          <CardHeader className="p-0 pb-3 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-primary" /> Настройки автоматической ротации
+              </CardTitle>
+              <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
+                Параметры дежурств, алгоритм распределения, старший дежурный и освобожденные студенты группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}
+              </CardDescription>
+            </div>
+            <Button
+              size="xs"
+              onClick={handleApplyDetailedDutySettings}
+              disabled={isPending || !currentGroupId}
+              className="h-8 text-xs gap-1.5 shrink-0 font-medium"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {isPending ? "Расчет..." : "Сохранить и сформировать"}
+            </Button>
+          </CardHeader>
+
+          <CardContent className="p-0 space-y-4">
+            {/* 0. Main Duty Enable / Disable Option (Segmented Toggle) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border bg-muted/10 border-primary/20 text-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Power className={`h-4 w-4 shrink-0 ${dutyEnabledLocal ? "text-emerald-500" : "text-destructive"}`} />
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-foreground">
+                    Режим дежурств:{" "}
+                    <span className={dutyEnabledLocal ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+                      {dutyEnabledLocal ? "Включено" : "Отключено"}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {dutyEnabledLocal
+                      ? "Система автоматически рассчитывает график дежурств и отслеживает пропуски"
+                      : "Дежурства приостановлены, график для этой группы не составляется"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="inline-flex p-0.5 bg-muted/80 rounded-lg border text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleDutyStatus(true)}
+                    disabled={isPending || !currentGroupId}
+                    className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 font-medium ${dutyEnabledLocal
+                      ? "bg-background text-emerald-600 dark:text-emerald-400 border border-border shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <span>Включено</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleDutyStatus(false)}
+                    disabled={isPending || !currentGroupId}
+                    className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 font-medium ${!dutyEnabledLocal
+                      ? "bg-background text-destructive border border-border shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    <PowerOff className="h-3.5 w-3.5 text-destructive shrink-0" />
+                    <span>Отключено</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Column 1: Duty Parameters */}
+              <div className="space-y-3.5">
+                {/* 1. Duty Persons Count */}
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <label className="font-semibold text-foreground flex items-center justify-between">
+                    <span>Количество дежурных в день:</span>
+                    <span className="text-primary font-medium text-[11px]">
+                      {dutyPerDaySetting === 0 ? "Авто-расчет (1-3 чел.)" : `${dutyPerDaySetting} чел. в смену`}
+                    </span>
+                  </label>
+                  <div className="grid grid-cols-6 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                    {[
+                      { value: 0, label: "Авто" },
+                      { value: 1, label: "1 чел" },
+                      { value: 2, label: "2 чел" },
+                      { value: 3, label: "3 чел" },
+                      { value: 4, label: "4 чел" },
+                      { value: 5, label: "5 чел" },
+                    ].map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setDutyPerDaySetting(item.value)}
+                        className={`py-1.5 rounded-md transition-colors font-medium ${dutyPerDaySetting === item.value
+                          ? "bg-background border border-border text-primary shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Days of Week */}
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <label className="font-semibold text-foreground">Дни проведения дежурств:</label>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {[
+                      { idx: 0, name: "Пн" },
+                      { idx: 1, name: "Вт" },
+                      { idx: 2, name: "Ср" },
+                      { idx: 3, name: "Чт" },
+                      { idx: 4, name: "Пт" },
+                      { idx: 5, name: "Сб" },
+                    ].map((day) => {
+                      const isActive = activeDutyDays.includes(day.idx);
+                      return (
+                        <button
+                          key={day.idx}
+                          type="button"
+                          onClick={() => {
+                            setActiveDutyDays((prev) =>
+                              isActive ? prev.filter((d) => d !== day.idx) : [...prev, day.idx].sort()
+                            );
+                          }}
+                          className={`py-2 rounded-lg border text-center font-medium transition-colors text-xs ${isActive
+                            ? "bg-primary/10 border-primary/40 text-primary"
+                            : "bg-background border-border text-muted-foreground hover:bg-muted"
+                            }`}
+                        >
+                          {day.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Rotation Algorithm */}
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <label className="font-semibold text-foreground">Алгоритм распределения:</label>
+                  <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                    {(
+                      [
+                        { id: "FAIR", label: "Честный (учет прошлых)" },
+                        { id: "ALPHABETICAL", label: "По алфавиту" },
+                        { id: "RANDOM", label: "Случайный (рандом)" },
+                      ] as const
+                    ).map((alg) => (
+                      <button
+                        key={alg.id}
+                        type="button"
+                        onClick={() => setDutyAlgorithm(alg.id)}
+                        className={`py-1.5 px-1 rounded-md transition-colors text-[11px] truncate font-medium ${dutyAlgorithm === alg.id
+                          ? "bg-background border border-border text-primary shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        {alg.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Responsible / Senior Duty Person Options */}
+                <div className="space-y-2 p-3 rounded-xl border bg-muted/10">
+                  <label className="font-semibold text-foreground flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Crown className="h-4 w-4 text-primary" /> Ответственный (Старший дежурный):
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">Ежедневно</span>
+                  </label>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                    {(
+                      [
+                        { id: "NONE", label: "Без старшего" },
+                        { id: "MONITOR", label: "Староста" },
+                        { id: "DEPUTY", label: "Зам. старосты" },
+                        { id: "CUSTOM", label: "Другой студент" },
+                      ] as const
+                    ).map((mode) => (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => setResponsibleMode(mode.id)}
+                        className={`py-1.5 px-1 rounded-md transition-colors text-[11px] truncate font-medium ${responsibleMode === mode.id
+                          ? "bg-background border border-border text-primary shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {responsibleMode === "CUSTOM" && (
+                    <div className="pt-1.5">
+                      <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                        Выберите ответственного студента из списка группы:
+                      </label>
+                      <Select
+                        value={customResponsibleStudentId}
+                        onValueChange={(val) => val && setCustomResponsibleStudentId(val)}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Выберите ответственного..." />
+                        </SelectTrigger>
+                        <SelectContent className="text-xs">
+                          {groupStudents.map((st) => (
+                            <SelectItem key={st.id} value={st.id} className="text-xs">
+                              {st.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 2: Exempted Students (Исключения) */}
+              <div className="space-y-2 p-3 rounded-xl border bg-muted/10 flex flex-col">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-foreground">Освобождение от дежурств (Исключения):</label>
+                  {excludedStudentIds.length > 0 ? (
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] px-1.5 py-0 font-medium">
+                      Освобождено: {excludedStudentIds.length} чел.
+                    </Badge>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">Все дежурят</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Отметьте студентов, которые не должны включаться в ротацию (освобождены по здоровью и т.д.):
+                </p>
+
+                {groupStudents.length > 6 && (
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    <Input
+                      placeholder="Поиск по ФИО..."
+                      className="pl-8 h-8 text-xs bg-background"
+                      value={exemptionSearch}
+                      onChange={(e) => setExemptionSearch(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="flex-1 min-h-[220px] max-h-[300px] overflow-y-auto border rounded-lg divide-y bg-background p-1">
+                  {groupStudents
+                    .filter((s) => s.name.toLowerCase().includes(exemptionSearch.toLowerCase()))
+                    .map((st) => {
+                      const isExempt = excludedStudentIds.includes(st.id);
+                      return (
+                        <div
+                          key={st.id}
+                          onClick={() => {
+                            setExcludedStudentIds((prev) =>
+                              isExempt ? prev.filter((id) => id !== st.id) : [...prev, st.id]
+                            );
+                          }}
+                          className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs ${isExempt
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "hover:bg-muted/50 text-foreground"
+                            }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] ${isExempt ? "bg-primary text-primary-foreground border-primary" : "border-border"
+                                }`}
+                            >
+                              {isExempt && <Check className="h-3 w-3" />}
+                            </div>
+                            <span className="truncate">{st.name}</span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            {isExempt ? "Освобожден" : "Дежурит"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-t">
+              <div className="text-[11px] text-muted-foreground">
+                При нажатии на кнопку график дежурств будет пересчитан с учетом выбранных параметров.
+              </div>
+              <Button
+                size="xs"
+                onClick={handleApplyDetailedDutySettings}
+                disabled={isPending || !currentGroupId}
+                className="h-8 text-xs gap-1.5 font-medium shrink-0"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {isPending ? "Расчет..." : "Сохранить и сформировать график"}
+              </Button>
             </div>
           </CardContent>
         </Card>

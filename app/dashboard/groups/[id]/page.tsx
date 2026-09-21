@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getGroupByIdAction } from "../actions";
-import { getDutyScheduleAction } from "@/app/dashboard/duty/actions";
+import { getDutyScheduleAction, getGroupDutyStatsAction } from "@/app/dashboard/duty/actions";
 import { GroupDetailsView } from "./_components/group-details-view";
 
 interface PageProps {
@@ -16,9 +16,10 @@ export default async function GroupDetailPage({ params }: PageProps) {
   }
 
   const { id } = await params;
-  const [group, dutyData] = await Promise.all([
+  const [group, dutyData, groupDutyStats] = await Promise.all([
     getGroupByIdAction(id),
     getDutyScheduleAction(id),
+    getGroupDutyStatsAction(id),
   ]);
 
   if (!group) {
@@ -27,6 +28,16 @@ export default async function GroupDetailPage({ params }: PageProps) {
 
   const role = session.user.role || "STUDENT";
 
-  return <GroupDetailsView group={group} userRole={role} weeklyDays={dutyData.weeklyDays} />;
+  return (
+    <GroupDetailsView
+      group={group}
+      userRole={role}
+      weeklyDays={dutyData.weeklyDays}
+      dutyGroupStudents={dutyData.groupStudents}
+      groupDutyStats={groupDutyStats}
+      dutyGroupsList={dutyData.groups}
+      isDutyEnabled={dutyData.isDutyEnabled}
+    />
+  );
 }
 
