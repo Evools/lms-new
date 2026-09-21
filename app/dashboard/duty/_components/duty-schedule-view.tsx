@@ -267,8 +267,8 @@ export function DutyScheduleView({
     });
   };
 
-  // Save detailed duty settings and generate schedule
-  const handleApplyDetailedDutySettings = () => {
+  // Save detailed duty settings
+  const handleSaveDutySettings = () => {
     if (!currentGroupId) return;
     const currentSettings = {
       dutyPerDaySetting,
@@ -281,27 +281,15 @@ export function DutyScheduleView({
     saveGroupSettingsToStorage(currentSettings);
 
     startTransition(async () => {
-      const res = await generateWeeklyDutyAction(currentGroupId, {
-        isDutyEnabled: dutyEnabledLocal,
-        perDay: dutyPerDaySetting > 0 ? dutyPerDaySetting : undefined,
-        activeDays: activeDutyDays,
-        includeLeader: responsibleMode !== "NONE",
-        responsibleMode,
-        customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
-        algorithm: dutyAlgorithm,
-        excludedStudentIds,
-      });
+      const res = await toggleGroupDutyAction(currentGroupId, dutyEnabledLocal);
       if (res.success) {
         toast.add({
-          title: dutyEnabledLocal
-            ? "График дежурств успешно сформирован с учетом настроек!"
-            : "Настройки сохранены. Дежурства отключены.",
+          title: "Настройки дежурства успешно сохранены!",
           type: "success",
         });
-        setActiveTab("WEEKLY");
         router.refresh();
       } else {
-        toast.add({ title: res.error || "Ошибка при генерации графика", type: "error" });
+        toast.add({ title: res.error || "Ошибка при сохранении настроек", type: "error" });
       }
     });
   };
@@ -1348,7 +1336,7 @@ export function DutyScheduleView({
       {/* TAB 3: DUTY ROTATION SETTINGS */}
       {activeTab === "SETTINGS" && (
         <Card className="print:hidden p-4 space-y-4 text-xs bg-card border shadow-xs">
-          <CardHeader className="p-0 pb-3 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <CardHeader className="p-0 pb-3 border-b">
             <div>
               <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-primary" /> Настройки дежурства
@@ -1357,15 +1345,6 @@ export function DutyScheduleView({
                 Параметры дежурств, алгоритм распределения, старший дежурный и освобожденные студенты группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}
               </CardDescription>
             </div>
-            <Button
-              size="xs"
-              onClick={handleApplyDetailedDutySettings}
-              disabled={isPending || !currentGroupId}
-              className="h-8 text-xs gap-1.5 shrink-0 font-medium"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {isPending ? "Расчет..." : "Сохранить и сформировать"}
-            </Button>
           </CardHeader>
 
           <CardContent className="p-0 space-y-4">
@@ -1698,16 +1677,16 @@ export function DutyScheduleView({
 
             <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-t">
               <div className="text-[11px] text-muted-foreground">
-                При нажатии на кнопку график дежурств будет пересчитан с учетом выбранных параметров.
+                Настройки сохраняются для группы и применяются при запуске кнопки «Авто-ротация».
               </div>
               <Button
                 size="xs"
-                onClick={handleApplyDetailedDutySettings}
+                onClick={handleSaveDutySettings}
                 disabled={isPending || !currentGroupId}
                 className="h-8 text-xs gap-1.5 font-medium shrink-0"
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                {isPending ? "Расчет..." : "Сохранить и сформировать график"}
+                <Check className="h-3.5 w-3.5" />
+                {isPending ? "Сохранение..." : "Сохранить"}
               </Button>
             </div>
           </CardContent>
