@@ -22,6 +22,7 @@ export interface StudentAttendanceDTO {
   status: AttendanceStatus;
   comment: string;
   isMonitor: boolean;
+  isDutyExempt?: boolean;
 }
 
 export interface StudentPeriodStatsDTO {
@@ -136,7 +137,7 @@ export async function getAttendanceDataAction(
           monitor: { select: { id: true } },
           students: {
             include: {
-              student: { select: { id: true, name: true } },
+              student: { select: { id: true, name: true, isDutyExempt: true } },
             },
             orderBy: { student: { name: "asc" } },
           },
@@ -162,6 +163,7 @@ export async function getAttendanceDataAction(
       studentId: gs.student.id,
       studentName: gs.student.name,
       isMonitor: group?.monitor?.id === gs.student.id,
+      isDutyExempt: gs.student.isDutyExempt,
     }));
 
     // 3. Fetch attendance records for selected date and groupSubject

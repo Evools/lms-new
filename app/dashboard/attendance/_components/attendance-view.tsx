@@ -39,6 +39,8 @@ import {
   RefreshCw,
   Keyboard,
   Layers,
+  Zap,
+  Accessibility,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -56,6 +58,7 @@ import {
   saveBatchAttendanceAction,
   clearAttendanceAction,
 } from "../actions";
+import { replaceDutyStudentAction } from "@/app/dashboard/duty/actions";
 import { toast } from "@/components/ui/toast";
 import { AttendanceStatsView } from "./attendance-stats-view";
 
@@ -63,6 +66,7 @@ interface StudentInfo {
   studentId: string;
   studentName: string;
   isMonitor: boolean;
+  isDutyExempt?: boolean;
 }
 
 interface AttendanceViewProps {
@@ -137,17 +141,99 @@ export function AttendanceView({
     return initial;
   });
 
+  // Track current selected filter keys to avoid overwriting dirty/unsaved records on background re-renders
+  const currentKey = `${selectedGroupId}_${selectedGroupSubjectId}_${dateStr}`;
+  const prevKeyRef = React.useRef(currentKey);
+
   useEffect(() => {
-    const initial: Record<string, { status: AttendanceStatus; comment: string }> = {};
-    students.forEach((st) => {
-      initial[st.studentId] = {
-        status: attendanceMap[st.studentId]?.status || AttendanceStatus.PRESENT,
-        comment: attendanceMap[st.studentId]?.comment || "",
-      };
+    // Only re-initialize records from server props if the group, subject, or date actually changed
+    // or if the user does NOT have any unsaved changes
+    if (prevKeyRef.current !== currentKey) {
+      prevKeyRef.current = currentKey;
+      const initial: Record<string, { status: AttendanceStatus; comment: string }> = {};
+      students.forEach((st) => {
+        initial[st.studentId] = {
+          status: attendanceMap[st.studentId]?.status || AttendanceStatus.PRESENT,
+          comment: attendanceMap[st.studentId]?.comment || "",
+        };
+      });
+      setRecords(initial);
+      setHasUnsavedChanges(false);
+    } else if (!hasUnsavedChanges) {
+      // If props updated while no unsaved changes, sync cleanly
+      const initial: Record<string, { status: AttendanceStatus; comment: string }> = {};
+      students.forEach((st) => {
+        initial[st.studentId] = {
+          status: attendanceMap[st.studentId]?.status || AttendanceStatus.PRESENT,
+          comment: attendanceMap[st.studentId]?.comment || "",
+        };
+      });
+      setRecords(initial);
+    }
+  }, [currentKey, attendanceMap, students, hasUnsavedChanges]);
+
+  // Local state for dutyMap to support optimistic auto-replacement
+  const [localDutyMap, setLocalDutyMap] = useState<Record<string, { isDuty: boolean; isLeader: boolean }>>(dutyMap);
+
+  useEffect(() => {
+    setLocalDutyMap(dutyMap);
+  }, [dutyMap]);
+
+  // 1-click auto-replace an absent duty student from attendance
+  const handleAutoReplaceDuty = (absentStudentId: string, absentStudentName: string) => {
+    if (!currentGroupId) return;
+
+    // Find candidate who is present, not already on duty, not exempt (ЛОВЗ), and not the absent student
+    const candidates = students.filter((s) => {
+      const rec = records[s.studentId];
+      const isAbsent = rec?.status === AttendanceStatus.ABSENT || rec?.status === AttendanceStatus.EXCUSED;
+      const isAlreadyDuty = localDutyMap[s.studentId]?.isDuty;
+      const isExempt = Boolean(s.isDutyExempt);
+      return s.studentId !== absentStudentId && !isAbsent && !isAlreadyDuty && !isExempt;
     });
-    setRecords(initial);
-    setHasUnsavedChanges(false);
-  }, [attendanceMap, students]);
+
+    if (candidates.length === 0) {
+      toast.add({
+        title: "Нет доступных присутствующих студентов для замены в группе",
+        type: "error",
+      });
+      return;
+    }
+
+    const repStudent = candidates[0];
+
+    // Optimistic local state update (preserves all unsaved attendance records!)
+    setLocalDutyMap((prev) => ({
+      ...prev,
+      [absentStudentId]: { isDuty: false, isLeader: false },
+      [repStudent.studentId]: { isDuty: true, isLeader: false },
+    }));
+
+    toast.add({
+      title: `Дежурный заменен: ${absentStudentName} → ${repStudent.studentName}!`,
+      type: "success",
+    });
+
+    startTransition(async () => {
+      const res = await replaceDutyStudentAction(
+        currentGroupId,
+        absentStudentId,
+        repStudent.studentId,
+        currentDateStr
+      );
+      if (!res.success) {
+        setLocalDutyMap(dutyMap);
+        toast.add({ title: res.error || "Ошибка при автозамене дежурного", type: "error" });
+      }
+    });
+  };
+
+  // Auto-replace all absent duty students
+  const handleAutoReplaceAllDuty = () => {
+    absentDutyInAttendance.forEach((st) => {
+      handleAutoReplaceDuty(st.studentId, st.studentName);
+    });
+  };
 
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER" || canEdit;
   const currentGroupObj = groups.find((g) => g.id === currentGroupId);
@@ -416,7 +502,7 @@ export function AttendanceView({
   // Calculate if any students scheduled on duty today are absent/excused
   const absentDutyInAttendance = useMemo(() => {
     return students.filter((st) => {
-      const isDuty = dutyMap[st.studentId];
+      const isDuty = localDutyMap[st.studentId]?.isDuty;
       const rec = records[st.studentId];
       return Boolean(
         isDuty &&
@@ -424,7 +510,7 @@ export function AttendanceView({
             rec?.status === AttendanceStatus.EXCUSED)
       );
     });
-  }, [students, dutyMap, records]);
+  }, [students, localDutyMap, records]);
 
   return (
     <div className="space-y-4 pb-8 text-xs font-sans">
@@ -644,22 +730,44 @@ export function AttendanceView({
 
         {/* Absent Duty Alerts Banner in Attendance */}
       {absentDutyInAttendance.length > 0 && (
-        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
+        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
             <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-            <span>
+            <span className="leading-snug">
               <strong>Внимание:</strong> {absentDutyInAttendance.length === 1 ? "Студент" : "Студенты"}{" "}
               <strong>{absentDutyInAttendance.map((s) => s.studentName).join(", ")}</strong> назначен(ы) дежурным(и) на эту дату, но отмечен(ы) как отсутствующие.
             </span>
           </div>
-          {currentGroupId && (
-            <Link
-              href={`/dashboard/duty?group=${currentGroupId}`}
-              className="inline-flex items-center gap-1 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 px-2.5 py-1 rounded-md shrink-0 transition-colors shadow-2xs"
-            >
-              <RefreshCw className="h-3 w-3" /> Назначить замену в дежурствах ↗
-            </Link>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {isAdminOrTeacher && (
+              <Button
+                type="button"
+                size="xs"
+                variant="default"
+                disabled={isPending}
+                onClick={() => {
+                  if (absentDutyInAttendance.length === 1) {
+                    handleAutoReplaceDuty(absentDutyInAttendance[0].studentId, absentDutyInAttendance[0].studentName);
+                  } else {
+                    handleAutoReplaceAllDuty();
+                  }
+                }}
+                className="h-7 text-xs px-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium gap-1.5 shadow-2xs cursor-pointer"
+                title="Автоматически заменить на первого присутствующего студента в группе"
+              >
+                <Zap className="h-3 w-3" />
+                {absentDutyInAttendance.length === 1 ? "Автозамена в 1 клик" : `Автозамена всех (${absentDutyInAttendance.length})`}
+              </Button>
+            )}
+            {currentGroupId && (
+              <Link
+                href={`/dashboard/duty?group=${currentGroupId}`}
+                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline px-2 py-1"
+              >
+                В график ↗
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
@@ -838,7 +946,7 @@ export function AttendanceView({
 
             {filteredStudents.map((st, idx) => {
               const rec = records[st.studentId] || { status: AttendanceStatus.PRESENT, comment: "" };
-              const dutyInfo = dutyMap[st.studentId];
+              const dutyInfo = localDutyMap[st.studentId];
               const isAbsentDuty = Boolean(
                 dutyInfo &&
                   (rec.status === AttendanceStatus.ABSENT ||
@@ -868,7 +976,7 @@ export function AttendanceView({
                   <div className="hidden md:grid md:grid-cols-[36px_1fr_auto_240px] lg:grid-cols-[40px_1fr_auto_280px] items-center gap-3 px-3.5 py-2">
                     <span className="text-center text-[11px] font-mono text-muted-foreground">{idx + 1}</span>
                     <div className="flex items-center gap-2 font-medium min-w-0 flex-wrap">
-                      <Avatar className="h-6 w-6 border shrink-0">
+                      <Avatar className="h-6 w-6 border text-[10px] shrink-0">
                         <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
                           {st.studentName.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
@@ -877,6 +985,15 @@ export function AttendanceView({
                       {st.isMonitor && (
                         <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
                           <Crown className="h-2.5 w-2.5" /> Староста
+                        </Badge>
+                      )}
+                      {st.isDutyExempt && (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] py-0 px-1.5 h-3.5 gap-0.5 border-amber-500/30 text-amber-600 dark:text-amber-400 font-medium shrink-0"
+                          title="Освобожден(а) от дежурств (статус ЛОВЗ)"
+                        >
+                          <Accessibility className="h-2.5 w-2.5" /> ЛОВЗ
                         </Badge>
                       )}
                       {dutyInfo && (
@@ -894,16 +1011,22 @@ export function AttendanceView({
                         </Badge>
                       )}
                       {isAbsentDuty && (
-                        <span className="text-[10px] text-destructive font-semibold flex items-center gap-0.5">
+                        <span className="text-[10px] text-destructive font-semibold flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3 shrink-0" />
                           <span>Дежурит сегодня!</span>
-                          <Link
-                            href={`/dashboard/duty?group=${currentGroupId}`}
-                            className="underline text-primary hover:opacity-80 ml-0.5"
-                            title="Перейти в график дежурств для назначения замены"
-                          >
-                            Заменить ↗
-                          </Link>
+                          {isAdminOrTeacher && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAutoReplaceDuty(st.studentId, st.studentName);
+                              }}
+                              className="text-primary hover:underline font-semibold flex items-center gap-0.5 cursor-pointer ml-0.5"
+                              title="Автоматически заменить дежурного"
+                            >
+                              <Zap className="h-2.5 w-2.5" /> Заменить
+                            </button>
+                          )}
                         </span>
                       )}
                     </div>
@@ -1023,6 +1146,15 @@ export function AttendanceView({
                                 <Crown className="h-2.5 w-2.5" /> Староста
                               </Badge>
                             )}
+                            {st.isDutyExempt && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] py-0 px-1.5 h-3.5 gap-0.5 border-amber-500/30 text-amber-600 dark:text-amber-400 font-medium shrink-0"
+                                title="Освобожден(а) от дежурств (статус ЛОВЗ)"
+                              >
+                                <Accessibility className="h-2.5 w-2.5" /> ЛОВЗ
+                              </Badge>
+                            )}
                             {dutyInfo && (
                               <Badge
                                 variant="outline"
@@ -1038,15 +1170,24 @@ export function AttendanceView({
                             )}
                           </div>
                           {isAbsentDuty && (
-                            <div className="text-[10px] text-destructive font-semibold flex items-center gap-1 mt-1">
-                              <AlertTriangle className="h-3 w-3 shrink-0" />
-                              <span>Назначен дежурным!</span>
-                              <Link
-                                href={`/dashboard/duty?group=${currentGroupId}`}
-                                className="underline text-primary"
-                              >
-                                Заменить ↗
-                              </Link>
+                            <div className="text-[10px] text-destructive font-semibold flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                                Назначен дежурным!
+                              </span>
+                              {isAdminOrTeacher && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAutoReplaceDuty(st.studentId, st.studentName);
+                                  }}
+                                  className="text-primary hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
+                                  title="Автоматически заменить дежурного"
+                                >
+                                  <Zap className="h-2.5 w-2.5" /> Заменить
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

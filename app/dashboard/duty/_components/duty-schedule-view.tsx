@@ -69,6 +69,7 @@ import {
   Power,
   PowerOff,
   Accessibility,
+  Zap,
 } from "lucide-react";
 import {
   DayDutyGroupDTO,
@@ -418,6 +419,75 @@ export function DutyScheduleView({
       } else {
         router.refresh();
       }
+    });
+  };
+
+  // Instant 1-click auto-replace absent duty student
+  const handleAutoReplace = (a: {
+    fullDate: string;
+    studentId: string;
+    studentName: string;
+    existingIds: string[];
+  }) => {
+    const available = [...groupStudents]
+      .filter((s) => !a.existingIds.includes(s.id) && s.id !== a.studentId && !s.isDutyExempt)
+      .sort((x, y) => {
+        const xRecent = x.isRecentDuty ? 1 : 0;
+        const yRecent = y.isRecentDuty ? 1 : 0;
+        if (xRecent !== yRecent) return xRecent - yRecent;
+        return x.name.localeCompare(y.name);
+      });
+
+    if (available.length === 0) {
+      toast.add({ title: "Нет доступных студентов для замены в группе", type: "error" });
+      return;
+    }
+
+    const repStudent = available[0];
+    const { fullDate, studentId: absentStudentId } = a;
+    const prevDays = daysList;
+
+    // Optimistic swap
+    setDaysList((current) =>
+      current.map((day) =>
+        day.fullDate === fullDate
+          ? {
+              ...day,
+              dutyStudents: [
+                ...day.dutyStudents.filter((s) => s.id !== absentStudentId),
+                { id: repStudent.id, name: repStudent.name, isLeader: false },
+              ],
+            }
+          : day
+      )
+    );
+
+    toast.add({
+      title: `Автозамена выполнена: ${a.studentName} → ${repStudent.name} (по очереди)`,
+      type: "success",
+    });
+
+    startTransition(async () => {
+      const res = await replaceDutyStudentAction(
+        currentGroupId,
+        absentStudentId,
+        repStudent.id,
+        fullDate
+      );
+      if (!res.success) {
+        setDaysList(prevDays);
+        toast.add({ title: res.error || "Ошибка при автозамене", type: "error" });
+      } else {
+        router.refresh();
+      }
+    });
+  };
+
+  // 1-click auto-replace all absent duty students
+  const handleAutoReplaceAll = () => {
+    if (absentDutyAlerts.length === 0) return;
+    absentDutyAlerts.forEach((a) => {
+      handleAutoReplace(a);
     });
   };
 
@@ -908,22 +978,34 @@ export function DutyScheduleView({
 
       {/* Absent Duty Alerts Banner */}
       {absentDutyAlerts.length > 0 && (
-        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs space-y-2">
-          <div className="flex items-center justify-between">
+        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 font-bold">
               <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
               <span>Обнаружены дежурные с пропусками занятий ({absentDutyAlerts.length})</span>
             </div>
-            <span className="text-[11px] text-muted-foreground">
-              Рекомендуется назначить замену из присутствующих студентов
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                Рекомендуется назначить замену из присутствующих студентов
+              </span>
+              {isAdminOrTeacher && absentDutyAlerts.length > 1 && (
+                <Button
+                  size="xs"
+                  variant="default"
+                  className="h-6 px-2.5 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground font-medium gap-1 shrink-0"
+                  onClick={handleAutoReplaceAll}
+                >
+                  <Zap className="h-3 w-3" /> Автозамена всех ({absentDutyAlerts.length})
+                </Button>
+              )}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-0.5">
             {absentDutyAlerts.map((a, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between gap-2 p-2 rounded-lg bg-background/90 border border-destructive/20 text-foreground text-xs shadow-2xs"
+                className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-destructive/20 text-foreground text-xs shadow-2xs"
               >
                 <div className="min-w-0">
                   <div className="font-semibold truncate">{a.studentName}</div>
@@ -932,24 +1014,36 @@ export function DutyScheduleView({
                   </div>
                 </div>
                 {isAdminOrTeacher && (
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    className="h-6 px-2 text-[11px] border-primary/30 text-primary hover:bg-primary/10 gap-1 shrink-0 font-medium"
-                    onClick={() => {
-                      const available = groupStudents.filter((s) => !a.existingIds.includes(s.id));
-                      setReplaceTarget({
-                        fullDate: a.fullDate,
-                        dayName: `${a.dayName} (${a.dateStr})`,
-                        absentStudentId: a.studentId,
-                        absentStudentName: a.studentName,
-                        existingIds: a.existingIds,
-                      });
-                      setReplacementStudentId(available[0]?.id || "");
-                    }}
-                  >
-                    <RefreshCw className="h-3 w-3" /> Заменить
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="xs"
+                      variant="default"
+                      title="Автоматически выбрать следующего по очереди студента и назначить в 1 клик"
+                      className="h-6 px-2 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground gap-1 font-medium shadow-2xs cursor-pointer"
+                      onClick={() => handleAutoReplace(a)}
+                    >
+                      <Zap className="h-3 w-3" /> Автозамена
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      title="Выбрать конкретного студента для замены вручную"
+                      className="h-6 px-2 text-[11px] border-border hover:bg-muted text-muted-foreground hover:text-foreground gap-1 font-medium cursor-pointer"
+                      onClick={() => {
+                        const available = groupStudents.filter((s) => !a.existingIds.includes(s.id) && s.id !== a.studentId && !s.isDutyExempt);
+                        setReplaceTarget({
+                          fullDate: a.fullDate,
+                          dayName: `${a.dayName} (${a.dateStr})`,
+                          absentStudentId: a.studentId,
+                          absentStudentName: a.studentName,
+                          existingIds: a.existingIds,
+                        });
+                        setReplacementStudentId(available[0]?.id || "");
+                      }}
+                    >
+                      Вручную
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}

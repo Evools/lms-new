@@ -760,6 +760,15 @@ export async function replaceDutyStudentAction(
     const dayStart = targetDate;
     const dayEnd = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
 
+    // Check if replacement student is exempt (ЛОВЗ)
+    const repStudent = await prisma.user.findUnique({
+      where: { id: replacementStudentId },
+      select: { isDutyExempt: true, name: true },
+    });
+    if (repStudent?.isDutyExempt) {
+      return { success: false, error: `Студент ${repStudent.name} освобожден(а) от дежурств (статус ЛОВЗ)` };
+    }
+
     // Remove absent student
     await prisma.dutySchedule.deleteMany({
       where: { groupId, studentId: absentStudentId, date: { gte: dayStart, lt: dayEnd }, isLeader: false },
