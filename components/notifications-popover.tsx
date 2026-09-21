@@ -36,24 +36,43 @@ interface NotificationItem {
   createdAt: string;
 }
 
-export function NotificationsPopover() {
+interface NotificationsPopoverProps {
+  initialUnreadCount?: number;
+}
+
+export function NotificationsPopover({ initialUnreadCount = 0 }: NotificationsPopoverProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isOpen, setIsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [isLoadingList, setIsLoadingList] = useState(false);
+
+  useEffect(() => {
+    setUnreadCount(initialUnreadCount);
+  }, [initialUnreadCount]);
 
   const fetchNotifications = async () => {
-    const res = await getNotificationsAction(5);
-    if (res.success) {
-      setNotifications(res.notifications);
-      setUnreadCount(res.unreadCount);
+    setIsLoadingList(true);
+    try {
+      const res = await getNotificationsAction(5);
+      if (res.success) {
+        setNotifications(res.notifications);
+        setUnreadCount(res.unreadCount);
+        setHasLoaded(true);
+      }
+    } finally {
+      setIsLoadingList(false);
     }
   };
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (open) {
+      fetchNotifications();
+    }
+  };
 
   const handleMarkAllRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -90,7 +109,7 @@ export function NotificationsPopover() {
   };
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger
         render={
           <Button
@@ -142,7 +161,11 @@ export function NotificationsPopover() {
 
         {/* List */}
         <div className="max-h-[300px] overflow-y-auto divide-y divide-border/60">
-          {notifications.length === 0 ? (
+          {isLoadingList && !hasLoaded ? (
+            <div className="p-6 text-center text-muted-foreground text-xs">
+              Загрузка уведомлений...
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="p-6 text-center text-muted-foreground space-y-1">
               <Bell className="h-6 w-6 text-muted-foreground/40 mx-auto" />
               <p className="font-medium text-foreground">Нет уведомлений</p>

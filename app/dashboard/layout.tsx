@@ -32,6 +32,12 @@ export default async function DashboardLayout({
     studentGroupName = enrollment?.group?.name ?? null;
   }
 
+  const unreadNotificationsCount = userId
+    ? await prisma.notification.count({
+        where: { userId, isRead: false },
+      })
+    : 0;
+
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar
@@ -59,7 +65,7 @@ export default async function DashboardLayout({
               </span>
             )}
             <div data-tour="header-notifications">
-              <NotificationsPopover />
+              <NotificationsPopover initialUnreadCount={unreadNotificationsCount} />
             </div>
             <TourTriggerButton />
           </div>
