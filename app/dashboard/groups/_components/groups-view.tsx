@@ -120,7 +120,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
         </div>
 
         {isAdmin && (
-          <Button size="xs" className="h-8 text-xs gap-1.5 shrink-0" render={<Link href="/dashboard/groups/new" />}>
+          <Button size="xs" className="h-8 text-xs gap-1.5 w-full sm:w-auto shrink-0 justify-center" render={<Link href="/dashboard/groups/new" />}>
             <Plus className="h-3.5 w-3.5" /> Создать группу
           </Button>
         )}
@@ -153,11 +153,11 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
       {/* Search & Filter Toolbar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
         {/* Dynamic Course Filter Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           <button
             type="button"
             onClick={() => setSelectedCourseFilter("ALL")}
-            className={`px-2.5 py-1 rounded-md text-xs transition-colors font-medium whitespace-nowrap ${
+            className={`px-2.5 py-1 rounded-md text-xs transition-colors font-medium whitespace-nowrap shrink-0 ${
               selectedCourseFilter === "ALL"
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
@@ -173,7 +173,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                 key={courseNum}
                 type="button"
                 onClick={() => setSelectedCourseFilter(courseNum)}
-                className={`px-2.5 py-1 rounded-md text-xs transition-colors font-medium whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-md text-xs transition-colors font-medium whitespace-nowrap shrink-0 ${
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
@@ -186,9 +186,9 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
         </div>
 
         {/* Controls: Search & Layout Toggle */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-60">
-            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
               type="search"
               placeholder="Поиск по названию или куратору..."
@@ -202,7 +202,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
             <button
               type="button"
               onClick={() => handleSetViewMode("table")}
-              className={`p-1 rounded-sm transition-all ${
+              className={`p-1.5 rounded-sm transition-all ${
                 viewMode === "table"
                   ? "bg-background text-foreground shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -214,7 +214,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
             <button
               type="button"
               onClick={() => handleSetViewMode("grid")}
-              className={`p-1 rounded-sm transition-all ${
+              className={`p-1.5 rounded-sm transition-all ${
                 viewMode === "grid"
                   ? "bg-background text-foreground shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -227,127 +227,131 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
         </div>
       </div>
 
-      {/* TABLE VIEW */}
+      {/* TABLE VIEW (with horizontal scroll support for mobile) */}
       {viewMode === "table" && (
         <div className="rounded-xl border overflow-hidden">
-          <div className="grid grid-cols-[1.5fr_1.5fr_110px_1fr_1fr_90px] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            <span>Группа</span>
-            <span>Специальность</span>
-            <span>Студенты</span>
-            <span>Куратор</span>
-            <span>Староста</span>
-            <span className="text-right">Действия</span>
-          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[680px]">
+              <div className="grid grid-cols-[1.5fr_1.5fr_100px_1fr_1fr_80px] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <span>Группа</span>
+                <span>Специальность</span>
+                <span>Студенты</span>
+                <span>Куратор</span>
+                <span>Староста</span>
+                <span className="text-right">Действия</span>
+              </div>
 
-          <div className="divide-y">
-            {filteredGroups.map((group) => (
-              <div
-                key={group.id}
-                onClick={() => router.push(`/dashboard/groups/${group.id}`)}
-                className="grid grid-cols-[1.5fr_1.5fr_110px_1fr_1fr_90px] items-center gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors cursor-pointer group"
-              >
-                {/* Group Name & Course */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 border border-primary/20">
-                    {group.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate flex items-center gap-1.5">
-                      {group.name}
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal">
-                        {group.course} курс
-                      </Badge>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">{group.academicYear}</div>
-                  </div>
-                </div>
-
-                {/* Specialty */}
-                <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
-                  {group.specialtyCode && (
-                    <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 border-primary/20 text-primary bg-primary/5 shrink-0">
-                      {group.specialtyCode}
-                    </Badge>
-                  )}
-                  <span className="truncate">{group.specialty || "Не указана"}</span>
-                </div>
-
-                {/* Student Count */}
-                <div className="flex items-center gap-1.5">
-                  <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="font-medium text-xs text-foreground">{group.studentCount}</span>
-                  <span className="text-[10px] text-muted-foreground">студ.</span>
-                </div>
-
-                {/* Curator */}
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <UserCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <span className={`text-xs truncate ${group.curatorName ? "text-foreground font-medium" : "text-muted-foreground/60"}`}>
-                    {group.curatorName || "Не назначен"}
-                  </span>
-                </div>
-
-                {/* Monitor */}
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Crown className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className={`text-xs truncate ${group.monitorName ? "text-foreground font-medium" : "text-muted-foreground/60"}`}>
-                    {group.monitorName || "Не назначен"}
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-end gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    className="h-7 w-7 text-muted-foreground hover:text-primary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/dashboard/groups/${group.id}`);
-                    }}
-                    title="Перейти к группе"
+              <div className="divide-y">
+                {filteredGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+                    className="grid grid-cols-[1.5fr_1.5fr_100px_1fr_1fr_80px] items-center gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors cursor-pointer group"
                   >
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                  </Button>
+                    {/* Group Name & Course */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 border border-primary/20">
+                        {group.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate flex items-center gap-1.5">
+                          {group.name}
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal">
+                            {group.course} курс
+                          </Badge>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">{group.academicYear}</div>
+                      </div>
+                    </div>
 
-                  {isAdmin && (
-                    <>
+                    {/* Specialty */}
+                    <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
+                      {group.specialtyCode && (
+                        <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 border-primary/20 text-primary bg-primary/5 shrink-0">
+                          {group.specialtyCode}
+                        </Badge>
+                      )}
+                      <span className="truncate">{group.specialty || "Не указана"}</span>
+                    </div>
+
+                    {/* Student Count */}
+                    <div className="flex items-center gap-1.5">
+                      <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="font-medium text-xs text-foreground">{group.studentCount}</span>
+                      <span className="text-[10px] text-muted-foreground">студ.</span>
+                    </div>
+
+                    {/* Curator */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <UserCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className={`text-xs truncate ${group.curatorName ? "text-foreground font-medium" : "text-muted-foreground/60"}`}>
+                        {group.curatorName || "Не назначен"}
+                      </span>
+                    </div>
+
+                    {/* Monitor */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Crown className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className={`text-xs truncate ${group.monitorName ? "text-foreground font-medium" : "text-muted-foreground/60"}`}>
+                        {group.monitorName || "Не назначен"}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon-xs"
                         className="h-7 w-7 text-muted-foreground hover:text-primary"
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/dashboard/groups/${group.id}/edit`);
+                          router.push(`/dashboard/groups/${group.id}`);
                         }}
-                        title="Редактировать"
+                        title="Перейти к группе"
                       >
-                        <Edit className="h-3.5 w-3.5" />
+                        <ArrowUpRight className="h-3.5 w-3.5" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingGroupId(group.id);
-                        }}
-                        title="Удалить"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </>
-                  )}
-                </div>
+
+                      {isAdmin && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="h-7 w-7 text-muted-foreground hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/dashboard/groups/${group.id}/edit`);
+                            }}
+                            title="Редактировать"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingGroupId(group.id);
+                            }}
+                            title="Удалить"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* GRID CARDS VIEW */}
       {viewMode === "grid" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredGroups.map((group) => (
             <div
               key={group.id}
@@ -377,7 +381,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                 </div>
 
                 {isAdmin && (
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -386,6 +390,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                         e.stopPropagation();
                         router.push(`/dashboard/groups/${group.id}/edit`);
                       }}
+                      title="Редактировать"
                     >
                       <Edit className="h-3 w-3" />
                     </Button>
@@ -397,6 +402,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                         e.stopPropagation();
                         setDeletingGroupId(group.id);
                       }}
+                      title="Удалить"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -448,7 +454,7 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
 
       {/* Empty State */}
       {filteredGroups.length === 0 && (
-        <div className="rounded-xl border p-12 text-center space-y-2">
+        <div className="rounded-xl border p-8 sm:p-12 text-center space-y-2">
           <Users className="h-8 w-8 mx-auto text-muted-foreground/40" />
           <h3 className="text-sm font-semibold text-foreground">Группы не найдены</h3>
           <p className="text-xs text-muted-foreground max-w-xs mx-auto">

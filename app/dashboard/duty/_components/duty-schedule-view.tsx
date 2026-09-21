@@ -755,13 +755,13 @@ export function DutyScheduleView({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2" data-tour="duty-header-actions">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto" data-tour="duty-header-actions">
           {/* Group Selector Dropdown */}
           {!embedded && groupsList.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs shadow-2xs">
+            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs shadow-2xs flex-1 sm:flex-initial">
               <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
               <Select value={currentGroupId} onValueChange={handleGroupChange}>
-                <SelectTrigger className="h-6 text-xs font-semibold border-0 bg-transparent p-0 shadow-none focus:ring-0 min-w-[130px]">
+                <SelectTrigger className="h-6 text-xs font-semibold border-0 bg-transparent p-0 shadow-none focus:ring-0 w-full sm:min-w-[130px]">
                   <SelectValue>{currentGroupObj ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -776,7 +776,7 @@ export function DutyScheduleView({
           )}
 
           <Button variant="outline" size="xs" onClick={handlePrint} className="h-8 text-xs gap-1.5">
-            <Printer className="h-3.5 w-3.5" /> Печать (A4)
+            <Printer className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Печать (A4)</span><span className="sm:hidden">Печать</span>
           </Button>
 
           {isAdminOrTeacher && (
@@ -794,7 +794,7 @@ export function DutyScheduleView({
 
           {isAdminOrTeacher && dutyEnabledLocal && (
             <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs">
-              <span className="text-[11px] text-muted-foreground whitespace-nowrap">Дежурных в день:</span>
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">Дежурных:</span>
               <Select
                 value={dutyCountPerDay}
                 onValueChange={(val) => {
@@ -804,7 +804,7 @@ export function DutyScheduleView({
                   }
                 }}
               >
-                <SelectTrigger className="h-6 text-xs w-28 border-0 bg-transparent p-0 shadow-none focus:ring-0">
+                <SelectTrigger className="h-6 text-xs w-24 sm:w-28 border-0 bg-transparent p-0 shadow-none focus:ring-0">
                   <SelectValue>{dutyCountPerDay === "auto" ? "Авторасчет" : `${dutyCountPerDay} чел.`}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -819,13 +819,13 @@ export function DutyScheduleView({
             </div>
           )}
           {isAdminOrTeacher && dutyEnabledLocal && (
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0">
               <Button
                 size="xs"
                 variant="outline"
                 onClick={() => setIsClearConfirmOpen(true)}
                 disabled={isPending || !currentGroupId}
-                className="h-8 text-xs gap-1.5 font-medium border-destructive/30 text-destructive hover:bg-destructive/10"
+                className="h-8 text-xs gap-1.5 font-medium border-destructive/30 text-destructive hover:bg-destructive/10 flex-1 sm:flex-initial justify-center"
                 title="Очистить расписание дежурств группы"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -835,7 +835,7 @@ export function DutyScheduleView({
                 size="xs"
                 onClick={handleAutoRotation}
                 disabled={isPending || !currentGroupId}
-                className="h-8 text-xs gap-1.5 font-medium"
+                className="h-8 text-xs gap-1.5 font-medium flex-1 sm:flex-initial justify-center"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {isPending ? "Расчет..." : "Авто-ротация"}
@@ -846,7 +846,7 @@ export function DutyScheduleView({
       </div>
 
       {/* Screen KPI Bar */}
-      <div className="print:hidden grid grid-cols-1 md:grid-cols-3 gap-3" data-tour="duty-kpi">
+      <div className="print:hidden grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3" data-tour="duty-kpi">
 
         {/* KPI 1 */}
         <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
@@ -923,49 +923,50 @@ export function DutyScheduleView({
 
       {/* Main Mode Tabs & Filter Bar */}
       <div className="print:hidden flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b pb-2" data-tour="duty-filters">
-        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border">
+        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border overflow-x-auto scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveTab("WEEKLY")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${activeTab === "WEEKLY"
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0 ${activeTab === "WEEKLY"
               ? "bg-background text-foreground shadow-2xs border"
               : "text-muted-foreground hover:text-foreground"
               }`}
           >
             <Calendar className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
-            График группы {currentGroupObj?.name ? `(${currentGroupObj.name})` : ""}
+            <span className="hidden sm:inline">График группы {currentGroupObj?.name ? `(${currentGroupObj.name})` : ""}</span>
+            <span className="sm:hidden">График</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("STATS")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${activeTab === "STATS"
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0 ${activeTab === "STATS"
               ? "bg-background text-foreground shadow-2xs border"
               : "text-muted-foreground hover:text-foreground"
               }`}
           >
             <BarChart3 className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
-            Аудит и рейтинг
+            <span>Аудит и рейтинг</span>
           </button>
 
           {isAdminOrTeacher && (
             <button
               type="button"
               onClick={() => setActiveTab("SETTINGS")}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${activeTab === "SETTINGS"
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0 ${activeTab === "SETTINGS"
                 ? "bg-background text-foreground shadow-2xs border"
                 : "text-muted-foreground hover:text-foreground"
                 }`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
-              Настройки дежурства
+              <span>Настройки</span>
             </button>
           )}
         </div>
 
         {activeTab === "WEEKLY" && (
           <div className="relative w-full sm:w-64">
-            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Поиск по фамилии..."
               value={searchQuery}
@@ -1005,7 +1006,7 @@ export function DutyScheduleView({
             {absentDutyAlerts.map((a, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-destructive/20 text-foreground text-xs shadow-2xs"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-destructive/20 text-foreground text-xs shadow-2xs"
               >
                 <div className="min-w-0">
                   <div className="font-semibold truncate">{a.studentName}</div>
@@ -1019,7 +1020,7 @@ export function DutyScheduleView({
                       size="xs"
                       variant="default"
                       title="Автоматически выбрать следующего по очереди студента и назначить в 1 клик"
-                      className="h-6 px-2 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground gap-1 font-medium shadow-2xs cursor-pointer"
+                      className="h-6 px-2 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground gap-1 font-medium shadow-2xs cursor-pointer flex-1 sm:flex-initial justify-center"
                       onClick={() => handleAutoReplace(a)}
                     >
                       <Zap className="h-3 w-3" /> Автозамена
@@ -1028,7 +1029,7 @@ export function DutyScheduleView({
                       size="xs"
                       variant="outline"
                       title="Выбрать конкретного студента для замены вручную"
-                      className="h-6 px-2 text-[11px] border-border hover:bg-muted text-muted-foreground hover:text-foreground gap-1 font-medium cursor-pointer"
+                      className="h-6 px-2 text-[11px] border-border hover:bg-muted text-muted-foreground hover:text-foreground gap-1 font-medium cursor-pointer flex-1 sm:flex-initial justify-center"
                       onClick={() => {
                         const available = groupStudents.filter((s) => !a.existingIds.includes(s.id) && s.id !== a.studentId && !s.isDutyExempt);
                         setReplaceTarget({
@@ -1112,7 +1113,7 @@ export function DutyScheduleView({
                   </div>
                 </div>
                 {isAdminOrTeacher && isDutyEnabled && (
-                  <div className="flex items-center justify-center gap-2 pt-2">
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                     <Button
                       size="xs"
                       variant="outline"
@@ -1138,7 +1139,7 @@ export function DutyScheduleView({
               </div>
             ) : (
               <div className="divide-y">
-                <div className="grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <div className="hidden sm:grid sm:grid-cols-[140px_1fr_auto] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   <span>День / Дата</span>
                   <span>Дежурные студенты</span>
                   <span className="text-right">Действия</span>
@@ -1152,15 +1153,15 @@ export function DutyScheduleView({
                   return (
                     <div
                       key={day.fullDate}
-                      className={`grid grid-cols-[150px_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors ${day.isToday
+                      className={`flex flex-col sm:grid sm:grid-cols-[140px_1fr_auto] gap-2 sm:gap-3 p-3 sm:py-2.5 sm:px-3 sm:items-center transition-colors ${day.isToday
                         ? "bg-primary/5"
                         : day.isSunday
                           ? "bg-muted/20 opacity-60"
                           : "hover:bg-muted/20"
                         }`}
                     >
-                      {/* Day & Date */}
-                      <div className="space-y-0.5 min-w-0">
+                      {/* Day & Date Header (includes mobile quick action) */}
+                      <div className="flex sm:flex-col items-center sm:items-start justify-between sm:justify-start gap-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`text-xs font-bold ${day.isToday
                             ? "text-primary"
@@ -1169,8 +1170,6 @@ export function DutyScheduleView({
                             {day.dayName}
                           </span>
                           <span className="text-[10px] text-muted-foreground font-mono">{day.dateStr}</span>
-                        </div>
-                        <div className="flex items-center gap-1 pt-0.5">
                           {day.isToday && (
                             <Badge className="bg-primary text-primary-foreground text-[8px] px-1 py-0 font-medium">
                               Сегодня
@@ -1182,6 +1181,22 @@ export function DutyScheduleView({
                             </Badge>
                           )}
                         </div>
+
+                        {/* Mobile action button */}
+                        {!day.isSunday && isAdminOrTeacher && (
+                          <div className="sm:hidden">
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => openAddModal(day, "add")}
+                              disabled={availableStudents.length === 0}
+                              className="h-6 px-2 text-[10px] gap-1 border-primary/20 text-primary hover:bg-primary/10"
+                            >
+                              <UserPlus className="h-3 w-3" />
+                              <span>Назначить</span>
+                            </Button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Duty Students */}
@@ -1200,7 +1215,7 @@ export function DutyScheduleView({
                             return (
                               <div
                                 key={st.id}
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all ${isAbsent
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all max-w-full ${isAbsent
                                   ? "border-destructive/40 bg-destructive/10 text-destructive"
                                   : day.isToday
                                     ? "border-primary/30 bg-primary/10 text-primary"
@@ -1225,21 +1240,21 @@ export function DutyScheduleView({
                                 </span>
 
                                 {isAbsent && (
-                                  <span className="text-[9px] font-bold no-underline text-destructive inline-flex items-center gap-0.5">
+                                  <span className="text-[9px] font-bold no-underline text-destructive inline-flex items-center gap-0.5 shrink-0">
                                     <AlertCircle className="h-2.5 w-2.5" />
                                     {absentLabel}
                                   </span>
                                 )}
 
                                 {isPresentInDb && !isAbsent && (
-                                  <span title="Был на занятиях" className="text-[8px] text-primary inline-flex items-center gap-0.5">
+                                  <span title="Был на занятиях" className="text-[8px] text-primary inline-flex items-center gap-0.5 shrink-0">
                                     <Check className="h-2.5 w-2.5" /> Присутствовал
                                   </span>
                                 )}
 
                                 {isLateInDb && !isAbsent && (
-                                  <span title="Опоздал на занятия" className="text-[8px] text-muted-foreground inline-flex items-center gap-0.5">
-                                    ⏱️ Опоздал
+                                  <span title="Опоздал на занятия" className="text-[8px] text-muted-foreground inline-flex items-center gap-0.5 shrink-0">
+                                    <Clock className="h-2.5 w-2.5" /> Опоздал
                                   </span>
                                 )}
 
@@ -1250,7 +1265,7 @@ export function DutyScheduleView({
                                 )}
 
                                 {isAdminOrTeacher && (
-                                  <div className="flex items-center gap-0.5 ml-0.5">
+                                  <div className="flex items-center gap-0.5 ml-0.5 shrink-0">
                                     {isAbsent && (
                                       <button
                                         type="button"
@@ -1327,8 +1342,8 @@ export function DutyScheduleView({
                         )}
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center justify-end gap-1.5 shrink-0">
+                      {/* Desktop Actions */}
+                      <div className="hidden sm:flex items-center justify-end gap-1.5 shrink-0">
                         {!day.isSunday && isAdminOrTeacher && (
                           <Button
                             size="xs"
@@ -1364,64 +1379,66 @@ export function DutyScheduleView({
           </CardHeader>
 
           <CardContent className="p-0">
-            <div className="divide-y text-xs">
-              <div className="grid grid-cols-[1fr_130px_140px_90px_80px] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <span>Студент</span>
-                <span>Статус</span>
-                <span>Последнее дежурство</span>
-                <span className="text-right">Выполнено</span>
-                <span className="text-right">В плане</span>
-              </div>
-
-              {groupDutyStats.map((st) => (
-                <div key={st.studentId} className="grid grid-cols-[1fr_130px_140px_90px_80px] items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
-                  <div className="flex items-center gap-2 font-medium">
-                    <Avatar className="h-5 w-5 border shrink-0">
-                      <AvatarFallback className="text-[8px] font-bold bg-muted text-muted-foreground">
-                        {st.studentName.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span>{st.studentName}</span>
-                    {st.isMonitor && (
-                      <span title="Староста">
-                        <Crown className="h-3 w-3 text-primary shrink-0" />
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    {st.isDutyExempt ? (
-                      <Badge variant="outline" className="text-[9px] border-sky-500/30 text-sky-600 dark:text-sky-400 bg-sky-500/10 font-medium flex items-center gap-1 w-fit">
-                        <Accessibility className="h-2.5 w-2.5 shrink-0" /> {st.dutyExemptReason || "ЛОВЗ"}
-                      </Badge>
-                    ) : st.completedDutiesCount > 0 ? (
-                      <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/10 font-medium flex items-center gap-1 w-fit">
-                        <Check className="h-2.5 w-2.5" /> Отдежурил ({st.completedDutiesCount})
-                      </Badge>
-                    ) : st.scheduledDutiesCount > 0 ? (
-                      <Badge variant="outline" className="text-[9px] border-border text-muted-foreground bg-muted/40 font-medium">
-                        В плане ({st.scheduledDutiesCount})
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="text-[9px]">
-                        В очереди
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="text-[11px] text-muted-foreground font-mono">
-                    {st.lastDutyDate}
-                  </div>
-
-                  <div className="text-right font-bold text-foreground">
-                    {st.completedDutiesCount} дн.
-                  </div>
-
-                  <div className="text-right font-medium text-muted-foreground">
-                    {st.scheduledDutiesCount > 0 ? `+${st.scheduledDutiesCount} дн.` : "—"}
-                  </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[560px] divide-y text-xs">
+                <div className="grid grid-cols-[1fr_130px_140px_90px_80px] items-center gap-3 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <span>Студент</span>
+                  <span>Статус</span>
+                  <span>Последнее дежурство</span>
+                  <span className="text-right">Выполнено</span>
+                  <span className="text-right">В плане</span>
                 </div>
-              ))}
+
+                {groupDutyStats.map((st) => (
+                  <div key={st.studentId} className="grid grid-cols-[1fr_130px_140px_90px_80px] items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
+                    <div className="flex items-center gap-2 font-medium min-w-0">
+                      <Avatar className="h-5 w-5 border shrink-0">
+                        <AvatarFallback className="text-[8px] font-bold bg-muted text-muted-foreground">
+                          {st.studentName.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate">{st.studentName}</span>
+                      {st.isMonitor && (
+                        <span title="Староста" className="shrink-0">
+                          <Crown className="h-3 w-3 text-primary" />
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      {st.isDutyExempt ? (
+                        <Badge variant="outline" className="text-[9px] border-sky-500/30 text-sky-600 dark:text-sky-400 bg-sky-500/10 font-medium flex items-center gap-1 w-fit">
+                          <Accessibility className="h-2.5 w-2.5 shrink-0" /> {st.dutyExemptReason || "ЛОВЗ"}
+                        </Badge>
+                      ) : st.completedDutiesCount > 0 ? (
+                        <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/10 font-medium flex items-center gap-1 w-fit">
+                          <Check className="h-2.5 w-2.5" /> Отдежурил ({st.completedDutiesCount})
+                        </Badge>
+                      ) : st.scheduledDutiesCount > 0 ? (
+                        <Badge variant="outline" className="text-[9px] border-border text-muted-foreground bg-muted/40 font-medium">
+                          В плане ({st.scheduledDutiesCount})
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[9px]">
+                          В очереди
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-muted-foreground font-mono">
+                      {st.lastDutyDate}
+                    </div>
+
+                    <div className="text-right font-bold text-foreground">
+                      {st.completedDutiesCount} дн.
+                    </div>
+
+                    <div className="text-right font-medium text-muted-foreground">
+                      {st.scheduledDutiesCount > 0 ? `+${st.scheduledDutiesCount} дн.` : "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1502,7 +1519,7 @@ export function DutyScheduleView({
                       {dutyPerDaySetting === 0 ? "Авто-расчет (1-3 чел.)" : `${dutyPerDaySetting} чел. в смену`}
                     </span>
                   </label>
-                  <div className="grid grid-cols-6 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
                     {[
                       { value: 0, label: "Авто" },
                       { value: 1, label: "1 чел" },
@@ -1518,7 +1535,7 @@ export function DutyScheduleView({
                           setDutyPerDaySetting(item.value);
                           setDutyCountPerDay(item.value === 0 ? "auto" : String(item.value));
                         }}
-                        className={`py-1.5 rounded-md transition-colors font-medium ${dutyPerDaySetting === item.value
+                        className={`py-1.5 rounded-md transition-colors font-medium text-xs ${dutyPerDaySetting === item.value
                           ? "bg-background border border-border text-primary shadow-2xs"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
@@ -1566,7 +1583,7 @@ export function DutyScheduleView({
                 {/* 3. Rotation Algorithm */}
                 <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
                   <label className="font-semibold text-foreground">Алгоритм распределения:</label>
-                  <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
                     {(
                       [
                         { id: "FAIR", label: "Честный (учет прошлых)" },
@@ -1578,7 +1595,7 @@ export function DutyScheduleView({
                         key={alg.id}
                         type="button"
                         onClick={() => setDutyAlgorithm(alg.id)}
-                        className={`py-1.5 px-1 rounded-md transition-colors text-[11px] truncate font-medium ${dutyAlgorithm === alg.id
+                        className={`py-1.5 px-1 rounded-md transition-colors text-xs truncate font-medium ${dutyAlgorithm === alg.id
                           ? "bg-background border border-border text-primary shadow-2xs"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
@@ -1777,7 +1794,7 @@ export function DutyScheduleView({
                 size="xs"
                 onClick={handleSaveDutySettings}
                 disabled={isPending || !currentGroupId}
-                className="h-8 text-xs gap-1.5 font-medium shrink-0"
+                className="h-8 text-xs gap-1.5 font-medium w-full sm:w-auto shrink-0 justify-center"
               >
                 <Check className="h-3.5 w-3.5" />
                 {isPending ? "Сохранение..." : "Сохранить"}
