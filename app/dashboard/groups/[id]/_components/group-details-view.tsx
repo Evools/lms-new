@@ -88,6 +88,7 @@ import {
   deleteGroupAnnouncementAction,
 } from "../../actions";
 import { toggleStudentDutyExemptionAction } from "@/app/dashboard/duty/actions";
+import { exportToExcel } from "@/lib/excel-export";
 
 interface GroupDetailsViewProps {
   group: GroupDetailsDTO;
@@ -214,11 +215,20 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadGroupPasswordsCSV = () => {
+  const handleDownloadGroupPasswordsExcel = () => {
     if (!group.studentsList || group.studentsList.length === 0) return;
 
-    let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Временный Пароль,Группа,Телефон,Роль в группе\n";
-    group.studentsList.forEach((st, idx) => {
+    const headers = [
+      "№",
+      "ФИО Студента",
+      "Логин (Email)",
+      "Временный Пароль",
+      "Группа",
+      "Телефон",
+      "Роль в группе",
+    ];
+
+    const rows = group.studentsList.map((st, idx) => {
       const roleLabel =
         st.roleInGroup === "MONITOR"
           ? "Староста"
@@ -227,19 +237,23 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
             : "Студент";
       const pass = st.tempPassword || "Установлен личный пароль";
       const phone = st.phone || "—";
-      csvContent += `${idx + 1},"${st.name}","${st.email}","${pass}","${group.name}","${phone}","${roleLabel}"\n`;
+      return [
+        idx + 1,
+        st.name,
+        st.email,
+        pass,
+        group.name,
+        phone,
+        roleLabel,
+      ];
     });
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
     const safeGroupName = group.name.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_");
-    link.setAttribute("download", `loginy_i_paroli_${safeGroupName}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    exportToExcel(
+      [headers, ...rows],
+      `loginy_i_paroli_${safeGroupName}.xlsx`,
+      "Учетные записи"
+    );
   };
 
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
@@ -460,13 +474,13 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                   <Button
                     size="xs"
                     variant="outline"
-                    onClick={handleDownloadGroupPasswordsCSV}
+                    onClick={handleDownloadGroupPasswordsExcel}
                     className="h-8 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
-                    title="Скачать список логинов и паролей всей группы (.csv)"
+                    title="Скачать список логинов и паролей всей группы (.xlsx)"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Логины и пароли (.csv)</span>
-                    <span className="sm:hidden">Пароли (.csv)</span>
+                    <span className="hidden sm:inline">Логины и пароли (.xlsx)</span>
+                    <span className="sm:hidden">Пароли (.xlsx)</span>
                   </Button>
                 )}
                 {isAdminOrTeacher && (

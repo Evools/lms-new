@@ -43,6 +43,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { exportToExcel } from "@/lib/excel-export";
 import {
   ResponsiveContainer,
   BarChart,
@@ -169,7 +170,7 @@ export function TestResultsView({
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     const headers = [
       "ФИО Студента",
       "Статус",
@@ -192,31 +193,24 @@ export function TestResultsView({
       });
 
       return [
-        `"${s.studentName}"`,
+        s.studentName,
         s.hasSubmitted ? "Сдано" : "Не сдавал",
         s.hasSubmitted ? s.score : 0,
         s.maxScore,
         s.hasSubmitted ? `${s.percent}%` : "0%",
         s.tabSwitches || 0,
-        s.submittedAt ? `"${new Date(s.submittedAt).toLocaleString("ru-RU")}"` : "-",
-        ...qAnswers.map((ans) => `"${ans}"`),
+        s.submittedAt ? new Date(s.submittedAt).toLocaleString("ru-RU") : "-",
+        ...qAnswers,
       ];
     });
 
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `Результаты_${test.title.replace(/\s+/g, "_")}_${test.groupName}.csv`
+    const safeTitle = test.title.replace(/[\s\/:*?"<>|]+/g, "_");
+    const safeGroup = test.groupName.replace(/[\s\/:*?"<>|]+/g, "_");
+    exportToExcel(
+      [headers, ...rows],
+      `Результаты_${safeTitle}_${safeGroup}.xlsx`,
+      "Результаты теста"
     );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const submittedCount = studentsResults.filter((s) => s.hasSubmitted).length;
@@ -325,11 +319,12 @@ export function TestResultsView({
             <Button
               size="xs"
               variant="outline"
-              onClick={handleExportCSV}
+              onClick={handleExportExcel}
               className="h-8 text-xs gap-1.5 font-medium hover:bg-muted"
+              title="Экспорт результатов в формате Excel (.xlsx)"
             >
               <Download className="h-3.5 w-3.5" />
-              Экспорт CSV
+              Экспорт Excel
             </Button>
 
             <Button

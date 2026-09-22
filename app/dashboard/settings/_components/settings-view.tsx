@@ -32,6 +32,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { parseStaffFile } from "@/lib/excel-import";
+import { exportToExcel } from "@/lib/excel-export";
 import Link from "next/link";
 import {
   Settings,
@@ -217,17 +218,17 @@ export function SettingsView({
   >([]);
 
   const handleDownloadTemplate = () => {
-    const headers = "ФИО,Email,Роль,Телефон\n";
-    const row1 = "Петрова Анна Сергеевна,petrova@lyceum.ru,TEACHER,+996 (700) 222-334\n";
-    const row2 = "Сидоров Алексей Владимирович,sidorov@lyceum.ru,ADMIN,+996 (770) 333-445\n";
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(headers + row1 + row2);
+    const headers = ["ФИО", "Email", "Роль", "Телефон"];
+    const rows = [
+      ["Петрова Анна Сергеевна", "petrova@lyceum.ru", "TEACHER", "+996 (700) 222-334"],
+      ["Сидоров Алексей Владимирович", "sidorov@lyceum.ru", "ADMIN", "+996 (770) 333-445"],
+    ];
 
-    const link = document.createElement("a");
-    link.setAttribute("href", csvContent);
-    link.setAttribute("download", "shablon_importa_sotrudnikov.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportToExcel(
+      [headers, ...rows],
+      "shablon_importa_sotrudnikov.xlsx",
+      "Сотрудники"
+    );
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,7 +274,7 @@ export function SettingsView({
         if (name.toLowerCase().includes("фио") || email.toLowerCase().includes("email")) {
           continue; // Skip CSV Header Row
         }
-        let roleInput = (parts[2] || "").toUpperCase();
+        const roleInput = (parts[2] || "").toUpperCase();
         let role: "ADMIN" | "TEACHER" = "TEACHER";
         if (roleInput.includes("ADMIN") || roleInput.includes("АДМИН")) role = "ADMIN";
 
@@ -1515,7 +1516,7 @@ export function SettingsView({
                     onClick={handleDownloadTemplate}
                     className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10 font-medium px-3 shrink-0"
                   >
-                    <Download className="h-3.5 w-3.5" /> Скачать шаблон (.csv)
+                    <Download className="h-3.5 w-3.5" /> Скачать шаблон (.xlsx)
                   </Button>
                 </div>
               </div>

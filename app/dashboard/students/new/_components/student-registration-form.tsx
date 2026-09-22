@@ -57,6 +57,7 @@ import {
   generateEmailFromName,
   ParsedStudentRow,
 } from "@/lib/excel-import";
+import { exportToExcel } from "@/lib/excel-export";
 
 export interface DBGroupItem {
   id: string;
@@ -164,21 +165,27 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
   };
 
   const handleDownloadTemplate = () => {
-    const csvContent =
-      "\uFEFF" +
-      "№,ФИО Студента,ПИН КР,Пол,Телефон,Telegram / WhatsApp,Дата рождения\n" +
-      '1,"Абдыкадыров Бекзат Дурусбекович","20707200900462","Мужской","+996 (703) 07-00-29","703070029","07.07.2009"\n' +
-      '2,"Алмазбеков Асылбек Алмазбекович","22502200900165","Мужской","+996 (225) 54-71-54","+996 225 547 154","25.02.2009"\n' +
-      '3,"Анарбаев Каниет Рустамович","21705201100139","Мужской","+996 (703) 03-23-35","—","17.05.2011"\n';
+    const headers = [
+      "№",
+      "ФИО Студента",
+      "ПИН КР",
+      "Пол",
+      "Телефон",
+      "Telegram / WhatsApp",
+      "Дата рождения",
+    ];
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "shablon_vedomosti_studentov.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const sampleRows = [
+      [1, "Абдыкадыров Бекзат Дурусбекович", "20707200900462", "Мужской", "+996 (703) 07-00-29", "703070029", "07.07.2009"],
+      [2, "Алмазбеков Асылбек Алмазбекович", "22502200900165", "Мужской", "+996 (225) 54-71-54", "+996 225 547 154", "25.02.2009"],
+      [3, "Анарбаев Каниет Рустамович", "21705201100139", "Мужской", "+996 (703) 03-23-35", "—", "17.05.2011"],
+    ];
+
+    exportToExcel(
+      [headers, ...sampleRows],
+      "shablon_vedomosti_studentov.xlsx",
+      "Шаблон студентов"
+    );
   };
 
   const handleSingleSubmit = async (e: React.FormEvent, createAnother: boolean = false) => {
@@ -283,21 +290,23 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
     );
   };
 
-  const handleDownloadPasswordsCSV = () => {
+  const handleDownloadPasswordsExcel = () => {
     if (importedStudents.length === 0) return;
-    let csvContent = "\uFEFF№,ФИО Студента,Логин (Email),Временный Пароль,Группа\n";
-    importedStudents.forEach((st, idx) => {
-      csvContent += `${idx + 1},"${st.fullName}","${st.email}","${st.password || 'Lms123456'}","${st.group}"\n`;
-    });
+    const headers = ["№", "ФИО Студента", "Логин (Email)", "Временный Пароль", "Группа"];
+    const rows = importedStudents.map((st, idx) => [
+      idx + 1,
+      st.fullName,
+      st.email,
+      st.password || "Lms123456",
+      st.group,
+    ]);
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `loginy_i_paroli_${defaultImportGroup || "gruppy"}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const safeGroup = defaultImportGroup ? defaultImportGroup.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_") : "gruppy";
+    exportToExcel(
+      [headers, ...rows],
+      `loginy_i_paroli_${safeGroup}.xlsx`,
+      "Логины и пароли"
+    );
   };
 
   const handleLoadDemoData = () => {
@@ -812,8 +821,8 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
               <Button size="xs" variant="ghost" disabled={isSubmitting} onClick={handleLoadDemoData} className="h-8 text-xs gap-1 text-primary hover:bg-primary/10 font-medium">
                 <Sparkles className="h-3.5 w-3.5" /> Пример данных
               </Button>
-              <Button size="xs" variant="outline" disabled={isSubmitting} onClick={handleDownloadTemplate} className="h-8 text-xs gap-1.5">
-                <Download className="h-3.5 w-3.5" /> Скачать шаблон CSV
+              <Button size="xs" variant="outline" disabled={isSubmitting} onClick={handleDownloadTemplate} className="h-8 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10">
+                <Download className="h-3.5 w-3.5" /> Скачать шаблон (.xlsx)
               </Button>
             </div>
           </div>
@@ -1021,10 +1030,10 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
                 <Button
                   size="xs"
                   variant="outline"
-                  onClick={handleDownloadPasswordsCSV}
+                  onClick={handleDownloadPasswordsExcel}
                   className="h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10 font-medium"
                 >
-                  <Download className="h-3.5 w-3.5" /> Скачать логины и пароли (.csv)
+                  <Download className="h-3.5 w-3.5" /> Скачать логины и пароли (.xlsx)
                 </Button>
 
                 <div className="flex items-center gap-2">

@@ -37,6 +37,7 @@ import type {
   GroupAssignmentDTO,
   StudentActivityDTO,
 } from "../actions";
+import { exportToExcel } from "@/lib/excel-export";
 
 interface ReportsViewProps {
   summary: ReportSummaryDTO;
@@ -153,7 +154,7 @@ export function ReportsView({
     });
   }, [studentActivity, selectedGroupId, groups, studentSearch, studentFilter]);
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     const headers = [
       "ФИО Студента",
       "Группа",
@@ -165,8 +166,8 @@ export function ReportsView({
     ];
 
     const rows = filteredStudents.map((s) => [
-      `"${s.studentName}"`,
-      `"${s.groupName}"`,
+      s.studentName,
+      s.groupName,
       s.submissionsCount,
       s.acceptedCount,
       `${s.attendancePct}%`,
@@ -174,18 +175,12 @@ export function ReportsView({
       s.attendanceTotal,
     ]);
 
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
     const groupSuffix = selectedGroupId === "all" ? "Все_группы" : (groups.find((g) => g.id === selectedGroupId)?.name || "Группа");
-    link.setAttribute("download", `Отчет_успеваемости_${groupSuffix}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportToExcel(
+      [headers, ...rows],
+      `Отчет_успеваемости_${groupSuffix}.xlsx`,
+      "Успеваемость"
+    );
   };
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -232,12 +227,12 @@ export function ReportsView({
           <Button
             size="xs"
             variant="outline"
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             className="h-8 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
-            title="Экспорт ведомости в формате CSV"
+            title="Экспорт ведомости в формате Excel (.xlsx)"
           >
             <Download className="h-3.5 w-3.5" />
-            Экспорт CSV
+            Экспорт Excel
           </Button>
         </div>
       </div>

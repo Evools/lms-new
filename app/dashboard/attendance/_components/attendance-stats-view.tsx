@@ -22,22 +22,20 @@ import {
   AlertTriangle,
   Clock,
   Printer,
-  Download,
   Loader2,
   Crown,
   ArrowUpDown,
   FileSpreadsheet,
   Layers,
   Sparkles,
-  RotateCcw,
 } from "lucide-react";
 import {
   GroupItemDTO,
   GroupSubjectItemDTO,
   AttendancePeriodStatsDTO,
-  StudentPeriodStatsDTO,
   getAttendancePeriodStatsAction,
 } from "../actions";
+import { exportToExcel } from "@/lib/excel-export";
 import { toast } from "@/components/ui/toast";
 
 interface AttendanceStatsViewProps {
@@ -56,6 +54,13 @@ type PeriodPreset =
   | "CUSTOM";
 
 type SortField = "name" | "rate_asc" | "rate_desc" | "absent_desc";
+
+const SORT_LABELS: Record<SortField, string> = {
+  rate_desc: "Посещаемость (лучшие)",
+  rate_asc: "Посещаемость (худшие)",
+  absent_desc: "По пропускам (больше НБ)",
+  name: "По алфавиту (ФИО)",
+};
 
 function getPresetDates(preset: PeriodPreset): { start: string; end: string } {
   const now = new Date();
@@ -210,11 +215,22 @@ export function AttendanceStatsView({
     return list;
   }, [statsData, searchQuery, sortField]);
 
-  // Export CSV for Excel
-  const handleExportCSV = () => {
+  // Export Excel (.xlsx)
+  const handleExportExcel = () => {
     if (!statsData || !currentGroupObj) return;
 
+    const selectedSubjectName =
+      selectedSubjectId === "all"
+        ? "Все дисциплины"
+        : subjects.find((s) => s.id === selectedSubjectId)?.subjectName || "Предмет";
+
+    const titleRow = [`Сводная ведомость посещаемости: Группа ${currentGroupObj.name}`];
+    const periodRow = [`Период: ${dates.start} — ${dates.end}`];
+    const subjectRow = [`Дисциплина: ${selectedSubjectName}`];
+    const emptyRow: string[] = [];
+
     const headers = [
+      "№",
       "Студент",
       "Всего занятий",
       "Был",
@@ -224,8 +240,9 @@ export function AttendanceStatsView({
       "% Посещаемости",
     ];
 
-    const rows = processedStudents.map((s) => [
-      `"${s.studentName.replace(/"/g, '""')}"`,
+    const rows = processedStudents.map((s, idx) => [
+      idx + 1,
+      s.studentName,
       s.totalLessons,
       s.presentCount,
       s.absentCount,
@@ -234,34 +251,11 @@ export function AttendanceStatsView({
       `${s.attendanceRate}%`,
     ]);
 
-    const csvContent =
-      "\uFEFF" +
-      [
-        `"Сводная ведомость посещаемости: Группа ${currentGroupObj.name}"`,
-        `"Период: ${dates.start} — ${dates.end}"`,
-        `"Дисциплина: ${
-          selectedSubjectId === "all"
-            ? "Все дисциплины"
-            : subjects.find((s) => s.id === selectedSubjectId)?.subjectName || "Предмет"
-        }"`,
-        "",
-        headers.join(";"),
-        ...rows.map((r) => r.join(";")),
-      ].join("\r\n");
+    const data = [titleRow, periodRow, subjectRow, emptyRow, headers, ...rows];
+    const fileName = `Посещаемость_${currentGroupObj.name}_${dates.start}_${dates.end}.xlsx`;
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `Посещаемость_${currentGroupObj.name}_${dates.start}_${dates.end}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.add({ title: "Файл CSV успешно экспортирован!", type: "success" });
+    exportToExcel(data, fileName, "Посещаемость");
+    toast.add({ title: "Файл Excel (.xlsx) успешно экспортирован!", type: "success" });
   };
 
   const handlePrint = () => {
@@ -326,13 +320,13 @@ export function AttendanceStatsView({
             <Button
               size="xs"
               variant="outline"
-              onClick={handleExportCSV}
+              onClick={handleExportExcel}
               disabled={!statsData || isPending}
               className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 font-medium cursor-pointer"
-              title="Экспорт ведомости в формате CSV (Excel)"
+              title="Экспорт ведомости в формате Excel (.xlsx)"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span>Экспорт CSV</span>
+              <span>Экспорт Excel</span>
             </Button>
 
             <Button
@@ -562,8 +556,8 @@ export function AttendanceStatsView({
               <ArrowUpDown className="h-3 w-3" /> Сортировка:
             </span>
             <Select value={sortField} onValueChange={(val) => setSortField(val as SortField)}>
-              <SelectTrigger className="h-8 text-xs bg-background w-44">
-                <SelectValue />
+              <SelectTrigger className="h-8 text-xs bg-background w-48 font-medium">
+                <SelectValue>{SORT_LABELS[sortField] || "Сортировка"}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="rate_desc" className="text-xs">
