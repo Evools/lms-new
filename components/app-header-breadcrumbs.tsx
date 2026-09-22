@@ -19,6 +19,7 @@ const ROUTE_NAMES: Record<string, string> = {
   students: "Студенты",
   attendance: "Посещаемость",
   duty: "График дежурств",
+  schedule: "Расписание занятий",
   assignments: "Домашние задания",
   lms: "LMS",
   materials: "Материалы",

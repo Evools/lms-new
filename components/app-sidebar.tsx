@@ -25,6 +25,7 @@ import {
   FileCheck2,
   BookMarked,
   FolderOpen,
+  CalendarDays,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -263,7 +264,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         ],
       },
       {
-        groupLabel: "Группа и расписание",
+        groupLabel: "Группа и документы",
         items: [
           {
             title: "Моя группа",
