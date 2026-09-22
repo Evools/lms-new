@@ -492,6 +492,26 @@ export async function addDutyStudentAction(
     await prisma.dutySchedule.create({
       data: { groupId, studentId, date: targetDate, isLeader: false },
     });
+
+    // Notify student about duty assignment
+    try {
+      const dateFormatted = targetDate.toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+      });
+      await prisma.notification.create({
+        data: {
+          userId: studentId,
+          title: "Назначение на дежурство",
+          message: `Вы назначены дежурным на ${dateFormatted}.`,
+          type: "SYSTEM",
+          link: "/dashboard/duty",
+        },
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify student about duty:", notifErr);
+    }
+
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
@@ -781,6 +801,25 @@ export async function replaceDutyStudentAction(
       await prisma.dutySchedule.create({
         data: { groupId, studentId: replacementStudentId, date: targetDate, isLeader: false },
       });
+
+      // Notify replacement student
+      try {
+        const dateFormatted = targetDate.toLocaleDateString("ru-RU", {
+          day: "numeric",
+          month: "long",
+        });
+        await prisma.notification.create({
+          data: {
+            userId: replacementStudentId,
+            title: "Назначение на дежурство (замена)",
+            message: `Вы назначены дежурным на ${dateFormatted}.`,
+            type: "SYSTEM",
+            link: "/dashboard/duty",
+          },
+        });
+      } catch (notifErr) {
+        console.error("Failed to notify replacement student about duty:", notifErr);
+      }
     }
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
@@ -1048,6 +1087,26 @@ export async function addDisciplinaryDutyAction(
     await prisma.dutySchedule.create({
       data: { groupId, studentId, date: targetDate, isLeader: false },
     });
+
+    // Notify student about disciplinary duty
+    try {
+      const dateFormatted = targetDate.toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+      });
+      const reasonText = _reason?.trim() ? ` Причина: ${_reason.trim()}` : "";
+      await prisma.notification.create({
+        data: {
+          userId: studentId,
+          title: "Внеочередное дежурство",
+          message: `Вам назначено внеочередное дежурство на ${dateFormatted}.${reasonText}`,
+          type: "SYSTEM",
+          link: "/dashboard/duty",
+        },
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify student about disciplinary duty:", notifErr);
+    }
 
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);

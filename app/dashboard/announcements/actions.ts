@@ -117,6 +117,44 @@ export async function createAnnouncementAction(data: {
       },
     });
 
+    // Notify users based on scope
+    try {
+      let recipientIds: string[] = [];
+
+      if (scope === "ALL") {
+        const users = await prisma.user.findMany({
+          where: { isActive: true, id: { not: session.user.id } },
+          select: { id: true },
+        });
+        recipientIds = users.map((u) => u.id);
+      } else if (scope === "TEACHERS") {
+        const teachers = await prisma.user.findMany({
+          where: { role: "TEACHER", isActive: true, id: { not: session.user.id } },
+          select: { id: true },
+        });
+        recipientIds = teachers.map((u) => u.id);
+      }
+
+      if (recipientIds.length > 0) {
+        const snippet =
+          created.content.length > 120
+            ? `${created.content.slice(0, 117)}...`
+            : created.content;
+
+        await prisma.notification.createMany({
+          data: recipientIds.map((userId) => ({
+            userId,
+            title: `Объявление: ${created.title}`,
+            message: snippet,
+            type: "ANNOUNCEMENT",
+            link: "/dashboard/announcements",
+          })),
+        });
+      }
+    } catch (notifErr) {
+      console.error("Failed to create announcement notifications:", notifErr);
+    }
+
     revalidatePath("/dashboard/announcements");
     return { success: true, id: created.id };
   } catch (error) {

@@ -1110,6 +1110,8 @@ export async function createTestAction(data: {
       }
     }
 
+    const isPublished = data.isPublished !== undefined ? data.isPublished : true;
+
     const test = await prisma.test.create({
       data: {
         // Create new test with shuffle options and multi-type questions
@@ -1121,7 +1123,7 @@ export async function createTestAction(data: {
         timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
         shuffleQuestions: !!data.shuffleQuestions,
         shuffleOptions: !!data.shuffleOptions,
-        isPublished: data.isPublished !== undefined ? data.isPublished : true,
+        isPublished,
         questions: {
           create: data.questions.map((q, idx) => ({
             type: q.type || "SINGLE",
@@ -1136,6 +1138,37 @@ export async function createTestAction(data: {
         },
       },
     });
+
+    // Notify students of the group if published
+    if (isPublished) {
+      try {
+        const gs = await prisma.groupSubject.findUnique({
+          where: { id: data.groupSubjectId },
+          include: {
+            subject: { select: { name: true } },
+            group: {
+              include: {
+                students: { select: { studentId: true } },
+              },
+            },
+          },
+        });
+
+        if (gs && gs.group.students.length > 0) {
+          await prisma.notification.createMany({
+            data: gs.group.students.map((s) => ({
+              userId: s.studentId,
+              title: `Назначен тест: ${test.title}`,
+              message: `Доступен тест по дисциплине "${gs.subject.name}".`,
+              type: "TEST",
+              link: "/dashboard/lms/tests",
+            })),
+          });
+        }
+      } catch (notifErr) {
+        console.error("Failed to notify students about test:", notifErr);
+      }
+    }
 
     revalidatePath("/dashboard/lms/tests");
     revalidatePath("/dashboard/lms");
@@ -1155,7 +1188,18 @@ export async function toggleTestPublishAction(testId: string) {
 
     const test = await prisma.test.findUnique({
       where: { id: testId },
-      select: { id: true, isPublished: true },
+      include: {
+        groupSubject: {
+          include: {
+            subject: { select: { name: true } },
+            group: {
+              include: {
+                students: { select: { studentId: true } },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!test) {
@@ -1169,6 +1213,23 @@ export async function toggleTestPublishAction(testId: string) {
       data: { isPublished: newStatus },
       select: { id: true, isPublished: true },
     });
+
+    // Notify students if newly published
+    if (newStatus && test.groupSubject?.group?.students?.length) {
+      try {
+        await prisma.notification.createMany({
+          data: test.groupSubject.group.students.map((s) => ({
+            userId: s.studentId,
+            title: `Назначен тест: ${test.title}`,
+            message: `Доступен тест по дисциплине "${test.groupSubject.subject.name}".`,
+            type: "TEST",
+            link: "/dashboard/lms/tests",
+          })),
+        });
+      } catch (notifErr) {
+        console.error("Failed to notify students on test publish toggle:", notifErr);
+      }
+    }
 
     revalidatePath("/dashboard/lms/tests");
     revalidatePath("/dashboard/lms");
