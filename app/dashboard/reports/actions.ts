@@ -22,6 +22,7 @@ export interface ReportSummaryDTO {
   presentCount: number;
   absentCount: number;
   lateCount: number;
+  excusedCount: number;
   totalTests: number;
   testSubmissionsCount: number;
 }
@@ -150,6 +151,8 @@ export async function getReportsDataAction() {
       attendanceGroupStats.find((a) => a.status === AttendanceStatus.ABSENT)?._count._all || 0;
     const lateCount =
       attendanceGroupStats.find((a) => a.status === AttendanceStatus.LATE)?._count._all || 0;
+    const excusedCount =
+      attendanceGroupStats.find((a) => a.status === AttendanceStatus.EXCUSED)?._count._all || 0;
 
     const summary: ReportSummaryDTO = {
       totalGroups,
@@ -162,6 +165,7 @@ export async function getReportsDataAction() {
       presentCount,
       absentCount,
       lateCount,
+      excusedCount,
       totalTests,
       testSubmissionsCount,
     };

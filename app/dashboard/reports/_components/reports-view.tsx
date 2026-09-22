@@ -291,47 +291,96 @@ export function ReportsView({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="bg-card border rounded-xl p-3.5 space-y-3 shadow-2xs">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <CalendarCheck className="h-4 w-4 text-primary" /> Сводка посещаемости
-                </h2>
-                <Badge variant="outline" className="text-[10px] font-semibold border-primary/30 text-primary">
-                  {summary.totalAttendanceRecords} записей
+                <div className="space-y-0.5">
+                  <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <CalendarCheck className="h-4 w-4 text-primary" /> Сводка посещаемости
+                  </h2>
+                  <p className="text-[10px] text-muted-foreground">
+                    Распределение по всем отметкам в журналах
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-semibold bg-primary/10 text-primary border-primary/30">
+                  {attendancePct}% общая явка
                 </Badge>
               </div>
-              <div className="space-y-2.5">
+
+              <div className="space-y-2.5 pt-1">
                 {[
-                  { label: "Присутствовал", count: summary.presentCount, color: "text-primary", bg: "bg-primary" },
-                  { label: "Отсутствовал (НБ)", count: summary.absentCount, color: "text-destructive", bg: "bg-destructive" },
-                  { label: "Опоздал", count: summary.lateCount, color: "text-amber-500", bg: "bg-amber-500" },
+                  {
+                    label: "Присутствие на занятиях",
+                    count: summary.presentCount,
+                    color: "text-primary",
+                    bg: "bg-primary",
+                    icon: <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />,
+                  },
+                  {
+                    label: "Пропуски без причины (НБ)",
+                    count: summary.absentCount,
+                    color: "text-destructive",
+                    bg: "bg-destructive",
+                    icon: <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />,
+                  },
+                  {
+                    label: "Опоздания",
+                    count: summary.lateCount,
+                    color: "text-amber-500",
+                    bg: "bg-amber-500",
+                    icon: <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />,
+                  },
+                  {
+                    label: "Уважительная причина (справка)",
+                    count: summary.excusedCount || 0,
+                    color: "text-sky-500",
+                    bg: "bg-sky-500",
+                    icon: <AlertCircle className="h-3.5 w-3.5 text-sky-500 shrink-0" />,
+                  },
                 ].map((item) => {
-                  const pct = summary.totalAttendanceRecords > 0
-                    ? Math.round((item.count / summary.totalAttendanceRecords) * 100)
-                    : 0;
+                  const pct =
+                    summary.totalAttendanceRecords > 0
+                      ? Math.round((item.count / summary.totalAttendanceRecords) * 100)
+                      : 0;
                   return (
                     <div key={item.label} className="space-y-1">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-muted-foreground">{item.label}</span>
-                        <span className={`font-semibold ${item.color}`}>{item.count} ({pct}%)</span>
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <span className={item.color}>{pct}%</span>
+                          <span className="text-[10px] text-muted-foreground">({item.count} отметок)</span>
+                        </div>
                       </div>
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className={`h-full rounded-full ${item.bg}`} style={{ width: `${pct}%` }} />
+                        <div className={`h-full rounded-full transition-all duration-300 ${item.bg}`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
                 })}
               </div>
+
+              <div className="pt-2 border-t flex justify-between items-center text-[10px] text-muted-foreground">
+                <span>Всего отметок в журнале:</span>
+                <span className="font-semibold text-foreground">{summary.totalAttendanceRecords}</span>
+              </div>
             </div>
 
             <div className="bg-card border rounded-xl p-3.5 space-y-3 shadow-2xs">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <ClipboardList className="h-4 w-4 text-primary" /> Сводка домашних заданий
-                </h2>
-                <Badge variant="outline" className="text-[10px] font-semibold border-primary/30 text-primary">
-                  {summary.totalSubmissions} сданных работ
+                <div className="space-y-0.5">
+                  <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <ClipboardList className="h-4 w-4 text-primary" /> Сводка домашних заданий
+                  </h2>
+                  <p className="text-[10px] text-muted-foreground">
+                    Качество проверки и сдачи заданий
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-semibold bg-primary/10 text-primary border-primary/30">
+                  {submissionPct}% принято
                 </Badge>
               </div>
-              <div className="space-y-2.5">
+
+              <div className="space-y-2.5 pt-1">
                 {[
                   {
                     label: "Принято преподавателями",
@@ -339,6 +388,7 @@ export function ReportsView({
                     total: summary.totalSubmissions,
                     color: "text-primary",
                     bg: "bg-primary",
+                    icon: <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />,
                   },
                   {
                     label: "На проверке / доработке",
@@ -346,21 +396,33 @@ export function ReportsView({
                     total: summary.totalSubmissions,
                     color: "text-amber-500",
                     bg: "bg-amber-500",
+                    icon: <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />,
                   },
                 ].map((item) => {
                   const pct = item.total > 0 ? Math.round((item.count / item.total) * 100) : 0;
                   return (
                     <div key={item.label} className="space-y-1">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-muted-foreground">{item.label}</span>
-                        <span className={`font-semibold ${item.color}`}>{item.count} ({pct}%)</span>
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <span className={item.color}>{pct}%</span>
+                          <span className="text-[10px] text-muted-foreground">({item.count} работ)</span>
+                        </div>
                       </div>
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className={`h-full rounded-full ${item.bg}`} style={{ width: `${pct}%` }} />
+                        <div className={`h-full rounded-full transition-all duration-300 ${item.bg}`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="pt-2 border-t flex justify-between items-center text-[10px] text-muted-foreground">
+                <span>Всего сданных работ:</span>
+                <span className="font-semibold text-foreground">{summary.totalSubmissions}</span>
               </div>
             </div>
           </div>
