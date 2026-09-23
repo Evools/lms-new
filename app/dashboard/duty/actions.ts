@@ -911,16 +911,53 @@ export async function generateWeeklyDutyAction(
       where: { groupId, date: { gte: startDate, lt: endDate } },
     });
 
+    // Query group attendances for this week to skip students with НБ / ABSENT on specific days
+    const groupSubjects = await prisma.groupSubject.findMany({
+      where: { groupId },
+      select: { id: true },
+    });
+    const groupSubjectIds = groupSubjects.map((gs) => gs.id);
+
+    const weekAttendances = groupSubjectIds.length > 0
+      ? await prisma.attendance.findMany({
+        where: {
+          groupSubjectId: { in: groupSubjectIds },
+          date: { gte: startDate, lt: endDate },
+        },
+        select: {
+          studentId: true,
+          date: true,
+          status: true,
+        },
+      })
+      : [];
+
+    // Map of absent students per date string: key = `${studentId}_${YYYY-MM-DD}`
+    const absentStudentsOnDate = new Set<string>();
+    weekAttendances.forEach((att) => {
+      if (att.status === "ABSENT" || att.status === "EXCUSED") {
+        const dStr = formatLocalDateString(new Date(att.date));
+        absentStudentsOnDate.add(`${att.studentId}_${dStr}`);
+      }
+    });
+
     for (let i = 0; i < 6; i++) {
       if (!activeDays.includes(i)) continue;
 
       const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
       const targetDate = parseDateToUtc(d);
+      const dStr = formatLocalDateString(d);
 
-      let candidates = [...candidateIds];
+      // Filter out students who are absent (НБ / Уваж.) on this specific day
+      let dayCandidates = candidateIds.filter((id) => !absentStudentsOnDate.has(`${id}_${dStr}`));
+
+      // If all candidates are absent on this day (rare), fallback to all candidate IDs
+      if (dayCandidates.length === 0) {
+        dayCandidates = [...candidateIds];
+      }
 
       if (algorithm === "FAIR") {
-        candidates.sort((a, b) => {
+        dayCandidates.sort((a, b) => {
           const totalA = (pastDutyCount[a] || 0) + (currentWeekDutyCount[a] || 0);
           const totalB = (pastDutyCount[b] || 0) + (currentWeekDutyCount[b] || 0);
 
@@ -941,13 +978,13 @@ export async function generateWeeklyDutyAction(
           return candidateIds.indexOf(a) - candidateIds.indexOf(b);
         });
       } else if (algorithm === "RANDOM") {
-        candidates.sort(() => Math.random() - 0.5);
+        dayCandidates.sort(() => Math.random() - 0.5);
       } else if (algorithm === "ALPHABETICAL") {
         // Already sorted alphabetically
       }
 
       const dayStudentIds: string[] = [];
-      for (const id of candidates) {
+      for (const id of dayCandidates) {
         if (dayStudentIds.length >= perDay) break;
         if (!dayStudentIds.includes(id)) {
           dayStudentIds.push(id);
@@ -976,17 +1013,22 @@ export async function generateWeeklyDutyAction(
         });
       }
 
-      // Create leader/responsible entry if configured
-      if (leaderIdToAssign && !dayStudentIds.includes(leaderIdToAssign)) {
+      // Create leader/responsible entry if configured (and not absent on this day)
+      let effectiveLeaderId = leaderIdToAssign;
+      if (effectiveLeaderId && absentStudentsOnDate.has(`${effectiveLeaderId}_${dStr}`)) {
+        effectiveLeaderId = null; // Do not assign absent monitor/leader
+      }
+
+      if (effectiveLeaderId && !dayStudentIds.includes(effectiveLeaderId)) {
         await prisma.dutySchedule.upsert({
           where: {
             groupId_studentId_date: {
               groupId,
-              studentId: leaderIdToAssign,
+              studentId: effectiveLeaderId,
               date: targetDate,
             },
           },
-          create: { groupId, studentId: leaderIdToAssign, date: targetDate, isLeader: true },
+          create: { groupId, studentId: effectiveLeaderId, date: targetDate, isLeader: true },
           update: { isLeader: true },
         });
       }

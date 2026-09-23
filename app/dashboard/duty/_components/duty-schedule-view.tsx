@@ -429,14 +429,9 @@ export function DutyScheduleView({
     studentName: string;
     existingIds: string[];
   }) => {
-    const available = [...groupStudents]
-      .filter((s) => !a.existingIds.includes(s.id) && s.id !== a.studentId && !s.isDutyExempt)
-      .sort((x, y) => {
-        const xRecent = x.isRecentDuty ? 1 : 0;
-        const yRecent = y.isRecentDuty ? 1 : 0;
-        if (xRecent !== yRecent) return xRecent - yRecent;
-        return x.name.localeCompare(y.name);
-      });
+    const available = sortStudentsByDutyPriority(
+      groupStudents.filter((s) => !a.existingIds.includes(s.id) && s.id !== a.studentId && !s.isDutyExempt)
+    );
 
     if (available.length === 0) {
       toast.add({ title: "Нет доступных студентов для замены в группе", type: "error" });
