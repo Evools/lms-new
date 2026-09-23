@@ -551,17 +551,42 @@ export function DutyScheduleView({
     });
   };
 
+  // Helper to sort student candidates by duty priority (never served first -> fewest duties -> longest ago -> alphabetical)
+  const sortStudentsByDutyPriority = (students: GroupStudentWithDutyInfo[]) => {
+    return [...students].sort((a, b) => {
+      const countA = a.totalDutiesCount ?? 0;
+      const countB = b.totalDutiesCount ?? 0;
+
+      // 1. Students who have NEVER been on duty come first (0 duties)
+      const neverA = countA === 0 ? 0 : 1;
+      const neverB = countB === 0 ? 0 : 1;
+      if (neverA !== neverB) return neverA - neverB;
+
+      // 2. Fewest total duties
+      if (countA !== countB) return countA - countB;
+
+      // 3. Longest time since last duty (earliest timestamp)
+      const timeA = a.lastDutyTimestamp || 0;
+      const timeB = b.lastDutyTimestamp || 0;
+      if (timeA !== timeB) return timeA - timeB;
+
+      // 4. Alphabetical tie-breaker
+      return a.name.localeCompare(b.name, "ru");
+    });
+  };
+
   // Open add dialog
   const openAddModal = (day: DayDutyGroupDTO, type: "add" | "penalty" = "add") => {
     const existing = day.dutyStudents.map((s) => s.id);
     const available = groupStudents.filter((s) => !existing.includes(s.id) && !s.isDutyExempt);
+    const sorted = sortStudentsByDutyPriority(available);
     setPickerMode({
       type,
       fullDate: day.fullDate,
       dayName: `${day.dayName} (${day.dateStr})`,
       existingIds: existing,
     });
-    setPickerStudentId(available[0]?.id || "");
+    setPickerStudentId(sorted[0]?.id || "");
   };
 
   // Open replace dialog
@@ -571,7 +596,8 @@ export function DutyScheduleView({
     studentName: string
   ) => {
     const existing = day.dutyStudents.map((s) => s.id);
-    const available = groupStudents.filter((s) => !existing.includes(s.id) && !s.isDutyExempt);
+    const available = groupStudents.filter((s) => !existing.includes(s.id) && s.id !== studentId && !s.isDutyExempt);
+    const sorted = sortStudentsByDutyPriority(available);
     setReplaceTarget({
       fullDate: day.fullDate,
       dayName: `${day.dayName} (${day.dateStr})`,
@@ -579,7 +605,7 @@ export function DutyScheduleView({
       absentStudentName: studentName,
       existingIds: existing,
     });
-    setReplacementStudentId(available[0]?.id || "");
+    setReplacementStudentId(sorted[0]?.id || "");
   };
 
   // Printable Handler
@@ -1851,30 +1877,27 @@ export function DutyScheduleView({
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {[...groupStudents]
-                      .filter((s) => !pickerMode.existingIds.includes(s.id) && !s.isDutyExempt)
-                      .sort((a, b) => {
-                        const aRecent = a.isRecentDuty ? 1 : 0;
-                        const bRecent = b.isRecentDuty ? 1 : 0;
-                        if (aRecent !== bRecent) return aRecent - bRecent;
-                        return a.name.localeCompare(b.name);
-                      })
-                      .map((st) => (
+                    {sortStudentsByDutyPriority(
+                      groupStudents.filter((s) => !pickerMode.existingIds.includes(s.id) && !s.isDutyExempt)
+                    ).map((st) => {
+                      const hasNeverServed = (st.totalDutiesCount || 0) === 0;
+                      return (
                         <SelectItem key={st.id} value={st.id} className="text-xs">
                           <div className="flex items-center justify-between w-full gap-2">
                             <span>{st.name}</span>
-                            {st.recentDutyNote ? (
+                            {hasNeverServed ? (
                               <span className="text-[10px] text-primary font-medium">
-                                ({st.recentDutyNote})
+                                (Еще не дежурил(а) • В приоритете)
                               </span>
                             ) : (
-                              <span className="text-[10px] text-muted-foreground/60 font-normal">
-                                (В очереди)
+                              <span className="text-[10px] text-muted-foreground font-normal">
+                                ({st.recentDutyNote || `Дежурств: ${st.totalDutiesCount}`})
                               </span>
                             )}
                           </div>
                         </SelectItem>
-                      ))}
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -1927,30 +1950,27 @@ export function DutyScheduleView({
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {[...groupStudents]
-                      .filter((s) => !replaceTarget.existingIds.includes(s.id) && s.id !== replaceTarget.absentStudentId && !s.isDutyExempt)
-                      .sort((a, b) => {
-                        const aRecent = a.isRecentDuty ? 1 : 0;
-                        const bRecent = b.isRecentDuty ? 1 : 0;
-                        if (aRecent !== bRecent) return aRecent - bRecent;
-                        return a.name.localeCompare(b.name);
-                      })
-                      .map((st) => (
+                    {sortStudentsByDutyPriority(
+                      groupStudents.filter((s) => !replaceTarget.existingIds.includes(s.id) && s.id !== replaceTarget.absentStudentId && !s.isDutyExempt)
+                    ).map((st) => {
+                      const hasNeverServed = (st.totalDutiesCount || 0) === 0;
+                      return (
                         <SelectItem key={st.id} value={st.id} className="text-xs">
                           <div className="flex items-center justify-between w-full gap-2">
                             <span>{st.name}</span>
-                            {st.recentDutyNote ? (
+                            {hasNeverServed ? (
                               <span className="text-[10px] text-primary font-medium">
-                                ({st.recentDutyNote})
+                                (Еще не дежурил(а) • В приоритете)
                               </span>
                             ) : (
-                              <span className="text-[10px] text-muted-foreground/60 font-normal">
-                                (В очереди)
+                              <span className="text-[10px] text-muted-foreground font-normal">
+                                ({st.recentDutyNote || `Дежурств: ${st.totalDutiesCount}`})
                               </span>
                             )}
                           </div>
                         </SelectItem>
-                      ))}
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>

@@ -46,6 +46,9 @@ export interface GroupStudentWithDutyInfo {
   id: string;
   name: string;
   lastDutyDate?: string;
+  lastDutyTimestamp?: number;
+  totalDutiesCount: number;
+  completedDutiesCount: number;
   isRecentDuty?: boolean;
   recentDutyNote?: string;
   isDutyExempt?: boolean;
@@ -141,7 +144,6 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
 
     const startDate = parseDateToUtc(monday);
     const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const fourteenDaysAgo = new Date(startDate.getTime() - 14 * 24 * 60 * 60 * 1000);
     const todayUtc = parseDateToUtc(now);
     const yesterdayUtc = new Date(todayUtc.getTime() - 24 * 60 * 60 * 1000);
     const todayEndUtc = new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000);
@@ -165,17 +167,19 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
           name: gs.student.name,
           isDutyExempt: gs.student.isDutyExempt,
           dutyExemptReason: gs.student.dutyExemptReason,
+          totalDutiesCount: 0,
+          completedDutiesCount: 0,
+          lastDutyTimestamp: 0,
         }));
         if (g.monitor) groupMonitorName = g.monitor.name;
       }
     }
 
-    // Fetch all historical duty records before current week to ensure fair queue across weeks/holidays
-    const pastGroupDuties = targetGroupId
+    // Fetch ALL historical duty records across all time for this group to track accurate queue priority
+    const allHistoricalDuties = targetGroupId
       ? await prisma.dutySchedule.findMany({
         where: {
           groupId: targetGroupId,
-          date: { lt: startDate },
           isLeader: false,
         },
         select: { studentId: true, date: true },
@@ -183,19 +187,73 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       })
       : [];
 
-    const pastDutyCount: Record<string, number> = {};
-    const lastDutyTime: Record<string, number> = {};
+    const totalDutyCount: Record<string, number> = {};
+    const completedDutyCount: Record<string, number> = {};
+    const lastDutyTimestampMap: Record<string, number> = {};
+    const lastDutyFormattedMap: Record<string, string> = {};
+
     groupStudents.forEach((s) => {
-      pastDutyCount[s.id] = 0;
-      lastDutyTime[s.id] = 0;
+      totalDutyCount[s.id] = 0;
+      completedDutyCount[s.id] = 0;
+      lastDutyTimestampMap[s.id] = 0;
     });
-    pastGroupDuties.forEach((d) => {
-      if (pastDutyCount[d.studentId] !== undefined) {
-        pastDutyCount[d.studentId] = (pastDutyCount[d.studentId] || 0) + 1;
+
+    allHistoricalDuties.forEach((d) => {
+      const sDate = new Date(d.date);
+      const sUtc = parseDateToUtc(sDate);
+      const sTime = sUtc.getTime();
+
+      if (totalDutyCount[d.studentId] !== undefined) {
+        totalDutyCount[d.studentId]++;
+        if (sTime < todayEndUtc.getTime()) {
+          completedDutyCount[d.studentId]++;
+        }
       }
-      if (!lastDutyTime[d.studentId]) {
-        lastDutyTime[d.studentId] = new Date(d.date).getTime();
+
+      if (!lastDutyTimestampMap[d.studentId] || sTime > lastDutyTimestampMap[d.studentId]) {
+        lastDutyTimestampMap[d.studentId] = sTime;
+        const dFormatted = sDate.toLocaleDateString("ru-RU", { day: "numeric", month: "numeric" });
+        if (sTime === yesterdayUtc.getTime()) {
+          lastDutyFormattedMap[d.studentId] = `Вчера (${dFormatted})`;
+        } else if (sTime === todayUtc.getTime()) {
+          lastDutyFormattedMap[d.studentId] = `Сегодня (${dFormatted})`;
+        } else if (sTime > todayUtc.getTime()) {
+          lastDutyFormattedMap[d.studentId] = `В плане на ${dFormatted}`;
+        } else {
+          lastDutyFormattedMap[d.studentId] = dFormatted;
+        }
       }
+    });
+
+    // Populate groupStudents with accurate historical duty info
+    groupStudents = groupStudents.map((s) => {
+      const total = totalDutyCount[s.id] || 0;
+      const completed = completedDutyCount[s.id] || 0;
+      const lastTs = lastDutyTimestampMap[s.id] || 0;
+      const lastFormatted = lastDutyFormattedMap[s.id];
+
+      let note = "";
+      if (total === 0) {
+        note = "Еще не дежурил(а)";
+      } else if (lastFormatted?.startsWith("Сегодня")) {
+        note = "Дежурит сегодня";
+      } else if (lastFormatted?.startsWith("Вчера")) {
+        note = `Отдежурил(а) вчера (всего: ${total})`;
+      } else if (lastFormatted?.startsWith("В плане")) {
+        note = `${lastFormatted} (всего: ${total})`;
+      } else {
+        note = `Отдежурил(а) ${lastFormatted} (всего: ${total})`;
+      }
+
+      return {
+        ...s,
+        totalDutiesCount: total,
+        completedDutiesCount: completed,
+        lastDutyTimestamp: lastTs,
+        lastDutyDate: lastFormatted || "Еще не дежурил(а)",
+        isRecentDuty: total > 0,
+        recentDutyNote: note,
+      };
     });
 
     let dbSchedules = await prisma.dutySchedule.findMany({
@@ -255,51 +313,6 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
           comment: att.comment,
         });
       }
-    });
-
-    // Calculate recentDutyMap with real DB data
-    const recentDutyRecords = targetGroupId
-      ? await prisma.dutySchedule.findMany({
-        where: {
-          groupId: targetGroupId,
-          date: { gte: fourteenDaysAgo, lt: endDate },
-          isLeader: false,
-        },
-        select: { studentId: true, date: true },
-        orderBy: { date: "desc" },
-      })
-      : [];
-
-    const recentDutyMap = new Map<string, { dateStr: string; note: string }>();
-    recentDutyRecords.forEach((s) => {
-      if (!recentDutyMap.has(s.studentId)) {
-        const d = new Date(s.date);
-        const dUtc = parseDateToUtc(d);
-        const dFormatted = d.toLocaleDateString("ru-RU", { day: "numeric", month: "numeric" });
-        let note = `Отдежурил(а) ${dFormatted}`;
-        if (dUtc.getTime() === yesterdayUtc.getTime()) {
-          note = `Отдежурил(а) вчера (${dFormatted})`;
-        } else if (dUtc.getTime() === todayUtc.getTime()) {
-          note = `Дежурит сегодня (${dFormatted})`;
-        } else if (dUtc.getTime() > todayUtc.getTime()) {
-          note = `В плане на ${dFormatted}`;
-        }
-        recentDutyMap.set(s.studentId, {
-          dateStr: dFormatted,
-          note,
-        });
-      }
-    });
-
-    // Populate groupStudents with updated recentDutyInfo
-    groupStudents = groupStudents.map((s) => {
-      const rec = recentDutyMap.get(s.id);
-      return {
-        ...s,
-        lastDutyDate: rec?.dateStr,
-        isRecentDuty: !!rec,
-        recentDutyNote: rec?.note,
-      };
     });
 
     const weeklyDays: DayDutyGroupDTO[] = [];
@@ -433,49 +446,8 @@ export async function addDutyStudentAction(
     });
 
     if (existingWeekRecords === 0) {
-      // Materialize auto-generated week first so all days are saved
-      const group = await prisma.group.findUnique({
-        where: { id: groupId },
-        include: {
-          students: {
-            include: { student: { select: { id: true, isDutyExempt: true } } },
-          },
-        },
-      });
-
-      if (group && group.students.length > 0) {
-        const studentIds = group.students
-          .filter((s) => !s.student.isDutyExempt)
-          .map((s) => s.student.id);
-        const perDay = Math.min(studentIds.length, studentIds.length >= 6 ? 3 : 2);
-        const dutyCounts: Record<string, number> = {};
-        studentIds.forEach((id) => { dutyCounts[id] = 0; });
-
-        for (let i = 0; i < 6; i++) {
-          const d = new Date(weekMonday.getFullYear(), weekMonday.getMonth(), weekMonday.getDate() + i);
-          const dayDate = parseDateToUtc(d);
-
-          const candidates = [...studentIds].sort((a, b) => {
-            const diff = (dutyCounts[a] || 0) - (dutyCounts[b] || 0);
-            return diff !== 0 ? diff : studentIds.indexOf(a) - studentIds.indexOf(b);
-          });
-
-          for (let k = 0; k < perDay; k++) {
-            const candId = candidates[k];
-            if (candId) {
-              dutyCounts[candId]++;
-              await prisma.dutySchedule.create({
-                data: {
-                  groupId,
-                  studentId: candId,
-                  date: dayDate,
-                  isLeader: false,
-                },
-              });
-            }
-          }
-        }
-      }
+      // Auto-generate week first with proper FAIR queue
+      await generateWeeklyDutyAction(groupId);
     }
 
     // Check not already assigned on this exact day as regular duty student
@@ -489,8 +461,24 @@ export async function addDutyStudentAction(
     });
     if (existing) return { success: false, error: "Студент уже назначен на этот день" };
 
-    await prisma.dutySchedule.create({
-      data: { groupId, studentId, date: targetDate, isLeader: false },
+    // Use upsert on composite unique key to avoid duplicate key violations
+    await prisma.dutySchedule.upsert({
+      where: {
+        groupId_studentId_date: {
+          groupId,
+          studentId,
+          date: targetDate,
+        },
+      },
+      create: {
+        groupId,
+        studentId,
+        date: targetDate,
+        isLeader: false,
+      },
+      update: {
+        isLeader: false,
+      },
     });
 
     // Notify student about duty assignment
@@ -516,6 +504,7 @@ export async function addDutyStudentAction(
     revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
   } catch (error) {
+    console.error("Failed to add duty student:", error);
     return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при назначении дежурного" };
   }
 }
@@ -550,64 +539,18 @@ export async function removeDutyStudentAction(
     });
 
     if (existingWeekRecords === 0) {
-      // Materialize the auto-generated week into DB without the removed student
-      const group = await prisma.group.findUnique({
-        where: { id: groupId },
-        include: {
-          students: {
-            include: { student: { select: { id: true, isDutyExempt: true } } },
-          },
-        },
-      });
-
-      if (group && group.students.length > 0) {
-        const studentIds = group.students
-          .filter((s) => !s.student.isDutyExempt)
-          .map((s) => s.student.id);
-        const perDay = Math.min(studentIds.length, studentIds.length >= 6 ? 3 : 2);
-        const dutyCounts: Record<string, number> = {};
-        studentIds.forEach((id) => { dutyCounts[id] = 0; });
-
-        for (let i = 0; i < 6; i++) {
-          const d = new Date(weekMonday.getFullYear(), weekMonday.getMonth(), weekMonday.getDate() + i);
-          const dayDate = parseDateToUtc(d);
-          const isTargetDay = dayDate.getTime() === targetDate.getTime();
-
-          const candidates = [...studentIds].sort((a, b) => {
-            const diff = (dutyCounts[a] || 0) - (dutyCounts[b] || 0);
-            return diff !== 0 ? diff : studentIds.indexOf(a) - studentIds.indexOf(b);
-          });
-
-          for (let k = 0; k < perDay; k++) {
-            const candId = candidates[k];
-            if (candId) {
-              dutyCounts[candId]++;
-              // Skip the removed student on the target day
-              if (isTargetDay && candId === studentId) {
-                continue;
-              }
-              await prisma.dutySchedule.create({
-                data: {
-                  groupId,
-                  studentId: candId,
-                  date: dayDate,
-                  isLeader: false,
-                },
-              });
-            }
-          }
-        }
-      }
-    } else {
-      await prisma.dutySchedule.deleteMany({
-        where: {
-          groupId,
-          studentId,
-          date: { gte: dayStart, lt: dayEnd },
-          isLeader: false,
-        },
-      });
+      // Auto-generate week first with proper FAIR queue
+      await generateWeeklyDutyAction(groupId);
     }
+
+    await prisma.dutySchedule.deleteMany({
+      where: {
+        groupId,
+        studentId,
+        date: { gte: dayStart, lt: dayEnd },
+        isLeader: false,
+      },
+    });
 
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
@@ -791,36 +734,48 @@ export async function replaceDutyStudentAction(
 
     // Remove absent student
     await prisma.dutySchedule.deleteMany({
-      where: { groupId, studentId: absentStudentId, date: { gte: dayStart, lt: dayEnd }, isLeader: false },
+      where: { groupId, studentId: absentStudentId, date: { gte: dayStart, lt: dayEnd } },
     });
-    // Add replacement (avoid duplicate)
-    const existing = await prisma.dutySchedule.findFirst({
-      where: { groupId, studentId: replacementStudentId, date: { gte: dayStart, lt: dayEnd }, isLeader: false },
-    });
-    if (!existing) {
-      await prisma.dutySchedule.create({
-        data: { groupId, studentId: replacementStudentId, date: targetDate, isLeader: false },
-      });
 
-      // Notify replacement student
-      try {
-        const dateFormatted = targetDate.toLocaleDateString("ru-RU", {
-          day: "numeric",
-          month: "long",
-        });
-        await prisma.notification.create({
-          data: {
-            userId: replacementStudentId,
-            title: "Назначение на дежурство (замена)",
-            message: `Вы назначены дежурным на ${dateFormatted}.`,
-            type: "SYSTEM",
-            link: "/dashboard/duty",
-          },
-        });
-      } catch (notifErr) {
-        console.error("Failed to notify replacement student about duty:", notifErr);
-      }
+    // Add replacement safely with upsert
+    await prisma.dutySchedule.upsert({
+      where: {
+        groupId_studentId_date: {
+          groupId,
+          studentId: replacementStudentId,
+          date: targetDate,
+        },
+      },
+      create: {
+        groupId,
+        studentId: replacementStudentId,
+        date: targetDate,
+        isLeader: false,
+      },
+      update: {
+        isLeader: false,
+      },
+    });
+
+    // Notify replacement student
+    try {
+      const dateFormatted = targetDate.toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+      });
+      await prisma.notification.create({
+        data: {
+          userId: replacementStudentId,
+          title: "Назначение на дежурство (замена)",
+          message: `Вы назначены дежурным на ${dateFormatted}.`,
+          type: "SYSTEM",
+          link: "/dashboard/duty",
+        },
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify replacement student about duty:", notifErr);
     }
+
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
@@ -900,7 +855,8 @@ export async function generateWeeklyDutyAction(
     const eligibleStudents = group.students.filter(
       (gs) => !gs.student.isDutyExempt && !excludedIds.has(gs.student.id)
     );
-    const candidateIds = eligibleStudents.map((gs) => gs.student.id);
+    // Deduplicate candidate IDs
+    const candidateIds = Array.from(new Set(eligibleStudents.map((gs) => gs.student.id)));
 
     if (candidateIds.length === 0) {
       return { success: false, error: "Все студенты группы исключены из дежурства" };
@@ -948,8 +904,8 @@ export async function generateWeeklyDutyAction(
       }
     });
 
-    const dutyCount: Record<string, number> = {};
-    candidateIds.forEach((id) => { dutyCount[id] = 0; });
+    const currentWeekDutyCount: Record<string, number> = {};
+    candidateIds.forEach((id) => { currentWeekDutyCount[id] = 0; });
 
     await prisma.dutySchedule.deleteMany({
       where: { groupId, date: { gte: startDate, lt: endDate } },
@@ -965,14 +921,23 @@ export async function generateWeeklyDutyAction(
 
       if (algorithm === "FAIR") {
         candidates.sort((a, b) => {
-          const scoreA = (pastDutyCount[a] || 0) * 100 + (dutyCount[a] || 0) * 10;
-          const scoreB = (pastDutyCount[b] || 0) * 100 + (dutyCount[b] || 0) * 10;
-          if (scoreA !== scoreB) return scoreA - scoreB;
+          const totalA = (pastDutyCount[a] || 0) + (currentWeekDutyCount[a] || 0);
+          const totalB = (pastDutyCount[b] || 0) + (currentWeekDutyCount[b] || 0);
 
+          // 1. First priority: Students who have NEVER served duty (total == 0)
+          const neverA = totalA === 0 ? 0 : 1;
+          const neverB = totalB === 0 ? 0 : 1;
+          if (neverA !== neverB) return neverA - neverB;
+
+          // 2. Second priority: Students with fewer total duties
+          if (totalA !== totalB) return totalA - totalB;
+
+          // 3. Third priority: Students who served longest ago (earliest lastDutyTime / smallest timestamp)
           const timeA = lastDutyTime[a] || 0;
           const timeB = lastDutyTime[b] || 0;
           if (timeA !== timeB) return timeA - timeB;
 
+          // 4. Alphabetical order
           return candidateIds.indexOf(a) - candidateIds.indexOf(b);
         });
       } else if (algorithm === "RANDOM") {
@@ -984,23 +949,45 @@ export async function generateWeeklyDutyAction(
       const dayStudentIds: string[] = [];
       for (const id of candidates) {
         if (dayStudentIds.length >= perDay) break;
-        dayStudentIds.push(id);
+        if (!dayStudentIds.includes(id)) {
+          dayStudentIds.push(id);
+        }
       }
 
-      // Record duty counts
-      dayStudentIds.forEach((id) => { dutyCount[id]++; });
+      // Record duty counts & update lastDutyTime
+      const targetTime = targetDate.getTime();
+      dayStudentIds.forEach((id) => {
+        currentWeekDutyCount[id] = (currentWeekDutyCount[id] || 0) + 1;
+        lastDutyTime[id] = targetTime;
+      });
 
-      // Create duty entries
+      // Create duty entries using upsert
       for (const sid of dayStudentIds) {
-        await prisma.dutySchedule.create({
-          data: { groupId, studentId: sid, date: targetDate, isLeader: false },
+        await prisma.dutySchedule.upsert({
+          where: {
+            groupId_studentId_date: {
+              groupId,
+              studentId: sid,
+              date: targetDate,
+            },
+          },
+          create: { groupId, studentId: sid, date: targetDate, isLeader: false },
+          update: { isLeader: false },
         });
       }
 
       // Create leader/responsible entry if configured
       if (leaderIdToAssign && !dayStudentIds.includes(leaderIdToAssign)) {
-        await prisma.dutySchedule.create({
-          data: { groupId, studentId: leaderIdToAssign, date: targetDate, isLeader: true },
+        await prisma.dutySchedule.upsert({
+          where: {
+            groupId_studentId_date: {
+              groupId,
+              studentId: leaderIdToAssign,
+              date: targetDate,
+            },
+          },
+          create: { groupId, studentId: leaderIdToAssign, date: targetDate, isLeader: true },
+          update: { isLeader: true },
         });
       }
     }
@@ -1084,8 +1071,16 @@ export async function addDisciplinaryDutyAction(
       return { success: false, error: "Студент уже назначен на дежурство в этот день" };
     }
 
-    await prisma.dutySchedule.create({
-      data: { groupId, studentId, date: targetDate, isLeader: false },
+    await prisma.dutySchedule.upsert({
+      where: {
+        groupId_studentId_date: {
+          groupId,
+          studentId,
+          date: targetDate,
+        },
+      },
+      create: { groupId, studentId, date: targetDate, isLeader: false },
+      update: { isLeader: false },
     });
 
     // Notify student about disciplinary duty
