@@ -29,6 +29,49 @@ function useMounted() {
   );
 }
 
+interface PieTooltipPayloadItem {
+  name?: string;
+  value?: number;
+  payload?: { color?: string; name?: string; value?: number; label?: string };
+}
+
+function PieTooltipContent({
+  active,
+  payload,
+  total,
+}: {
+  active?: boolean;
+  payload?: PieTooltipPayloadItem[];
+  total?: number;
+}) {
+  if (!active || !payload?.length) return null;
+  const item = payload[0];
+  const label = item.name || item.payload?.name || "";
+  const value = item.value ?? item.payload?.value ?? 0;
+  const color = item.payload?.color || "var(--primary)";
+  const percent = total && total > 0 ? Math.round((value / total) * 100) : null;
+
+  return (
+    <div className="rounded-lg border border-border bg-card text-card-foreground px-3 py-1.5 text-xs shadow-xl ring-1 ring-foreground/5 z-50 pointer-events-none select-none min-w-32 animate-in fade-in-0 zoom-in-95 duration-200 ease-out">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className="h-2 w-2 rounded-full shrink-0"
+            style={{ backgroundColor: color }}
+          />
+          <span className="text-muted-foreground font-medium truncate">{label}</span>
+        </div>
+        <div className="flex items-baseline gap-1 shrink-0 font-mono">
+          <span className="font-bold text-foreground">{value}</span>
+          {percent !== null && (
+            <span className="text-[10px] text-muted-foreground">({percent}%)</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -------------------------------------------------------------
 // ADMIN CHARTS
 // -------------------------------------------------------------
@@ -40,19 +83,41 @@ interface AdminGenderProps {
 
 export function AdminGenderDistributionChart({ maleCount = 0, femaleCount = 0 }: AdminGenderProps) {
   const isMounted = useMounted();
+  const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
   const total = (maleCount + femaleCount) || 1;
   const malePercent = Math.round((maleCount / total) * 100);
   const femalePercent = 100 - malePercent;
 
   const data = [
-    { name: `Юноши (${malePercent}%)`, value: maleCount || 1, color: "var(--chart-1)" },
-    { name: `Девушки (${femalePercent}%)`, value: femaleCount || 1, color: "var(--chart-4)" },
+    { name: "Юноши", label: `Юноши (${malePercent}%)`, value: maleCount || 1, color: "var(--chart-1)" },
+    { name: "Девушки", label: `Девушки (${femalePercent}%)`, value: femaleCount || 1, color: "var(--chart-4)" },
   ];
 
+  const activeItem = hoveredIndex !== null && data[hoveredIndex] ? data[hoveredIndex] : null;
+
   return (
-    <div className="h-[250px] w-full min-w-0 min-h-0 flex items-center justify-center">
+    <div className="h-[250px] w-full min-w-0 min-h-0 flex items-center justify-center relative">
+      {/* Center Display */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0 select-none pb-9">
+        {activeItem ? (
+          <>
+            <span className="text-base font-bold text-foreground leading-none">
+              {activeItem.value}
+            </span>
+            <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+              {activeItem.name} ({Math.round((activeItem.value / total) * 100)}%)
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-base font-bold text-foreground leading-none">{total}</span>
+            <span className="text-[9px] text-muted-foreground font-medium mt-0.5">учащихся</span>
+          </>
+        )}
+      </div>
+
       {isMounted ? (
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} className="relative z-10">
           <PieChart>
             <Pie
               data={data}
@@ -62,14 +127,25 @@ export function AdminGenderDistributionChart({ maleCount = 0, femaleCount = 0 }:
               outerRadius={80}
               paddingAngle={4}
               dataKey="value"
+              onMouseEnter={(_, index) => setHoveredIndex(index)}
+              onMouseLeave={() => setHoveredIndex(null)}
             >
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.color}
+                  stroke="none"
+                  className="transition-opacity duration-150 cursor-pointer"
+                  opacity={hoveredIndex === null || hoveredIndex === index ? 1 : 0.6}
+                />
               ))}
             </Pie>
             <Tooltip
-              formatter={(value?: unknown) => [`${value ?? 0} учащихся`, "Количество"]}
-              contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "6px", border: "1px solid var(--border)" }}
+              content={<PieTooltipContent total={total} />}
+              offset={15}
+              isAnimationActive={false}
+              wrapperStyle={{ zIndex: 1000, pointerEvents: "none" }}
+              allowEscapeViewBox={{ x: true, y: true }}
             />
             <Legend
               verticalAlign="bottom"
@@ -113,12 +189,17 @@ export function AdminGroupPerformanceChart({ data = [] }: GroupPerfProps) {
   }
 
   return (
-    <ChartContainer config={adminGroupConfig} className="h-[210px] w-full">
+    <ChartContainer config={adminGroupConfig} className="aspect-auto h-[210px] w-full">
       <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
         <XAxis dataKey="group" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[0, 100]} />
-        <Tooltip content={<ChartTooltipContent />} />
+        <Tooltip
+          content={<ChartTooltipContent />}
+          cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+          wrapperStyle={{ zIndex: 1000, pointerEvents: "none" }}
+          allowEscapeViewBox={{ x: true, y: true }}
+        />
         <Bar dataKey="submitted" fill="var(--primary)" radius={[4, 4, 0, 0]} name="% Сдачи ДЗ" />
       </BarChart>
     </ChartContainer>
@@ -162,12 +243,17 @@ export function TeacherOverviewChart({ data = [] }: TeacherOverviewProps) {
   }
 
   return (
-    <ChartContainer config={teacherWeeklyConfig} className="h-[210px] w-full">
+    <ChartContainer config={teacherWeeklyConfig} className="aspect-auto h-[210px] w-full">
       <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
         <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} allowDecimals={false} />
-        <Tooltip content={<ChartTooltipContent />} />
+        <Tooltip
+          content={<ChartTooltipContent />}
+          cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+          wrapperStyle={{ zIndex: 1000, pointerEvents: "none" }}
+          allowEscapeViewBox={{ x: true, y: true }}
+        />
         <Bar dataKey="total" fill="var(--primary)" radius={[4, 4, 0, 0]} name="Сдано работ" />
         <Bar dataKey="checked" fill="#0ea5e9" radius={[4, 4, 0, 0]} name="Проверено" />
       </BarChart>
@@ -183,6 +269,7 @@ interface TeacherGradeProps {
 
 export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pending = 0 }: TeacherGradeProps) {
   const isMounted = useMounted();
+  const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
   const total = accepted + revision + pending;
   if (total === 0) {
     return (
@@ -201,15 +288,36 @@ export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pend
   }
 
   const data = [
-    { name: `Принято (${accepted})`, value: accepted, color: "hsl(var(--primary))" },
-    { name: `На доработке (${revision})`, value: revision, color: "#f59e0b" },
-    { name: `На проверке (${pending})`, value: pending, color: "#0ea5e9" },
+    { name: "Принято", label: `Принято (${accepted})`, value: accepted, color: "hsl(var(--primary))" },
+    { name: "На доработке", label: `На доработке (${revision})`, value: revision, color: "#f59e0b" },
+    { name: "На проверке", label: `На проверке (${pending})`, value: pending, color: "#0ea5e9" },
   ].filter((d) => d.value > 0);
 
+  const activeItem = hoveredIndex !== null && data[hoveredIndex] ? data[hoveredIndex] : null;
+
   return (
-    <div className="h-[210px] w-full min-w-0 min-h-0 flex items-center justify-center">
+    <div className="h-[210px] w-full min-w-0 min-h-0 flex items-center justify-center relative">
+      {/* Center Display */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0 select-none pb-9">
+        {activeItem ? (
+          <>
+            <span className="text-base font-bold text-foreground leading-none">
+              {activeItem.value}
+            </span>
+            <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+              {activeItem.name} ({Math.round((activeItem.value / total) * 100)}%)
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-base font-bold text-foreground leading-none">{total}</span>
+            <span className="text-[9px] text-muted-foreground font-medium mt-0.5">всего работ</span>
+          </>
+        )}
+      </div>
+
       {isMounted ? (
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} className="relative z-10">
           <PieChart>
             <Pie
               data={data}
@@ -219,14 +327,25 @@ export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pend
               outerRadius={72}
               paddingAngle={3}
               dataKey="value"
+              onMouseEnter={(_, index) => setHoveredIndex(index)}
+              onMouseLeave={() => setHoveredIndex(null)}
             >
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.color}
+                  stroke="none"
+                  className="transition-opacity duration-150 cursor-pointer"
+                  opacity={hoveredIndex === null || hoveredIndex === index ? 1 : 0.6}
+                />
               ))}
             </Pie>
             <Tooltip
-              formatter={(value?: unknown) => [`${value ?? 0} работ`, "Количество"]}
-              contentStyle={{ backgroundColor: "var(--popover)", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "11px" }}
+              content={<PieTooltipContent total={total} />}
+              offset={15}
+              isAnimationActive={false}
+              wrapperStyle={{ zIndex: 1000, pointerEvents: "none" }}
+              allowEscapeViewBox={{ x: true, y: true }}
             />
             <Legend
               verticalAlign="bottom"
@@ -274,7 +393,7 @@ export function StudentProgressChart({ data = [] }: StudentProgressProps) {
   }
 
   return (
-    <ChartContainer config={studentProgressConfig} className="h-[210px] w-full">
+    <ChartContainer config={studentProgressConfig} className="aspect-auto h-[210px] w-full">
       <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <defs>
           <linearGradient id="studentProgressGrad" x1="0" y1="0" x2="0" y2="1">
@@ -285,7 +404,12 @@ export function StudentProgressChart({ data = [] }: StudentProgressProps) {
         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
         <XAxis dataKey="subject" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[0, 5]} />
-        <Tooltip content={<ChartTooltipContent indicator="dot" />} />
+        <Tooltip
+          content={<ChartTooltipContent indicator="dot" />}
+          cursor={{ stroke: "hsl(var(--muted-foreground)/0.3)", strokeWidth: 1 }}
+          wrapperStyle={{ zIndex: 1000, pointerEvents: "none" }}
+          allowEscapeViewBox={{ x: true, y: true }}
+        />
         <Area
           type="monotone"
           dataKey="grade"
@@ -313,7 +437,6 @@ export function StudentAttendancePieChart({
   lateCount = 0,
   excusedCount = 0,
 }: StudentAttendanceProps) {
-  const isMounted = useMounted();
   const total = presentCount + absentCount + lateCount + excusedCount;
 
   if (total === 0) {
@@ -334,72 +457,119 @@ export function StudentAttendancePieChart({
 
   const attendancePercent = Math.round(((presentCount + lateCount) / total) * 100);
 
-  const data = [
-    { name: `Был (${presentCount})`, value: presentCount, color: "var(--primary)" },
-    { name: `Опоздал (${lateCount})`, value: lateCount, color: "#f59e0b" },
-    { name: `НБ (${absentCount})`, value: absentCount, color: "var(--destructive)" },
-    { name: `Справка (${excusedCount})`, value: excusedCount, color: "#0ea5e9" },
-  ].filter((d) => d.value > 0);
+  const presentPercent = Math.round((presentCount / total) * 100);
+  const latePercent = Math.round((lateCount / total) * 100);
+  const absentPercent = Math.round((absentCount / total) * 100);
+  const excusedPercent = 100 - (presentPercent + latePercent + absentPercent);
+
+  const statusConfig =
+    attendancePercent >= 85
+      ? { label: "Высокая", color: "text-primary bg-primary/10 border-primary/20" }
+      : attendancePercent >= 70
+      ? { label: "Хорошая", color: "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20" }
+      : { label: "Низкая", color: "text-destructive bg-destructive/10 border-destructive/20" };
 
   return (
-    <div className="w-full min-w-0 min-h-0 space-y-3">
-      <div className="h-[160px] w-full min-w-0 min-h-0 relative flex items-center justify-center">
-        {isMounted ? (
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                innerRadius={45}
-                outerRadius={68}
-                paddingAngle={3}
-                dataKey="value"
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value?: unknown) => [`${value ?? 0} занятий`, "Количество"]}
-                contentStyle={{
-                  backgroundColor: "var(--popover)",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  fontSize: "11px",
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        ) : null}
-        {/* Center Percentage Display */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-base font-bold text-foreground leading-none">{attendancePercent}%</span>
-          <span className="text-[9px] text-muted-foreground font-medium mt-0.5">посещаемость</span>
+    <div className="w-full min-w-0 min-h-0 flex flex-col justify-between h-[210px] py-1">
+      {/* Top Header Rate & Status */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-extrabold text-foreground tracking-tight font-mono">
+              {attendancePercent}%
+            </span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${statusConfig.color}`}>
+              {statusConfig.label}
+            </span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            Общая посещаемость за семестр
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="text-xs font-bold text-foreground font-mono">{total}</span>
+          <span className="text-[10px] text-muted-foreground block">всего пар</span>
         </div>
       </div>
 
-      {/* Legend summary pills matching project theme */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-2 border-t">
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 border border-primary/20 text-[10px]">
-          <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-          <span className="text-muted-foreground">Был:</span>
-          <span className="font-bold text-primary ml-auto">{presentCount}</span>
+      {/* Multi-Segment Stacked Progress Bar */}
+      <div className="space-y-1.5 my-auto">
+        <div className="h-2.5 w-full bg-muted/60 rounded-full overflow-hidden flex gap-0.5 p-0.5 border">
+          {presentCount > 0 && (
+            <div
+              style={{ width: `${(presentCount / total) * 100}%` }}
+              className="h-full bg-primary rounded-full transition-all duration-300"
+              title={`Был: ${presentCount} (${presentPercent}%)`}
+            />
+          )}
+          {lateCount > 0 && (
+            <div
+              style={{ width: `${(lateCount / total) * 100}%` }}
+              className="h-full bg-amber-500 rounded-full transition-all duration-300"
+              title={`Опоздал: ${lateCount} (${latePercent}%)`}
+            />
+          )}
+          {absentCount > 0 && (
+            <div
+              style={{ width: `${(absentCount / total) * 100}%` }}
+              className="h-full bg-destructive rounded-full transition-all duration-300"
+              title={`НБ: ${absentCount} (${absentPercent}%)`}
+            />
+          )}
+          {excusedCount > 0 && (
+            <div
+              style={{ width: `${(excusedCount / total) * 100}%` }}
+              className="h-full bg-sky-500 rounded-full transition-all duration-300"
+              title={`Справка: ${excusedCount} (${excusedPercent}%)`}
+            />
+          )}
         </div>
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-[10px]">
-          <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-          <span className="text-muted-foreground">Опоздал:</span>
-          <span className="font-bold text-amber-600 dark:text-amber-400 ml-auto">{lateCount}</span>
+      </div>
+
+      {/* 2x2 Metric Tiles */}
+      <div className="grid grid-cols-2 gap-2 pt-1 border-t">
+        <div className="flex items-center justify-between p-2 rounded-lg bg-primary/5 border border-primary/15">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+            <span className="text-[11px] font-medium text-foreground">Был</span>
+          </div>
+          <div className="flex items-baseline gap-1 font-mono">
+            <span className="text-xs font-bold text-primary">{presentCount}</span>
+            <span className="text-[9px] text-muted-foreground">({presentPercent}%)</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-destructive/10 border border-destructive/20 text-[10px]">
-          <span className="h-2 w-2 rounded-full bg-destructive shrink-0" />
-          <span className="text-muted-foreground">НБ:</span>
-          <span className="font-bold text-destructive ml-auto">{absentCount}</span>
+
+        <div className="flex items-center justify-between p-2 rounded-lg bg-amber-500/5 border border-amber-500/15">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+            <span className="text-[11px] font-medium text-foreground">Опоздал</span>
+          </div>
+          <div className="flex items-baseline gap-1 font-mono">
+            <span className="text-xs font-bold text-amber-600 dark:text-amber-400">{lateCount}</span>
+            <span className="text-[9px] text-muted-foreground">({latePercent}%)</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-sky-500/10 border border-sky-500/20 text-[10px]">
-          <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
-          <span className="text-muted-foreground">Справка:</span>
-          <span className="font-bold text-sky-600 dark:text-sky-400 ml-auto">{excusedCount}</span>
+
+        <div className="flex items-center justify-between p-2 rounded-lg bg-destructive/5 border border-destructive/15">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="h-2 w-2 rounded-full bg-destructive shrink-0" />
+            <span className="text-[11px] font-medium text-foreground">НБ</span>
+          </div>
+          <div className="flex items-baseline gap-1 font-mono">
+            <span className="text-xs font-bold text-destructive">{absentCount}</span>
+            <span className="text-[9px] text-muted-foreground">({absentPercent}%)</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-2 rounded-lg bg-sky-500/5 border border-sky-500/15">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
+            <span className="text-[11px] font-medium text-foreground">Справка</span>
+          </div>
+          <div className="flex items-baseline gap-1 font-mono">
+            <span className="text-xs font-bold text-sky-600 dark:text-sky-400">{excusedCount}</span>
+            <span className="text-[9px] text-muted-foreground">({Math.max(0, excusedPercent)}%)</span>
+          </div>
         </div>
       </div>
     </div>
