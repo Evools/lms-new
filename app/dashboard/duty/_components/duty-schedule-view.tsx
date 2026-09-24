@@ -284,12 +284,24 @@ export function DutyScheduleView({
     saveGroupSettingsToStorage(currentSettings);
 
     startTransition(async () => {
-      const res = await toggleGroupDutyAction(currentGroupId, dutyEnabledLocal);
+      const effectivePerDay = dutyPerDaySetting > 0 ? dutyPerDaySetting : (dutyCountPerDay === "auto" ? undefined : Number(dutyCountPerDay));
+      const res = await generateWeeklyDutyAction(currentGroupId, {
+        isDutyEnabled: dutyEnabledLocal,
+        perDay: effectivePerDay,
+        activeDays: activeDutyDays,
+        includeLeader: responsibleMode !== "NONE",
+        responsibleMode,
+        customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
+        algorithm: dutyAlgorithm,
+        excludedStudentIds,
+      });
+
       if (res.success) {
         toast.add({
-          title: "Настройки дежурства успешно сохранены!",
+          title: "Настройки сохранены и график обновлен!",
           type: "success",
         });
+        setActiveTab("WEEKLY");
         router.refresh();
       } else {
         toast.add({ title: res.error || "Ошибка при сохранении настроек", type: "error" });

@@ -914,14 +914,14 @@ export async function generateWeeklyDutyAction(
       leaderIdToAssign = group.monitor?.id || null;
     }
 
-    // Calculate perDay: perDayOverride if explicitly provided, otherwise auto (1 for <6, 2 for <18, 3 for ≥18)
+    // Calculate perDay: perDayOverride if explicitly provided, otherwise auto (1 for <6, 2 for 6-35, 3 for >35)
     const perDay = perDayOverride && perDayOverride > 0
       ? perDayOverride
-      : (candidateIds.length < 6 ? 1 : candidateIds.length < 18 ? 2 : 3);
+      : (candidateIds.length < 6 ? 1 : 2);
 
     const pastDuties = await prisma.dutySchedule.findMany({
       where: {
-        groupId,
+        studentId: { in: candidateIds },
         date: { lt: startDate },
         isLeader: false,
       },
@@ -947,8 +947,34 @@ export async function generateWeeklyDutyAction(
     const currentWeekDutyCount: Record<string, number> = {};
     candidateIds.forEach((id) => { currentWeekDutyCount[id] = 0; });
 
+    const now = new Date();
+    const todayUtc = parseDateToUtc(now);
+
+    // Only delete schedule from today onwards, keeping past days and past replacements of this week intact
     await prisma.dutySchedule.deleteMany({
-      where: { groupId, date: { gte: startDate, lt: endDate } },
+      where: {
+        groupId,
+        date: { gte: todayUtc, lt: endDate },
+      },
+    });
+
+    // Count duties that already took place earlier this week (e.g. manual replacements or completed shifts)
+    const thisWeekPastDuties = await prisma.dutySchedule.findMany({
+      where: {
+        groupId,
+        date: { gte: startDate, lt: todayUtc },
+        isLeader: false,
+      },
+      select: { studentId: true, date: true },
+    });
+    thisWeekPastDuties.forEach((d) => {
+      if (currentWeekDutyCount[d.studentId] !== undefined) {
+        currentWeekDutyCount[d.studentId] = (currentWeekDutyCount[d.studentId] || 0) + 1;
+      }
+      const t = new Date(d.date).getTime();
+      if (!lastDutyTime[d.studentId] || t > lastDutyTime[d.studentId]) {
+        lastDutyTime[d.studentId] = t;
+      }
     });
 
     // Query group attendances for this week to skip students with НБ / ABSENT on specific days
@@ -986,6 +1012,11 @@ export async function generateWeeklyDutyAction(
 
       const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
       const targetDate = parseDateToUtc(d);
+      const targetTime = targetDate.getTime();
+
+      // If this day has already passed earlier this week, don't overwrite it
+      if (targetTime < todayUtc.getTime()) continue;
+
       const dStr = formatLocalDateString(d);
 
       // Filter out students who are absent (НБ / Уваж.) on this specific day
@@ -998,29 +1029,53 @@ export async function generateWeeklyDutyAction(
 
       if (algorithm === "FAIR") {
         dayCandidates.sort((a, b) => {
-          const totalA = (pastDutyCount[a] || 0) + (currentWeekDutyCount[a] || 0);
-          const totalB = (pastDutyCount[b] || 0) + (currentWeekDutyCount[b] || 0);
+          const weekA = currentWeekDutyCount[a] || 0;
+          const weekB = currentWeekDutyCount[b] || 0;
 
-          // 1. First priority: Students who have NEVER served duty (total == 0)
+          // 1. Strict anti-repeat in the same week (nobody serves twice in 1 week if others haven't served)
+          if (weekA !== weekB) return weekA - weekB;
+
+          const totalA = (pastDutyCount[a] || 0) + weekA;
+          const totalB = (pastDutyCount[b] || 0) + weekB;
+
+          const timeA = lastDutyTime[a] || 0;
+          const timeB = lastDutyTime[b] || 0;
+
+          // Days elapsed since last duty
+          const daysSinceA = timeA > 0 ? Math.floor((targetTime - timeA) / (24 * 60 * 60 * 1000)) : 999;
+          const daysSinceB = timeB > 0 ? Math.floor((targetTime - timeB) / (24 * 60 * 60 * 1000)) : 999;
+
+          // 2. Strict Cooldown tiers (for groups of 22-30 students, normal rest is 12-18 days)
+          // Tier 4: served <= 2 days ago -> absolute penalty
+          // Tier 3: served <= 4 days ago
+          // Tier 2: served <= 7 days ago
+          // Tier 1: served <= 10 days ago
+          // Tier 0: rested >= 11 days or never served -> ready for rotation
+          const restPenaltyA = daysSinceA <= 2 ? 4 : daysSinceA <= 4 ? 3 : daysSinceA <= 7 ? 2 : daysSinceA <= 10 ? 1 : 0;
+          const restPenaltyB = daysSinceB <= 2 ? 4 : daysSinceB <= 4 ? 3 : daysSinceB <= 7 ? 2 : daysSinceB <= 10 ? 1 : 0;
+
+          if (restPenaltyA !== restPenaltyB) {
+            return restPenaltyA - restPenaltyB;
+          }
+
+          // 3. Priority for students who have NEVER served duty (total == 0)
           const neverA = totalA === 0 ? 0 : 1;
           const neverB = totalB === 0 ? 0 : 1;
           if (neverA !== neverB) return neverA - neverB;
 
-          // 2. Second priority: Students with fewer total duties
+          // 4. Priority for students with fewer total duties all-time
           if (totalA !== totalB) return totalA - totalB;
 
-          // 3. Third priority: Students who served longest ago (earliest lastDutyTime / smallest timestamp)
-          const timeA = lastDutyTime[a] || 0;
-          const timeB = lastDutyTime[b] || 0;
+          // 5. Priority for students who rested longest (earliest lastDutyTime)
           if (timeA !== timeB) return timeA - timeB;
 
-          // 4. Alphabetical order
+          // 6. Stable Alphabetical order
           return candidateIds.indexOf(a) - candidateIds.indexOf(b);
         });
       } else if (algorithm === "RANDOM") {
         dayCandidates.sort(() => Math.random() - 0.5);
       } else if (algorithm === "ALPHABETICAL") {
-        // Already sorted alphabetically
+        // Keep alphabetical order
       }
 
       const dayStudentIds: string[] = [];
@@ -1032,7 +1087,6 @@ export async function generateWeeklyDutyAction(
       }
 
       // Record duty counts & update lastDutyTime
-      const targetTime = targetDate.getTime();
       dayStudentIds.forEach((id) => {
         currentWeekDutyCount[id] = (currentWeekDutyCount[id] || 0) + 1;
         lastDutyTime[id] = targetTime;
