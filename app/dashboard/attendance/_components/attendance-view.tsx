@@ -363,6 +363,20 @@ export function AttendanceView({
     setHasUnsavedChanges(true);
   };
 
+  // Reset in-memory changes back to server state
+  const handleResetChanges = () => {
+    const resetMap: Record<string, { status: AttendanceStatus; comment: string }> = {};
+    students.forEach((st) => {
+      resetMap[st.studentId] = {
+        status: attendanceMap[st.studentId]?.status || AttendanceStatus.PRESENT,
+        comment: attendanceMap[st.studentId]?.comment || "",
+      };
+    });
+    setRecords(resetMap);
+    setHasUnsavedChanges(false);
+    toast.add({ title: "Несохранённые изменения сброшены", type: "info" });
+  };
+
   // Mark All Present (In-memory)
   const handleMarkAllPresent = () => {
     const updated: Record<string, { status: AttendanceStatus; comment: string }> = {};
@@ -501,6 +515,20 @@ export function AttendanceView({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [hasUnsavedChanges, isPending, handleSaveAll, isAdminOrTeacher, filteredStudents, focusedStudentIndex]);
 
+  // Calculate number of changed records compared to initial server state
+  const changedCount = useMemo(() => {
+    let count = 0;
+    students.forEach((st) => {
+      const rec = records[st.studentId];
+      const initialStatus = attendanceMap[st.studentId]?.status || AttendanceStatus.PRESENT;
+      const initialComment = attendanceMap[st.studentId]?.comment || "";
+      if (rec && (rec.status !== initialStatus || rec.comment !== initialComment)) {
+        count++;
+      }
+    });
+    return count;
+  }, [students, records, attendanceMap]);
+
   // Calculate if any students scheduled on duty today are absent/excused
   const absentDutyInAttendance = useMemo(() => {
     return students.filter((st) => {
@@ -515,7 +543,7 @@ export function AttendanceView({
   }, [students, localDutyMap, records]);
 
   return (
-    <div className="space-y-4 pb-8 text-xs font-sans">
+    <div className="space-y-4 pb-24 text-xs font-sans">
       {/* Printable Sheet (Hidden on screen, Visible on print) */}
       <div id="printable-attendance-sheet" className="hidden print:block space-y-4">
         <div className="text-center border-b pb-4">
@@ -1308,6 +1336,65 @@ export function AttendanceView({
           </div>
         </CardContent>
       </Card>
+
+      {/* Floating Bottom Sticky Action Bar */}
+      {isAdminOrTeacher && mainViewTab === "daily" && hasUnsavedChanges && (
+        <div className="print:hidden fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200 max-w-[calc(100vw-1.5rem)] w-max">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-card/95 backdrop-blur-md border border-primary/30 shadow-xl rounded-full text-xs">
+            <div className="flex items-center gap-1.5 pl-0.5 sm:pl-1 text-foreground font-medium pr-0.5 sm:pr-1 whitespace-nowrap">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+              <span className="hidden sm:inline text-xs">
+                {changedCount > 0 ? `Изменено учащихся: ${changedCount}` : "Есть несохранённые изменения"}
+              </span>
+              <span className="sm:hidden text-[11px]">
+                {changedCount > 0 ? `Правки: ${changedCount}` : "Не сохранено"}
+              </span>
+            </div>
+
+            <div className="h-3.5 sm:h-4 w-px bg-border shrink-0" />
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={handleResetChanges}
+              disabled={isPending}
+              className="h-6 sm:h-7 px-2 sm:px-2.5 text-[11px] sm:text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full cursor-pointer shrink-0"
+              title="Сбросить все несохранённые изменения"
+            >
+              <RotateCcw className="h-3 w-3 sm:mr-1" />
+              <span className="hidden sm:inline">Сбросить</span>
+            </Button>
+
+            <Button
+              type="button"
+              size="xs"
+              onClick={handleSaveAll}
+              disabled={isPending}
+              className="h-6 sm:h-7 px-2.5 sm:px-3 text-[11px] sm:text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-full shadow-xs gap-1 sm:gap-1.5 cursor-pointer ring-2 ring-primary/20 shrink-0 whitespace-nowrap"
+              title="Сохранить в базу данных (Ctrl+S)"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin" />
+                  <span>Сохранение...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span>Сохранить</span>
+                  <kbd className="hidden md:inline-block px-1 py-0.2 text-[9px] font-sans font-medium rounded bg-primary-foreground/20 text-primary-foreground">
+                    Ctrl+S
+                  </kbd>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
       </>
       )}
 
