@@ -36,6 +36,7 @@ import {
   AlertTriangle,
   Clock,
   Shield,
+  ShieldCheck,
   RefreshCw,
   Keyboard,
   Layers,
@@ -66,6 +67,7 @@ interface StudentInfo {
   studentId: string;
   studentName: string;
   isMonitor: boolean;
+  isDeputyMonitor?: boolean;
   isDutyExempt?: boolean;
 }
 
@@ -987,6 +989,11 @@ export function AttendanceView({
                           <Crown className="h-2.5 w-2.5" /> Староста
                         </Badge>
                       )}
+                      {st.isDeputyMonitor && (
+                        <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
+                          <ShieldCheck className="h-2.5 w-2.5" /> Зам. старосты
+                        </Badge>
+                      )}
                       {st.isDutyExempt && (
                         <Badge
                           variant="outline"
@@ -1144,6 +1151,11 @@ export function AttendanceView({
                             {st.isMonitor && (
                               <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
                                 <Crown className="h-2.5 w-2.5" /> Староста
+                              </Badge>
+                            )}
+                            {st.isDeputyMonitor && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
+                                <ShieldCheck className="h-2.5 w-2.5" /> Зам. старосты
                               </Badge>
                             )}
                             {st.isDutyExempt && (

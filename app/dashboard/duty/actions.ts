@@ -85,6 +85,22 @@ function getMondayOfCurrentWeek(): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + distance, 0, 0, 0, 0);
 }
 
+/** Check if current user is authorized to edit/manage duty schedule for given groupId */
+export async function checkDutyPermission(groupId: string): Promise<boolean> {
+  const session = await auth();
+  if (!session?.user) return false;
+  if (session.user.role === "ADMIN" || session.user.role === "TEACHER") return true;
+
+  if (!groupId) return false;
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: { monitorId: true, deputyMonitorId: true },
+  });
+  if (!group) return false;
+
+  return group.monitorId === session.user.id || group.deputyMonitorId === session.user.id;
+}
+
 export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
   groups: { id: string; name: string; isDutyEnabled: boolean }[];
   weeklyDays: DayDutyGroupDTO[];
@@ -92,6 +108,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
   groupStudents: GroupStudentWithDutyInfo[];
   selectedGroupId: string;
   isDutyEnabled?: boolean;
+  canManageDuty?: boolean;
 }> {
   try {
     const session = await auth();
@@ -135,8 +152,16 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       }
     }
 
-    const targetGroupObj = groups.find((g) => g.id === targetGroupId) || (targetGroupId ? await prisma.group.findUnique({ where: { id: targetGroupId }, select: { id: true, name: true, isDutyEnabled: true } }) : null);
+    const targetGroupObj = targetGroupId
+      ? await prisma.group.findUnique({
+          where: { id: targetGroupId },
+          select: { id: true, name: true, isDutyEnabled: true, monitorId: true, deputyMonitorId: true },
+        })
+      : null;
     const targetGroupIsDutyEnabled = targetGroupObj ? targetGroupObj.isDutyEnabled : true;
+    const isMonitor = Boolean(userId && targetGroupObj?.monitorId === userId);
+    const isDeputyMonitor = Boolean(userId && targetGroupObj?.deputyMonitorId === userId);
+    const canManageDuty = role === "ADMIN" || role === "TEACHER" || isMonitor || isDeputyMonitor;
 
     const now = new Date();
     const monday = getMondayOfCurrentWeek();
@@ -155,6 +180,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
         where: { id: targetGroupId },
         include: {
           monitor: { select: { id: true, name: true } },
+          deputyMonitor: { select: { id: true, name: true } },
           students: {
             include: { student: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } } },
             orderBy: { student: { name: "asc" } },
@@ -171,6 +197,29 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
           completedDutiesCount: 0,
           lastDutyTimestamp: 0,
         }));
+        // Ensure monitor and deputyMonitor are present in groupStudents list
+        if (g.monitor && !groupStudents.some((s) => s.id === g.monitor!.id)) {
+          groupStudents.push({
+            id: g.monitor.id,
+            name: g.monitor.name,
+            isDutyExempt: false,
+            dutyExemptReason: null,
+            totalDutiesCount: 0,
+            completedDutiesCount: 0,
+            lastDutyTimestamp: 0,
+          });
+        }
+        if (g.deputyMonitor && !groupStudents.some((s) => s.id === g.deputyMonitor!.id)) {
+          groupStudents.push({
+            id: g.deputyMonitor.id,
+            name: g.deputyMonitor.name,
+            isDutyExempt: false,
+            dutyExemptReason: null,
+            totalDutiesCount: 0,
+            completedDutiesCount: 0,
+            lastDutyTimestamp: 0,
+          });
+        }
         if (g.monitor) groupMonitorName = g.monitor.name;
       }
     }
@@ -422,12 +471,9 @@ export async function addDutyStudentAction(
   studentId: string,
   dateStr: string
 ) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
-    return { success: false, error: "Недостаточно прав" };
+  const isAllowed = await checkDutyPermission(groupId);
+  if (!isAllowed) {
+    return { success: false, error: "Недостаточно прав для назначения дежурного" };
   }
   try {
     const targetDate = parseDateToUtc(dateStr);
@@ -515,12 +561,9 @@ export async function removeDutyStudentAction(
   studentId: string,
   dateStr: string
 ) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
-    return { success: false, error: "Недостаточно прав" };
+  const isAllowed = await checkDutyPermission(groupId);
+  if (!isAllowed) {
+    return { success: false, error: "Недостаточно прав для удаления дежурного" };
   }
   try {
     const targetDate = parseDateToUtc(dateStr);
@@ -575,6 +618,7 @@ export interface StudentDutyStatDTO {
   totalDutiesCount: number;
   lastDutyDate?: string;
   isMonitor: boolean;
+  isDeputyMonitor?: boolean;
   isDutyExempt?: boolean;
   dutyExemptReason?: string | null;
 }
@@ -634,6 +678,7 @@ export async function getGroupDutyStatsAction(groupId: string): Promise<StudentD
       where: { id: groupId },
       include: {
         monitor: { select: { id: true } },
+        deputyMonitor: { select: { id: true } },
         students: {
           include: { student: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } } },
           orderBy: { student: { name: "asc" } },
@@ -694,6 +739,7 @@ export async function getGroupDutyStatsAction(groupId: string): Promise<StudentD
         totalDutiesCount: completed + scheduled,
         lastDutyDate: lastCompletedDates[gs.student.id] || "Еще не дежурил(а)",
         isMonitor: group.monitor?.id === gs.student.id,
+        isDeputyMonitor: group.deputyMonitor?.id === gs.student.id,
         isDutyExempt: gs.student.isDutyExempt,
         dutyExemptReason: gs.student.dutyExemptReason,
       };
@@ -711,12 +757,9 @@ export async function replaceDutyStudentAction(
   replacementStudentId: string,
   dateStr: string
 ) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
-    return { success: false, error: "Недостаточно прав" };
+  const isAllowed = await checkDutyPermission(groupId);
+  if (!isAllowed) {
+    return { success: false, error: "Недостаточно прав для замены дежурного" };
   }
   try {
     const targetDate = parseDateToUtc(dateStr);
@@ -799,11 +842,8 @@ export async function generateWeeklyDutyAction(
   groupId: string,
   options?: number | DutySettingsOptions
 ) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
+  const isAllowed = await checkDutyPermission(groupId);
+  if (!isAllowed) {
     return { success: false, error: "Недостаточно прав для генерации ротации" };
   }
 
@@ -1054,12 +1094,14 @@ export async function markDutyAbsentAction(
 
 /** Clear duty schedule */
 export async function clearDutyScheduleAction(groupId?: string) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
-    return { success: false, error: "Недостаточно прав для очистки дежурств" };
+  if (groupId) {
+    const isAllowed = await checkDutyPermission(groupId);
+    if (!isAllowed) return { success: false, error: "Недостаточно прав для очистки дежурств" };
+  } else {
+    const session = await auth();
+    if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для очистки дежурств" };
+    }
   }
 
   try {
@@ -1089,12 +1131,9 @@ export async function addDisciplinaryDutyAction(
   dateStr: string,
   _reason: string
 ) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
-    return { success: false, error: "Недостаточно прав" };
+  const isAllowed = await checkDutyPermission(groupId);
+  if (!isAllowed) {
+    return { success: false, error: "Недостаточно прав для назначения дежурства" };
   }
   try {
     const targetDate = parseDateToUtc(dateStr);
@@ -1154,12 +1193,9 @@ export async function addDisciplinaryDutyAction(
 }
 
 export async function toggleGroupDutyAction(groupId: string, isDutyEnabled: boolean) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
-    return { success: false, error: "Недостаточно прав" };
+  const isAllowed = await checkDutyPermission(groupId);
+  if (!isAllowed) {
+    return { success: false, error: "Недостаточно прав для настройки дежурств" };
   }
   try {
     await prisma.group.update({
@@ -1181,12 +1217,17 @@ export async function toggleStudentDutyExemptionAction(
   dutyExemptReason?: string | null,
   groupId?: string
 ) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
-  ) {
-    return { success: false, error: "Недостаточно прав" };
+  if (groupId) {
+    const isAllowed = await checkDutyPermission(groupId);
+    if (!isAllowed) return { success: false, error: "Недостаточно прав" };
+  } else {
+    const session = await auth();
+    if (
+      !session?.user ||
+      (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+    ) {
+      return { success: false, error: "Недостаточно прав" };
+    }
   }
 
   try {

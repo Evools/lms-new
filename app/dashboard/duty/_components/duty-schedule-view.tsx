@@ -87,6 +87,7 @@ import {
 
 interface DutyScheduleViewProps {
   userRole: string;
+  canManageDuty?: boolean;
   groupsList: { id: string; name: string; isDutyEnabled?: boolean }[];
   weeklyDays: DayDutyGroupDTO[];
   groupStudents: GroupStudentWithDutyInfo[];
@@ -105,6 +106,7 @@ type StudentPickerMode = {
 
 export function DutyScheduleView({
   userRole,
+  canManageDuty = false,
   groupsList = [],
   weeklyDays = [],
   groupStudents = [],
@@ -245,7 +247,7 @@ export function DutyScheduleView({
   // Clear confirmation dialog
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
-  const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
+  const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER" || Boolean(canManageDuty);
   const currentGroupObj = groupsList.find((g) => g.id === currentGroupId);
 
   // Toggle group duty status
@@ -755,34 +757,41 @@ export function DutyScheduleView({
       </div>
 
       {/* Screen UI Top Header */}
-      <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            {!embedded && (
-              <Link
-                href={currentGroupId ? `/dashboard/groups/${currentGroupId}` : "/dashboard/groups"}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Link>
-            )}
-            <h1 className="text-base font-bold text-foreground flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              <span>Дежурства {currentGroupObj ? `группы ${currentGroupObj.name}` : "лицея"}</span>
-            </h1>
+      <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-card p-3 sm:p-3.5 rounded-xl border">
+        <div className="flex items-center gap-2 min-w-0">
+          {!embedded && (
+            <Link
+              href={currentGroupId ? `/dashboard/groups/${currentGroupId}` : "/dashboard/groups"}
+              className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted shrink-0"
+              title="Назад к группе"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+          )}
+          <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <Clock className="h-4 w-4" />
           </div>
-          <p className="text-xs text-muted-foreground pl-6">
-            Централизованный аудит, дисциплинарные назначения, автоматическая ротация и замены
-          </p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-sm font-bold text-foreground">
+                График дежурств
+              </h1>
+              {currentGroupObj && (
+                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold px-2 py-0">
+                  {currentGroupObj.name}
+                </Badge>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto" data-tour="duty-header-actions">
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 flex-wrap sm:flex-nowrap" data-tour="duty-header-actions">
           {/* Group Selector Dropdown */}
           {!embedded && groupsList.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs shadow-2xs flex-1 sm:flex-initial">
+            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs shadow-2xs flex-1 sm:flex-initial min-w-[140px]">
               <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
               <Select value={currentGroupId} onValueChange={handleGroupChange}>
-                <SelectTrigger className="h-6 text-xs font-semibold border-0 bg-transparent p-0 shadow-none focus:ring-0 w-full sm:min-w-[130px]">
+                <SelectTrigger className="h-6 text-xs font-semibold border-0 bg-transparent p-0 shadow-none focus:ring-0 w-full">
                   <SelectValue>{currentGroupObj ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -796,117 +805,72 @@ export function DutyScheduleView({
             </div>
           )}
 
-          <Button variant="outline" size="xs" onClick={handlePrint} className="h-8 text-xs gap-1.5">
-            <Printer className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Печать (A4)</span><span className="sm:hidden">Печать</span>
-          </Button>
-
-          {isAdminOrTeacher && (
+          {isAdminOrTeacher && dutyEnabledLocal && (
             <Button
-              variant="outline"
               size="xs"
-              onClick={() => setActiveTab(activeTab === "SETTINGS" ? "WEEKLY" : "SETTINGS")}
-              className={`h-8 text-xs gap-1.5 font-medium ${activeTab === "SETTINGS" ? "bg-primary/10 border-primary/40 text-primary" : ""
-                }`}
+              onClick={handleAutoRotation}
+              disabled={isPending || !currentGroupId}
+              className="h-8 text-xs px-3 gap-1.5 font-medium flex-1 sm:flex-initial justify-center cursor-pointer shadow-xs"
+              title="Сформировать честную автоматическую ротацию на неделю"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span>Настройки</span>
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>{isPending ? "Расчет..." : "Авто-ротация"}</span>
             </Button>
           )}
 
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={handlePrint}
+            className="h-8 text-xs px-2.5 gap-1.5 shrink-0 cursor-pointer"
+            title="Распечатать расписание (A4)"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Печать</span>
+          </Button>
+
           {isAdminOrTeacher && dutyEnabledLocal && (
-            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs">
-              <span className="text-[11px] text-muted-foreground whitespace-nowrap">Дежурных:</span>
-              <Select
-                value={dutyCountPerDay}
-                onValueChange={(val) => {
-                  if (val) {
-                    setDutyCountPerDay(val);
-                    setDutyPerDaySetting(val === "auto" ? 0 : Number(val));
-                  }
-                }}
-              >
-                <SelectTrigger className="h-6 text-xs w-24 sm:w-28 border-0 bg-transparent p-0 shadow-none focus:ring-0">
-                  <SelectValue>{dutyCountPerDay === "auto" ? "Авторасчет" : `${dutyCountPerDay} чел.`}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Авторасчет</SelectItem>
-                  <SelectItem value="1">1 человек</SelectItem>
-                  <SelectItem value="2">2 человека</SelectItem>
-                  <SelectItem value="3">3 человека</SelectItem>
-                  <SelectItem value="4">4 человека</SelectItem>
-                  <SelectItem value="5">5 человек</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {isAdminOrTeacher && dutyEnabledLocal && (
-            <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0">
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => setIsClearConfirmOpen(true)}
-                disabled={isPending || !currentGroupId}
-                className="h-8 text-xs gap-1.5 font-medium border-destructive/30 text-destructive hover:bg-destructive/10 flex-1 sm:flex-initial justify-center"
-                title="Очистить расписание дежурств группы"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Очистить
-              </Button>
-              <Button
-                size="xs"
-                onClick={handleAutoRotation}
-                disabled={isPending || !currentGroupId}
-                className="h-8 text-xs gap-1.5 font-medium flex-1 sm:flex-initial justify-center"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {isPending ? "Расчет..." : "Авто-ротация"}
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={
+                <Button variant="outline" size="xs" className="h-8 w-8 p-0 shrink-0 cursor-pointer">
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              } />
+              <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
+                <DropdownMenuItem
+                  onClick={() => setActiveTab("SETTINGS")}
+                  className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+                  <span>Настройки дежурств</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsClearConfirmOpen(true)}
+                  className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Очистить расписание</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
 
-      {/* Screen KPI Bar */}
-      <div className="print:hidden grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3" data-tour="duty-kpi">
-
-        {/* KPI 1 */}
-        <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
-          <div className="space-y-0.5">
-            <div className="text-[10px] text-muted-foreground font-medium">Дежурных на сегодня</div>
-            <div className="text-lg font-bold text-foreground">{todayStudentsCount} чел.</div>
-            <div className="text-[9px] text-primary font-medium">
-              {todayObj ? `${todayObj.dayName}, ${todayObj.dateStr}` : "Выходной"}
-            </div>
-          </div>
-          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-            <UserCheck className="h-5 w-5" />
-          </div>
+      {/* Compact Status Bar */}
+      <div className="print:hidden flex items-center justify-between gap-2 px-3 py-2 bg-muted/30 rounded-lg border text-xs text-muted-foreground flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap text-[11px]">
+          <span className="flex items-center gap-1.5 font-medium text-foreground">
+            <UserCheck className="h-3.5 w-3.5 text-primary" />
+            <span>Сегодня: <strong>{todayStudentsCount} чел.</strong></span>
+          </span>
+          <span className="text-muted-foreground/40">•</span>
+          <span>Смен на неделе: <strong>{totalShiftsThisWeek}</strong></span>
+          <span className="text-muted-foreground/40">•</span>
+          <span>В группе: <strong>{groupStudents.length} уч.</strong></span>
         </div>
-
-        {/* KPI 2 */}
-        <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
-          <div className="space-y-0.5">
-            <div className="text-[10px] text-muted-foreground font-medium">Дежурств на неделе</div>
-            <div className="text-lg font-bold text-foreground">{totalShiftsThisWeek} смен</div>
-            <div className="text-[9px] text-muted-foreground font-medium">Понедельник — Суббота</div>
-          </div>
-          <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
-            <Calendar className="h-5 w-5" />
-          </div>
-        </div>
-
-        {/* KPI 3 */}
-        <div className="bg-card p-3 rounded-xl border flex items-center justify-between">
-          <div className="space-y-0.5">
-            <div className="text-[10px] text-muted-foreground font-medium">Состав группы</div>
-            <div className="text-lg font-bold text-foreground">{groupStudents.length} учащихся</div>
-            <div className="text-[9px] text-muted-foreground font-medium flex items-center gap-0.5">
-              <ShieldCheck className="h-3 w-3 text-primary" /> Без повторов
-            </div>
-          </div>
-          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-            <Users className="h-5 w-5" />
-          </div>
+        <div className="text-[10px] text-muted-foreground font-medium hidden sm:block">
+          {todayObj ? `${todayObj.dayName}, ${todayObj.dateStr}` : "Выходной"}
         </div>
       </div>
 
@@ -1078,18 +1042,15 @@ export function DutyScheduleView({
         <Card className="print:hidden p-0 border overflow-hidden" data-tour="duty-roster">
           <CardHeader className="p-3 border-b bg-muted/30">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <CardTitle className="text-xs font-bold text-foreground flex items-center gap-2">
-                  <span>Недельная ведомость дежурств</span>
-                  {currentGroupObj && (
-                    <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
-                      Группа {currentGroupObj.name}
-                    </Badge>
-                  )}
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-xs font-bold text-foreground">
+                  Недельная ведомость
                 </CardTitle>
-                <CardDescription className="text-[11px] text-muted-foreground">
-                  Расписание дежурных, внеочередные назначения, сверка с посещаемостью и замены
-                </CardDescription>
+                {currentGroupObj && (
+                  <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
+                    Группа {currentGroupObj.name}
+                  </Badge>
+                )}
               </div>
 
               {isAdminOrTeacher && (
@@ -1422,6 +1383,11 @@ export function DutyScheduleView({
                       {st.isMonitor && (
                         <span title="Староста" className="shrink-0">
                           <Crown className="h-3 w-3 text-primary" />
+                        </span>
+                      )}
+                      {st.isDeputyMonitor && (
+                        <span title="Заместитель старосты" className="shrink-0">
+                          <ShieldCheck className="h-3 w-3 text-primary" />
                         </span>
                       )}
                     </div>

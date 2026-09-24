@@ -22,6 +22,7 @@ export interface StudentAttendanceDTO {
   status: AttendanceStatus;
   comment: string;
   isMonitor: boolean;
+  isDeputyMonitor?: boolean;
   isDutyExempt?: boolean;
 }
 
@@ -29,6 +30,7 @@ export interface StudentPeriodStatsDTO {
   studentId: string;
   studentName: string;
   isMonitor: boolean;
+  isDeputyMonitor?: boolean;
   totalLessons: number;
   presentCount: number;
   absentCount: number;
@@ -135,6 +137,7 @@ export async function getAttendanceDataAction(
         where: { id: selectedGroup },
         include: {
           monitor: { select: { id: true } },
+          deputyMonitor: { select: { id: true } },
           students: {
             include: {
               student: { select: { id: true, name: true, isDutyExempt: true } },
@@ -157,12 +160,14 @@ export async function getAttendanceDataAction(
         : subjects[0]?.id || "";
 
     const isMonitor = Boolean(currentUserId && group?.monitor?.id === currentUserId);
-    const canEdit = role === "ADMIN" || role === "TEACHER" || isMonitor;
+    const isDeputyMonitor = Boolean(currentUserId && group?.deputyMonitor?.id === currentUserId);
+    const canEdit = role === "ADMIN" || role === "TEACHER" || isMonitor || isDeputyMonitor;
 
     const students = (group?.students || []).map((gs) => ({
       studentId: gs.student.id,
       studentName: gs.student.name,
       isMonitor: group?.monitor?.id === gs.student.id,
+      isDeputyMonitor: group?.deputyMonitor?.id === gs.student.id,
       isDutyExempt: gs.student.isDutyExempt,
     }));
 
@@ -256,7 +261,7 @@ async function checkEditPermission(groupSubjectId: string) {
     where: { id: groupSubjectId },
     select: {
       teacherId: true,
-      group: { select: { curatorId: true, monitorId: true } },
+      group: { select: { curatorId: true, monitorId: true, deputyMonitorId: true } },
     },
   });
   if (!gs) return false;
@@ -265,8 +270,11 @@ async function checkEditPermission(groupSubjectId: string) {
     return gs.teacherId === session.user.id || gs.group.curatorId === session.user.id;
   }
 
-  // Check if current user is the monitor of this group
-  return Boolean(gs.group?.monitorId && gs.group.monitorId === session.user.id);
+  // Check if current user is the monitor or deputy monitor of this group
+  return Boolean(
+    (gs.group?.monitorId && gs.group.monitorId === session.user.id) ||
+    (gs.group?.deputyMonitorId && gs.group.deputyMonitorId === session.user.id)
+  );
 }
 
 /** Save or update attendance status for a single student */
