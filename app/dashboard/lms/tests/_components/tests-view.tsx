@@ -62,6 +62,7 @@ import {
   Users,
   Percent,
   Copy,
+  Play,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -696,9 +697,9 @@ export function TestsView({
                                   size="xs"
                                   variant="outline"
                                   className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                                  title="Просмотр теста"
+                                  title="Предпросмотр / Пройти тест"
                                 >
-                                  <Eye className="h-3.5 w-3.5" />
+                                  <Play className="h-3.5 w-3.5" />
                                 </Button>
                               </Link>
 
@@ -867,9 +868,9 @@ export function TestsView({
                             size="xs"
                             variant="outline"
                             className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                            title="Просмотр"
+                            title="Предпросмотр / Пройти тест"
                           >
-                            <Eye className="h-3.5 w-3.5" />
+                            <Play className="h-3.5 w-3.5" />
                           </Button>
                         </Link>
                         <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
