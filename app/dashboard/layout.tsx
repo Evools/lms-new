@@ -48,7 +48,7 @@ export default async function DashboardLayout({
           avatar: avatar ?? null,
         }}
       />
-      <SidebarInset className="flex min-h-screen flex-col bg-background">
+      <SidebarInset className="flex min-h-screen flex-col bg-background min-w-0 max-w-full overflow-x-hidden">
         <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b bg-background px-4">
           <div className="flex items-center gap-3">
             <SidebarTrigger className="rounded-md" />
@@ -71,7 +71,7 @@ export default async function DashboardLayout({
           </div>
         </header>
 
-        <div className="flex-1 p-6" data-tour="dashboard-content">
+        <div className="flex-1 p-4 sm:p-6 min-w-0 max-w-full overflow-x-hidden" data-tour="dashboard-content">
           {children}
         </div>
       </SidebarInset>

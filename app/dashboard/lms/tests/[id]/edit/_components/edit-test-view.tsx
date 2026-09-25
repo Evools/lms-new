@@ -105,8 +105,20 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
     const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
     if (lines.length === 0) continue;
 
-    const questionLine = lines[0].replace(/^(\d+[\.\)]|\#\d+|[Qq]\d+[:\.]?)\s*/, "").trim();
+    let questionLine = lines[0].replace(/^(\d+[\.\)]|\#\d+|[Qq]\d+[:\.]?)\s*/, "").trim();
     if (!questionLine) continue;
+
+    // Detect explicit points: e.g. [3], [3б], (3б), [3 балла], (3 балла), [баллы: 3], (баллы: 3), (3 pts)
+    let customPoints: number | undefined = undefined;
+    const pointsRegex = /(?:\[|\()(?:\s*(?:балл(?:а|ов)?|pts?|points?)?\s*[:=]?\s*(\d+)\s*(?:б|балл(?:а|ов)?|pts?|points?)?|\s*(\d+)\s*(?:б|балл(?:а|ов)?|pts?|points?)\s*)(?:\]|\))/i;
+    const pointsMatch = questionLine.match(pointsRegex);
+    if (pointsMatch) {
+      const parsedNum = parseInt(pointsMatch[1] || pointsMatch[2], 10);
+      if (!isNaN(parsedNum) && parsedNum > 0) {
+        customPoints = parsedNum;
+        questionLine = questionLine.replace(pointsRegex, "").trim();
+      }
+    }
 
     const optLines = lines.slice(1);
     if (optLines.length === 0) {
@@ -115,7 +127,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText: questionLine,
         options: [],
         correctAnswer: "",
-        points: 1,
+        points: customPoints ?? 1,
       });
       continue;
     }
@@ -153,7 +165,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText: questionLine,
         options,
         correctAnswer: JSON.stringify(correctOptions),
-        points: 2,
+        points: customPoints ?? 2,
       });
     } else if (correctOptions.length === 1) {
       result.push({
@@ -161,7 +173,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText: questionLine,
         options,
         correctAnswer: correctOptions[0],
-        points: 1,
+        points: customPoints ?? 1,
       });
     } else if (options.length > 0) {
       result.push({
@@ -169,7 +181,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText: questionLine,
         options,
         correctAnswer: options[0] || "",
-        points: 1,
+        points: customPoints ?? 1,
       });
     }
   }

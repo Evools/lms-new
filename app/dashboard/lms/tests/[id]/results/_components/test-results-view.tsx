@@ -240,7 +240,7 @@ export function TestResultsView({
 
   return (
     <TooltipProvider>
-      <div className="space-y-4 w-full pb-10">
+      <div className="space-y-4 w-full max-w-full min-w-0 pb-10">
         {/* Header Navigation & Stats */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs">
           <div className="space-y-1">
@@ -460,7 +460,7 @@ export function TestResultsView({
         )}
 
         {/* Matrix Results Table */}
-        <div className="border rounded-xl bg-card shadow-xs overflow-hidden">
+        <div className="border rounded-xl bg-card shadow-xs overflow-hidden w-full max-w-full min-w-0">
           <div className="p-3 border-b bg-muted/30 flex items-center justify-between flex-wrap gap-2">
             <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-primary" /> Сводная матрица результатов
@@ -484,12 +484,12 @@ export function TestResultsView({
             </div>
           </div>
 
-          <div className="overflow-x-auto max-w-full">
-            <table className="w-full text-xs text-left border-collapse min-w-[700px]">
+          <div className="overflow-x-auto w-full max-w-full relative">
+            <table className="w-full text-xs text-left border-separate border-spacing-0 min-w-max">
               <thead>
-                <tr className="bg-muted/50 border-b text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                  <th className="py-2.5 px-3 sticky left-0 z-20 bg-muted/95 border-r shadow-xs min-w-[280px]">
-                    ФИО / % / Баллы
+                <tr className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                  <th className="py-2.5 px-3 sticky left-0 z-20 bg-muted/95 border-b border-r border-border shadow-[2px_0_4px_rgba(0,0,0,0.05)] min-w-[260px] sm:min-w-[300px] max-w-[320px]">
+                    № / ФИО / % / Баллы
                   </th>
 
                   {questions.map((q, qIdx) => {
@@ -497,7 +497,7 @@ export function TestResultsView({
                     return (
                       <th
                         key={q.id}
-                        className="py-2.5 px-2 text-center border-r min-w-[46px] max-w-[56px]"
+                        className="py-2.5 px-2 text-center border-b border-r border-border/60 min-w-[46px] max-w-[56px]"
                       >
                         <Tooltip>
                           <TooltipTrigger>
@@ -506,7 +506,7 @@ export function TestResultsView({
                               <span>{qIdx + 1}</span>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align={headerAlign} className="max-w-xs text-xs p-2.5 bg-popover text-popover-foreground border border-border shadow-md">
+                          <TooltipContent side="top" align={headerAlign} showArrow={false} className="max-w-xs text-xs p-2.5 bg-popover text-popover-foreground border border-border shadow-md">
                             <p className="font-bold text-primary mb-1">
                               Вопрос #{qIdx + 1} ({q.points} б.)
                             </p>
@@ -520,8 +520,8 @@ export function TestResultsView({
                   })}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
-                {studentsResults.map((student) => {
+              <tbody>
+                {studentsResults.map((student, sIdx) => {
                   const percentBadgeStyle =
                     !student.hasSubmitted
                       ? "bg-muted text-muted-foreground border-border"
@@ -547,32 +547,37 @@ export function TestResultsView({
                     >
                       {/* Fixed Left Column */}
                       <td
-                        className={`py-2 px-3 sticky left-0 z-10 bg-card border-r border-l-4 ${leftBorderStyle} shadow-2xs`}
+                        className={`py-2 px-3 sticky left-0 z-10 bg-card border-b border-r border-border border-l-4 ${leftBorderStyle} shadow-[2px_0_4px_rgba(0,0,0,0.05)] min-w-[260px] sm:min-w-[300px] max-w-[320px]`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="space-y-0.5 truncate">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-foreground text-xs block truncate">
-                                {student.studentName}
-                              </span>
-                              {student.tabSwitches && student.tabSwitches > 0 ? (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="destructive" className="h-4 px-1 text-[9px] gap-0.5 font-mono">
-                                      <ShieldAlert className="h-2.5 w-2.5" /> {student.tabSwitches}
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    Студент переключал вкладку {student.tabSwitches} раз(а)
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : null}
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="font-mono text-[11px] text-muted-foreground w-4 shrink-0 text-left">
+                              {sIdx + 1}.
+                            </span>
+                            <div className="space-y-0.5 truncate min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-semibold text-foreground text-xs block truncate">
+                                  {student.studentName}
+                                </span>
+                                {student.tabSwitches && student.tabSwitches > 0 ? (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Badge variant="destructive" className="h-4 px-1 text-[9px] gap-0.5 font-mono shrink-0">
+                                        <ShieldAlert className="h-2.5 w-2.5" /> {student.tabSwitches}
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" showArrow={false} className="text-xs">
+                                      Студент переключал вкладку {student.tabSwitches} раз(а)
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : null}
+                              </div>
+                              {!student.hasSubmitted && (
+                                <span className="text-[10px] text-muted-foreground italic block">
+                                  Не проходил тест
+                                </span>
+                              )}
                             </div>
-                            {!student.hasSubmitted && (
-                              <span className="text-[10px] text-muted-foreground italic">
-                                Не проходил тест
-                              </span>
-                            )}
                           </div>
 
                           {student.hasSubmitted && (
@@ -614,7 +619,7 @@ export function TestResultsView({
                           return (
                             <td
                               key={q.id}
-                              className="py-2 px-1 text-center border-r text-muted-foreground/40 font-mono text-[11px]"
+                              className="py-2 px-1 text-center border-b border-r border-border/60 text-muted-foreground/40 font-mono text-[11px]"
                             >
                               -
                             </td>
@@ -629,7 +634,7 @@ export function TestResultsView({
                         return (
                           <td
                             key={q.id}
-                            className={`py-1.5 px-1 text-center border-r transition-colors ${
+                            className={`py-1.5 px-1 text-center border-b border-r border-border/60 transition-colors ${
                               isCorrect
                                 ? "bg-primary/5 hover:bg-primary/10"
                                 : isPartial

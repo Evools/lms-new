@@ -32,7 +32,7 @@ function TooltipContent({
   align = "center",
   alignOffset = 0,
   children,
-  showArrow = true,
+  showArrow = false,
   ...props
 }: TooltipPrimitive.Popup.Props &
   Pick<

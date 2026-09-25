@@ -199,10 +199,22 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
 
     // 2. Question title (first line, strip "1.", "#1", "Q1.", etc.)
     const firstLine = rawBlockLines[0];
-    const questionText = firstLine
+    let questionText = firstLine
       .replace(/^(\d+[\.\)]|\#\d+|[Qq]\d+[:\.]?)\s*/, "")
       .trim();
     if (!questionText) continue;
+
+    // Detect explicit points: e.g. [3], [3б], (3б), [3 балла], (3 балла), [баллы: 3], (баллы: 3), (3 pts)
+    let customPoints: number | undefined = undefined;
+    const pointsRegex = /(?:\[|\()(?:\s*(?:балл(?:а|ов)?|pts?|points?)?\s*[:=]?\s*(\d+)\s*(?:б|балл(?:а|ов)?|pts?|points?)?|\s*(\d+)\s*(?:б|балл(?:а|ов)?|pts?|points?)\s*)(?:\]|\))/i;
+    const pointsMatch = questionText.match(pointsRegex);
+    if (pointsMatch) {
+      const parsedNum = parseInt(pointsMatch[1] || pointsMatch[2], 10);
+      if (!isNaN(parsedNum) && parsedNum > 0) {
+        customPoints = parsedNum;
+        questionText = questionText.replace(pointsRegex, "").trim();
+      }
+    }
 
     const remainingLines = rawBlockLines.slice(1);
 
@@ -214,7 +226,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText,
         options: blanks,
         correctAnswer: JSON.stringify(blanks),
-        points: 2,
+        points: customPoints ?? 2,
       });
       continue;
     }
@@ -236,7 +248,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText,
         options: [],
         correctAnswer: ans,
-        points: 1,
+        points: customPoints ?? 1,
       });
       continue;
     }
@@ -250,7 +262,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
           codeSnippet,
           options: ["Вариант 1", "Вариант 2"],
           correctAnswer: "Вариант 1",
-          points: 1,
+          points: customPoints ?? 1,
         });
       } else {
         result.push({
@@ -258,7 +270,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
           questionText,
           options: [],
           correctAnswer: "",
-          points: 1,
+          points: customPoints ?? 1,
         });
       }
       continue;
@@ -334,7 +346,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
           questionText,
           options: pairs,
           correctAnswer: JSON.stringify(map),
-          points: 2,
+          points: customPoints ?? 2,
         });
         continue;
       }
@@ -396,7 +408,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText,
         options: optionsList,
         correctAnswer: correctVal,
-        points: 1,
+        points: customPoints ?? 1,
       });
       continue;
     }
@@ -414,7 +426,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText,
         options: optionsList,
         correctAnswer: JSON.stringify(optionsList),
-        points: 2,
+        points: customPoints ?? 2,
       });
       continue;
     }
@@ -428,7 +440,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         codeSnippet,
         options: optionsList,
         correctAnswer: correctVal,
-        points: 1,
+        points: customPoints ?? 1,
       });
       continue;
     }
@@ -440,7 +452,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText,
         options: optionsList,
         correctAnswer: JSON.stringify(correctOptionsList),
-        points: 2,
+        points: customPoints ?? 2,
       });
     } else if (correctOptionsList.length === 1) {
       result.push({
@@ -448,7 +460,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText,
         options: optionsList,
         correctAnswer: correctOptionsList[0],
-        points: 1,
+        points: customPoints ?? 1,
       });
     } else if (optionsList.length > 0) {
       result.push({
@@ -456,7 +468,7 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
         questionText,
         options: optionsList,
         correctAnswer: optionsList[0] || "",
-        points: 1,
+        points: customPoints ?? 1,
       });
     }
   }
@@ -872,12 +884,15 @@ export function CreateTestView({
       return;
     }
     setQuestionDrafts((prev) => {
-      const isInitialDefaults =
-        prev.length === 2 &&
-        prev[0].questionText.includes("Какой метод протокола HTTP") &&
-        prev[1].questionText.includes("Выберите все валидные форматы");
-      const isSingleEmpty = prev.length === 1 && !prev[0].questionText.trim();
-      if (isInitialDefaults || isSingleEmpty) {
+      const isOnlyDefaultsOrEmpty =
+        prev.length === 0 ||
+        prev.every(
+          (q) =>
+            !q.questionText.trim() ||
+            q.questionText.includes("Какой метод протокола HTTP") ||
+            q.questionText.includes("Выберите все валидные форматы")
+        );
+      if (isOnlyDefaultsOrEmpty) {
         return parsed;
       }
       return [...prev, ...parsed];
