@@ -52,9 +52,11 @@ import {
   AlertCircle,
   FileCheck2,
   ClipboardList,
+  Copy,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, TopicDTO, MaterialDTO, createTopicAction, deleteTopicAction } from "@/app/dashboard/lms/actions";
 import { toast } from "@/components/ui/toast";
+import { CopyTopicDialog } from "../../materials/_components/copy-topic-dialog";
 
 interface TopicsViewProps {
   groups: GroupItemDTO[];
@@ -86,6 +88,7 @@ export function TopicsView({
   const [newDescription, setNewDescription] = useState("");
   const [newOrder, setNewOrder] = useState<number>(1);
   const [deleteTargetTopic, setDeleteTargetTopic] = useState<TopicDTO | null>(null);
+  const [copyTargetTopic, setCopyTargetTopic] = useState<TopicDTO | null>(null);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -288,18 +291,33 @@ export function TopicsView({
                   </Badge>
 
                   {canCreate && (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTargetTopic(topic);
-                      }}
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      title="Удалить тему"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCopyTargetTopic(topic);
+                        }}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        title="Копировать тему в другие группы"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTargetTopic(topic);
+                        }}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        title="Удалить тему"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   )}
 
                   {isExpanded ? (
@@ -481,6 +499,14 @@ export function TopicsView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Copy Topic Modal */}
+      <CopyTopicDialog
+        open={copyTargetTopic !== null}
+        onOpenChange={(open) => !open && setCopyTargetTopic(null)}
+        topic={copyTargetTopic}
+        currentGroupId={selectedGroupId}
+      />
     </div>
   );
 }

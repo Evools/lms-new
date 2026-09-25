@@ -2031,3 +2031,354 @@ export async function resetTestSubmissionAction(submissionId: string, testId: st
     return { success: false, error: "Ошибка при сбросе работы студента" };
   }
 }
+
+// -------------------------------------------------------------
+// 14. Copy / Duplicate Materials & Topics across Groups
+// -------------------------------------------------------------
+
+export interface CopyTargetGroupDTO {
+  id: string;
+  name: string;
+  subjects: {
+    id: string; // groupSubjectId
+    subjectId: string;
+    subjectName: string;
+    teacherName: string;
+    topics: {
+      id: string;
+      title: string;
+      order: number;
+    }[];
+  }[];
+}
+
+export async function getAvailableGroupsForCopyAction(): Promise<{
+  success: boolean;
+  groups?: CopyTargetGroupDTO[];
+  error?: string;
+}> {
+  try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+    const userId = session?.user?.id;
+
+    if (!userId || (role !== "ADMIN" && role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для копирования материалов" };
+    }
+
+    let groupWhere: Record<string, unknown> | undefined = undefined;
+
+    if (role === "TEACHER") {
+      groupWhere = {
+        OR: [
+          { curatorId: userId },
+          { groupSubjects: { some: { teacherId: userId } } },
+        ],
+      };
+    }
+
+    const groups = await prisma.group.findMany({
+      where: groupWhere,
+      select: {
+        id: true,
+        name: true,
+        groupSubjects: {
+          select: {
+            id: true,
+            subjectId: true,
+            subject: { select: { name: true } },
+            teacher: { select: { name: true } },
+            topics: {
+              select: {
+                id: true,
+                title: true,
+                order: true,
+              },
+              orderBy: { order: "asc" },
+            },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    const formattedGroups: CopyTargetGroupDTO[] = groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      subjects: g.groupSubjects.map((gs) => ({
+        id: gs.id,
+        subjectId: gs.subjectId,
+        subjectName: gs.subject.name,
+        teacherName: gs.teacher.name,
+        topics: gs.topics.map((t) => ({
+          id: t.id,
+          title: t.title,
+          order: t.order,
+        })),
+      })),
+    }));
+
+    return { success: true, groups: formattedGroups };
+  } catch (err) {
+    console.error("getAvailableGroupsForCopyAction error:", err);
+    return { success: false, error: "Ошибка при получении списка доступных групп" };
+  }
+}
+
+export interface CopyMaterialTargetItem {
+  groupId: string;
+  groupSubjectId: string;
+  topicId?: string;
+  createTopicTitle?: string;
+}
+
+export async function copyMaterialToGroupsAction(params: {
+  materialId: string;
+  targets: CopyMaterialTargetItem[];
+}): Promise<{ success: boolean; count?: number; error?: string }> {
+  try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+    const userId = session?.user?.id;
+
+    if (!userId || (role !== "ADMIN" && role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для копирования материалов" };
+    }
+
+    if (!params.materialId || !params.targets || params.targets.length === 0) {
+      return { success: false, error: "Выберите хотя бы одну целевую группу для копирования" };
+    }
+
+    const sourceMaterial = await prisma.material.findUnique({
+      where: { id: params.materialId },
+      include: {
+        topic: true,
+      },
+    });
+
+    if (!sourceMaterial) {
+      return { success: false, error: "Исходный материал не найден" };
+    }
+
+    let copiedCount = 0;
+
+    for (const target of params.targets) {
+      if (!target.groupSubjectId) continue;
+
+      let targetTopicId = target.topicId;
+
+      // If specific topic not selected, find or create topic by title
+      if (!targetTopicId || targetTopicId === "auto" || targetTopicId === "new") {
+        const topicTitleToUse =
+          target.createTopicTitle?.trim() || sourceMaterial.topic.title || "Общие материалы";
+
+        let existingTopic = await prisma.topic.findFirst({
+          where: {
+            groupSubjectId: target.groupSubjectId,
+            title: topicTitleToUse,
+          },
+        });
+
+        if (!existingTopic) {
+          existingTopic = await prisma.topic.create({
+            data: {
+              groupSubjectId: target.groupSubjectId,
+              title: topicTitleToUse,
+              description: sourceMaterial.topic.description,
+              order: sourceMaterial.topic.order,
+            },
+          });
+        }
+
+        targetTopicId = existingTopic.id;
+      }
+
+      await prisma.material.create({
+        data: {
+          topicId: targetTopicId,
+          authorId: userId,
+          type: sourceMaterial.type,
+          title: sourceMaterial.title,
+          content: sourceMaterial.content,
+          fileUrl: sourceMaterial.fileUrl,
+          linkUrl: sourceMaterial.linkUrl,
+          isPublished: sourceMaterial.isPublished,
+        },
+      });
+
+      copiedCount++;
+    }
+
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+
+    return { success: true, count: copiedCount };
+  } catch (err) {
+    console.error("copyMaterialToGroupsAction error:", err);
+    return { success: false, error: "Ошибка при копировании материала" };
+  }
+}
+
+export async function copyTopicToGroupsAction(params: {
+  topicId: string;
+  targetGroupSubjectIds: string[];
+  copyMaterials?: boolean;
+}): Promise<{ success: boolean; copiedTopicsCount?: number; copiedMaterialsCount?: number; error?: string }> {
+  try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+    const userId = session?.user?.id;
+
+    if (!userId || (role !== "ADMIN" && role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для копирования главы" };
+    }
+
+    if (!params.topicId || !params.targetGroupSubjectIds || params.targetGroupSubjectIds.length === 0) {
+      return { success: false, error: "Выберите хотя бы одну целевую группу/предмет" };
+    }
+
+    const sourceTopic = await prisma.topic.findUnique({
+      where: { id: params.topicId },
+      include: {
+        materials: true,
+      },
+    });
+
+    if (!sourceTopic) {
+      return { success: false, error: "Исходная глава не найдена" };
+    }
+
+    const shouldCopyMaterials = params.copyMaterials !== false;
+    let copiedTopicsCount = 0;
+    let copiedMaterialsCount = 0;
+
+    for (const targetGsId of params.targetGroupSubjectIds) {
+      // Create new topic in target groupSubject
+      const newTopic = await prisma.topic.create({
+        data: {
+          groupSubjectId: targetGsId,
+          title: sourceTopic.title,
+          description: sourceTopic.description,
+          order: sourceTopic.order,
+        },
+      });
+
+      copiedTopicsCount++;
+
+      if (shouldCopyMaterials && sourceTopic.materials.length > 0) {
+        await prisma.material.createMany({
+          data: sourceTopic.materials.map((m) => ({
+            topicId: newTopic.id,
+            authorId: userId,
+            type: m.type,
+            title: m.title,
+            content: m.content,
+            fileUrl: m.fileUrl,
+            linkUrl: m.linkUrl,
+            isPublished: m.isPublished,
+          })),
+        });
+
+        copiedMaterialsCount += sourceTopic.materials.length;
+      }
+    }
+
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms");
+
+    return {
+      success: true,
+      copiedTopicsCount,
+      copiedMaterialsCount,
+    };
+  } catch (err) {
+    console.error("copyTopicToGroupsAction error:", err);
+    return { success: false, error: "Ошибка при копировании главы" };
+  }
+}
+
+export interface CopyTestTargetItem {
+  groupId: string;
+  groupSubjectId: string;
+  topicId?: string;
+}
+
+export async function copyTestToGroupsAction(params: {
+  testId: string;
+  targets: CopyTestTargetItem[];
+}): Promise<{ success: boolean; count?: number; error?: string }> {
+  try {
+    const session = await auth();
+    const role = session?.user?.role || "STUDENT";
+    const userId = session?.user?.id;
+
+    if (!userId || (role !== "ADMIN" && role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для копирования теста" };
+    }
+
+    if (!params.testId || !params.targets || params.targets.length === 0) {
+      return { success: false, error: "Выберите хотя бы одну целевую группу/предмет" };
+    }
+
+    const sourceTest = await prisma.test.findUnique({
+      where: { id: params.testId },
+      include: {
+        questions: {
+          orderBy: { order: "asc" },
+        },
+      },
+    });
+
+    if (!sourceTest) {
+      return { success: false, error: "Исходный тест не найден" };
+    }
+
+    let copiedCount = 0;
+
+    for (const target of params.targets) {
+      if (!target.groupSubjectId) continue;
+
+      const createdTest = await prisma.test.create({
+        data: {
+          groupSubjectId: target.groupSubjectId,
+          topicId: target.topicId || null,
+          authorId: userId,
+          title: sourceTest.title,
+          description: sourceTest.description,
+          timeLimit: sourceTest.timeLimit,
+          shuffleQuestions: sourceTest.shuffleQuestions,
+          shuffleOptions: sourceTest.shuffleOptions,
+          isPublished: sourceTest.isPublished,
+        },
+      });
+
+      if (sourceTest.questions.length > 0) {
+        await prisma.testQuestion.createMany({
+          data: sourceTest.questions.map((q) => ({
+            testId: createdTest.id,
+            type: q.type,
+            questionText: q.questionText,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            points: q.points,
+            order: q.order,
+          })),
+        });
+      }
+
+      copiedCount++;
+    }
+
+    revalidatePath("/dashboard/lms/tests");
+    revalidatePath("/dashboard/lms");
+
+    return { success: true, count: copiedCount };
+  } catch (err) {
+    console.error("copyTestToGroupsAction error:", err);
+    return { success: false, error: "Ошибка при копировании теста" };
+  }
+}
+
+

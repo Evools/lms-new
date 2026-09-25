@@ -61,6 +61,7 @@ import {
   BarChart3,
   Users,
   Percent,
+  Copy,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -74,6 +75,7 @@ import {
   toggleTestPublishAction,
 } from "@/app/dashboard/lms/actions";
 import { toast } from "@/components/ui/toast";
+import { CopyTestDialog } from "./copy-test-dialog";
 
 interface TestsViewProps {
   groups: GroupItemDTO[];
@@ -124,6 +126,9 @@ export function TestsView({
 
   // Delete Test Confirmation State
   const [deleteTargetTest, setDeleteTargetTest] = useState<TestDTO | null>(null);
+
+  // Copy Test Modal State
+  const [copyTargetTest, setCopyTargetTest] = useState<TestDTO | null>(null);
 
   // Quick Create Test Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -710,6 +715,16 @@ export function TestsView({
 
                               <Button
                                 size="xs"
+                                variant="outline"
+                                onClick={() => setCopyTargetTest(test)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                                title="Копировать тест в другую группу"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+
+                              <Button
+                                size="xs"
                                 variant="ghost"
                                 onClick={() => setDeleteTargetTest(test)}
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
@@ -867,6 +882,15 @@ export function TestsView({
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                         </Link>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => setCopyTargetTest(test)}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                          title="Копировать в другую группу"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
                         <Button
                           size="xs"
                           variant="ghost"
@@ -1436,6 +1460,14 @@ export function TestsView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Copy Test Dialog */}
+      <CopyTestDialog
+        open={copyTargetTest !== null}
+        onOpenChange={(open) => !open && setCopyTargetTest(null)}
+        test={copyTargetTest}
+        currentGroupId={selectedGroupId}
+      />
     </div>
   );
 }

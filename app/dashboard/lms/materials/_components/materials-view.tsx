@@ -55,6 +55,7 @@ import {
   PanelLeftOpen,
   Eye,
   EyeOff,
+  Copy,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -68,6 +69,8 @@ import {
 } from "@/app/dashboard/lms/actions";
 import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
+import { CopyMaterialDialog } from "./copy-material-dialog";
+import { CopyTopicDialog } from "./copy-topic-dialog";
 
 export interface TopicWithMaterialsDTO {
   id: string;
@@ -199,6 +202,10 @@ export function MaterialsView({
 
   // Delete Material Alert State
   const [deleteMaterialTarget, setDeleteMaterialTarget] = useState<MaterialDTO | null>(null);
+
+  // Copy Modals State
+  const [copyMaterialTarget, setCopyMaterialTarget] = useState<MaterialDTO | null>(null);
+  const [copyTopicTarget, setCopyTopicTarget] = useState<TopicWithMaterialsDTO | null>(null);
 
   // Alerts
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -716,6 +723,18 @@ export function MaterialsView({
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        setCopyTopicTarget(topic);
+                                      }}
+                                      className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                      title="Копировать главу в другие группы"
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         handleOpenEditChapter(topic);
                                       }}
                                       className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
@@ -785,6 +804,18 @@ export function MaterialsView({
                                       <div className="flex items-center gap-1 shrink-0">
                                         {canCreate && (
                                           <div className="opacity-0 group-hover/mat:opacity-100 transition-opacity flex items-center gap-0.5">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setCopyMaterialTarget(mat);
+                                              }}
+                                              className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
+                                              title="Копировать материал в другую группу"
+                                            >
+                                              <Copy className="h-3 w-3" />
+                                            </button>
+
                                             <Link
                                               href={`/dashboard/lms/materials/${mat.id}/edit?group=${selectedGroupId}`}
                                               onClick={(e) => e.stopPropagation()}
@@ -926,6 +957,16 @@ export function MaterialsView({
 
                   {canCreate && (
                     <div className="flex items-center gap-1">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => setCopyMaterialTarget(currentMat)}
+                        className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-primary"
+                        title="Копировать материал в другую группу"
+                      >
+                        <Copy className="h-3.5 w-3.5" /> <span className="text-xs">Копировать</span>
+                      </Button>
+
                       <Link href={`/dashboard/lms/materials/${currentMat.id}/edit?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}>
                         <Button
                           size="xs"
@@ -1228,6 +1269,22 @@ export function MaterialsView({
           </AlertDialogContent>
         )}
       </AlertDialog>
+
+      {/* Modal 5: Copy Material Dialog */}
+      <CopyMaterialDialog
+        open={copyMaterialTarget !== null}
+        onOpenChange={(open) => !open && setCopyMaterialTarget(null)}
+        material={copyMaterialTarget}
+        currentGroupId={selectedGroupId}
+      />
+
+      {/* Modal 6: Copy Topic Dialog */}
+      <CopyTopicDialog
+        open={copyTopicTarget !== null}
+        onOpenChange={(open) => !open && setCopyTopicTarget(null)}
+        topic={copyTopicTarget}
+        currentGroupId={selectedGroupId}
+      />
     </div>
   );
 }
