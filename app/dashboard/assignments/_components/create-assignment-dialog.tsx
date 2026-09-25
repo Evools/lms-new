@@ -83,8 +83,8 @@ export function CreateAssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[600px] max-h-[88vh] overflow-y-auto">
-        <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
+      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[600px] max-h-[88vh] flex flex-col">
+        <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left shrink-0">
           <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
             <Plus className="h-4 w-4 text-primary" /> Публикация нового задания
           </DialogTitle>
@@ -93,7 +93,7 @@ export function CreateAssignmentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-1 text-xs">
+        <div className="space-y-3 py-1 text-xs overflow-y-auto flex-1 min-h-0 pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs">Дисциплина *</label>

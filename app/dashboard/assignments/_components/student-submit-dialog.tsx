@@ -230,8 +230,8 @@ export function StudentSubmitDialog({
   return (
     <Dialog open={assignment !== null} onOpenChange={(open) => !open && onClose()}>
       {assignment && (
-        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1100px] w-[94vw] max-h-[92vh] overflow-y-auto">
-          <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1100px] w-[94vw] max-h-[92vh] flex flex-col">
+          <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left shrink-0">
             <Badge
               variant="outline"
               className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium"
@@ -246,7 +246,7 @@ export function StudentSubmitDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-1 text-xs">
+          <div className="space-y-3 py-1 text-xs overflow-y-auto flex-1 min-h-0 pr-1">
             {/* Show teacher's previous feedback to student when resubmitting */}
             {assignment?.userSubmission?.teacherComment && (
               <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 space-y-1">

@@ -37,6 +37,7 @@ import {
   Timer,
   EyeOff,
   Star,
+  Pencil,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -589,6 +590,17 @@ export function AssignmentsView({
                                 <span className="hidden md:inline">Проверить</span>
                               </Button>
 
+                              <Link href={`/dashboard/assignments/${assignment.id}/edit?group=${currentGroupId}`}>
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                                  title="Редактировать задание"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </Link>
+
                               <Button
                                 size="xs"
                                 variant="outline"
@@ -757,6 +769,17 @@ export function AssignmentsView({
                       </button>
 
                       <div className="flex items-center gap-1">
+                        <Link href={`/dashboard/assignments/${assignment.id}/edit?group=${currentGroupId}`}>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                            title="Редактировать"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+
                         <Button
                           size="xs"
                           variant="outline"
@@ -859,6 +882,10 @@ export function AssignmentsView({
       <ViewAssignmentDialog
         assignment={viewTargetAssignment}
         onClose={() => setViewTargetAssignment(null)}
+        canEdit={canCreate}
+        currentGroupId={currentGroupId}
+        onOpenSubmit={(assignment) => setSubmitTargetAssignment(assignment)}
+        onOpenResult={(assignment) => setViewMyResultAssignment(assignment)}
       />
 
       <StudentResultDialog

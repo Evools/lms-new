@@ -69,10 +69,10 @@ export function SubmissionContentDisplay({
 
   if (parsed.type === "code" && parsed.files && parsed.files.length > 0) {
     const files = parsed.files;
-    const currentFile = files[activeFileIdx] || files[0];
-    const htmlFile = files.find((f) => f.name.endsWith(".html") || f.name.endsWith(".htm"));
-    const cssFile = files.find((f) => f.name.endsWith(".css"));
-    const jsFile = files.find((f) => f.name.endsWith(".js"));
+    const currentFile = files[activeFileIdx] || files[0] || { name: "file.txt", code: "" };
+    const htmlFile = files.find((f) => f.name && (f.name.endsWith(".html") || f.name.endsWith(".htm")));
+    const cssFile = files.find((f) => f.name && f.name.endsWith(".css"));
+    const jsFile = files.find((f) => f.name && f.name.endsWith(".js"));
 
     const combinedHtml = `
       <!DOCTYPE html>

@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Check, ExternalLink, RotateCcw, Send, Star, Timer } from "lucide-react";
@@ -31,8 +32,8 @@ export function StudentResultDialog({
   return (
     <Dialog open={assignment !== null} onOpenChange={(open) => !open && onClose()}>
       {assignment && (
-        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1100px] w-[94vw] max-h-[92vh] overflow-y-auto">
-          <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left">
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1100px] w-[94vw] max-h-[92vh] flex flex-col">
+          <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left shrink-0">
             <div className="flex items-center gap-2">
               <Badge
                 variant="outline"
@@ -44,10 +45,13 @@ export function StudentResultDialog({
             <DialogTitle className="text-sm font-bold text-foreground pt-1">
               Мой ответ: {assignment.title}
             </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Информация о сданном решении, статусе проверки и оценке преподавателя
+            </DialogDescription>
           </DialogHeader>
 
           {mySub ? (
-            <div className="space-y-3 py-1">
+            <div className="space-y-3 py-1 overflow-y-auto flex-1 min-h-0 pr-1">
               {/* Status + Grade */}
               <div className="flex items-center gap-2.5 flex-wrap">
                 <Badge

@@ -517,3 +517,138 @@ export async function reviewSubmissionAction(data: {
     return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при проверке работы" };
   }
 }
+
+export interface AssignmentEditDTO {
+  id: string;
+  groupSubjectId: string;
+  groupId: string;
+  title: string;
+  description: string;
+  dueDate: string | null;
+  fileUrl: string | null;
+  isPublished: boolean;
+}
+
+export async function getAssignmentForEditAction(assignmentId: string) {
+  try {
+    const session = await auth();
+    if (
+      !session?.user ||
+      (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+    ) {
+      return { success: false, error: "Недостаточно прав для редактирования задания" };
+    }
+
+    const assignment = await prisma.assignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        groupSubject: {
+          select: {
+            id: true,
+            groupId: true,
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      return { success: false, error: "Задание не найдено" };
+    }
+
+    return {
+      success: true,
+      assignment: {
+        id: assignment.id,
+        groupSubjectId: assignment.groupSubjectId,
+        groupId: assignment.groupSubject.groupId,
+        title: assignment.title,
+        description: assignment.description,
+        dueDate: assignment.dueDate ? assignment.dueDate.toISOString().split("T")[0] : null,
+        fileUrl: assignment.fileUrl,
+        isPublished: assignment.isPublished,
+      } as AssignmentEditDTO,
+    };
+  } catch (error) {
+    console.error("Failed to get assignment for edit:", error);
+    return { success: false, error: "Произошла ошибка при загрузке задания" };
+  }
+}
+
+/** Update an existing assignment */
+export async function updateAssignmentAction(data: {
+  id: string;
+  groupSubjectId: string;
+  title: string;
+  description: string;
+  dueDate?: string;
+  fileUrl?: string;
+  isPublished?: boolean;
+}) {
+  const session = await auth();
+  if (
+    !session?.user ||
+    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+  ) {
+    return { success: false, error: "Недостаточно прав для редактирования задания" };
+  }
+
+  if (!data.id || !data.title.trim() || !data.description.trim() || !data.groupSubjectId) {
+    return { success: false, error: "Заполните все обязательные поля" };
+  }
+
+  try {
+    const isPublished = data.isPublished !== undefined ? data.isPublished : true;
+
+    const existing = await prisma.assignment.findUnique({
+      where: { id: data.id },
+      select: { isPublished: true },
+    });
+
+    const updated = await prisma.assignment.update({
+      where: { id: data.id },
+      data: {
+        groupSubjectId: data.groupSubjectId,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        fileUrl: data.fileUrl?.trim() || null,
+        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        isPublished,
+      },
+      include: {
+        groupSubject: {
+          include: {
+            subject: true,
+            group: {
+              include: {
+                students: { select: { studentId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // If previously unpublished and now published, notify students
+    if (existing && !existing.isPublished && isPublished) {
+      const students = updated.groupSubject.group.students;
+      if (students.length > 0) {
+        await prisma.notification.createMany({
+          data: students.map((s) => ({
+            userId: s.studentId,
+            title: `Новое задание: ${updated.title}`,
+            message: `Опубликовано задание по дисциплине "${updated.groupSubject.subject.name}".`,
+            type: "ASSIGNMENT",
+            link: "/dashboard/assignments",
+          })),
+        });
+      }
+    }
+
+    revalidatePath("/dashboard/assignments");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update assignment:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при обновлении задания" };
+  }
+}
+

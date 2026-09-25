@@ -3,7 +3,8 @@
 import React, { useRef } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 
-export function getPrismLanguage(fileName: string): string {
+export function getPrismLanguage(fileName?: string | null): string {
+  if (!fileName || typeof fileName !== "string") return "clike";
   const ext = fileName.split(".").pop()?.toLowerCase() || "";
   switch (ext) {
     case "html":
@@ -51,7 +52,7 @@ export function getPrismLanguage(fileName: string): string {
 }
 
 interface CodeViewerProps {
-  code: string;
+  code?: string | null;
   fileName?: string;
   maxHeight?: string;
   showLineNumbers?: boolean;
@@ -59,14 +60,15 @@ interface CodeViewerProps {
 }
 
 export function CodeViewer({
-  code,
+  code = "",
   fileName = "code.js",
   maxHeight = "360px",
   showLineNumbers = true,
   className = "",
 }: CodeViewerProps) {
+  const safeCode = typeof code === "string" ? code : String(code || "");
   const language = getPrismLanguage(fileName);
-  const displayCode = code.trim().length > 0 ? code : "// Файл пуст";
+  const displayCode = safeCode.trim().length > 0 ? safeCode : "// Файл пуст";
 
   return (
     <Highlight theme={themes.vsDark} code={displayCode} language={language}>
@@ -100,7 +102,7 @@ export function CodeViewer({
 }
 
 interface CodeEditorProps {
-  value: string;
+  value?: string | null;
   onChange: (val: string) => void;
   fileName?: string;
   placeholder?: string;
@@ -109,13 +111,14 @@ interface CodeEditorProps {
 }
 
 export function CodeEditor({
-  value,
+  value = "",
   onChange,
   fileName = "index.html",
   placeholder = "// Напишите или вставьте код сюда...",
   minHeight = "220px",
   maxHeight = "360px",
 }: CodeEditorProps) {
+  const safeValue = typeof value === "string" ? value : String(value || "");
   const language = getPrismLanguage(fileName);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
@@ -137,7 +140,7 @@ export function CodeEditor({
 
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const updated = value.substring(0, start) + "  " + value.substring(end);
+      const updated = safeValue.substring(0, start) + "  " + safeValue.substring(end);
       onChange(updated);
 
       requestAnimationFrame(() => {
@@ -146,7 +149,7 @@ export function CodeEditor({
     }
   };
 
-  const lines = value.split("\n");
+  const lines = safeValue.split("\n");
   const lineCount = lines.length;
 
   return (
@@ -189,7 +192,7 @@ export function CodeEditor({
         {/* Interactive Textarea Layer */}
         <textarea
           ref={textareaRef}
-          value={value}
+          value={safeValue}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onScroll={handleScroll}

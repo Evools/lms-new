@@ -139,8 +139,8 @@ export function TeacherReviewDialog({
 
   return (
     <Dialog open={assignment !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1240px] w-[95vw] max-h-[92vh] overflow-y-auto">
-        <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left pr-8">
+      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1240px] w-[95vw] max-h-[92vh] flex flex-col">
+        <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left pr-8 shrink-0">
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
@@ -158,7 +158,7 @@ export function TeacherReviewDialog({
         </DialogHeader>
 
         {/* Filter Tabs Header & View Switcher */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b pb-2.5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b pb-2.5 shrink-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
@@ -269,7 +269,7 @@ export function TeacherReviewDialog({
 
         {/* FOCUS CONVEYOR WORKFLOW (Master-Detail Mode) */}
         {reviewViewMode === "focus" ? (
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 py-1">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 py-1 flex-1 min-h-0 overflow-y-auto pr-1">
             {/* Left Sidebar: Queue of Students */}
             <div className="md:col-span-4 lg:col-span-3 border rounded-xl p-2.5 bg-muted/20 space-y-2 max-h-[580px] overflow-y-auto">
               <div className="relative">
@@ -622,7 +622,7 @@ export function TeacherReviewDialog({
           </div>
         ) : (
           /* LIST VIEW MODE (All cards stacked) */
-          <div className="space-y-2.5 py-1 text-xs max-h-[380px] overflow-y-auto pr-1">
+          <div className="space-y-2.5 py-1 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
             {filteredSubmissions.map((sub: SubmissionDTO) => (
               <div
                 key={sub.id}

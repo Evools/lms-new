@@ -15,21 +15,34 @@ export interface SubmissionPayload {
 }
 
 export function parseSubmissionContent(comment?: string | null): SubmissionPayload {
-  if (!comment) return { type: "text", note: "" };
+  if (!comment || typeof comment !== "string") return { type: "text", note: "" };
   try {
     const parsed = JSON.parse(comment);
     if (parsed && typeof parsed === "object" && (parsed.type === "code" || Array.isArray(parsed.files))) {
+      const rawFiles = Array.isArray(parsed.files) ? parsed.files : [];
+      const safeFiles: SubmissionCodeFile[] = rawFiles.map((f: unknown, index: number) => {
+        if (typeof f === "object" && f !== null) {
+          const fileObj = f as { name?: unknown; code?: unknown };
+          return {
+            name: typeof fileObj.name === "string" ? fileObj.name : `file_${index + 1}.txt`,
+            code: typeof fileObj.code === "string" ? fileObj.code : "",
+          };
+        }
+        return { name: `file_${index + 1}.txt`, code: String(f || "") };
+      });
+
       return {
         type: "code",
-        note: parsed.note || "",
-        files: Array.isArray(parsed.files) ? parsed.files : [],
+        note: typeof parsed.note === "string" ? parsed.note : "",
+        files: safeFiles,
       };
     }
   } catch {}
   return { type: "text", note: comment };
 }
 
-export function detectLanguage(fileName: string): string {
+export function detectLanguage(fileName?: string | null): string {
+  if (!fileName || typeof fileName !== "string") return "code";
   const ext = fileName.split(".").pop()?.toLowerCase() || "";
   switch (ext) {
     case "html":
@@ -70,23 +83,26 @@ export function detectLanguage(fileName: string): string {
 }
 
 export function parseAttachmentLinks(fileUrl?: string | null): string[] {
-  if (!fileUrl) return [];
+  if (!fileUrl || typeof fileUrl !== "string") return [];
+  const trimmed = fileUrl.trim();
+  if (!trimmed) return [];
   try {
-    const parsed = JSON.parse(fileUrl);
+    const parsed = JSON.parse(trimmed);
     if (Array.isArray(parsed)) {
       return parsed
         .map((item: unknown) => {
-          if (typeof item === "string") return item;
+          if (typeof item === "string") return item.trim();
           if (typeof item === "object" && item !== null && "url" in item) {
-            return String((item as { url?: unknown }).url || "");
+            return String((item as { url?: unknown }).url || "").trim();
           }
           return "";
         })
         .filter(Boolean);
     }
   } catch {}
-  if (fileUrl.trim().startsWith("http://") || fileUrl.trim().startsWith("https://")) {
-    return [fileUrl.trim()];
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/")) {
+    return [trimmed];
   }
   return [];
 }
+
