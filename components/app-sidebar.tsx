@@ -293,7 +293,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/80 bg-sidebar" {...props}>
-      <SidebarHeader className="border-b p-2 group-data-[collapsible=icon]:p-2 flex justify-center">
+      <SidebarHeader className="h-14 border-b px-2 flex items-center justify-center">
         <TeamSwitcher teams={teams} />
       </SidebarHeader>
       <SidebarContent className="gap-0 py-2 px-2 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:py-2" data-tour="sidebar-nav">

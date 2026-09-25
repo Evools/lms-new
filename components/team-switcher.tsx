@@ -42,18 +42,20 @@ export function TeamSwitcher({
             render={
               <SidebarMenuButton
                 size="lg"
-                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground rounded-md"
+                className="h-10 px-1.5 justify-between data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground rounded-lg"
               />
             }
           >
-            <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shrink-0">
-              {activeTeam.logo}
+            <div className="flex items-center gap-2 min-w-0 flex-1 group-data-[collapsible=icon]:justify-center">
+              <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shrink-0">
+                {activeTeam.logo}
+              </div>
+              <div className="grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden">
+                <span className="truncate font-semibold">{activeTeam.name}</span>
+                <span className="truncate text-[11px] text-muted-foreground">{activeTeam.plan}</span>
+              </div>
             </div>
-            <div className="grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden">
-              <span className="truncate font-semibold">{activeTeam.name}</span>
-              <span className="truncate text-[11px] text-muted-foreground">{activeTeam.plan}</span>
-            </div>
-            <ChevronsUpDown className="ml-auto size-4 text-muted-foreground shrink-0 group-data-[collapsible=icon]:hidden" />
+            <ChevronsUpDown className="size-4 text-muted-foreground shrink-0 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-56 rounded-md"
