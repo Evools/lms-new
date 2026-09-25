@@ -106,8 +106,7 @@ interface CodeEditorProps {
   onChange: (val: string) => void;
   fileName?: string;
   placeholder?: string;
-  minHeight?: string;
-  maxHeight?: string;
+  height?: string;
 }
 
 export function CodeEditor({
@@ -115,19 +114,22 @@ export function CodeEditor({
   onChange,
   fileName = "index.html",
   placeholder = "// Напишите или вставьте код сюда...",
-  minHeight = "220px",
-  maxHeight = "360px",
+  height = "320px",
 }: CodeEditorProps) {
   const safeValue = typeof value === "string" ? value : String(value || "");
   const language = getPrismLanguage(fileName);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
 
-  // Synchronize scrolling between overlay textarea and syntax highlighted pre
-  const handleScroll = () => {
-    if (textareaRef.current && preRef.current) {
-      preRef.current.scrollTop = textareaRef.current.scrollTop;
-      preRef.current.scrollLeft = textareaRef.current.scrollLeft;
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    if (preRef.current) {
+      preRef.current.scrollTop = target.scrollTop;
+      preRef.current.scrollLeft = target.scrollLeft;
+    }
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = target.scrollTop;
     }
   };
 
@@ -152,27 +154,50 @@ export function CodeEditor({
   const lines = safeValue.split("\n");
   const lineCount = lines.length;
 
+  const sharedEditorStyle: React.CSSProperties = {
+    fontFamily:
+      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    fontSize: "12px",
+    lineHeight: "20px",
+    tabSize: 2,
+    letterSpacing: "0px",
+    wordSpacing: "normal",
+  };
+
   return (
-    <div className="relative font-mono text-xs bg-zinc-950 text-zinc-100 rounded-b-xl border border-zinc-800 overflow-hidden shadow-inner flex">
-      {/* Line Numbers Gutter */}
-      <div className="select-none py-3 px-2 text-right text-zinc-600 font-mono text-[10px] border-r border-zinc-800/80 bg-zinc-950/90 shrink-0 w-8">
+    <div
+      style={{ height }}
+      className="relative font-mono text-xs bg-[#1e1e1e] text-zinc-100 rounded-b-xl border border-zinc-800 overflow-hidden shadow-inner flex w-full"
+    >
+      {/* Line Numbers Gutter (Synced with Textarea Scroll) */}
+      <div
+        ref={gutterRef}
+        style={sharedEditorStyle}
+        className="select-none py-3 px-2 text-right text-zinc-500 font-mono text-[11px] border-r border-zinc-800/90 bg-[#1e1e1e] shrink-0 w-10 overflow-hidden"
+      >
         {Array.from({ length: Math.max(1, lineCount) }).map((_, i) => (
-          <div key={i} className="leading-5 h-5">
+          <div key={i} className="leading-5 h-5 text-[11px]">
             {i + 1}
           </div>
         ))}
       </div>
 
       {/* Editor & Highlight Container */}
-      <div className="relative flex-1 overflow-hidden" style={{ minHeight, maxHeight }}>
+      <div className="relative flex-1 h-full overflow-hidden">
         {/* Syntax Highlighted Layer */}
-        <Highlight theme={themes.vsDark} code={value || " "} language={language}>
+        <Highlight theme={themes.vsDark} code={safeValue || " "} language={language}>
           {({ style, tokens, getLineProps, getTokenProps }) => (
             <pre
               ref={preRef}
-              style={{ ...style, minHeight, maxHeight }}
+              style={{
+                ...style,
+                ...sharedEditorStyle,
+                height: "100%",
+                padding: "12px",
+                margin: 0,
+              }}
               aria-hidden="true"
-              className="p-3 m-0 overflow-auto font-mono text-xs leading-5 whitespace-pre select-none pointer-events-none absolute inset-0 bg-transparent"
+              className="overflow-hidden whitespace-pre select-none pointer-events-none absolute inset-0 bg-transparent border-0"
             >
               {tokens.map((line, i) => {
                 const { key: _lineKey, ...lineProps } = getLineProps({ line });
@@ -202,15 +227,17 @@ export function CodeEditor({
           autoComplete="off"
           autoCorrect="off"
           style={{
-            minHeight,
-            maxHeight,
+            ...sharedEditorStyle,
+            padding: "12px",
+            margin: 0,
             color: "transparent",
             caretColor: "#38bdf8",
             WebkitTextFillColor: "transparent",
           }}
-          className="p-3 m-0 w-full font-mono text-xs leading-5 whitespace-pre select-text resize-none bg-transparent focus:outline-none absolute inset-0 overflow-auto placeholder:text-zinc-600"
+          className="w-full h-full whitespace-pre select-text resize-none bg-transparent focus:outline-none absolute inset-0 overflow-auto placeholder:text-zinc-600"
         />
       </div>
     </div>
   );
 }
+
