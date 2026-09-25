@@ -150,13 +150,15 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   const initialSeconds = test.timeLimit && !isTeacherOrAdmin ? test.timeLimit * 60 : null;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(initialSeconds);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isWindowBlurred, setIsWindowBlurred] = useState(false);
 
-  // Tab visibility detection
+  // Tab visibility & Window Focus / Anti-Screenshot Detection
   useEffect(() => {
     if (isTeacherOrAdmin || testResult || !isInitialized) return;
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        setIsWindowBlurred(true);
         setTabSwitches((prev) => {
           const next = prev + 1;
           localStorage.setItem(SWITCH_KEY, String(next));
@@ -165,9 +167,79 @@ export function TakeTestView({ test }: TakeTestViewProps) {
       }
     };
 
+    const handleBlur = () => {
+      setIsWindowBlurred(true);
+    };
+
+    const handleFocus = () => {
+      setIsWindowBlurred(false);
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      toast.add({ title: "Контекстное меню заблокировано", type: "warning" });
+    };
+
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      toast.add({ title: "Копирование материалов теста запрещено", type: "error" });
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target || (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA")) {
+        e.preventDefault();
+        toast.add({ title: "Вставка заблокирована", type: "warning" });
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // PrintScreen key detection
+      if (e.key === "PrintScreen") {
+        e.preventDefault();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText("");
+        }
+        setIsWindowBlurred(true);
+        toast.add({ title: "Скриншот экрана заблокирован", type: "error" });
+        return;
+      }
+
+      // Block Ctrl+P / Cmd+P, Ctrl+S / Cmd+S, Ctrl+U / Cmd+U, Ctrl+C / Cmd+C (outside inputs), F12
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA");
+
+      if (
+        (isCtrlOrCmd && (e.key === "p" || e.key === "P" || e.key === "s" || e.key === "S" || e.key === "u" || e.key === "U")) ||
+        e.key === "F12"
+      ) {
+        e.preventDefault();
+        toast.add({ title: "Действие заблокировано в целях безопасности", type: "warning" });
+      } else if (isCtrlOrCmd && (e.key === "c" || e.key === "C" || e.key === "a" || e.key === "A") && !isInput) {
+        e.preventDefault();
+        toast.add({ title: "Копирование запрещено", type: "error" });
+      }
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("cut", handleCopy);
+    document.addEventListener("paste", handlePaste);
+    document.addEventListener("keydown", handleKeyDown);
+
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("cut", handleCopy);
+      document.removeEventListener("paste", handlePaste);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isTeacherOrAdmin, testResult, isInitialized, SWITCH_KEY]);
 
@@ -480,9 +552,57 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   }, [activeQuestionIdx, totalQuestions, isSubmitted, isSubmitModalOpen, currentQuestion]);
 
   return (
-    <div className="space-y-4 w-full max-w-full min-w-0 pb-16">
+    <div className={`space-y-4 w-full max-w-full min-w-0 pb-16 relative ${!isTeacherOrAdmin && !isSubmitted ? "select-none" : ""}`}>
+      {/* Global Print Protection */}
+      <style jsx global>{`
+        @media print {
+          body {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      {/* Anti-Screenshot Privacy Shield Overlay */}
+      {isWindowBlurred && !isTeacherOrAdmin && !isSubmitted && (
+        <div
+          onClick={() => setIsWindowBlurred(false)}
+          className="fixed inset-0 z-50 bg-background/95 backdrop-blur-xl flex flex-col items-center justify-center gap-3 p-4 text-center cursor-pointer select-none animate-in fade-in duration-200"
+        >
+          <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
+            <ShieldAlert className="h-6 w-6 stroke-[2]" />
+          </div>
+          <div className="space-y-1 max-w-sm">
+            <h3 className="text-sm font-bold text-foreground">Защита содержимого теста</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Окно браузера потеряло фокус. Нажмите в любую точку экрана, чтобы продолжить выполнение теста.
+            </p>
+          </div>
+          <Button
+            size="xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsWindowBlurred(false);
+            }}
+            className="mt-1 h-7 px-3 text-xs bg-primary text-primary-foreground font-medium"
+          >
+            Вернуться к тесту
+          </Button>
+        </div>
+      )}
+
+      {/* Subtle Anti-Photo Watermark */}
+      {!isTeacherOrAdmin && !isSubmitted && (
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-[0.025] select-none flex flex-wrap gap-20 p-8 items-center justify-center text-foreground font-mono text-[11px] font-bold uppercase rotate-[-20deg]">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <span key={i} className="whitespace-nowrap">
+              Лицей LMS • ID: {test.id.slice(0, 8)} • {new Date().toLocaleDateString()}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Top Header & Context Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border relative z-10">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
             <Link href="/dashboard/lms/tests">
