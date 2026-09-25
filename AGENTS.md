@@ -29,3 +29,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 5. **No Emojis (Использовать ТОЛЬКО иконки, никаких emoji)**:
    - NEVER use Unicode emoji characters (e.g. 📚, 🎓, 👨‍🏫, 👤, ✓, ✕) anywhere in UI text, selects, or buttons.
    - ALWAYS use strict SVG Lucide icons (e.g. `<BookMarked />`, `<GraduationCap />`, `<UserCheck />`, `<Check />`, `<X />`).
+
+6. **Strict 1px Flat Borders & No Heavy Rings/Shadows (Строгие тонкие границы 1px, без толстых рамок и теней)**:
+   - **СТРОГО ЗАПРЕЩЕНО** использовать толстые границы, акцентные кольца и тени (`ring-2`, `ring-offset-*`, `ring-foreground/*`, `shadow-md`, `shadow-lg`, `border-2`, `border-4`).
+   - Всегда используйте только одинарную аккуратную 1px границу shadcn: `border border-border` или `border-primary` (для выбранных/активных элементов).
+   - НИКОГДА не комбинируйте `ring-*` поверх `border` на карточках, кнопках или бейджах (это создает эффект грубых двойных утолщенных рамок).
+   - Карточки, модальные окна и контейнеры должны быть плоскими и строгими (flat clean shadcn style).

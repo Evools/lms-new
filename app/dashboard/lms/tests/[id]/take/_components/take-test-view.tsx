@@ -9,12 +9,28 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/components/ui/toast";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Clock,
   Send,
   ArrowLeft,
-  Building2,
+  ChevronLeft,
+  ChevronRight,
   Check,
-  X,
   Trophy,
   Eye,
   ChevronUp,
@@ -24,6 +40,9 @@ import {
   ShieldAlert,
   Hash,
   Layers,
+  Bookmark,
+  ListFilter,
+  Info,
 } from "lucide-react";
 import { submitTestAnswersAction } from "@/app/dashboard/lms/actions";
 
@@ -72,6 +91,8 @@ interface TakeTestViewProps {
   test: TestTakeData;
 }
 
+const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+
 function parseQuestionCode(fullText: string): { title: string; code?: string } {
   if (!fullText) return { title: "" };
   const match = fullText.match(/^([\s\S]*?)\n```(?:[a-z]*)\n([\s\S]*?)\n```$/);
@@ -90,9 +111,26 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   const START_KEY = `test_start_${test.id}`;
   const ANSWERS_KEY = `test_answers_${test.id}`;
   const SWITCH_KEY = `test_switches_${test.id}`;
+  const FLAGGED_KEY = `test_flagged_${test.id}`;
+
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
+  const [viewMode, setViewMode] = useState<"focus" | "list">("focus");
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
 
   const [studentAnswers, setStudentAnswers] = useState<Record<string, string>>(() => {
     return test.userSubmission?.answers || {};
+  });
+
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(FLAGGED_KEY);
+        return stored ? JSON.parse(stored) : {};
+      } catch {
+        return {};
+      }
+    }
+    return {};
   });
 
   const [tabSwitches, setTabSwitches] = useState<number>(() => {
@@ -104,14 +142,16 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   });
 
   const [testResult, setTestResult] = useState<{ score: number; maxScore: number } | null>(
-    test.userSubmission ? { score: test.userSubmission.score, maxScore: test.userSubmission.maxScore } : null
+    test.userSubmission
+      ? { score: test.userSubmission.score, maxScore: test.userSubmission.maxScore }
+      : null
   );
 
   const initialSeconds = test.timeLimit && !isTeacherOrAdmin ? test.timeLimit * 60 : null;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(initialSeconds);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Focus lost & tab switch detection
+  // Tab visibility detection
   useEffect(() => {
     if (isTeacherOrAdmin || testResult || !isInitialized) return;
 
@@ -129,9 +169,9 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isTeacherOrAdmin, testResult, isInitialized]);
+  }, [isTeacherOrAdmin, testResult, isInitialized, SWITCH_KEY]);
 
-  // Window beforeunload safety guard
+  // Prevent accidental unload
   useEffect(() => {
     if (isTeacherOrAdmin || testResult || !isInitialized) return;
 
@@ -146,7 +186,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     };
   }, [isTeacherOrAdmin, testResult, isInitialized]);
 
-  // Restore state and persistent timer from localStorage on mount
+  // Restore on mount
   useEffect(() => {
     if (typeof window === "undefined" || isTeacherOrAdmin) {
       setIsInitialized(true);
@@ -157,6 +197,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
       localStorage.removeItem(START_KEY);
       localStorage.removeItem(ANSWERS_KEY);
       localStorage.removeItem(SWITCH_KEY);
+      localStorage.removeItem(FLAGGED_KEY);
       if (test.userSubmission.answers) {
         setStudentAnswers(test.userSubmission.answers);
       }
@@ -172,7 +213,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
       } catch {}
     }
 
-    // Restore timer based on start timestamp
+    // Restore timer
     if (test.timeLimit) {
       let startTime = localStorage.getItem(START_KEY);
       const now = Date.now();
@@ -194,13 +235,19 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     setIsInitialized(true);
   }, [test.id]);
 
-  // Persist answers when updated
+  // Persist answers
   useEffect(() => {
     if (!isInitialized || testResult || isTeacherOrAdmin || typeof window === "undefined") return;
     localStorage.setItem(ANSWERS_KEY, JSON.stringify(studentAnswers));
-  }, [studentAnswers, isInitialized, testResult, isTeacherOrAdmin]);
+  }, [studentAnswers, isInitialized, testResult, isTeacherOrAdmin, ANSWERS_KEY]);
 
-  // Live Timer Countdown Interval
+  // Persist flagged
+  useEffect(() => {
+    if (!isInitialized || testResult || isTeacherOrAdmin || typeof window === "undefined") return;
+    localStorage.setItem(FLAGGED_KEY, JSON.stringify(flaggedQuestions));
+  }, [flaggedQuestions, isInitialized, testResult, isTeacherOrAdmin, FLAGGED_KEY]);
+
+  // Timer countdown
   useEffect(() => {
     if (!isInitialized || testResult || secondsLeft === null || isTeacherOrAdmin) return;
     if (secondsLeft <= 0) {
@@ -225,6 +272,13 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const toggleFlag = (questionId: string) => {
+    setFlaggedQuestions((prev) => ({
+      ...prev,
+      [questionId]: !prev[questionId],
+    }));
   };
 
   const handleOrderingMove = (questionId: string, options: string[], fromIdx: number, toIdx: number) => {
@@ -289,9 +343,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
           ? JSON.parse(studentAnswers[questionId])
           : [];
         const exists = currentArr.includes(option);
-        const updated = exists
-          ? currentArr.filter((o) => o !== option)
-          : [...currentArr, option];
+        const updated = exists ? currentArr.filter((o) => o !== option) : [...currentArr, option];
         setStudentAnswers((prev) => ({
           ...prev,
           [questionId]: JSON.stringify(updated),
@@ -310,8 +362,42 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     }
   };
 
+  const isQuestionAnswered = (q: QuestionItem): boolean => {
+    const ans = studentAnswers[q.id];
+    if (!ans) return false;
+    if (q.type === "MULTIPLE") {
+      try {
+        const parsed = JSON.parse(ans);
+        return Array.isArray(parsed) && parsed.length > 0;
+      } catch {
+        return false;
+      }
+    }
+    if (q.type === "ORDERING") {
+      return Boolean(ans);
+    }
+    if (q.type === "BLANKS") {
+      try {
+        const parsed = JSON.parse(ans);
+        return Array.isArray(parsed) && parsed.some((v) => String(v).trim().length > 0);
+      } catch {
+        return false;
+      }
+    }
+    if (q.type === "MATCHING") {
+      try {
+        const parsed = JSON.parse(ans);
+        return typeof parsed === "object" && parsed !== null && Object.keys(parsed).length > 0;
+      } catch {
+        return false;
+      }
+    }
+    return String(ans).trim().length > 0;
+  };
+
   const handleSubmit = async () => {
     if (testResult || isPending) return;
+    setIsSubmitModalOpen(false);
 
     startTransition(async () => {
       const res = await submitTestAnswersAction({
@@ -325,6 +411,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
         localStorage.removeItem(START_KEY);
         localStorage.removeItem(ANSWERS_KEY);
         localStorage.removeItem(SWITCH_KEY);
+        localStorage.removeItem(FLAGGED_KEY);
         toast.add({ title: "Тест успешно завершен!", type: "success" });
         router.refresh();
       } else {
@@ -334,7 +421,9 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const totalQuestions = test.questions.length;
-  const answeredCount = Object.keys(studentAnswers).filter((k) => !k.startsWith("_")).length;
+  const answeredCount = test.questions.filter(isQuestionAnswered).length;
+  const unansweredCount = totalQuestions - answeredCount;
+  const flaggedCount = Object.values(flaggedQuestions).filter(Boolean).length;
   const totalSeconds = test.timeLimit ? test.timeLimit * 60 : 0;
   const timeProgress =
     totalSeconds > 0 && secondsLeft !== null
@@ -349,14 +438,52 @@ export function TakeTestView({ test }: TakeTestViewProps) {
         : "text-destructive border-destructive/30 bg-destructive/10 animate-pulse";
 
   const totalMaxPoints = test.questions.reduce((sum, q) => sum + (q.points || 1), 0);
-
   const isSubmitted = Boolean(testResult || test.userSubmission);
 
+  const currentQuestion = test.questions[activeQuestionIdx] || test.questions[0];
+
+  const jumpToFirstUnanswered = () => {
+    setIsSubmitModalOpen(false);
+    const firstUnansweredIdx = test.questions.findIndex((q) => !isQuestionAnswered(q));
+    if (firstUnansweredIdx !== -1) {
+      setActiveQuestionIdx(firstUnansweredIdx);
+      setViewMode("focus");
+    }
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (isSubmitted || isSubmitModalOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA" ||
+        document.activeElement?.tagName === "SELECT"
+      ) {
+        return;
+      }
+
+      if (e.key === "ArrowRight" && activeQuestionIdx < totalQuestions - 1) {
+        setActiveQuestionIdx((prev) => prev + 1);
+      } else if (e.key === "ArrowLeft" && activeQuestionIdx > 0) {
+        setActiveQuestionIdx((prev) => prev - 1);
+      } else if (e.key === "f" || e.key === "F" || e.key === "а" || e.key === "А") {
+        if (currentQuestion) {
+          toggleFlag(currentQuestion.id);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeQuestionIdx, totalQuestions, isSubmitted, isSubmitModalOpen, currentQuestion]);
+
   return (
-    <div className="space-y-4 w-full pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs">
-        <div className="space-y-1">
+    <div className="space-y-4 w-full max-w-full min-w-0 pb-16">
+      {/* Top Header & Context Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border">
+        <div className="space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
             <Link href="/dashboard/lms/tests">
               <Button
@@ -364,7 +491,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                 variant="ghost"
                 className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
               >
-                <ArrowLeft className="h-3.5 w-3.5" /> Назад к тестам
+                <ArrowLeft className="h-3.5 w-3.5" /> К тестам
               </Button>
             </Link>
             <span className="text-muted-foreground">•</span>
@@ -373,16 +500,16 @@ export function TakeTestView({ test }: TakeTestViewProps) {
             </Badge>
             {isTeacherOrAdmin && (
               <Badge variant="outline" className="text-[10px] text-primary border-primary/30">
-                <Eye className="h-3 w-3 mr-1" /> Режим просмотра
+                <Eye className="h-3 w-3 mr-1" /> Режим предпросмотра
               </Badge>
             )}
           </div>
 
-          <h1 className="text-base font-bold text-foreground tracking-tight flex items-center gap-2">
+          <h1 className="text-sm font-bold text-foreground tracking-tight flex items-center gap-2">
             {test.title}
           </h1>
 
-          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-muted-foreground">
             <span>Преподаватель: <strong className="text-foreground">{test.teacherName}</strong></span>
             <span>•</span>
             <span>Вопросов: <strong className="text-foreground">{totalQuestions}</strong></span>
@@ -393,30 +520,49 @@ export function TakeTestView({ test }: TakeTestViewProps) {
 
         {/* Live Timer Widget (Students only) */}
         {!isTeacherOrAdmin && !isSubmitted && secondsLeft !== null && (
-          <div className="flex items-center gap-3 bg-card p-2 rounded-lg border shadow-xs self-start sm:self-center">
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                Осталось времени
-              </span>
-              <div className={`px-2 py-0.5 rounded-md font-mono text-xs font-bold border flex items-center gap-1.5 ${timerColorClass}`}>
-                <Clock className="h-3.5 w-3.5" />
-                {formatTimer(secondsLeft)}
-              </div>
-            </div>
-            {/* Mini Progress Bar */}
-            <div className="w-12 h-2 bg-muted rounded-full overflow-hidden border">
-              <div
-                className={`h-full transition-all duration-1000 ${
-                  timeProgress > 50 ? "bg-primary" : timeProgress > 20 ? "bg-amber-500" : "bg-destructive"
-                }`}
-                style={{ width: `${timeProgress}%` }}
-              />
-            </div>
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger className="flex items-center gap-3 bg-card p-2 rounded-lg border self-start sm:self-center shrink-0 cursor-help transition-colors hover:bg-muted/30 text-left">
+                <div className="flex flex-col items-end">
+                  <div className="flex items-center gap-1.5">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary"></span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                      Осталось времени
+                    </span>
+                  </div>
+                  <div
+                    className={`px-2.5 py-0.5 rounded-md font-mono text-xs font-bold border flex items-center gap-1.5 ${timerColorClass}`}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    {formatTimer(secondsLeft)}
+                  </div>
+                </div>
+                <div className="w-12 h-2 bg-muted rounded-full overflow-hidden border">
+                  <div
+                    className={`h-full transition-all duration-1000 ${
+                      timeProgress > 50 ? "bg-primary" : timeProgress > 20 ? "bg-amber-500" : "bg-destructive"
+                    }`}
+                    style={{ width: `${timeProgress}%` }}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs p-2.5">
+                <div className="font-semibold text-foreground mb-0.5 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-primary" /> Непрерывный отсчёт
+                </div>
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                  Таймер работает в реальном времени. Закрытие вкладки или перезагрузка страницы не останавливают и не сбрасывают время.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
 
-      {/* Tab Switch Warning Banner (For Students while taking test) */}
+      {/* Tab Switch Warning Banner */}
       {!isTeacherOrAdmin && !isSubmitted && tabSwitches > 0 && (
         <div className="bg-destructive/10 border border-destructive/20 text-destructive p-2.5 rounded-xl text-xs flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -425,44 +571,42 @@ export function TakeTestView({ test }: TakeTestViewProps) {
               Зафиксировано переключение на другие вкладки: <strong>{tabSwitches}</strong> раз(а).
             </span>
           </div>
-          <span className="text-[10px] opacity-80">Данные сохраняются в результатах</span>
+          <span className="text-[10px] opacity-80">Данные сохраняются в ведомости</span>
         </div>
       )}
 
-      {/* Post Submission Results Screen */}
+      {/* SUBMISSION RESULTS SCREEN */}
       {isSubmitted ? (
-        <Card className="p-6 sm:p-7 bg-card border shadow-xs space-y-5 text-center rounded-2xl">
+        <Card className="p-6 sm:p-7 space-y-6 text-center">
           <div className="flex flex-col items-center space-y-2">
-            <div className="w-13 h-13 rounded-full bg-primary/15 text-primary flex items-center justify-center border border-primary/30 shadow-2xs">
-              <Trophy className="h-6 w-6 stroke-[2.5]" />
+            <div className="w-14 h-14 rounded-full bg-primary/15 text-primary flex items-center justify-center border border-primary/30">
+              <Trophy className="h-7 w-7 stroke-[2.5]" />
             </div>
             <h2 className="text-base font-bold text-foreground">Тест успешно завершен!</h2>
-            <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+            <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">
               Ваши ответы зафиксированы и проверены автоматической системой лицея.
             </p>
           </div>
 
-          {/* Score Badge */}
-          <div className="inline-flex items-center justify-center gap-4 bg-muted/40 p-3.5 sm:p-4 rounded-xl border mx-auto w-full max-w-xs">
-            <div className="text-left space-y-0.5 flex-1">
+          {/* Score KPI Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-lg mx-auto">
+            <div className="bg-muted/40 p-3 rounded-xl border text-left space-y-0.5">
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                Итоговый балл
+                Набрано баллов
               </span>
-              <div className="text-xl font-bold text-foreground">
+              <div className="text-lg font-bold text-foreground">
                 {(testResult?.score ?? test.userSubmission?.score ?? 0).toFixed(1)}{" "}
                 <span className="text-xs font-normal text-muted-foreground">
-                  / {testResult?.maxScore ?? test.userSubmission?.maxScore ?? totalMaxPoints} б.
+                  / {testResult?.maxScore ?? test.userSubmission?.maxScore ?? totalMaxPoints}
                 </span>
               </div>
             </div>
 
-            <div className="h-8 w-px bg-border shrink-0" />
-
-            <div className="text-left space-y-0.5 flex-1">
+            <div className="bg-muted/40 p-3 rounded-xl border text-left space-y-0.5">
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                Успеваемость
+                Результат
               </span>
-              <div className="text-xl font-bold text-primary">
+              <div className="text-lg font-bold text-primary">
                 {Math.round(
                   ((testResult?.score ?? test.userSubmission?.score ?? 0) /
                     ((testResult?.maxScore ?? test.userSubmission?.maxScore ?? totalMaxPoints) || 1)) *
@@ -471,9 +615,18 @@ export function TakeTestView({ test }: TakeTestViewProps) {
                 %
               </div>
             </div>
+
+            <div className="bg-muted/40 p-3 rounded-xl border text-left space-y-0.5 col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Вопросов
+              </span>
+              <div className="text-lg font-bold text-foreground">
+                {totalQuestions}
+              </div>
+            </div>
           </div>
 
-          <div className="pt-1 flex justify-center gap-3">
+          <div className="pt-2 flex justify-center gap-3">
             <Link href="/dashboard/lms/tests">
               <Button size="xs" variant="outline" className="h-8 px-4 text-xs gap-1.5 font-medium">
                 <ArrowLeft className="h-3.5 w-3.5" /> Вернуться к списку тестов
@@ -482,316 +635,743 @@ export function TakeTestView({ test }: TakeTestViewProps) {
           </div>
         </Card>
       ) : (
-        /* Active Test Taking View */
-        <div className="space-y-4">
-          {/* Questions List */}
-          <div className="space-y-4">
-            {test.questions.map((q, qIdx) => {
-              const { title: qTitle, code: qCode } = parseQuestionCode(q.questionText);
-              const selectedVal = studentAnswers[q.id] || "";
-              let selectedMultiple: string[] = [];
-              if (q.type === "MULTIPLE") {
-                try {
-                  selectedMultiple = selectedVal ? JSON.parse(selectedVal) : [];
-                } catch {
-                  selectedMultiple = [];
+        /* ACTIVE TEST TAKING WORKSPACE (2-COLUMN FOCUS LAYOUT) */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start w-full max-w-full min-w-0">
+          {/* LEFT COLUMN: ACTIVE QUESTION CARD */}
+          <div className="lg:col-span-8 xl:col-span-9 space-y-3 min-w-0">
+            {/* Mode Switcher & Progress Summary */}
+            <div className="flex items-center justify-between gap-2 bg-card p-2 rounded-xl border text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  Вопрос <strong className="text-foreground">{activeQuestionIdx + 1}</strong> из {totalQuestions}
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-[11px] text-primary font-medium">
+                  Отвечено: {answeredCount}/{totalQuestions}
+                </span>
+              </div>
+
+              <div className="flex items-center bg-muted p-0.5 rounded-lg border text-xs">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("focus")}
+                  className={`px-2 py-0.5 rounded-md font-medium text-[11px] transition-all ${
+                    viewMode === "focus"
+                      ? "bg-card text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  По одному
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`px-2 py-0.5 rounded-md font-medium text-[11px] transition-all ${
+                    viewMode === "list"
+                      ? "bg-card text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Все вопросы
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile / Tablet Horizontal Question Carousel */}
+            <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+              {test.questions.map((q, idx) => {
+                const isAnswered = isQuestionAnswered(q);
+                const isFlagged = flaggedQuestions[q.id];
+                const isActive = idx === activeQuestionIdx;
+
+                let pillStyle = "bg-muted/30 text-muted-foreground border-border hover:bg-muted/60";
+                if (isActive) {
+                  pillStyle = "bg-primary text-primary-foreground border-primary font-bold";
+                } else if (isFlagged) {
+                  pillStyle = "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold";
+                } else if (isAnswered) {
+                  pillStyle = "bg-primary/15 text-primary border-primary/30 font-bold";
+                }
+
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => setActiveQuestionIdx(idx)}
+                    className={`h-7 min-w-[32px] px-1.5 rounded-lg border text-xs font-mono shrink-0 transition-all flex items-center justify-center gap-0.5 ${pillStyle}`}
+                  >
+                    {isFlagged && <Bookmark className="h-2.5 w-2.5 fill-current" />}
+                    <span>{idx + 1}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* MAIN QUESTION DISPLAY */}
+            {viewMode === "focus" ? (
+              /* Single Question Focus Mode */
+              <QuestionCard
+                question={currentQuestion}
+                index={activeQuestionIdx}
+                totalQuestions={totalQuestions}
+                studentAnswers={studentAnswers}
+                isFlagged={Boolean(flaggedQuestions[currentQuestion.id])}
+                isTeacherOrAdmin={Boolean(isTeacherOrAdmin)}
+                onToggleFlag={() => toggleFlag(currentQuestion.id)}
+                onOptionSelect={(opt) => handleOptionSelect(currentQuestion.id, opt, currentQuestion.type)}
+                onBlankChange={(cnt, bIdx, val) => handleBlankChange(currentQuestion.id, cnt, bIdx, val)}
+                onOrderingMove={(fromIdx, toIdx) =>
+                  handleOrderingMove(
+                    currentQuestion.id,
+                    Array.isArray(currentQuestion.options) ? currentQuestion.options.map(String) : [],
+                    fromIdx,
+                    toIdx
+                  )
+                }
+                onMatchingChange={(lKey, rVal) => handleMatchingChange(currentQuestion.id, lKey, rVal)}
+                onTextChange={(val) =>
+                  setStudentAnswers((prev) => ({
+                    ...prev,
+                    [currentQuestion.id]: val,
+                  }))
+                }
+              />
+            ) : (
+              /* All Questions List Mode */
+              <div className="space-y-4">
+                {test.questions.map((q, qIdx) => (
+                  <QuestionCard
+                    key={q.id}
+                    question={q}
+                    index={qIdx}
+                    totalQuestions={totalQuestions}
+                    studentAnswers={studentAnswers}
+                    isFlagged={Boolean(flaggedQuestions[q.id])}
+                    isTeacherOrAdmin={Boolean(isTeacherOrAdmin)}
+                    onToggleFlag={() => toggleFlag(q.id)}
+                    onOptionSelect={(opt) => handleOptionSelect(q.id, opt, q.type)}
+                    onBlankChange={(cnt, bIdx, val) => handleBlankChange(q.id, cnt, bIdx, val)}
+                    onOrderingMove={(fromIdx, toIdx) =>
+                      handleOrderingMove(
+                        q.id,
+                        Array.isArray(q.options) ? q.options.map(String) : [],
+                        fromIdx,
+                        toIdx
+                      )
+                    }
+                    onMatchingChange={(lKey, rVal) => handleMatchingChange(q.id, lKey, rVal)}
+                    onTextChange={(val) =>
+                      setStudentAnswers((prev) => ({
+                        ...prev,
+                        [q.id]: val,
+                      }))
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Navigation Buttons (Focus Mode) */}
+            {viewMode === "focus" && (
+              <div className="flex items-center justify-between gap-2 p-3 bg-card border rounded-xl">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={activeQuestionIdx === 0}
+                  onClick={() => setActiveQuestionIdx((prev) => Math.max(0, prev - 1))}
+                  className="h-8 px-3 text-xs gap-1 font-medium"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Назад
+                </Button>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => toggleFlag(currentQuestion.id)}
+                    className={`h-8 px-2.5 text-xs gap-1 font-medium transition-colors ${
+                      flaggedQuestions[currentQuestion.id]
+                        ? "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Пометить вопрос флажком (клавиша F)"
+                  >
+                    <Bookmark className={`h-3.5 w-3.5 ${flaggedQuestions[currentQuestion.id] ? "fill-current" : ""}`} />
+                    <span className="hidden sm:inline">
+                      {flaggedQuestions[currentQuestion.id] ? "Отложен" : "Отложить"}
+                    </span>
+                  </Button>
+
+                  {activeQuestionIdx < totalQuestions - 1 ? (
+                    <Button
+                      size="xs"
+                      onClick={() => setActiveQuestionIdx((prev) => Math.min(totalQuestions - 1, prev + 1))}
+                      className="h-8 px-3 text-xs gap-1 font-medium bg-primary text-primary-foreground"
+                    >
+                      Следующий <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : (
+                    <Button
+                      size="xs"
+                      onClick={() => setIsSubmitModalOpen(true)}
+                      className="h-8 px-3 text-xs gap-1 font-bold bg-primary text-primary-foreground"
+                    >
+                      <Send className="h-3.5 w-3.5" /> Завершить тест
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: QUESTION PALETTE & SIDEBAR (STICKY) */}
+          <div className="lg:col-span-4 xl:col-span-3 space-y-3 sticky top-20 self-start min-w-0">
+            <Card className="p-3.5 space-y-3.5">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <ListFilter className="h-3.5 w-3.5 text-primary" /> Навигация по тесту
+                </h3>
+                <span className="text-[11px] font-semibold text-muted-foreground font-mono">
+                  {answeredCount}/{totalQuestions}
+                </span>
+              </div>
+
+              {/* Mini Summary Chips */}
+              <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
+                  <div className="font-bold text-xs">{answeredCount}</div>
+                  <div className="text-[9px] uppercase tracking-wider">Отвечено</div>
+                </div>
+                <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400">
+                  <div className="font-bold text-xs">{flaggedCount}</div>
+                  <div className="text-[9px] uppercase tracking-wider">Отложено</div>
+                </div>
+                <div className="p-1.5 rounded-lg bg-muted border text-muted-foreground">
+                  <div className="font-bold text-xs">{unansweredCount}</div>
+                  <div className="text-[9px] uppercase tracking-wider">Осталось</div>
+                </div>
+              </div>
+
+              {/* Continuous Timer Notice (when timeLimit is set) */}
+              {test.timeLimit && !isTeacherOrAdmin && (
+                <div className="p-2.5 rounded-lg bg-muted/40 border text-[11px] space-y-1">
+                  <div className="flex items-center justify-between font-semibold text-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-primary" /> Лимит: {test.timeLimit} мин
+                    </span>
+                    {secondsLeft !== null && (
+                      <span className="font-mono text-xs text-primary font-bold">
+                        {formatTimer(secondsLeft)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    Отсчёт времени идёт непрерывно. Выход из браузера или перезагрузка страницы не приостанавливают таймер.
+                  </p>
+                </div>
+              )}
+
+              {/* Question 1..N Number Grid */}
+              <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-1.5 pt-1">
+                {test.questions.map((q, idx) => {
+                  const isAnswered = isQuestionAnswered(q);
+                  const isFlagged = flaggedQuestions[q.id];
+                  const isActive = idx === activeQuestionIdx && viewMode === "focus";
+
+                  let btnStyle = "bg-muted/30 hover:bg-muted/60 text-muted-foreground border-border";
+                  if (isActive) {
+                    btnStyle = "bg-primary text-primary-foreground border-primary font-bold";
+                  } else if (isFlagged) {
+                    btnStyle = "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold";
+                  } else if (isAnswered) {
+                    btnStyle = "bg-primary/15 text-primary border-primary/30 font-bold hover:bg-primary/25";
+                  }
+
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveQuestionIdx(idx);
+                        if (viewMode === "list") {
+                          const el = document.getElementById(`question-card-${q.id}`);
+                          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }
+                      }}
+                      className={`h-8 rounded-lg border text-xs font-mono transition-all flex items-center justify-center relative ${btnStyle}`}
+                      title={`Вопрос #${idx + 1} (${q.points} б.)`}
+                    >
+                      <span>{idx + 1}</span>
+                      {isFlagged && (
+                        <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-500 text-white flex items-center justify-center">
+                          <Bookmark className="h-2 w-2 fill-current" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Submit CTA */}
+              {!isTeacherOrAdmin && (
+                <div className="pt-2 border-t space-y-1.5">
+                  <Button
+                    size="xs"
+                    disabled={isPending}
+                    onClick={() => setIsSubmitModalOpen(true)}
+                    className="w-full h-8 text-xs font-bold gap-1.5 bg-primary text-primary-foreground"
+                  >
+                    <Send className="h-3.5 w-3.5" /> Завершить тест
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    Вы сможете проверить ответы перед окончательной отправкой
+                  </p>
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* SMART SUBMISSION CONFIRMATION MODAL */}
+      <AlertDialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px] place-items-start text-left">
+          <AlertDialogHeader className="text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+              <Send className="h-4 w-4 text-primary" /> Завершить прохождение теста?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground space-y-2">
+              <p>Вы собираетесь отправить работу на автоматическую проверку.</p>
+
+              {/* Stats Breakdown */}
+              <div className="bg-muted/50 p-2.5 rounded-lg border space-y-1 text-foreground">
+                <div className="flex items-center justify-between text-xs">
+                  <span>Отвечено на вопросов:</span>
+                  <strong className="text-primary">{answeredCount} из {totalQuestions}</strong>
+                </div>
+                {flaggedCount > 0 && (
+                  <div className="flex items-center justify-between text-xs text-amber-600 dark:text-amber-400">
+                    <span>Отложено на потом:</span>
+                    <strong>{flaggedCount}</strong>
+                  </div>
+                )}
+                {unansweredCount > 0 && (
+                  <div className="flex items-center justify-between text-xs text-destructive">
+                    <span>Осталось без ответа:</span>
+                    <strong>{unansweredCount}</strong>
+                  </div>
+                )}
+                {secondsLeft !== null && !isTeacherOrAdmin && (
+                  <div className="flex items-center justify-between text-xs pt-1 border-t text-muted-foreground">
+                    <span>Осталось времени:</span>
+                    <strong className="font-mono text-foreground">{formatTimer(secondsLeft)}</strong>
+                  </div>
+                )}
+              </div>
+
+              {unansweredCount > 0 && (
+                <p className="text-amber-600 dark:text-amber-400 text-[11px] font-medium">
+                  Внимание: за неотвеченные вопросы баллы не начисляются.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 w-full">
+            {unansweredCount > 0 ? (
+              <>
+                <AlertDialogCancel className="h-6 px-2.5 text-xs">
+                  Отмена
+                </AlertDialogCancel>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={jumpToFirstUnanswered}
+                  className="h-6 px-2.5 text-xs border-primary/30 text-primary hover:bg-primary/5 font-medium"
+                >
+                  К пропущенным
+                </Button>
+                <AlertDialogAction
+                  onClick={handleSubmit}
+                  className="h-6 px-2.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                >
+                  Всё равно сдать
+                </AlertDialogAction>
+              </>
+            ) : (
+              <>
+                <AlertDialogCancel className="h-6 px-2.5 text-xs">
+                  Проверить ещё
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleSubmit}
+                  className="h-6 px-2.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                >
+                  Отправить
+                </AlertDialogAction>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// SUB-COMPONENT: QUESTION CARD
+// ----------------------------------------------------------------------
+interface QuestionCardProps {
+  question: QuestionItem;
+  index: number;
+  totalQuestions: number;
+  studentAnswers: Record<string, string>;
+  isFlagged: boolean;
+  isTeacherOrAdmin: boolean;
+  onToggleFlag: () => void;
+  onOptionSelect: (opt: string) => void;
+  onBlankChange: (count: number, idx: number, val: string) => void;
+  onOrderingMove: (from: number, to: number) => void;
+  onMatchingChange: (left: string, right: string) => void;
+  onTextChange: (val: string) => void;
+}
+
+function QuestionCard({
+  question,
+  index,
+  totalQuestions,
+  studentAnswers,
+  isFlagged,
+  isTeacherOrAdmin,
+  onToggleFlag,
+  onOptionSelect,
+  onBlankChange,
+  onOrderingMove,
+  onMatchingChange,
+  onTextChange,
+}: QuestionCardProps) {
+  const { title: qTitle, code: qCode } = parseQuestionCode(question.questionText);
+  const selectedVal = studentAnswers[question.id] || "";
+
+  let selectedMultiple: string[] = [];
+  if (question.type === "MULTIPLE") {
+    try {
+      selectedMultiple = selectedVal ? JSON.parse(selectedVal) : [];
+    } catch {
+      selectedMultiple = [];
+    }
+  }
+
+  let currentOrderingList: string[] = [];
+  if (question.type === "ORDERING") {
+    try {
+      currentOrderingList = selectedVal
+        ? JSON.parse(selectedVal)
+        : Array.isArray(question.options)
+          ? question.options.map(String)
+          : [];
+    } catch {
+      currentOrderingList = Array.isArray(question.options) ? question.options.map(String) : [];
+    }
+  }
+
+  let currentBlankList: string[] = [];
+  if (question.type === "BLANKS") {
+    try {
+      currentBlankList = selectedVal ? JSON.parse(selectedVal) : [];
+    } catch {
+      currentBlankList = [];
+    }
+  }
+
+  let currentMatchingMap: Record<string, string> = {};
+  if (question.type === "MATCHING") {
+    try {
+      currentMatchingMap = selectedVal ? JSON.parse(selectedVal) : {};
+    } catch {
+      currentMatchingMap = {};
+    }
+  }
+
+  const typeLabels: Record<QuestionType, string> = {
+    SINGLE: "Один ответ",
+    MULTIPLE: "Множественный выбор",
+    TRUE_FALSE: "Верно / Неверно",
+    ORDERING: "Упорядочивание",
+    BLANKS: "Заполнение пропусков",
+    MATCHING: "Сопоставление пар",
+    NUMERICAL: "Числовой ответ",
+    CODE: "Код",
+    TEXT: "Текстовый ответ",
+  };
+
+  return (
+    <Card id={`question-card-${question.id}`} className="p-4 space-y-3.5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2 border-b pb-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="text-xs font-bold px-2 py-0.5 border-primary/30 text-primary bg-primary/5">
+            Вопрос #{index + 1}
+          </Badge>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+            {typeLabels[question.type]}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono font-bold text-muted-foreground">
+            {question.points} {question.points === 1 ? "балл" : "балла"}
+          </span>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={onToggleFlag}
+            className={`h-6 w-6 p-0 rounded-md transition-colors ${
+              isFlagged ? "text-amber-500 hover:text-amber-600 bg-amber-500/10" : "text-muted-foreground hover:text-foreground"
+            }`}
+            title="Отложить вопрос на потом"
+          >
+            <Bookmark className={`h-3.5 w-3.5 ${isFlagged ? "fill-current" : ""}`} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Question Statement */}
+      <div className="space-y-2.5">
+        <div className="text-xs text-foreground font-semibold leading-relaxed whitespace-pre-wrap">
+          {qTitle}
+        </div>
+
+        {qCode && (
+          <div className="bg-muted/80 text-foreground font-mono text-[11px] p-3 rounded-lg border overflow-x-auto leading-normal">
+            <pre>{qCode}</pre>
+          </div>
+        )}
+      </div>
+
+      {/* Question Inputs */}
+      <div className="pt-1">
+        {question.type === "TEXT" ? (
+          <Input
+            placeholder="Введите ваш ответ..."
+            disabled={isTeacherOrAdmin}
+            value={selectedVal}
+            onChange={(e) => onTextChange(e.target.value)}
+            className="h-9 text-xs bg-background font-medium"
+          />
+        ) : question.type === "NUMERICAL" ? (
+          <div className="space-y-1 max-w-xs">
+            <div className="flex items-center gap-1.5">
+              <Hash className="h-4 w-4 text-primary" />
+              <Input
+                type="text"
+                placeholder="Например: 9.8"
+                disabled={isTeacherOrAdmin}
+                value={selectedVal}
+                onChange={(e) => onTextChange(e.target.value)}
+                className="h-9 text-xs font-mono bg-background"
+              />
+            </div>
+            <span className="text-[10px] text-muted-foreground">Введите точное число</span>
+          </div>
+        ) : question.type === "MATCHING" ? (
+          <div className="space-y-2">
+            <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+              <Layers className="h-3.5 w-3.5 text-primary" /> Сопоставьте элементы:
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {(Array.isArray(question.options) ? question.options : []).map((pair: unknown, pIdx: number) => {
+                const leftKey =
+                  typeof pair === "object" && pair !== null && "left" in pair
+                    ? String((pair as { left: unknown }).left || "")
+                    : String(pair || "");
+                const rightOptions = Array.isArray(question.options)
+                  ? question.options.map((o: unknown) =>
+                      typeof o === "object" && o !== null && "right" in o
+                        ? String((o as { right: unknown }).right || "")
+                        : String(o || "")
+                    )
+                  : [];
+                return (
+                  <div
+                    key={pIdx}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border bg-muted/20 text-xs"
+                  >
+                    <span className="font-semibold text-foreground flex-1">{leftKey}</span>
+                    <div className="sm:w-60">
+                      <select
+                        disabled={isTeacherOrAdmin}
+                        value={currentMatchingMap[leftKey] || ""}
+                        onChange={(e) => onMatchingChange(leftKey, e.target.value)}
+                        className="w-full h-8 text-xs rounded-md border bg-background px-2 font-medium"
+                      >
+                        <option value="">-- Выберите пару --</option>
+                        {rightOptions.map((rOpt: string, rIdx: number) => (
+                          <option key={rIdx} value={rOpt}>
+                            {rOpt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : question.type === "ORDERING" ? (
+          <div className="space-y-2">
+            <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+              <ListOrdered className="h-3.5 w-3.5 text-primary" /> Расставьте в правильном порядке:
+            </div>
+            <div className="space-y-1.5">
+              {currentOrderingList.map((itemText, itemIdx) => (
+                <div
+                  key={itemIdx}
+                  className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/20 text-xs font-medium"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0 font-mono">
+                      {itemIdx + 1}
+                    </span>
+                    <span>{itemText}</span>
+                  </div>
+
+                  {!isTeacherOrAdmin && (
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="ghost"
+                        disabled={itemIdx === 0}
+                        onClick={() => onOrderingMove(itemIdx, itemIdx - 1)}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="ghost"
+                        disabled={itemIdx === currentOrderingList.length - 1}
+                        onClick={() => onOrderingMove(itemIdx, itemIdx + 1)}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : question.type === "BLANKS" ? (
+          <div className="space-y-2">
+            <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+              <FormInput className="h-3.5 w-3.5 text-primary" /> Впишите пропущенные слова:
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(Array.isArray(question.options) ? question.options : []).map((rawOpt, blankIdx: number) => {
+                const opt =
+                  typeof rawOpt === "string"
+                    ? rawOpt
+                    : typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt
+                      ? (rawOpt as { left: string }).left
+                      : String(rawOpt);
+                return (
+                  <div key={blankIdx} className="space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground">
+                      Пропуск #{blankIdx + 1}
+                    </label>
+                    <Input
+                      placeholder={`Ответ #${blankIdx + 1}...`}
+                      disabled={isTeacherOrAdmin}
+                      value={isTeacherOrAdmin ? opt : currentBlankList[blankIdx] || ""}
+                      onChange={(e) => onBlankChange(question.options.length, blankIdx, e.target.value)}
+                      className="h-8 text-xs bg-background font-medium"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* SINGLE, MULTIPLE, TRUE_FALSE, CODE */
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {(Array.isArray(question.options) ? question.options : []).map((rawOpt, optIdx: number) => {
+              const opt =
+                typeof rawOpt === "string"
+                  ? rawOpt
+                  : typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt
+                    ? (rawOpt as { left: string }).left
+                    : String(rawOpt);
+
+              const isSelected =
+                question.type === "MULTIPLE"
+                  ? selectedMultiple.includes(opt)
+                  : selectedVal === opt;
+
+              let isCorrectOpt = false;
+              if (isTeacherOrAdmin && question.correctAnswer) {
+                if (question.type === "MULTIPLE") {
+                  try {
+                    const correctArr: string[] = JSON.parse(question.correctAnswer);
+                    isCorrectOpt = correctArr.includes(opt);
+                  } catch {}
+                } else {
+                  isCorrectOpt = question.correctAnswer === opt;
                 }
               }
 
-              let currentOrderingList: string[] = [];
-              if (q.type === "ORDERING") {
-                try {
-                  currentOrderingList = selectedVal ? JSON.parse(selectedVal) : (Array.isArray(q.options) ? q.options.map(String) : []);
-                } catch {
-                  currentOrderingList = Array.isArray(q.options) ? q.options.map(String) : [];
-                }
-              }
-
-              let currentBlankList: string[] = [];
-              if (q.type === "BLANKS") {
-                try {
-                  currentBlankList = selectedVal ? JSON.parse(selectedVal) : [];
-                } catch {
-                  currentBlankList = [];
-                }
-              }
-
-              let currentMatchingMap: Record<string, string> = {};
-              if (q.type === "MATCHING") {
-                try {
-                  currentMatchingMap = selectedVal ? JSON.parse(selectedVal) : {};
-                } catch {
-                  currentMatchingMap = {};
-                }
-              }
+              const letterBadge = OPTION_LETTERS[optIdx] || String(optIdx + 1);
 
               return (
-                <Card key={q.id} className="p-4 bg-card border shadow-xs space-y-3">
-                  {/* Question Header */}
-                  <div className="flex items-center justify-between gap-2 border-b pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs font-bold px-2 py-0.5 border-primary/30 text-primary">
-                        #{qIdx + 1}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-                        {q.type === "MULTIPLE"
-                          ? "Множественный выбор"
-                          : q.type === "TRUE_FALSE"
-                            ? "Верно / Неверно"
-                            : q.type === "ORDERING"
-                              ? "Упорядочивание"
-                              : q.type === "BLANKS"
-                                ? "Заполнение пропусков"
-                                : q.type === "MATCHING"
-                                  ? "Сопоставление пар"
-                                  : q.type === "NUMERICAL"
-                                    ? "Числовой ответ"
-                                    : q.type === "CODE"
-                                      ? "Код"
-                                      : q.type === "TEXT"
-                                        ? "Текстовый ответ"
-                                        : "Один ответ"}
-                      </span>
-                    </div>
-
-                    <span className="text-xs font-mono font-bold text-muted-foreground">
-                      {q.points} {q.points === 1 ? "балл" : "балла"}
+                <div
+                  key={optIdx}
+                  onClick={() => onOptionSelect(opt)}
+                  className={`p-3 rounded-xl border text-xs font-medium transition-all flex items-center justify-between gap-2.5 ${
+                    isTeacherOrAdmin
+                      ? isCorrectOpt
+                        ? "bg-primary/15 border-primary/40 text-primary"
+                        : "bg-background border-border text-muted-foreground opacity-70"
+                      : isSelected
+                        ? "bg-primary/10 border-primary text-primary cursor-pointer"
+                        : "bg-background hover:bg-muted/50 border-border text-foreground cursor-pointer"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span
+                      className={`h-6 w-6 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center shrink-0 border ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/60 text-muted-foreground border-border"
+                      }`}
+                    >
+                      {letterBadge}
                     </span>
+                    <span className="truncate flex-1">{opt}</span>
                   </div>
 
-                  {/* Question Content */}
-                  <div className="space-y-2">
-                    <div className="text-xs text-foreground font-semibold leading-relaxed whitespace-pre-wrap">
-                      {qTitle}
-                    </div>
-
-                    {qCode && (
-                      <div className="bg-muted/80 text-foreground font-mono text-[11px] p-3 rounded-lg border overflow-x-auto leading-normal">
-                        <pre>{qCode}</pre>
-                      </div>
-                    )}
+                  <div
+                    className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
+                      isTeacherOrAdmin
+                        ? isCorrectOpt
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-muted-foreground/30"
+                        : isSelected
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-muted-foreground/40"
+                    }`}
+                  >
+                    {isTeacherOrAdmin
+                      ? isCorrectOpt && <Check className="h-2.5 w-2.5 stroke-[3]" />
+                      : isSelected && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                   </div>
-
-                  {/* Question Answer Inputs */}
-                  <div className="pt-2">
-                    {q.type === "TEXT" ? (
-                      <Input
-                        placeholder="Введите ваш ответ..."
-                        disabled={isTeacherOrAdmin}
-                        value={selectedVal}
-                        onChange={(e) =>
-                          setStudentAnswers((prev) => ({
-                            ...prev,
-                            [q.id]: e.target.value,
-                          }))
-                        }
-                        className="h-9 text-xs bg-background font-medium"
-                      />
-                    ) : q.type === "NUMERICAL" ? (
-                      <div className="space-y-1 max-w-xs">
-                        <div className="flex items-center gap-1.5">
-                          <Hash className="h-4 w-4 text-primary" />
-                          <Input
-                            type="text"
-                            placeholder="Например: 9.8"
-                            disabled={isTeacherOrAdmin}
-                            value={selectedVal}
-                            onChange={(e) =>
-                              setStudentAnswers((prev) => ({
-                                ...prev,
-                                [q.id]: e.target.value,
-                              }))
-                            }
-                            className="h-9 text-xs font-mono bg-background"
-                          />
-                        </div>
-                        <span className="text-[10px] text-muted-foreground">Введите точное число или с точкой</span>
-                      </div>
-                    ) : q.type === "MATCHING" ? (
-                      /* MATCHING PAIRS */
-                      <div className="space-y-2">
-                        <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-                          <Layers className="h-3.5 w-3.5 text-primary" /> Сопоставьте элементы слева с элементами справа:
-                        </div>
-                        <div className="grid grid-cols-1 gap-2">
-                          {(Array.isArray(q.options) ? q.options : []).map((pair: unknown, pIdx: number) => {
-                            const leftKey = typeof pair === "object" && pair !== null && "left" in pair ? String((pair as { left: unknown }).left || "") : String(pair || "");
-                            const rightOptions = Array.isArray(q.options)
-                              ? q.options.map((o: unknown) => (typeof o === "object" && o !== null && "right" in o ? String((o as { right: unknown }).right || "") : String(o || "")))
-                              : [];
-                            return (
-                              <div
-                                key={pIdx}
-                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border bg-muted/20 text-xs"
-                              >
-                                <span className="font-semibold text-foreground flex-1">{leftKey}</span>
-                                <div className="sm:w-60">
-                                  <select
-                                    disabled={isTeacherOrAdmin}
-                                    value={currentMatchingMap[leftKey] || ""}
-                                    onChange={(e) => handleMatchingChange(q.id, leftKey, e.target.value)}
-                                    className="w-full h-8 text-xs rounded-md border bg-background px-2 font-medium"
-                                  >
-                                    <option value="">-- Выберите пару --</option>
-                                    {rightOptions.map((rOpt: string, rIdx: number) => (
-                                      <option key={rIdx} value={rOpt}>
-                                        {rOpt}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : q.type === "ORDERING" ? (
-                      <div className="space-y-2">
-                        <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-                          <ListOrdered className="h-3.5 w-3.5 text-primary" /> Расставьте варианты в правильной последовательности:
-                        </div>
-                        <div className="space-y-1.5">
-                          {currentOrderingList.map((itemText, itemIdx) => (
-                            <div
-                              key={itemIdx}
-                              className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/20 text-xs font-medium"
-                            >
-                              <div className="flex items-center gap-2 truncate">
-                                <span className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0 font-mono">
-                                  {itemIdx + 1}
-                                </span>
-                                <span>{itemText}</span>
-                              </div>
-
-                              {!isTeacherOrAdmin && !test.userSubmission && (
-                                <div className="flex items-center gap-0.5">
-                                  <Button
-                                    type="button"
-                                    size="xs"
-                                    variant="ghost"
-                                    disabled={itemIdx === 0}
-                                    onClick={() => handleOrderingMove(q.id, currentOrderingList, itemIdx, itemIdx - 1)}
-                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                                  >
-                                    <ChevronUp className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="xs"
-                                    variant="ghost"
-                                    disabled={itemIdx === currentOrderingList.length - 1}
-                                    onClick={() => handleOrderingMove(q.id, currentOrderingList, itemIdx, itemIdx + 1)}
-                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                                  >
-                                    <ChevronDown className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : q.type === "BLANKS" ? (
-                      <div className="space-y-2">
-                        <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-                          <FormInput className="h-3.5 w-3.5 text-primary" /> Впишите пропущенные слова по порядку:
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {(Array.isArray(q.options) ? q.options : []).map((rawOpt, blankIdx: number) => {
-                            const opt = typeof rawOpt === "string" ? rawOpt : (typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt ? rawOpt.left : String(rawOpt));
-                            return (
-                              <div key={blankIdx} className="space-y-1">
-                                <label className="text-[10px] font-medium text-muted-foreground">
-                                  Пропуск #{blankIdx + 1}
-                                </label>
-                                <Input
-                                  placeholder={`Ответ на пропуск #${blankIdx + 1}...`}
-                                  disabled={isTeacherOrAdmin}
-                                  value={isTeacherOrAdmin ? opt : currentBlankList[blankIdx] || ""}
-                                  onChange={(e) => handleBlankChange(q.id, q.options.length, blankIdx, e.target.value)}
-                                  className="h-8 text-xs bg-background font-medium"
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : (
-                      /* SINGLE, MULTIPLE, TRUE_FALSE */
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {(Array.isArray(q.options) ? q.options : []).map((rawOpt, optIdx: number) => {
-                          const opt = typeof rawOpt === "string" ? rawOpt : (typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt ? (rawOpt as { left: string }).left : String(rawOpt));
-                          let isSelected =
-                            q.type === "MULTIPLE"
-                              ? selectedMultiple.includes(opt)
-                              : selectedVal === opt;
-
-                          let isCorrectOpt = false;
-                          if (isTeacherOrAdmin && q.correctAnswer) {
-                            if (q.type === "MULTIPLE") {
-                              try {
-                                const correctArr: string[] = JSON.parse(q.correctAnswer);
-                                isCorrectOpt = correctArr.includes(opt);
-                              } catch {}
-                            } else {
-                              isCorrectOpt = q.correctAnswer === opt;
-                            }
-                          }
-
-                          return (
-                            <div
-                              key={optIdx}
-                              onClick={() => handleOptionSelect(q.id, opt, q.type)}
-                              className={`p-3 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
-                                isTeacherOrAdmin
-                                  ? isCorrectOpt
-                                    ? "bg-primary/15 border-primary/40 text-primary font-semibold"
-                                    : "bg-background border-border text-muted-foreground opacity-70"
-                                  : isSelected
-                                    ? "bg-primary/10 border-primary text-primary font-semibold shadow-xs cursor-pointer"
-                                    : "bg-background hover:bg-muted/50 border-border text-foreground cursor-pointer"
-                              }`}
-                            >
-                              <span className="truncate flex-1 pr-2">{opt}</span>
-                              <div
-                                className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
-                                  isTeacherOrAdmin
-                                    ? isCorrectOpt
-                                      ? "bg-primary text-primary-foreground border-primary"
-                                      : "border-muted-foreground/30"
-                                    : isSelected
-                                      ? "bg-primary text-primary-foreground border-primary"
-                                      : "border-muted-foreground/40"
-                                }`}
-                              >
-                                {isTeacherOrAdmin
-                                  ? isCorrectOpt && <Check className="h-2.5 w-2.5 stroke-[3]" />
-                                  : isSelected && <Check className="h-2.5 w-2.5 stroke-[3]" />}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </Card>
+                </div>
               );
             })}
           </div>
-
-          {/* Bottom Action Footer (For Students Only) */}
-          {!isTeacherOrAdmin && (
-            <div className="flex items-center justify-between p-3.5 bg-card border rounded-xl shadow-xs">
-              <span className="text-xs text-muted-foreground">
-                Заполнено {answeredCount} из {totalQuestions} вопросов
-              </span>
-              <Button size="xs" disabled={isPending} onClick={handleSubmit} className="h-8 px-4 text-xs font-bold gap-1.5 shadow-xs">
-                <Send className="h-3.5 w-3.5" /> Завершить и сдать тест
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </Card>
   );
 }
