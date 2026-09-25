@@ -222,6 +222,18 @@ export function TakeTestView({ test }: TakeTestViewProps) {
       }
     };
 
+    const handleSelectStart = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+        return;
+      }
+      e.preventDefault();
+    };
+
+    const handleDragStart = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
     window.addEventListener("focus", handleFocus);
@@ -230,6 +242,8 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     document.addEventListener("cut", handleCopy);
     document.addEventListener("paste", handlePaste);
     document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("selectstart", handleSelectStart);
+    document.addEventListener("dragstart", handleDragStart);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -240,6 +254,8 @@ export function TakeTestView({ test }: TakeTestViewProps) {
       document.removeEventListener("cut", handleCopy);
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("selectstart", handleSelectStart);
+      document.removeEventListener("dragstart", handleDragStart);
     };
   }, [isTeacherOrAdmin, testResult, isInitialized, SWITCH_KEY]);
 
@@ -552,13 +568,41 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   }, [activeQuestionIdx, totalQuestions, isSubmitted, isSubmitModalOpen, currentQuestion]);
 
   return (
-    <div className={`space-y-4 w-full max-w-full min-w-0 pb-16 relative ${!isTeacherOrAdmin && !isSubmitted ? "select-none" : ""}`}>
-      {/* Global Print Protection */}
+    <div
+      className={`space-y-4 w-full max-w-full min-w-0 pb-16 relative ${
+        !isSubmitted ? "test-protection-active select-none" : ""
+      }`}
+      onContextMenu={(e) => {
+        if (!isSubmitted) e.preventDefault();
+      }}
+      onCopy={(e) => {
+        if (!isSubmitted) e.preventDefault();
+      }}
+      onCut={(e) => {
+        if (!isSubmitted) e.preventDefault();
+      }}
+    >
+      {/* Global Protection & Anti-Select / Anti-Print Styles */}
       <style jsx global>{`
         @media print {
           body {
             display: none !important;
           }
+        }
+        .test-protection-active,
+        .test-protection-active * {
+          -webkit-user-select: none !important;
+          -moz-user-select: none !important;
+          -ms-user-select: none !important;
+          user-select: none !important;
+          -webkit-touch-callout: none !important;
+        }
+        .test-protection-active input,
+        .test-protection-active textarea {
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+          user-select: text !important;
         }
       `}</style>
 
