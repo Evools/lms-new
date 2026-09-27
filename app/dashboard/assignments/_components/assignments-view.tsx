@@ -886,6 +886,7 @@ export function AssignmentsView({
         currentGroupId={currentGroupId}
         onOpenSubmit={(assignment) => setSubmitTargetAssignment(assignment)}
         onOpenResult={(assignment) => setViewMyResultAssignment(assignment)}
+        onOpenReview={(assignment) => setReviewTargetAssignment(assignment)}
       />
 
       <StudentResultDialog

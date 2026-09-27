@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, ExternalLink, EyeOff, Paperclip, Pencil, Send } from "lucide-react";
+import { Clock, ExternalLink, EyeOff, FileCheck, Paperclip, Pencil, Send } from "lucide-react";
 import { AssignmentDTO } from "../actions";
 import { renderMarkdown } from "@/lib/markdown";
 import { parseAttachmentLinks } from "./submission-utils";
@@ -24,6 +24,7 @@ interface ViewAssignmentDialogProps {
   currentGroupId?: string;
   onOpenSubmit?: (assignment: AssignmentDTO) => void;
   onOpenResult?: (assignment: AssignmentDTO) => void;
+  onOpenReview?: (assignment: AssignmentDTO) => void;
 }
 
 function formatDateSafe(dateStr?: string | null): string | null {
@@ -44,6 +45,7 @@ export function ViewAssignmentDialog({
   currentGroupId,
   onOpenSubmit,
   onOpenResult,
+  onOpenReview,
 }: ViewAssignmentDialogProps) {
   const formattedDueDate = formatDateSafe(assignment?.dueDate);
   const formattedCreatedAt = formatDateSafe(assignment?.createdAt) || "Не указана";
@@ -116,17 +118,32 @@ export function ViewAssignmentDialog({
 
           <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
             {canEdit ? (
-              <Link
-                href={`/dashboard/assignments/${assignment.id}/edit${
-                  currentGroupId ? `?group=${currentGroupId}` : ""
-                }`}
-                onClick={onClose}
-              >
-                <Button size="xs" variant="outline" className="h-7 text-xs gap-1 font-medium px-2.5">
-                  <Pencil className="h-3.5 w-3.5 text-primary" />
-                  <span>Редактировать</span>
+              <>
+                <Button
+                  size="xs"
+                  onClick={() => {
+                    const target = assignment;
+                    onClose();
+                    onOpenReview?.(target);
+                  }}
+                  className="h-7 text-xs gap-1 font-medium px-2.5"
+                >
+                  <FileCheck className="h-3.5 w-3.5" />
+                  <span>Проверить работы ({assignment.submissionsCount})</span>
                 </Button>
-              </Link>
+
+                <Link
+                  href={`/dashboard/assignments/${assignment.id}/edit${
+                    currentGroupId ? `?group=${currentGroupId}` : ""
+                  }`}
+                  onClick={onClose}
+                >
+                  <Button size="xs" variant="outline" className="h-7 text-xs gap-1 font-medium px-2.5">
+                    <Pencil className="h-3.5 w-3.5 text-primary" />
+                    <span>Редактировать</span>
+                  </Button>
+                </Link>
+              </>
             ) : (
               <>
                 {assignment.userSubmission ? (
