@@ -36,6 +36,13 @@ interface TeacherReviewDialogProps {
   assignment: AssignmentDTO | null;
   onClose: () => void;
   onReviewSuccess: () => void;
+  onSubmissionReviewed?: (
+    assignmentId: string,
+    submissionId: string,
+    status: SubmissionStatus,
+    teacherComment?: string,
+    grade?: number | null
+  ) => void;
 }
 
 type ReviewStatusFilter = "ALL" | "SUBMITTED" | "ACCEPTED" | "NEED_REVISION";
@@ -51,8 +58,10 @@ export function TeacherReviewDialog({
   assignment,
   onClose,
   onReviewSuccess,
+  onSubmissionReviewed,
 }: TeacherReviewDialogProps) {
   const [isPending, startTransition] = useTransition();
+  const [submissions, setSubmissions] = useState<SubmissionDTO[]>([]);
   const [reviewFilter, setReviewFilter] = useState<ReviewStatusFilter>("SUBMITTED");
   const [reviewViewMode, setReviewViewMode] = useState<"focus" | "list">("focus");
   const [submissionSearch, setSubmissionSearch] = useState<string>("");
@@ -63,6 +72,7 @@ export function TeacherReviewDialog({
 
   useEffect(() => {
     if (!assignment) return;
+    setSubmissions(assignment.submissions);
     const initialComments: Record<string, string> = {};
     const initialGrades: Record<string, number | null> = {};
     assignment.submissions.forEach((s) => {
@@ -86,8 +96,18 @@ export function TeacherReviewDialog({
 
   if (!assignment) return null;
 
-  const getFilteredSubmissions = (): SubmissionDTO[] => {
-    return assignment.submissions.filter((sub) => {
+  const submittedCount = submissions.filter(
+    (s) => s.status === SubmissionStatus.SUBMITTED
+  ).length;
+  const acceptedCount = submissions.filter(
+    (s) => s.status === SubmissionStatus.ACCEPTED
+  ).length;
+  const needRevisionCount = submissions.filter(
+    (s) => s.status === SubmissionStatus.NEED_REVISION
+  ).length;
+
+  const getFilteredSubmissions = (subsList: SubmissionDTO[] = submissions): SubmissionDTO[] => {
+    return subsList.filter((sub) => {
       const matchesSearch =
         !submissionSearch ||
         sub.studentName.toLowerCase().includes(submissionSearch.toLowerCase());
@@ -110,6 +130,57 @@ export function TeacherReviewDialog({
     const teacherComment = reviewTeacherCommentMap[submissionId] || "";
     const grade = reviewGradeMap[submissionId] ?? null;
 
+    const prevSubmissions = submissions;
+    const currentFiltered = getFilteredSubmissions(submissions);
+    const currentIndex = currentFiltered.findIndex((s) => s.id === submissionId);
+
+    // Calculate next active submission ID for conveyor workflow
+    let nextActiveId: string | null = activeSubmissionId;
+    if (reviewFilter === "SUBMITTED") {
+      const remaining = currentFiltered.filter((s) => s.id !== submissionId);
+      if (remaining.length > 0) {
+        nextActiveId = (remaining[currentIndex] || remaining[remaining.length - 1]).id;
+      } else {
+        nextActiveId = null;
+      }
+    } else if (currentIndex !== -1 && currentIndex < currentFiltered.length - 1) {
+      nextActiveId = currentFiltered[currentIndex + 1].id;
+    }
+
+    // Optimistic local state update in dialog
+    const updatedSubmissions = submissions.map((sub) =>
+      sub.id === submissionId
+        ? {
+            ...sub,
+            status,
+            teacherComment,
+            grade,
+            reviewedAt: new Date().toISOString(),
+          }
+        : sub
+    );
+    setSubmissions(updatedSubmissions);
+    if (nextActiveId !== activeSubmissionId) {
+      setActiveSubmissionId(nextActiveId);
+    }
+
+    // Real-time parent update
+    if (assignment) {
+      onSubmissionReviewed?.(
+        assignment.id,
+        submissionId,
+        status,
+        teacherComment,
+        grade
+      );
+    }
+
+    if (status === SubmissionStatus.NEED_REVISION) {
+      toast.add({ title: "Работа отправлена на доработку!", type: "info" });
+    } else if (status === SubmissionStatus.ACCEPTED) {
+      toast.add({ title: "Работа успешно принята!", type: "success" });
+    }
+
     startTransition(async () => {
       const res = await reviewSubmissionAction({
         submissionId,
@@ -119,27 +190,39 @@ export function TeacherReviewDialog({
       });
 
       if (res.success) {
-        toast.add({ title: "Результат проверки сохранён!", type: "success" });
-
-        // Auto advance to next student submission in current filtered queue
-        const currentList = getFilteredSubmissions();
-        const currentIndex = currentList.findIndex((s) => s.id === submissionId);
-        if (currentIndex !== -1 && currentIndex < currentList.length - 1) {
-          setActiveSubmissionId(currentList[currentIndex + 1].id);
-        }
-
         onReviewSuccess();
       } else {
-        toast.add({ title: res.error || "Ошибка при сохранении результата", type: "error" });
+        // Rollback on server error
+        setSubmissions(prevSubmissions);
+        toast.add({
+          title: res.error || "Ошибка при сохранении результата",
+          type: "error",
+        });
       }
     });
+  };
+
+  const handleFilterChange = (newFilter: ReviewStatusFilter) => {
+    setReviewFilter(newFilter);
+    const nextList = submissions.filter((sub) => {
+      const matchesSearch =
+        !submissionSearch ||
+        sub.studentName.toLowerCase().includes(submissionSearch.toLowerCase());
+      if (!matchesSearch) return false;
+
+      if (newFilter === "SUBMITTED") return sub.status === SubmissionStatus.SUBMITTED;
+      if (newFilter === "ACCEPTED") return sub.status === SubmissionStatus.ACCEPTED;
+      if (newFilter === "NEED_REVISION") return sub.status === SubmissionStatus.NEED_REVISION;
+      return true;
+    });
+    setActiveSubmissionId(nextList[0]?.id || null);
   };
 
   const filteredSubmissions = getFilteredSubmissions();
 
   return (
     <Dialog open={assignment !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1240px] w-[95vw] max-h-[92vh] flex flex-col">
+      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[1240px] w-[95vw] h-[88vh] max-h-[900px] flex flex-col overflow-hidden">
         <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left pr-8 shrink-0">
           <div className="flex items-center gap-2">
             <Badge
@@ -159,59 +242,53 @@ export function TeacherReviewDialog({
 
         {/* Filter Tabs Header & View Switcher */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b pb-2.5 shrink-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs shrink-0 flex-wrap">
             <button
               type="button"
-              onClick={() => setReviewFilter("SUBMITTED")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+              onClick={() => handleFilterChange("SUBMITTED")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 reviewFilter === "SUBMITTED"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-muted/50 text-muted-foreground hover:text-foreground"
+                  ? "bg-background text-primary shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              На проверке (
-              {
-                assignment.submissions.filter(
-                  (s) => s.status === SubmissionStatus.SUBMITTED
-                ).length
-              }
-              )
+              На проверке ({submittedCount})
             </button>
 
             <button
               type="button"
-              onClick={() => setReviewFilter("ACCEPTED")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+              onClick={() => handleFilterChange("ACCEPTED")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 reviewFilter === "ACCEPTED"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-muted/50 text-muted-foreground hover:text-foreground"
+                  ? "bg-background text-primary shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Принято ({assignment.acceptedCount})
+              Принято ({acceptedCount})
             </button>
 
             <button
               type="button"
-              onClick={() => setReviewFilter("NEED_REVISION")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
+              onClick={() => handleFilterChange("NEED_REVISION")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 reviewFilter === "NEED_REVISION"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-muted/50 text-muted-foreground hover:text-foreground"
+                  ? "bg-background text-primary shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              На доработке ({assignment.needRevisionCount})
+              На доработке ({needRevisionCount})
             </button>
 
             <button
               type="button"
-              onClick={() => setReviewFilter("ALL")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              onClick={() => handleFilterChange("ALL")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 reviewFilter === "ALL"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-muted/50 text-muted-foreground hover:text-foreground"
+                  ? "bg-background text-primary shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Все ({assignment.submissions.length})
+              Все ({submissions.length})
             </button>
           </div>
 
@@ -245,19 +322,15 @@ export function TeacherReviewDialog({
 
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
               <span>
-                {assignment.acceptedCount}/{assignment.submissions.length}
+                {acceptedCount}/{submissions.length}
               </span>
               <div className="w-16 bg-muted/80 h-2 rounded-full overflow-hidden border">
                 <div
                   className="bg-primary h-full transition-all duration-300"
                   style={{
                     width: `${
-                      assignment.submissions.length > 0
-                        ? Math.round(
-                            (assignment.acceptedCount /
-                              assignment.submissions.length) *
-                              100
-                          )
+                      submissions.length > 0
+                        ? Math.round((acceptedCount / submissions.length) * 100)
                         : 0
                     }%`,
                   }}
@@ -269,10 +342,10 @@ export function TeacherReviewDialog({
 
         {/* FOCUS CONVEYOR WORKFLOW (Master-Detail Mode) */}
         {reviewViewMode === "focus" ? (
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 py-1 flex-1 min-h-0 overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 py-1 flex-1 min-h-0 overflow-hidden">
             {/* Left Sidebar: Queue of Students */}
-            <div className="md:col-span-4 lg:col-span-3 border rounded-xl p-2.5 bg-muted/20 space-y-2 max-h-[580px] overflow-y-auto">
-              <div className="relative">
+            <div className="md:col-span-4 lg:col-span-3 border rounded-xl p-2.5 bg-muted/20 flex flex-col h-full min-h-0 space-y-2">
+              <div className="relative shrink-0">
                 <Search className="h-3 w-3 absolute left-2 top-2.5 text-muted-foreground" />
                 <Input
                   placeholder="Студент..."
@@ -282,7 +355,7 @@ export function TeacherReviewDialog({
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-0.5">
                 {filteredSubmissions.map((sub) => {
                   const isActive = activeSubmissionId === sub.id;
                   return (
@@ -291,8 +364,8 @@ export function TeacherReviewDialog({
                       onClick={() => setActiveSubmissionId(sub.id)}
                       className={`p-2 rounded-lg border text-xs cursor-pointer transition-all flex items-center justify-between gap-1.5 ${
                         isActive
-                          ? "border-primary bg-primary/10 font-bold text-foreground"
-                          : "border-border bg-card hover:bg-muted/40 font-normal"
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border bg-card hover:bg-muted/40 text-foreground font-medium"
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
@@ -324,7 +397,7 @@ export function TeacherReviewDialog({
             </div>
 
             {/* Right Panel: Focused Active Student Card */}
-            <div className="md:col-span-8 lg:col-span-9 border rounded-xl p-3.5 bg-card space-y-3 flex flex-col justify-between">
+            <div className="md:col-span-8 lg:col-span-9 border rounded-xl p-3.5 bg-card flex flex-col justify-between h-full min-h-0 overflow-y-auto">
               {(() => {
                 const activeSub =
                   filteredSubmissions.find((s) => s.id === activeSubmissionId) ||
@@ -335,7 +408,7 @@ export function TeacherReviewDialog({
 
                 if (!activeSub) {
                   return (
-                    <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
+                    <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center text-muted-foreground text-xs space-y-2 my-auto">
                       <CheckCheck className="h-10 w-10 text-primary/40 mx-auto" />
                       <p className="font-bold text-foreground">
                         В этой категории все работы проверены!
@@ -782,6 +855,7 @@ export function TeacherReviewDialog({
                       <Button
                         size="xs"
                         variant="outline"
+                        disabled={isPending}
                         onClick={() =>
                           handleReviewSubmission(sub.id, SubmissionStatus.NEED_REVISION)
                         }
@@ -792,6 +866,7 @@ export function TeacherReviewDialog({
 
                       <Button
                         size="xs"
+                        disabled={isPending}
                         onClick={() =>
                           handleReviewSubmission(sub.id, SubmissionStatus.ACCEPTED)
                         }

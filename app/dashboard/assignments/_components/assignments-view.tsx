@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useCallback } from "react";
+import React, { useState, useTransition, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SubmissionStatus } from "@prisma/client";
@@ -80,6 +80,12 @@ export function AssignmentsView({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  const [localAssignments, setLocalAssignments] = useState<AssignmentDTO[]>(assignments);
+
+  useEffect(() => {
+    setLocalAssignments(assignments);
+  }, [assignments]);
+
   const [currentGroupId, setCurrentGroupId] = useState<string>(selectedGroupId);
   const [searchQuery, setSearchQuery] = useState<string>(initialSearchQuery);
   const [subjectFilter, setSubjectFilter] = useState<string>(initialSubjectFilter || "all");
@@ -88,13 +94,24 @@ export function AssignmentsView({
   );
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
 
-  // Modals state
+  // Modals state (stored as IDs for instant synchronization with localAssignments)
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
-  const [viewTargetAssignment, setViewTargetAssignment] = useState<AssignmentDTO | null>(null);
-  const [viewMyResultAssignment, setViewMyResultAssignment] = useState<AssignmentDTO | null>(null);
-  const [submitTargetAssignment, setSubmitTargetAssignment] = useState<AssignmentDTO | null>(null);
-  const [reviewTargetAssignment, setReviewTargetAssignment] = useState<AssignmentDTO | null>(null);
-  const [deleteTargetAssignment, setDeleteTargetAssignment] = useState<AssignmentDTO | null>(null);
+  const [viewTargetAssignmentId, setViewTargetAssignmentId] = useState<string | null>(null);
+  const [viewMyResultAssignmentId, setViewMyResultAssignmentId] = useState<string | null>(null);
+  const [submitTargetAssignmentId, setSubmitTargetAssignmentId] = useState<string | null>(null);
+  const [reviewTargetAssignmentId, setReviewTargetAssignmentId] = useState<string | null>(null);
+  const [deleteTargetAssignmentId, setDeleteTargetAssignmentId] = useState<string | null>(null);
+
+  const viewTargetAssignment =
+    localAssignments.find((a) => a.id === viewTargetAssignmentId) || null;
+  const viewMyResultAssignment =
+    localAssignments.find((a) => a.id === viewMyResultAssignmentId) || null;
+  const submitTargetAssignment =
+    localAssignments.find((a) => a.id === submitTargetAssignmentId) || null;
+  const reviewTargetAssignment =
+    localAssignments.find((a) => a.id === reviewTargetAssignmentId) || null;
+  const deleteTargetAssignment =
+    localAssignments.find((a) => a.id === deleteTargetAssignmentId) || null;
 
   const currentGroupObj = groups.find((g) => g.id === currentGroupId);
 
@@ -138,6 +155,48 @@ export function AssignmentsView({
     updateUrl({ search: val });
   };
 
+  // Real-time optimistic update handler for reviewed submissions
+  const handleSubmissionReviewed = useCallback(
+    (
+      assignmentId: string,
+      submissionId: string,
+      status: SubmissionStatus,
+      teacherComment?: string,
+      grade?: number | null
+    ) => {
+      setLocalAssignments((prev) =>
+        prev.map((a) => {
+          if (a.id !== assignmentId) return a;
+          const updatedSubs = a.submissions.map((s) =>
+            s.id === submissionId
+              ? {
+                  ...s,
+                  status,
+                  teacherComment:
+                    teacherComment !== undefined ? teacherComment : s.teacherComment,
+                  grade: grade !== undefined ? grade : s.grade,
+                  reviewedAt: new Date().toISOString(),
+                }
+              : s
+          );
+          const acceptedCount = updatedSubs.filter(
+            (s) => s.status === SubmissionStatus.ACCEPTED
+          ).length;
+          const needRevisionCount = updatedSubs.filter(
+            (s) => s.status === SubmissionStatus.NEED_REVISION
+          ).length;
+          return {
+            ...a,
+            submissions: updatedSubs,
+            acceptedCount,
+            needRevisionCount,
+          };
+        })
+      );
+    },
+    []
+  );
+
   // Toggle Publish Status
   const handleTogglePublish = (assignmentId: string, currentPublished: boolean) => {
     startTransition(async () => {
@@ -161,7 +220,7 @@ export function AssignmentsView({
     startTransition(async () => {
       const res = await deleteAssignmentAction(assignmentId);
       if (res.success) {
-        setDeleteTargetAssignment(null);
+        setDeleteTargetAssignmentId(null);
         toast.add({ title: "Задание успешно удалено", type: "success" });
         router.refresh();
       } else {
@@ -171,21 +230,21 @@ export function AssignmentsView({
   };
 
   // Metrics
-  const publishedAssignments = assignments.filter((a) => a.isPublished);
-  const draftAssignments = assignments.filter((a) => !a.isPublished);
+  const publishedAssignments = localAssignments.filter((a) => a.isPublished);
+  const draftAssignments = localAssignments.filter((a) => !a.isPublished);
   const totalAssignments =
-    userRole === "STUDENT" ? assignments.length : publishedAssignments.length;
+    userRole === "STUDENT" ? localAssignments.length : publishedAssignments.length;
   const draftsCount = draftAssignments.length;
   let totalSubmissionsCount = 0;
   let totalAcceptedCount = 0;
 
-  assignments.forEach((a) => {
+  localAssignments.forEach((a) => {
     totalSubmissionsCount += a.submissionsCount;
     totalAcceptedCount += a.acceptedCount;
   });
 
   // Filtered list
-  const filteredAssignments = assignments.filter((a) => {
+  const filteredAssignments = localAssignments.filter((a) => {
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !query ||
@@ -335,7 +394,7 @@ export function AssignmentsView({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Все ({assignments.length})
+            Все ({localAssignments.length})
           </button>
 
           {canCreate && (
@@ -449,7 +508,7 @@ export function AssignmentsView({
                       <td className="py-2.5 px-3 max-w-[300px]">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <div
-                            onClick={() => setViewTargetAssignment(assignment)}
+                            onClick={() => setViewTargetAssignmentId(assignment.id)}
                             className="font-bold text-foreground text-xs hover:text-primary transition-colors cursor-pointer truncate flex items-center gap-1.5"
                           >
                             <ClipboardList className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -516,7 +575,7 @@ export function AssignmentsView({
                         {canCreate ? (
                           <button
                             type="button"
-                            onClick={() => setReviewTargetAssignment(assignment)}
+                            onClick={() => setReviewTargetAssignmentId(assignment.id)}
                             className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-bold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
                           >
                             <FileCheck className="h-3.5 w-3.5" />
@@ -582,7 +641,7 @@ export function AssignmentsView({
                               <Button
                                 size="xs"
                                 variant="outline"
-                                onClick={() => setReviewTargetAssignment(assignment)}
+                                onClick={() => setReviewTargetAssignmentId(assignment.id)}
                                 className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
                                 title="Проверить работы студентов"
                               >
@@ -628,7 +687,7 @@ export function AssignmentsView({
                               <Button
                                 size="xs"
                                 variant="outline"
-                                onClick={() => setDeleteTargetAssignment(assignment)}
+                                onClick={() => setDeleteTargetAssignmentId(assignment.id)}
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive border-transparent hover:border-destructive/30"
                                 title="Удалить задание"
                               >
@@ -640,7 +699,7 @@ export function AssignmentsView({
                               <Button
                                 size="xs"
                                 variant="outline"
-                                onClick={() => setViewTargetAssignment(assignment)}
+                                onClick={() => setViewTargetAssignmentId(assignment.id)}
                                 className="h-7 text-xs gap-1 font-medium px-2"
                               >
                                 <Eye className="h-3.5 w-3.5" />
@@ -650,7 +709,7 @@ export function AssignmentsView({
                               {userSub ? (
                                 <Button
                                   size="xs"
-                                  onClick={() => setViewMyResultAssignment(assignment)}
+                                  onClick={() => setViewMyResultAssignmentId(assignment.id)}
                                   className="h-7 text-xs gap-1 font-medium px-2"
                                 >
                                   <span>Мой ответ</span>
@@ -658,7 +717,7 @@ export function AssignmentsView({
                               ) : (
                                 <Button
                                   size="xs"
-                                  onClick={() => setSubmitTargetAssignment(assignment)}
+                                  onClick={() => setSubmitTargetAssignmentId(assignment.id)}
                                   className="h-7 text-xs gap-1 font-medium px-2.5"
                                 >
                                   <Send className="h-3.5 w-3.5" />
@@ -733,7 +792,7 @@ export function AssignmentsView({
                   </div>
 
                   <div
-                    onClick={() => setViewTargetAssignment(assignment)}
+                    onClick={() => setViewTargetAssignmentId(assignment.id)}
                     className="font-bold text-foreground text-xs hover:text-primary transition-colors cursor-pointer line-clamp-2"
                   >
                     {assignment.title}
@@ -759,7 +818,7 @@ export function AssignmentsView({
                     <>
                       <button
                         type="button"
-                        onClick={() => setReviewTargetAssignment(assignment)}
+                        onClick={() => setReviewTargetAssignmentId(assignment.id)}
                         className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
                       >
                         <FileCheck className="h-3.5 w-3.5" />
@@ -801,7 +860,7 @@ export function AssignmentsView({
                         <Button
                           size="xs"
                           variant="outline"
-                          onClick={() => setDeleteTargetAssignment(assignment)}
+                          onClick={() => setDeleteTargetAssignmentId(assignment.id)}
                           className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                           title="Удалить"
                         >
@@ -836,7 +895,7 @@ export function AssignmentsView({
                         <Button
                           size="xs"
                           variant="outline"
-                          onClick={() => setViewTargetAssignment(assignment)}
+                          onClick={() => setViewTargetAssignmentId(assignment.id)}
                           className="h-7 text-xs"
                         >
                           Детали
@@ -844,7 +903,7 @@ export function AssignmentsView({
                         {userSub ? (
                           <Button
                             size="xs"
-                            onClick={() => setViewMyResultAssignment(assignment)}
+                            onClick={() => setViewMyResultAssignmentId(assignment.id)}
                             className="h-7 text-xs font-medium"
                           >
                             Ответ
@@ -852,7 +911,7 @@ export function AssignmentsView({
                         ) : (
                           <Button
                             size="xs"
-                            onClick={() => setSubmitTargetAssignment(assignment)}
+                            onClick={() => setSubmitTargetAssignmentId(assignment.id)}
                             className="h-7 text-xs font-medium gap-1"
                           >
                             <Send className="h-3 w-3" /> Сдать
@@ -881,35 +940,36 @@ export function AssignmentsView({
       {/* Subcomponent Modals */}
       <ViewAssignmentDialog
         assignment={viewTargetAssignment}
-        onClose={() => setViewTargetAssignment(null)}
+        onClose={() => setViewTargetAssignmentId(null)}
         canEdit={canCreate}
         currentGroupId={currentGroupId}
-        onOpenSubmit={(assignment) => setSubmitTargetAssignment(assignment)}
-        onOpenResult={(assignment) => setViewMyResultAssignment(assignment)}
-        onOpenReview={(assignment) => setReviewTargetAssignment(assignment)}
+        onOpenSubmit={(assignment) => setSubmitTargetAssignmentId(assignment.id)}
+        onOpenResult={(assignment) => setViewMyResultAssignmentId(assignment.id)}
+        onOpenReview={(assignment) => setReviewTargetAssignmentId(assignment.id)}
       />
 
       <StudentResultDialog
         assignment={viewMyResultAssignment}
-        onClose={() => setViewMyResultAssignment(null)}
-        onOpenSubmit={(assignment) => setSubmitTargetAssignment(assignment)}
+        onClose={() => setViewMyResultAssignmentId(null)}
+        onOpenSubmit={(assignment) => setSubmitTargetAssignmentId(assignment.id)}
       />
 
       <StudentSubmitDialog
         assignment={submitTargetAssignment}
-        onClose={() => setSubmitTargetAssignment(null)}
+        onClose={() => setSubmitTargetAssignmentId(null)}
         onSubmitSuccess={() => router.refresh()}
       />
 
       <TeacherReviewDialog
         assignment={reviewTargetAssignment}
-        onClose={() => setReviewTargetAssignment(null)}
+        onClose={() => setReviewTargetAssignmentId(null)}
         onReviewSuccess={() => router.refresh()}
+        onSubmissionReviewed={handleSubmissionReviewed}
       />
 
       <DeleteAssignmentDialog
         assignment={deleteTargetAssignment}
-        onClose={() => setDeleteTargetAssignment(null)}
+        onClose={() => setDeleteTargetAssignmentId(null)}
         onConfirmDelete={handleConfirmDelete}
         isPending={isPending}
       />
