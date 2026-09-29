@@ -118,12 +118,13 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
     let groupWhere: Record<string, unknown> | undefined = undefined;
 
     if (role === "STUDENT" && userId) {
-      const enrollments = await prisma.groupStudent.findMany({
-        where: { studentId: userId },
-        select: { groupId: true },
-      });
-      const studentGroupIds = enrollments.map((e) => e.groupId);
-      groupWhere = { id: { in: studentGroupIds } };
+      groupWhere = {
+        OR: [
+          { students: { some: { studentId: userId } } },
+          { monitorId: userId },
+          { deputyMonitorId: userId },
+        ],
+      };
     } else if (role === "TEACHER" && userId) {
       groupWhere = {
         OR: [
@@ -172,6 +173,25 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
     const todayUtc = parseDateToUtc(now);
     const yesterdayUtc = new Date(todayUtc.getTime() - 24 * 60 * 60 * 1000);
     const todayEndUtc = new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000);
+
+    // AUTO-ROTATION ON VIEW: Check if schedule exists for this week.
+    // If not, and duty is enabled for this group, automatically generate fair weekly rotation so
+    // headman, deputy, and students never have to manually fill schedules every single week.
+    if (targetGroupId && targetGroupIsDutyEnabled) {
+      const existingCount = await prisma.dutySchedule.count({
+        where: {
+          groupId: targetGroupId,
+          date: { gte: startDate, lt: endDate },
+        },
+      });
+      if (existingCount === 0) {
+        try {
+          await internalGenerateWeeklyDuty(targetGroupId);
+        } catch (autoGenErr) {
+          console.error("Auto-rotation on view error:", autoGenErr);
+        }
+      }
+    }
 
     let groupStudents: GroupStudentWithDutyInfo[] = [];
     let groupMonitorName = "";
@@ -728,7 +748,7 @@ export async function getGroupDutyStatsAction(groupId: string): Promise<StudentD
       }
     });
 
-    return group.students.map((gs) => {
+    const resultStats: StudentDutyStatDTO[] = group.students.map((gs) => {
       const completed = completedCounts[gs.student.id] || 0;
       const scheduled = scheduledCounts[gs.student.id] || 0;
       return {
@@ -744,6 +764,54 @@ export async function getGroupDutyStatsAction(groupId: string): Promise<StudentD
         dutyExemptReason: gs.student.dutyExemptReason,
       };
     });
+
+    if (group.monitor && !resultStats.some((s) => s.studentId === group.monitor!.id)) {
+      const mon = await prisma.user.findUnique({
+        where: { id: group.monitor.id },
+        select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true },
+      });
+      if (mon) {
+        const completed = completedCounts[mon.id] || 0;
+        const scheduled = scheduledCounts[mon.id] || 0;
+        resultStats.push({
+          studentId: mon.id,
+          studentName: mon.name,
+          completedDutiesCount: completed,
+          scheduledDutiesCount: scheduled,
+          totalDutiesCount: completed + scheduled,
+          lastDutyDate: lastCompletedDates[mon.id] || "Еще не дежурил(а)",
+          isMonitor: true,
+          isDeputyMonitor: false,
+          isDutyExempt: mon.isDutyExempt,
+          dutyExemptReason: mon.dutyExemptReason,
+        });
+      }
+    }
+
+    if (group.deputyMonitor && !resultStats.some((s) => s.studentId === group.deputyMonitor!.id)) {
+      const dep = await prisma.user.findUnique({
+        where: { id: group.deputyMonitor.id },
+        select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true },
+      });
+      if (dep) {
+        const completed = completedCounts[dep.id] || 0;
+        const scheduled = scheduledCounts[dep.id] || 0;
+        resultStats.push({
+          studentId: dep.id,
+          studentName: dep.name,
+          completedDutiesCount: completed,
+          scheduledDutiesCount: scheduled,
+          totalDutiesCount: completed + scheduled,
+          lastDutyDate: lastCompletedDates[dep.id] || "Еще не дежурил(а)",
+          isMonitor: false,
+          isDeputyMonitor: true,
+          isDutyExempt: dep.isDutyExempt,
+          dutyExemptReason: dep.dutyExemptReason,
+        });
+      }
+    }
+
+    return resultStats;
   } catch (error) {
     console.error("Error in getGroupDutyStatsAction:", error);
     return [];
@@ -838,17 +906,12 @@ export interface DutySettingsOptions {
   excludedStudentIds?: string[];
 }
 
-export async function generateWeeklyDutyAction(
+export async function internalGenerateWeeklyDuty(
   groupId: string,
-  options?: number | DutySettingsOptions
-) {
-  const isAllowed = await checkDutyPermission(groupId);
-  if (!isAllowed) {
-    return { success: false, error: "Недостаточно прав для генерации ротации" };
-  }
-
+  options?: DutySettingsOptions
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const opts: DutySettingsOptions = typeof options === "number" ? { perDay: options } : (options || {});
+    const opts: DutySettingsOptions = options || {};
 
     const monday = getMondayOfCurrentWeek();
     const startDate = parseDateToUtc(monday);
@@ -864,8 +927,6 @@ export async function generateWeeklyDutyAction(
         await prisma.dutySchedule.deleteMany({
           where: { groupId, date: { gte: startDate, lt: endDate } },
         });
-        revalidatePath("/dashboard/duty");
-        revalidatePath(`/dashboard/groups/${groupId}`);
         return { success: true };
       }
     }
@@ -878,8 +939,8 @@ export async function generateWeeklyDutyAction(
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        monitor: { select: { id: true } },
-        deputyMonitor: { select: { id: true } },
+        monitor: { select: { id: true, isDutyExempt: true } },
+        deputyMonitor: { select: { id: true, isDutyExempt: true } },
         students: {
           include: { student: { select: { id: true, name: true, isDutyExempt: true } } },
           orderBy: { student: { name: "asc" } },
@@ -887,16 +948,35 @@ export async function generateWeeklyDutyAction(
       },
     });
 
-    if (!group || group.students.length === 0) {
-      return { success: false, error: "В группе нет зачисленных студентов для распределения" };
+    if (!group) {
+      return { success: false, error: "Группа не найдена" };
+    }
+
+    // Collect all candidate student IDs (including enrolled students + monitor + deputyMonitor)
+    const candidateMap = new Map<string, { id: string; isDutyExempt: boolean }>();
+    group.students.forEach((gs) => {
+      candidateMap.set(gs.student.id, {
+        id: gs.student.id,
+        isDutyExempt: Boolean(gs.student.isDutyExempt),
+      });
+    });
+    if (group.monitor && !candidateMap.has(group.monitor.id)) {
+      candidateMap.set(group.monitor.id, {
+        id: group.monitor.id,
+        isDutyExempt: Boolean(group.monitor.isDutyExempt),
+      });
+    }
+    if (group.deputyMonitor && !candidateMap.has(group.deputyMonitor.id)) {
+      candidateMap.set(group.deputyMonitor.id, {
+        id: group.deputyMonitor.id,
+        isDutyExempt: Boolean(group.deputyMonitor.isDutyExempt),
+      });
     }
 
     // Eligible candidates (excluding ЛОВЗ / permanently exempt students and temporary exclusions)
-    const eligibleStudents = group.students.filter(
-      (gs) => !gs.student.isDutyExempt && !excludedIds.has(gs.student.id)
-    );
-    // Deduplicate candidate IDs
-    const candidateIds = Array.from(new Set(eligibleStudents.map((gs) => gs.student.id)));
+    const candidateIds = Array.from(candidateMap.values())
+      .filter((s) => !s.isDutyExempt && !excludedIds.has(s.id))
+      .map((s) => s.id);
 
     if (candidateIds.length === 0) {
       return { success: false, error: "Все студенты группы исключены из дежурства" };
@@ -1128,13 +1208,29 @@ export async function generateWeeklyDutyAction(
       }
     }
 
-    revalidatePath("/dashboard/duty");
-    revalidatePath(`/dashboard/groups/${groupId}`);
     return { success: true };
   } catch (error) {
     console.error("Failed to generate duty schedule:", error);
     return { success: false, error: error instanceof Error ? error.message : "Ошибка при генерации графика дежурств" };
   }
+}
+
+export async function generateWeeklyDutyAction(
+  groupId: string,
+  options?: number | DutySettingsOptions
+) {
+  const isAllowed = await checkDutyPermission(groupId);
+  if (!isAllowed) {
+    return { success: false, error: "Недостаточно прав для генерации ротации" };
+  }
+
+  const opts: DutySettingsOptions = typeof options === "number" ? { perDay: options } : (options || {});
+  const res = await internalGenerateWeeklyDuty(groupId, opts);
+  if (res.success) {
+    revalidatePath("/dashboard/duty");
+    revalidatePath(`/dashboard/groups/${groupId}`);
+  }
+  return res;
 }
 
 /** Mark a student as absent locally (no DB change — use replaceDutyStudentAction to swap in DB) */
