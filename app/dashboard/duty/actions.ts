@@ -1104,16 +1104,21 @@ export async function internalGenerateWeeklyDuty(
           const totalA = (pastDutyCount[a] || 0) + weekA;
           const totalB = (pastDutyCount[b] || 0) + weekB;
 
-          // 2. Absolute Fairness: students with fewer total duties all-time ALWAYS come first
+          // 2. ABSOLUTE PRIORITY: Students who have NEVER served duty (0 duties) ALWAYS come first!
+          const neverA = totalA === 0 ? 0 : 1;
+          const neverB = totalB === 0 ? 0 : 1;
+          if (neverA !== neverB) return neverA - neverB;
+
+          // 3. Absolute Fairness: students with fewer total duties all-time ALWAYS come first
           if (totalA !== totalB) return totalA - totalB;
 
           const timeA = lastDutyTime[a] || 0;
           const timeB = lastDutyTime[b] || 0;
 
-          // 3. Cooldown: among students with identical total duties, the one who rested longest (earliest last duty or 0) comes first
+          // 4. Cooldown: among students with identical total duties, the one who rested longest (earliest last duty or 0) comes first
           if (timeA !== timeB) return timeA - timeB;
 
-          // 4. Stable tie-breaker by original candidate index
+          // 5. Stable tie-breaker by original candidate index
           return candidateIds.indexOf(a) - candidateIds.indexOf(b);
         });
       } else if (algorithm === "RANDOM") {
