@@ -269,11 +269,17 @@ export function MaterialsView({
   const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
   const [copiedResourceUrl, setCopiedResourceUrl] = useState<string | null>(null);
   const [activeContentTab, setActiveContentTab] = useState<"all" | "video" | "resources" | "text">("all");
+  const contentTopRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedVideoIndex(0);
     setCopiedResourceUrl(null);
     setActiveContentTab("all");
+    if (contentTopRef.current) {
+      contentTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }, [activeMaterial?.id]);
 
   useEffect(() => {
@@ -510,7 +516,11 @@ export function MaterialsView({
         [mat.topicId]: true,
       }));
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (contentTopRef.current) {
+      contentTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const getMaterialTypeLabel = (t: MaterialType) => {
@@ -891,7 +901,7 @@ export function MaterialsView({
                                     <div
                                       key={mat.id}
                                       onClick={() => {
-                                        setActiveMaterial(mat);
+                                        handleNavigateMaterial(mat);
                                         setIsMobileSidebarOpen(false);
                                       }}
                                       className={`p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat ${
@@ -982,7 +992,10 @@ export function MaterialsView({
             </div>
 
             {/* RIGHT MAIN AREA: SELECTED MATERIAL CONTENT VIEWER */}
-            <div className="flex-1 min-w-0 w-full bg-card rounded-xl border p-3 sm:p-4 space-y-4 shadow-xs transition-all duration-300 ease-in-out">
+            <div
+              ref={contentTopRef}
+              className="flex-1 min-w-0 w-full bg-card rounded-xl border p-3 sm:p-4 space-y-4 shadow-xs transition-all duration-300 ease-in-out scroll-mt-20"
+            >
           {currentMat ? (
             <div className="space-y-4">
               {/* Active Material Header */}
