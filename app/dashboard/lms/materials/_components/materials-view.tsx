@@ -613,7 +613,7 @@ export function MaterialsView({
             {/* LEFT SIDEBAR: CHAPTERS & MATERIALS TREE FOR THIS SUBJECT */}
             <div
               className={cn(
-                "bg-card rounded-xl border shadow-xs md:sticky md:top-16 md:max-h-[calc(100vh-5rem)] static max-h-none overflow-y-auto overflow-x-hidden md:z-10 transition-all duration-300 ease-in-out shrink-0",
+                "bg-card rounded-xl border shadow-xs md:sticky md:top-20 md:self-start md:max-h-[calc(100vh-6rem)] static max-h-none overflow-y-auto overflow-x-hidden md:z-10 transition-all duration-300 ease-in-out shrink-0",
                 isSidebarOpen
                   ? "w-full md:w-[290px] lg:w-[330px] p-3.5 space-y-3 opacity-100"
                   : "hidden md:block md:w-0 md:min-w-0 md:max-w-0 md:p-0 md:border-0 md:opacity-0 md:pointer-events-none md:shadow-none md:overflow-hidden"
@@ -1032,14 +1032,7 @@ export function MaterialsView({
                 </div>
               )}
 
-              {/* RENDER WYSIWYG MARKDOWN CONTENT PROPERLY */}
-              {currentMat.content && (
-                <div className="p-4 rounded-xl border bg-background text-xs leading-relaxed text-foreground space-y-2">
-                  {renderMarkdown(currentMat.content)}
-                </div>
-              )}
-
-              {/* Multiple Resources & Files */}
+              {/* Multiple Resources & Files (Moved UP above markdown content) */}
               {parsedResources.length > 0 && (
                 <div className="p-3.5 rounded-xl border bg-muted/30 space-y-2 text-xs">
                   <div className="font-semibold text-foreground text-xs flex items-center gap-1.5">
@@ -1063,6 +1056,13 @@ export function MaterialsView({
                       </a>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* RENDER WYSIWYG MARKDOWN CONTENT PROPERLY */}
+              {currentMat.content && (
+                <div className="p-4 rounded-xl border bg-background text-xs leading-relaxed text-foreground space-y-2">
+                  {renderMarkdown(currentMat.content)}
                 </div>
               )}
 
