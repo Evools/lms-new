@@ -56,6 +56,13 @@ import {
   Eye,
   EyeOff,
   Copy,
+  Check,
+  Globe,
+  Code2,
+  FolderArchive,
+  Send,
+  Play,
+  Layers,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -80,6 +87,98 @@ export interface TopicWithMaterialsDTO {
   subjectName?: string;
   teacherName?: string;
   materials: MaterialDTO[];
+}
+
+function getResourceMeta(rawUrl: string) {
+  const url = rawUrl.trim();
+  let domain = "";
+  let pathname = "";
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    domain = parsed.hostname.replace(/^www\./, "");
+    pathname = decodeURIComponent(parsed.pathname);
+  } catch {
+    domain = url.split("/")[0] || url;
+  }
+
+  const lowerUrl = url.toLowerCase();
+
+  if (lowerUrl.includes("github.com") || lowerUrl.includes("gitlab.com")) {
+    return {
+      type: "Репозиторий",
+      badge: "GitHub / Git",
+      icon: <Code2 className="h-4 w-4 text-primary" />,
+      title: pathname.length > 1 ? pathname.replace(/^\//, "") : domain,
+      subtitle: domain,
+      url,
+    };
+  }
+
+  if (lowerUrl.includes("figma.com")) {
+    return {
+      type: "Дизайн-макет",
+      badge: "Figma",
+      icon: <Layers className="h-4 w-4 text-primary" />,
+      title: pathname.length > 1 ? pathname.split("/").filter(Boolean).pop() || "Figma Проект" : "Figma Design",
+      subtitle: domain,
+      url,
+    };
+  }
+
+  if (lowerUrl.includes("drive.google.com") || lowerUrl.includes("docs.google.com")) {
+    return {
+      type: "Облачные документы",
+      badge: "Google Диск",
+      icon: <FileText className="h-4 w-4 text-primary" />,
+      title: "Google Документ / Диск",
+      subtitle: domain,
+      url,
+    };
+  }
+
+  if (lowerUrl.includes("t.me") || lowerUrl.includes("telegram.me")) {
+    return {
+      type: "Мессенджер",
+      badge: "Telegram",
+      icon: <Send className="h-4 w-4 text-primary" />,
+      title: pathname.length > 1 ? `@${pathname.replace(/^\//, "")}` : "Telegram",
+      subtitle: domain,
+      url,
+    };
+  }
+
+  if (lowerUrl.endsWith(".pdf")) {
+    const filename = pathname.split("/").pop() || "PDF Документ";
+    return {
+      type: "Документ",
+      badge: "PDF",
+      icon: <FileText className="h-4 w-4 text-primary" />,
+      title: filename,
+      subtitle: domain,
+      url,
+    };
+  }
+
+  if (lowerUrl.endsWith(".zip") || lowerUrl.endsWith(".rar") || lowerUrl.endsWith(".tar") || lowerUrl.endsWith(".7z")) {
+    const filename = pathname.split("/").pop() || "Архив файлов";
+    return {
+      type: "Архив",
+      badge: "ZIP / Архив",
+      icon: <FolderArchive className="h-4 w-4 text-primary" />,
+      title: filename,
+      subtitle: domain,
+      url,
+    };
+  }
+
+  return {
+    type: "Веб-ресурс",
+    badge: domain,
+    icon: <Globe className="h-4 w-4 text-primary" />,
+    title: pathname.length > 1 && pathname !== "/" ? pathname.replace(/^\//, "") : domain,
+    subtitle: domain,
+    url,
+  };
 }
 
 interface MaterialsViewProps {
@@ -165,6 +264,17 @@ export function MaterialsView({
     materials[0] ||
     null;
   const [activeMaterial, setActiveMaterial] = useState<MaterialDTO | null>(initialActiveMat);
+
+  // Reader interactive state
+  const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
+  const [copiedResourceUrl, setCopiedResourceUrl] = useState<string | null>(null);
+  const [activeContentTab, setActiveContentTab] = useState<"all" | "video" | "resources" | "text">("all");
+
+  useEffect(() => {
+    setSelectedVideoIndex(0);
+    setCopiedResourceUrl(null);
+    setActiveContentTab("all");
+  }, [activeMaterial?.id]);
 
   useEffect(() => {
     if (selectedMaterialIdProp) {
@@ -1011,56 +1121,210 @@ export function MaterialsView({
                 </div>
               )}
 
-              {/* Multiple Video Players */}
-              {parsedVideos.length > 0 && (
-                <div className="space-y-3">
-                  {parsedVideos.map((vidUrl, idx) => {
-                    const embedUrl = getYouTubeEmbedUrl(vidUrl);
+              {/* Quick Section View Tabs */}
+              {(parsedVideos.length > 0 || parsedResources.length > 0) && currentMat.content && (
+                <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-lg border text-xs overflow-x-auto scrollbar-none">
+                  <button
+                    type="button"
+                    onClick={() => setActiveContentTab("all")}
+                    className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
+                      activeContentTab === "all"
+                        ? "bg-background text-foreground shadow-xs border border-border/80"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <BookOpen className="h-3.5 w-3.5 text-primary" />
+                    <span>Все материалы</span>
+                  </button>
+
+                  {parsedVideos.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveContentTab("video")}
+                      className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
+                        activeContentTab === "video"
+                          ? "bg-background text-foreground shadow-xs border border-border/80"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Video className="h-3.5 w-3.5 text-primary" />
+                      <span>Видео ({parsedVideos.length})</span>
+                    </button>
+                  )}
+
+                  {parsedResources.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveContentTab("resources")}
+                      className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
+                        activeContentTab === "resources"
+                          ? "bg-background text-foreground shadow-xs border border-border/80"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Link2 className="h-3.5 w-3.5 text-primary" />
+                      <span>Файлы и ссылки ({parsedResources.length})</span>
+                    </button>
+                  )}
+
+                  {currentMat.content && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveContentTab("text")}
+                      className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
+                        activeContentTab === "text"
+                          ? "bg-background text-foreground shadow-xs border border-border/80"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <FileText className="h-3.5 w-3.5 text-primary" />
+                      <span>Конспект урока</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Video Player Section with Multi-part selector */}
+              {(activeContentTab === "all" || activeContentTab === "video") && parsedVideos.length > 0 && (
+                <div className="space-y-3 rounded-xl border bg-card p-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                        <Video className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-foreground text-xs">Видеоматериалы к уроку</h3>
+                        <p className="text-[10px] text-muted-foreground">
+                          {parsedVideos.length === 1
+                            ? "1 видеозапись к уроку"
+                            : `${parsedVideos.length} видеозаписи (выберите часть для просмотра)`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {parsedVideos.length > 1 && (
+                      <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs">
+                        {parsedVideos.map((_, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setSelectedVideoIndex(idx)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all flex items-center gap-1 ${
+                              selectedVideoIndex === idx
+                                ? "bg-background text-foreground shadow-xs border border-border/80 text-primary"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <Play className="h-2.5 w-2.5" />
+                            <span>Часть {idx + 1}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Active Video Player */}
+                  {(() => {
+                    const activeVidUrl = parsedVideos[selectedVideoIndex] || parsedVideos[0];
+                    const embedUrl = getYouTubeEmbedUrl(activeVidUrl);
                     if (!embedUrl) return null;
                     return (
-                      <div key={idx} className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-sm border border-border">
+                      <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-xs border border-border">
                         <iframe
                           src={embedUrl}
-                          title={`${currentMat.title} - Видео ${idx + 1}`}
+                          title={`${currentMat.title} - Видео ${selectedVideoIndex + 1}`}
                           className="w-full h-full border-0"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                           allowFullScreen
                         />
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
               )}
 
-              {/* Multiple Resources & Files (Moved UP above markdown content) */}
-              {parsedResources.length > 0 && (
-                <div className="p-3.5 rounded-xl border bg-muted/30 space-y-2 text-xs">
-                  <div className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <ExternalLink className="h-3.5 w-3.5 text-primary" /> Ссылки и прикреплённые ресурсы ({parsedResources.length}):
+              {/* Smart 2-Column Resources & Attached Files */}
+              {(activeContentTab === "all" || activeContentTab === "resources") && parsedResources.length > 0 && (
+                <div className="space-y-3 rounded-xl border bg-card p-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 pb-2 border-b">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                        <Link2 className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-foreground text-xs">Прикреплённые ресурсы и файлы</h3>
+                        <p className="text-[10px] text-muted-foreground">
+                          {parsedResources.length} полезных ссылок, макетов и файлов
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-medium bg-muted/40">
+                      {parsedResources.length} шт.
+                    </Badge>
                   </div>
 
-                  <div className="flex flex-col gap-2 pt-1">
-                    {parsedResources.map((url, idx) => (
-                      <a
-                        key={idx}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 rounded-lg border bg-card hover:bg-muted/60 transition-colors text-primary font-mono text-xs flex items-center justify-between group truncate"
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <Link2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          <span className="truncate">{url}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {parsedResources.map((url, idx) => {
+                      const meta = getResourceMeta(url);
+                      const isCopied = copiedResourceUrl === url;
+                      return (
+                        <div
+                          key={idx}
+                          className="p-2.5 rounded-lg border bg-background hover:bg-muted/30 hover:border-primary/40 transition-all flex items-center justify-between gap-2 text-xs group"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className="p-1.5 rounded-md bg-muted/70 text-primary shrink-0 group-hover:bg-primary/10 transition-colors">
+                              {meta.icon}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-foreground text-xs truncate max-w-[170px] sm:max-w-[130px] md:max-w-[150px] lg:max-w-[190px]">
+                                  {meta.title}
+                                </span>
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                                  {meta.badge}
+                                </Badge>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground truncate font-mono">
+                                {meta.subtitle}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              title="Скопировать ссылку"
+                              onClick={() => {
+                                navigator.clipboard.writeText(url);
+                                setCopiedResourceUrl(url);
+                                setTimeout(() => setCopiedResourceUrl(null), 2000);
+                              }}
+                            >
+                              {isCopied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center h-6 w-6 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                              title="Открыть в новой вкладке"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
                         </div>
-                        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary transition-colors ml-2" />
-                      </a>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* RENDER WYSIWYG MARKDOWN CONTENT PROPERLY */}
-              {currentMat.content && (
+              {/* RENDER WYSIWYG MARKDOWN CONTENT */}
+              {(activeContentTab === "all" || activeContentTab === "text") && currentMat.content && (
                 <div className="p-4 rounded-xl border bg-background text-xs leading-relaxed text-foreground space-y-2">
                   {renderMarkdown(currentMat.content)}
                 </div>
