@@ -71,10 +71,13 @@ import {
   X,
   AlertTriangle,
   Download,
-  Copy,
   Check,
   KeyRound,
   Accessibility,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Copy,
 } from "lucide-react";
 import {
   GroupDetailsDTO,
@@ -88,6 +91,7 @@ import {
   deleteGroupAnnouncementAction,
 } from "../../actions";
 import { toggleStudentDutyExemptionAction } from "@/app/dashboard/duty/actions";
+import { resetPasswordAction } from "@/app/dashboard/students/actions";
 import { exportToExcel } from "@/lib/excel-export";
 
 interface GroupDetailsViewProps {
@@ -115,6 +119,76 @@ export function GroupDetailsView({
   // Student deletion modal state
   const [targetRemoveStudentId, setTargetRemoveStudentId] = useState<string | null>(null);
   const [removeErrorMessage, setRemoveErrorMessage] = useState<string | null>(null);
+
+  // Reset password modal state
+  const [resetTargetStudent, setResetTargetStudent] = useState<GroupStudentDTO | null>(null);
+  const [passwordMode, setPasswordMode] = useState<"auto" | "manual">("auto");
+  const [generatedNewPassword, setGeneratedNewPassword] = useState("");
+  const [manualPassword, setManualPassword] = useState("");
+  const [showManualPassword, setShowManualPassword] = useState(false);
+  const [isCopiedResetPassword, setIsCopiedResetPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
+
+  const generateRandomPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
+    let pass = "Lms";
+    for (let i = 0; i < 6; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pass;
+  };
+
+  const handleOpenResetPassword = (student: GroupStudentDTO) => {
+    setResetTargetStudent(student);
+    setPasswordMode("auto");
+    setGeneratedNewPassword(generateRandomPassword());
+    setManualPassword("");
+    setShowManualPassword(false);
+    setIsCopiedResetPassword(false);
+    setResetPasswordError(null);
+  };
+
+  const handleCopyResetPassword = (passwordText: string) => {
+    if (passwordText) {
+      navigator.clipboard.writeText(passwordText);
+      setIsCopiedResetPassword(true);
+      setTimeout(() => setIsCopiedResetPassword(false), 2000);
+    }
+  };
+
+  const handleConfirmPasswordReset = async () => {
+    if (!resetTargetStudent) return;
+    const passwordToSet = passwordMode === "auto" ? generatedNewPassword : manualPassword.trim();
+    if (!passwordToSet || passwordToSet.length < 6) {
+      setResetPasswordError("Пароль должен содержать не менее 6 символов");
+      return;
+    }
+
+    setIsResettingPassword(true);
+    setResetPasswordError(null);
+    try {
+      const res = await resetPasswordAction(resetTargetStudent.id, passwordToSet);
+      if (res.success) {
+        toast.add({
+          title: `Пароль для ${resetTargetStudent.name} успешно обновлен`,
+          type: "success",
+        });
+        const studentIndex = group.studentsList.findIndex((s) => s.id === resetTargetStudent.id);
+        if (studentIndex !== -1) {
+          group.studentsList[studentIndex].tempPassword = passwordToSet;
+        }
+        setResetTargetStudent(null);
+        router.refresh();
+      } else {
+        setResetPasswordError(res.error || "Не удалось сбросить пароль");
+      }
+    } catch (e: unknown) {
+      setResetPasswordError(e instanceof Error ? e.message : "Ошибка сброса пароля");
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
 
@@ -618,6 +692,9 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                                 </>
                               )}
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
+                              <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
                               <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать профиль
@@ -1062,6 +1139,190 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Modal for Resetting Student Password */}
+      <Dialog
+        open={resetTargetStudent !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetTargetStudent(null);
+            setResetPasswordError(null);
+          }
+        }}
+      >
+        {resetTargetStudent && (
+          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+            <DialogHeader className="text-left place-items-start gap-1">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+                <KeyRound className="h-4 w-4 text-primary" /> Сброс пароля студента
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Установка нового пароля для <strong>{resetTargetStudent.name}</strong>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-1 text-xs">
+              {/* Segmented Pill Toggle: Auto vs Manual */}
+              <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordMode("auto");
+                    setResetPasswordError(null);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-medium transition-all ${passwordMode === "auto"
+                      ? "bg-background text-foreground shadow-xs border border-border/80"
+                      : "text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <span>Временный (авто)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordMode("manual");
+                    setResetPasswordError(null);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-medium transition-all ${passwordMode === "manual"
+                      ? "bg-background text-foreground shadow-xs border border-border/80"
+                      : "text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                  <Edit className="h-3.5 w-3.5 text-primary" />
+                  <span>Ввести вручную</span>
+                </button>
+              </div>
+
+              {passwordMode === "auto" ? (
+                <div className="p-2.5 rounded-lg border bg-muted/20 space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>Сгенерированный пароль:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPass = generateRandomPassword();
+                        setGeneratedNewPassword(newPass);
+                        setIsCopiedResetPassword(false);
+                      }}
+                      className="text-primary hover:underline flex items-center gap-1 text-[10px]"
+                    >
+                      <RefreshCw className="h-2.5 w-2.5" /> Сгенерировать другой
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between bg-background p-2 rounded border">
+                    <span className="font-mono text-xs font-bold text-primary">
+                      {generatedNewPassword}
+                    </span>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      type="button"
+                      onClick={() => handleCopyResetPassword(generatedNewPassword)}
+                      className="h-6 text-[10px]"
+                    >
+                      {isCopiedResetPassword ? (
+                        <>
+                          <Check className="h-3 w-3 mr-1 text-emerald-600" /> Скопировано!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3 mr-1" /> Скопировать
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-lg border bg-muted/20 space-y-1.5">
+                  <div className="text-[10px] text-muted-foreground">
+                    Новый пароль (минимум 6 символов):
+                  </div>
+                  <div className="relative flex items-center">
+                    <Input
+                      type={showManualPassword ? "text" : "password"}
+                      placeholder="Введите пароль..."
+                      value={manualPassword}
+                      onChange={(e) => {
+                        setManualPassword(e.target.value);
+                        setResetPasswordError(null);
+                      }}
+                      className="h-8 text-xs font-mono pr-16"
+                    />
+                    <div className="absolute right-1 flex items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowManualPassword(!showManualPassword)}
+                      >
+                        {showManualPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </Button>
+                      {manualPassword.trim().length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={() => handleCopyResetPassword(manualPassword)}
+                        >
+                          {isCopiedResetPassword ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {manualPassword.length > 0 && manualPassword.length < 6 && (
+                    <div className="text-[10px] text-destructive">
+                      Пароль должен содержать минимум 6 символов
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="p-2.5 rounded-lg border bg-primary/5 text-muted-foreground text-[11px] space-y-1">
+                <div className="font-semibold text-foreground flex items-center gap-1">
+                  <Send className="h-3 w-3 text-primary" /> Логин: {resetTargetStudent.email}
+                </div>
+                <p>
+                  {passwordMode === "auto"
+                    ? "При первом входе студенту будет предложено задать собственный пароль."
+                    : "Студент сможет сразу войти по указанному паролю."}
+                </p>
+              </div>
+
+              {resetPasswordError && (
+                <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded border border-destructive/20">
+                  {resetPasswordError}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+              <Button
+                variant="outline"
+                size="xs"
+                disabled={isResettingPassword}
+                onClick={() => {
+                  setResetTargetStudent(null);
+                  setResetPasswordError(null);
+                }}
+              >
+                Отмена
+              </Button>
+              <Button
+                size="xs"
+                disabled={
+                  isResettingPassword ||
+                  (passwordMode === "manual" && manualPassword.trim().length < 6)
+                }
+                onClick={handleConfirmPasswordReset}
+              >
+                {isResettingPassword ? "Сохранение..." : "Подтвердить"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

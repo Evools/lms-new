@@ -543,6 +543,7 @@ export async function resetPasswordAction(studentId: string, newPassword: string
     });
 
     revalidatePath("/dashboard/students");
+    revalidatePath("/dashboard/groups");
     return { success: true };
   } catch (error) {
     console.error("Error resetting password:", error);
