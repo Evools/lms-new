@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   Award,
   ShieldAlert,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { exportToExcel } from "@/lib/excel-export";
+import { exportMultiSheetExcel } from "@/lib/excel-export";
+import { toast } from "@/components/ui/toast";
+import {
+  TestReportDialog,
+  formatCorrectAnswerText,
+  getGradeLabel,
+} from "./test-report-dialog";
 import {
   ResponsiveContainer,
   BarChart,
@@ -127,6 +134,7 @@ interface TestResultsViewProps {
     description: string;
     groupName: string;
     subjectName: string;
+    teacherName?: string;
     timeLimit: number | null;
     totalMaxPoints: number;
   };
@@ -146,6 +154,7 @@ export function TestResultsView({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<"matrix" | "analytics">("matrix");
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
   const [resetTarget, setResetTarget] = useState<{
     submissionId: string;
@@ -171,18 +180,35 @@ export function TestResultsView({
   };
 
   const handleExportExcel = () => {
-    const headers = [
-      "ФИО Студента",
-      "Статус",
-      "Баллы",
-      "Макс. балл",
-      "Процент (%)",
-      "Переключений вкладок",
-      "Дата сдачи",
-      ...questions.map((_, idx) => `Вопрос #${idx + 1}`),
+    const submittedCount = studentsResults.filter((s) => s.hasSubmitted).length;
+    const avgScoreVal =
+      submittedCount > 0
+        ? (studentsResults.filter((s) => s.hasSubmitted).reduce((sum, s) => sum + s.score, 0) / submittedCount).toFixed(1)
+        : "0";
+
+    // Sheet 1: Results and grades
+    const resultsSheetData: (string | number | boolean | null | undefined)[][] = [
+      ["ПРОТОКОЛ РЕЗУЛЬТАТОВ ТЕСТИРОВАНИЯ ЗНАНИЙ"],
+      ["Дисциплина:", test.subjectName, "Учебная группа:", test.groupName, "Преподаватель:", test.teacherName || "—"],
+      ["Название теста:", test.title, "Дата выгрузки:", new Date().toLocaleDateString("ru-RU"), "Всего студентов:", studentsResults.length],
+      ["Сдано работ:", `${submittedCount} из ${studentsResults.length}`, "Средний балл:", `${avgScoreVal} / ${test.totalMaxPoints}`, "Средний процент:", `${analytics?.avgPercent ?? 0}%`],
+      [],
+      [
+        "№",
+        "ФИО Студента",
+        "Статус",
+        "Набрано баллов",
+        "Макс. балл",
+        "Процент (%)",
+        "Оценка (шкала)",
+        "Переключений вкладок",
+        "Дата сдачи",
+        ...questions.map((_, idx) => `Вопрос #${idx + 1}`),
+      ],
     ];
 
-    const rows = studentsResults.map((s) => {
+    studentsResults.forEach((s, idx) => {
+      const grade = getGradeLabel(s.percent);
       const qAnswers = questions.map((q) => {
         if (!s.hasSubmitted) return "Не сдавал";
         const a = s.answersMap[q.id];
@@ -192,25 +218,84 @@ export function TestResultsView({
         return "Ошибка (0)";
       });
 
-      return [
+      resultsSheetData.push([
+        idx + 1,
         s.studentName,
         s.hasSubmitted ? "Сдано" : "Не сдавал",
         s.hasSubmitted ? s.score : 0,
         s.maxScore,
         s.hasSubmitted ? `${s.percent}%` : "0%",
+        s.hasSubmitted ? grade.label : "—",
         s.tabSwitches || 0,
         s.submittedAt ? new Date(s.submittedAt).toLocaleString("ru-RU") : "-",
         ...qAnswers,
-      ];
+      ]);
+    });
+
+    // Sheet 2: Questions and Answer Key
+    const keySheetData: (string | number | boolean | null | undefined)[][] = [
+      ["СПЕЦИФИКАЦИЯ И КЛЮЧИ ПРАВИЛЬНЫХ ОТВЕТОВ К ТЕСТУ"],
+      ["Тест:", test.title, "Дисциплина:", test.subjectName, "Группа:", test.groupName],
+      ["Всего заданий:", questions.length, "Максимальная сумма баллов:", test.totalMaxPoints],
+      [],
+      [
+        "№",
+        "Текст вопроса",
+        "Тип задания",
+        "Эталонный правильный ответ",
+        "Балл",
+        "Верно решили (чел)",
+        "Частично (чел)",
+        "Неверно (чел)",
+        "Процент решаемости (%)",
+      ],
+    ];
+
+    questions.forEach((q, idx) => {
+      const stat = questionStats.find((s) => s.questionId === q.id);
+      const answerText = formatCorrectAnswerText(q.type, q.correctAnswer, q.options);
+      const qTypeLabel =
+        q.type === "MULTIPLE"
+          ? "Множественный выбор"
+          : q.type === "NUMERICAL"
+            ? "Числовой ответ"
+            : q.type === "TEXT"
+              ? "Текстовый ответ"
+              : q.type === "ORDERING"
+                ? "Упорядочивание"
+                : q.type === "MATCHING"
+                  ? "Сопоставление"
+                  : "Одиночный выбор";
+
+      keySheetData.push([
+        idx + 1,
+        q.questionText,
+        qTypeLabel,
+        answerText,
+        q.points,
+        stat ? stat.fullCorrectCount : "—",
+        stat ? stat.partialCount : "—",
+        stat ? stat.wrongCount : "—",
+        stat ? `${stat.accuracyPercent}%` : "—",
+      ]);
     });
 
     const safeTitle = test.title.replace(/[\s\/:*?"<>|]+/g, "_");
     const safeGroup = test.groupName.replace(/[\s\/:*?"<>|]+/g, "_");
-    exportToExcel(
-      [headers, ...rows],
-      `Результаты_${safeTitle}_${safeGroup}.xlsx`,
-      "Результаты теста"
+
+    exportMultiSheetExcel(
+      [
+        { name: "Ведомость результатов", data: resultsSheetData },
+        { name: "Ключи теста и статистика", data: keySheetData },
+      ],
+      `Ведомость_${safeTitle}_${safeGroup}.xlsx`
     );
+
+    toast.add({
+      title: "Ведомость выгружена в Excel",
+      description: "Файл содержит 2 листа: результаты студентов и ключ правильных ответов",
+      type: "success",
+    });
   };
 
   const submittedCount = studentsResults.filter((s) => s.hasSubmitted).length;
@@ -318,10 +403,21 @@ export function TestResultsView({
 
             <Button
               size="xs"
+              variant="default"
+              onClick={() => setReportDialogOpen(true)}
+              className="h-8 text-xs gap-1.5 font-medium bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
+              title="Открыть протокол ведомости для печати или сохранения в PDF"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Протокол ведомости
+            </Button>
+
+            <Button
+              size="xs"
               variant="outline"
               onClick={handleExportExcel}
               className="h-8 text-xs gap-1.5 font-medium hover:bg-muted"
-              title="Экспорт результатов в формате Excel (.xlsx)"
+              title="Экспорт ведомости и ключей ответов в Excel (.xlsx)"
             >
               <Download className="h-3.5 w-3.5" />
               Экспорт Excel
@@ -770,6 +866,16 @@ export function TestResultsView({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Academic Protocol & Print Dialog */}
+        <TestReportDialog
+          open={reportDialogOpen}
+          onOpenChange={setReportDialogOpen}
+          test={test}
+          questions={questions}
+          studentsResults={studentsResults}
+          questionStats={questionStats}
+        />
       </div>
     </TooltipProvider>
   );

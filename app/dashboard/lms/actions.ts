@@ -1715,6 +1715,7 @@ export async function getTestResultsAction(testId: string) {
         groupSubject: {
           include: {
             subject: true,
+            teacher: true,
             group: {
               include: {
                 students: {
@@ -1973,6 +1974,7 @@ export async function getTestResultsAction(testId: string) {
         description: test.description || "",
         groupName: test.groupSubject.group.name,
         subjectName: test.groupSubject.subject.name,
+        teacherName: test.groupSubject.teacher?.name || "Преподаватель",
         timeLimit: test.timeLimit,
         totalMaxPoints,
       },

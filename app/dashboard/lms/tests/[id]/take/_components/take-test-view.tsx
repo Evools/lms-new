@@ -634,17 +634,6 @@ export function TakeTestView({ test }: TakeTestViewProps) {
         </div>
       )}
 
-      {/* Subtle Anti-Photo Watermark */}
-      {!isTeacherOrAdmin && !isSubmitted && (
-        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-[0.025] select-none flex flex-wrap gap-20 p-8 items-center justify-center text-foreground font-mono text-[11px] font-bold uppercase rotate-[-20deg]">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <span key={i} className="whitespace-nowrap">
-              Лицей LMS • ID: {test.id.slice(0, 8)} • {new Date().toLocaleDateString()}
-            </span>
-          ))}
-        </div>
-      )}
-
       {/* Top Header & Context Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border relative z-10">
         <div className="space-y-0.5">
