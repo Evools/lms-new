@@ -27,7 +27,10 @@ import {
   Sparkles,
   Download,
   X,
+  FileCheck2,
 } from "lucide-react";
+import { exportAcademicStatementDocx } from "@/lib/docx-export";
+import { toast } from "@/components/ui/toast";
 
 export interface QuestionDTO {
   id: string;
@@ -76,6 +79,8 @@ interface TestReportDialogProps {
     groupName: string;
     subjectName: string;
     teacherName?: string;
+    specialtyName?: string;
+    academicYear?: string;
     timeLimit: number | null;
     totalMaxPoints: number;
   };
@@ -249,7 +254,7 @@ export function TestReportDialog({
         <html class="${document.documentElement.className || "light"}" style="color-scheme: light;">
           <head>
             <meta charset="utf-8">
-            <title>Протокол результатов тестирования - ${test.title}</title>
+            <title>Ведомость результатов компьютерного тестирования - ${test.title}</title>
             ${stylesHtml}
             <style>
               @page {
@@ -321,6 +326,36 @@ export function TestReportDialog({
     }
 
     window.print();
+  };
+
+  const handleDownloadDocx = async () => {
+    try {
+      await exportAcademicStatementDocx({
+        testTitle: test.title,
+        groupName: test.groupName,
+        subjectName: test.subjectName,
+        specialtyName: test.specialtyName,
+        teacherName: test.teacherName,
+        academicYear: test.academicYear,
+        students: studentsResults.map((s) => ({
+          studentName: s.studentName,
+          hasSubmitted: s.hasSubmitted,
+          score: s.score,
+          maxScore: s.maxScore,
+          percent: s.percent,
+        })),
+      });
+      toast.add({
+        title: "Ведомость Word сформирована",
+        description: "Файл .docx скачан на ваше устройство",
+        type: "success",
+      });
+    } catch {
+      toast.add({
+        title: "Ошибка формирования Word документа",
+        type: "error",
+      });
+    }
   };
 
   const currentDateFormatted = new Date().toLocaleDateString("ru-RU", {
@@ -403,14 +438,23 @@ export function TestReportDialog({
         <div className="p-3.5 border-b bg-muted/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 print:hidden shrink-0">
           <div className="space-y-0.5 pr-2">
             <DialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
-              <Printer className="h-4 w-4 text-primary" /> Протокол результатов тестирования к ведомости
+              <Printer className="h-4 w-4 text-primary" /> Ведомость результатов компьютерного тестирования
             </DialogTitle>
             <p className="text-[11px] text-muted-foreground">
-              Официальный протокол с оценками и приложением с ключами правильных ответов для ведомости и отчетов
+              Официальная ведомость с оценками и приложением с ключами правильных ответов
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end shrink-0">
+          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end shrink-0 flex-wrap">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={handleDownloadDocx}
+              className="h-8 px-2.5 text-xs gap-1.5 font-medium hover:bg-muted"
+              title="Скачать официальную ведомость в формате Word (.docx)"
+            >
+              <FileText className="h-3.5 w-3.5 text-primary" /> Скачать Word (.docx)
+            </Button>
             <Button
               size="xs"
               variant="default"
@@ -487,7 +531,7 @@ export function TestReportDialog({
                   Учебно-методическая документация • Электронная ведомость
                 </p>
                 <h1 className="text-base font-bold text-foreground uppercase tracking-tight">
-                  ПРОТОКОЛ РЕЗУЛЬТАТОВ КОМПЬЮТЕРНОГО ТЕСТИРОВАНИЯ
+                  ВЕДОМОСТЬ РЕЗУЛЬТАТОВ КОМПЬЮТЕРНОГО ТЕСТИРОВАНИЯ
                 </h1>
                 <p className="text-xs font-semibold text-primary">
                   «{test.title}»
@@ -762,7 +806,7 @@ export function TestReportDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-muted-foreground font-medium">Заведующий кафедрой / отделением:</div>
+                    <div className="text-muted-foreground font-medium">Зам. директора по учебной части:</div>
                     <div className="flex items-end justify-between border-b border-foreground/60 pb-1 pt-3 gap-2">
                       <span className="text-[10px] text-muted-foreground shrink-0">Подпись: ____________</span>
                       <span className="font-semibold text-foreground font-mono text-[11px] truncate">

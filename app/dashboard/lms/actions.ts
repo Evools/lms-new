@@ -1718,6 +1718,8 @@ export async function getTestResultsAction(testId: string) {
             teacher: true,
             group: {
               include: {
+                specialty: true,
+                academicYear: true,
                 students: {
                   include: {
                     student: true,
@@ -1975,6 +1977,8 @@ export async function getTestResultsAction(testId: string) {
         groupName: test.groupSubject.group.name,
         subjectName: test.groupSubject.subject.name,
         teacherName: test.groupSubject.teacher?.name || "Преподаватель",
+        specialtyName: test.groupSubject.group.specialty?.name || "",
+        academicYear: test.groupSubject.group.academicYear?.name || "2026-2027",
         timeLimit: test.timeLimit,
         totalMaxPoints,
       },

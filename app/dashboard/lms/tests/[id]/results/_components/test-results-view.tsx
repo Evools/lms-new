@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { exportMultiSheetExcel } from "@/lib/excel-export";
+import { exportAcademicStatementDocx } from "@/lib/docx-export";
 import { toast } from "@/components/ui/toast";
 import {
   TestReportDialog,
@@ -135,6 +136,8 @@ interface TestResultsViewProps {
     groupName: string;
     subjectName: string;
     teacherName?: string;
+    specialtyName?: string;
+    academicYear?: string;
     timeLimit: number | null;
     totalMaxPoints: number;
   };
@@ -188,7 +191,7 @@ export function TestResultsView({
 
     // Sheet 1: Results and grades
     const resultsSheetData: (string | number | boolean | null | undefined)[][] = [
-      ["ПРОТОКОЛ РЕЗУЛЬТАТОВ ТЕСТИРОВАНИЯ ЗНАНИЙ"],
+      ["ВЕДОМОСТЬ РЕЗУЛЬТАТОВ КОМПЬЮТЕРНОГО ТЕСТИРОВАНИЯ"],
       ["Дисциплина:", test.subjectName, "Учебная группа:", test.groupName, "Преподаватель:", test.teacherName || "—"],
       ["Название теста:", test.title, "Дата выгрузки:", new Date().toLocaleDateString("ru-RU"), "Всего студентов:", studentsResults.length],
       ["Сдано работ:", `${submittedCount} из ${studentsResults.length}`, "Средний балл:", `${avgScoreVal} / ${test.totalMaxPoints}`, "Средний процент:", `${analytics?.avgPercent ?? 0}%`],
@@ -296,6 +299,36 @@ export function TestResultsView({
       description: "Файл содержит 2 листа: результаты студентов и ключ правильных ответов",
       type: "success",
     });
+  };
+
+  const handleExportDocx = async () => {
+    try {
+      await exportAcademicStatementDocx({
+        testTitle: test.title,
+        groupName: test.groupName,
+        subjectName: test.subjectName,
+        specialtyName: test.specialtyName,
+        teacherName: test.teacherName,
+        academicYear: test.academicYear,
+        students: studentsResults.map((s) => ({
+          studentName: s.studentName,
+          hasSubmitted: s.hasSubmitted,
+          percent: s.percent,
+          score: s.score,
+          maxScore: s.maxScore,
+        })),
+      });
+      toast.add({
+        title: "Ведомость Word сформирована",
+        description: "Файл .docx скачан на ваше устройство",
+        type: "success",
+      });
+    } catch {
+      toast.add({
+        title: "Ошибка формирования Word документа",
+        type: "error",
+      });
+    }
   };
 
   const submittedCount = studentsResults.filter((s) => s.hasSubmitted).length;
@@ -406,10 +439,21 @@ export function TestResultsView({
               variant="default"
               onClick={() => setReportDialogOpen(true)}
               className="h-8 text-xs gap-1.5 font-medium bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
-              title="Открыть протокол ведомости для печати или сохранения в PDF"
+              title="Открыть ведомость результатов тестирования для печати или сохранения в PDF"
             >
               <Printer className="h-3.5 w-3.5" />
-              Протокол ведомости
+              Ведомость PDF
+            </Button>
+
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={handleExportDocx}
+              className="h-8 text-xs gap-1.5 font-medium hover:bg-muted"
+              title="Скачать официальную ведомость сдачи зачетов в формате Word (.docx)"
+            >
+              <FileText className="h-3.5 w-3.5 text-primary" />
+              Ведомость Word
             </Button>
 
             <Button
