@@ -755,7 +755,11 @@ export function CreateTestView({
         const newOptions = [...q.options];
         const [moved] = newOptions.splice(fromOptIdx, 1);
         newOptions.splice(toOptIdx, 0, moved);
-        return { ...q, options: newOptions };
+        return {
+          ...q,
+          options: newOptions,
+          correctAnswer: q.type === "ORDERING" ? JSON.stringify(newOptions.map(String)) : q.correctAnswer,
+        };
       })
     );
   };
@@ -2105,17 +2109,43 @@ export function CreateTestView({
                                     className="h-7 text-xs bg-background flex-1 font-medium"
                                   />
 
-                                  {q.options.length > 2 && (
+                                  <div className="flex items-center gap-0.5 shrink-0">
                                     <Button
                                       type="button"
                                       size="xs"
                                       variant="ghost"
-                                      onClick={() => handleRemoveOption(qIdx, optIdx)}
-                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                                      disabled={optIdx === 0}
+                                      onClick={() => handleMoveOption(qIdx, optIdx, optIdx - 1)}
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                      title="Поднять выше"
                                     >
-                                      <Trash2 className="h-3 w-3" />
+                                      <ChevronUp className="h-3.5 w-3.5" />
                                     </Button>
-                                  )}
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      variant="ghost"
+                                      disabled={optIdx === q.options.length - 1}
+                                      onClick={() => handleMoveOption(qIdx, optIdx, optIdx + 1)}
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                      title="Опустить ниже"
+                                    >
+                                      <ChevronDown className="h-3.5 w-3.5" />
+                                    </Button>
+
+                                    {q.options.length > 2 && (
+                                      <Button
+                                        type="button"
+                                        size="xs"
+                                        variant="ghost"
+                                        onClick={() => handleRemoveOption(qIdx, optIdx)}
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                                        title="Удалить элемент"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>

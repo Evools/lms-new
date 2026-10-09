@@ -35,6 +35,7 @@ import {
   Eye,
   ChevronUp,
   ChevronDown,
+  GripVertical,
   ListOrdered,
   FormInput,
   ShieldAlert,
@@ -370,7 +371,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const handleOrderingMove = (questionId: string, options: string[], fromIdx: number, toIdx: number) => {
-    if (testResult || isPending || test.userSubmission || isTeacherOrAdmin) return;
+    if (testResult || isPending || test.userSubmission) return;
     if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
     const currentAnswerStr = studentAnswers[questionId];
     let currentList: string[] = [];
@@ -389,7 +390,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const handleMatchingChange = (questionId: string, leftKey: string, rightVal: string) => {
-    if (testResult || isPending || test.userSubmission || isTeacherOrAdmin) return;
+    if (testResult || isPending || test.userSubmission) return;
     let currentMap: Record<string, string> = {};
     try {
       currentMap = studentAnswers[questionId] ? JSON.parse(studentAnswers[questionId]) : {};
@@ -404,7 +405,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const handleBlankChange = (questionId: string, optionsCount: number, blankIdx: number, val: string) => {
-    if (testResult || isPending || test.userSubmission || isTeacherOrAdmin) return;
+    if (testResult || isPending || test.userSubmission) return;
     const currentAnswerStr = studentAnswers[questionId];
     let currentList: string[] = [];
     try {
@@ -423,7 +424,7 @@ export function TakeTestView({ test }: TakeTestViewProps) {
   };
 
   const handleOptionSelect = (questionId: string, option: string, type: string) => {
-    if (testResult || isPending || test.userSubmission || isTeacherOrAdmin) return;
+    if (testResult || isPending || test.userSubmission) return;
 
     if (type === "MULTIPLE") {
       try {
@@ -1172,6 +1173,120 @@ export function TakeTestView({ test }: TakeTestViewProps) {
 }
 
 // ----------------------------------------------------------------------
+// SUB-COMPONENT: ORDERING DND LIST
+// ----------------------------------------------------------------------
+interface OrderingDndListProps {
+  items: string[];
+  disabled?: boolean;
+  onMove: (fromIdx: number, toIdx: number) => void;
+}
+
+function OrderingDndList({ items, disabled, onMove }: OrderingDndListProps) {
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+    if (disabled) return;
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDragEnter = (targetIndex: number) => {
+    if (disabled || draggedIdx === null || draggedIdx === targetIndex) return;
+    onMove(draggedIdx, targetIndex);
+    setDraggedIdx(targetIndex);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-foreground font-semibold">
+          <ListOrdered className="h-3.5 w-3.5 text-primary" /> Расставьте в правильном порядке:
+        </span>
+        {!disabled && (
+          <span className="text-[10px] text-muted-foreground hidden sm:inline-block">
+            (Перетаскивайте блоки мышкой или используйте стрелки)
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        {items.map((itemText, itemIdx) => {
+          const isCurrentActive = draggedIdx === itemIdx;
+
+          return (
+            <div
+              key={itemIdx}
+              draggable={!disabled}
+              onDragStart={(e) => handleDragStart(e, itemIdx)}
+              onDragOver={handleDragOver}
+              onDragEnter={() => handleDragEnter(itemIdx)}
+              onDragEnd={handleDragEnd}
+              className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs font-medium select-none transition-colors ${
+                disabled ? "cursor-default" : "cursor-grab active:cursor-grabbing"
+              } ${
+                isCurrentActive
+                  ? "border-primary bg-primary/10 shadow-xs ring-1 ring-primary/40 text-foreground font-semibold"
+                  : "bg-card hover:bg-muted/40 border-border hover:border-primary/40 text-foreground"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 truncate min-w-0 flex-1 pr-2">
+                {!disabled && (
+                  <GripVertical className="h-4 w-4 text-muted-foreground/60 group-hover:text-primary transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                )}
+                <span className={`h-5 w-5 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 font-mono ${
+                  isCurrentActive ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+                }`}>
+                  {itemIdx + 1}
+                </span>
+                <span className="truncate">{itemText}</span>
+              </div>
+
+              {!disabled && (
+                <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    disabled={itemIdx === 0}
+                    onClick={() => onMove(itemIdx, itemIdx - 1)}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    title="Переместить выше"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    disabled={itemIdx === items.length - 1}
+                    onClick={() => onMove(itemIdx, itemIdx + 1)}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    title="Переместить ниже"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
 // SUB-COMPONENT: QUESTION CARD
 // ----------------------------------------------------------------------
 interface QuestionCardProps {
@@ -1307,7 +1422,6 @@ function QuestionCard({
         {question.type === "TEXT" ? (
           <Input
             placeholder="Введите ваш ответ..."
-            disabled={isTeacherOrAdmin}
             value={selectedVal}
             onChange={(e) => onTextChange(e.target.value)}
             className="h-9 text-xs bg-background font-medium"
@@ -1319,7 +1433,6 @@ function QuestionCard({
               <Input
                 type="text"
                 placeholder="Например: 9.8"
-                disabled={isTeacherOrAdmin}
                 value={selectedVal}
                 onChange={(e) => onTextChange(e.target.value)}
                 className="h-9 text-xs font-mono bg-background"
@@ -1353,7 +1466,6 @@ function QuestionCard({
                     <span className="font-semibold text-foreground flex-1">{leftKey}</span>
                     <div className="sm:w-60">
                       <select
-                        disabled={isTeacherOrAdmin}
                         value={currentMatchingMap[leftKey] || ""}
                         onChange={(e) => onMatchingChange(leftKey, e.target.value)}
                         className="w-full h-8 text-xs rounded-md border bg-background px-2 font-medium"
@@ -1372,79 +1484,30 @@ function QuestionCard({
             </div>
           </div>
         ) : question.type === "ORDERING" ? (
-          <div className="space-y-2">
-            <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-              <ListOrdered className="h-3.5 w-3.5 text-primary" /> Расставьте в правильном порядке:
-            </div>
-            <div className="space-y-1.5">
-              {currentOrderingList.map((itemText, itemIdx) => (
-                <div
-                  key={itemIdx}
-                  className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/20 text-xs font-medium"
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0 font-mono">
-                      {itemIdx + 1}
-                    </span>
-                    <span>{itemText}</span>
-                  </div>
-
-                  {!isTeacherOrAdmin && (
-                    <div className="flex items-center gap-0.5">
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        disabled={itemIdx === 0}
-                        onClick={() => onOrderingMove(itemIdx, itemIdx - 1)}
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                      >
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        disabled={itemIdx === currentOrderingList.length - 1}
-                        onClick={() => onOrderingMove(itemIdx, itemIdx + 1)}
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          <OrderingDndList
+            items={currentOrderingList}
+            disabled={false}
+            onMove={(fromIdx, toIdx) => onOrderingMove(fromIdx, toIdx)}
+          />
         ) : question.type === "BLANKS" ? (
           <div className="space-y-2">
             <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
               <FormInput className="h-3.5 w-3.5 text-primary" /> Впишите пропущенные слова:
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {(Array.isArray(question.options) ? question.options : []).map((rawOpt, blankIdx: number) => {
-                const opt =
-                  typeof rawOpt === "string"
-                    ? rawOpt
-                    : typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt
-                      ? (rawOpt as { left: string }).left
-                      : String(rawOpt);
-                return (
-                  <div key={blankIdx} className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground">
-                      Пропуск #{blankIdx + 1}
-                    </label>
-                    <Input
-                      placeholder={`Ответ #${blankIdx + 1}...`}
-                      disabled={isTeacherOrAdmin}
-                      value={isTeacherOrAdmin ? opt : currentBlankList[blankIdx] || ""}
-                      onChange={(e) => onBlankChange(question.options.length, blankIdx, e.target.value)}
-                      className="h-8 text-xs bg-background font-medium"
-                    />
-                  </div>
-                );
-              })}
+              {(Array.isArray(question.options) ? question.options : []).map((rawOpt, blankIdx: number) => (
+                <div key={blankIdx} className="space-y-1">
+                  <label className="text-[10px] font-medium text-muted-foreground">
+                    Пропуск #{blankIdx + 1}
+                  </label>
+                  <Input
+                    placeholder={`Ответ #${blankIdx + 1}...`}
+                    value={currentBlankList[blankIdx] || ""}
+                    onChange={(e) => onBlankChange(question.options.length, blankIdx, e.target.value)}
+                    className="h-8 text-xs bg-background font-medium"
+                  />
+                </div>
+              ))}
             </div>
           </div>
         ) : (
