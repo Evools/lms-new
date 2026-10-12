@@ -15,6 +15,7 @@ import {
   ArrowRightLeft,
   History,
   CheckCircle2,
+  UserPlus,
 } from "lucide-react";
 
 import {
@@ -41,6 +42,7 @@ import { CompaniesTab } from "./tabs/companies-tab";
 import { DiaryPlanTab } from "./tabs/diary-plan-tab";
 
 // Dialogs
+import { EnrollStudentsDialog } from "./dialogs/enroll-students-dialog";
 import { AssignStudentDialog, MoveFormData } from "./dialogs/assign-student-dialog";
 import { StudentHistoryDialog } from "./dialogs/student-history-dialog";
 import { PrintDirectionDialog } from "./dialogs/print-direction-dialog";
@@ -55,6 +57,7 @@ import {
   updateCompanyAction,
   deleteCompanyAction,
   assignStudentsAction,
+  enrollStudentsToPracticeAction,
   toggleCompletePracticeAction,
   saveDiaryPlanAction,
   deleteDiaryPlanAction,
@@ -128,6 +131,9 @@ export function PracticeView({
     resetRewrittenDaysAction(dayIds).catch(console.error);
     setIsResetDialogOpen(false);
   };
+
+  // Enrollment Modal State
+  const [isEnrollModalOpen, setIsEnrollModalOpen] = useState<boolean>(false);
 
   // Movement Tracking States
   const [selectedStudentForHistory, setSelectedStudentForHistory] = useState<StudentPracticeRecord | null>(null);
@@ -645,6 +651,70 @@ export function PracticeView({
     setIsMoveModalOpen(false);
   };
 
+  const handleEnrollStudents = async (data: {
+    selectedStudents: { studentId: string; studentName: string }[];
+    groupId: string;
+    groupName: string;
+    course: number;
+    specialty: string;
+    practiceType: PracticeType;
+    startDate: string;
+    endDate: string;
+    companyId?: string | null;
+    collegeMentor?: string | null;
+    companyMentor?: string | null;
+  }) => {
+    try {
+      const res = await enrollStudentsToPracticeAction(data as any);
+      if (res.records && res.records.length > 0) {
+        const formattedNewRecords: StudentPracticeRecord[] = res.records.map((r: any) => ({
+          id: r.id,
+          studentId: r.studentId,
+          studentName: r.studentName,
+          groupId: r.groupId,
+          groupName: r.groupName,
+          course: r.course,
+          specialty: r.specialty,
+          practiceType: r.practiceType,
+          companyId: r.companyId,
+          companyName: r.companyName,
+          collegeMentor: r.collegeMentor,
+          companyMentor: r.companyMentor,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          status: r.status,
+          feedbackNote: r.feedbackNote,
+          movements: (r.movements || []).map((m: any) => ({
+            id: m.id,
+            date: m.date,
+            type: m.type,
+            fromCompany: m.fromCompany,
+            toCompany: m.toCompany,
+            practiceType: m.practiceType,
+            reason: m.reason,
+            mentor: m.mentor,
+          })),
+        }));
+
+        setStudents((prev) => [...prev, ...formattedNewRecords]);
+
+        if (data.companyId) {
+          setCompanies((prev) =>
+            prev.map((c) =>
+              c.id === data.companyId
+                ? { ...c, quotaUsed: (c.quotaUsed || 0) + res.records.length }
+                : c
+            )
+          );
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to enroll students:", err);
+      alert(err.message || "Ошибка при зачислении студентов");
+      throw err;
+    }
+  };
+
   const handleOpenHistoryModal = (student: StudentPracticeRecord) => {
     setSelectedStudentForHistory(student);
     setIsHistoryModalOpen(true);
@@ -1159,6 +1229,14 @@ export function PracticeView({
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               size="xs"
+              onClick={() => setIsEnrollModalOpen(true)}
+              className="h-8 text-xs gap-1.5 font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-none"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>Зачислить на практику</span>
+            </Button>
+            <Button
+              size="xs"
               variant="outline"
               onClick={handleOpenAddCompany}
               className="h-8 text-xs gap-1.5 font-medium border-border hover:bg-muted"
@@ -1389,6 +1467,7 @@ export function PracticeView({
           onOpenHistoryModal={handleOpenHistoryModal}
           onOpenDocPreview={handleOpenDocPreview}
           onToggleCompletePractice={handleToggleCompletePractice}
+          onOpenEnrollModal={() => setIsEnrollModalOpen(true)}
         />
       )}
 
@@ -1455,6 +1534,15 @@ export function PracticeView({
       )}
 
       {/* Modals & Dialogs */}
+      <EnrollStudentsDialog
+        open={isEnrollModalOpen}
+        onOpenChange={setIsEnrollModalOpen}
+        availableGroups={initialGroups}
+        companies={companies}
+        existingStudents={students}
+        onEnrollStudents={handleEnrollStudents}
+      />
+
       <AssignStudentDialog
         open={isMoveModalOpen}
         onOpenChange={setIsMoveModalOpen}

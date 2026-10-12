@@ -90,11 +90,17 @@ export interface SpecialtyDiaryPlan {
 
 export type GroupDiaryPlan = SpecialtyDiaryPlan;
 
+export interface CollegeGroupStudent {
+  id: string;
+  name: string;
+}
+
 export interface CollegeGroupInfo {
   id: string;
   name: string;
   course: number;
   specialty: string;
+  students?: CollegeGroupStudent[];
 }
 
 export interface PracticeViewProps {

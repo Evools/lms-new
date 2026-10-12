@@ -18,6 +18,8 @@ import {
   History,
   Printer,
   CheckCircle2,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import { CompanyPartner, StudentPracticeRecord } from "../types";
 import { AnimatedCounter } from "../animated-counter";
@@ -44,6 +46,7 @@ interface StudentsTabProps {
   onOpenHistoryModal: (rec: StudentPracticeRecord) => void;
   onOpenDocPreview: (rec: StudentPracticeRecord) => void;
   onToggleCompletePractice: (rec: StudentPracticeRecord) => void;
+  onOpenEnrollModal: () => void;
 }
 
 export function StudentsTab({
@@ -68,6 +71,7 @@ export function StudentsTab({
   onOpenHistoryModal,
   onOpenDocPreview,
   onToggleCompletePractice,
+  onOpenEnrollModal,
 }: StudentsTabProps) {
   return (
     <div className="space-y-3">
@@ -180,13 +184,24 @@ export function StudentsTab({
           </Select>
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span>
-            Найдено:{" "}
-            <strong className="text-foreground">
-              <AnimatedCounter value={filteredStudents.length} />
-            </strong>
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span>
+              Найдено:{" "}
+              <strong className="text-foreground">
+                <AnimatedCounter value={filteredStudents.length} />
+              </strong>
+            </span>
+          </div>
+
+          <Button
+            size="sm"
+            onClick={onOpenEnrollModal}
+            className="h-8 text-xs px-3 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 shadow-none"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            <span>Зачислить студентов</span>
+          </Button>
         </div>
       </div>
 
@@ -469,8 +484,24 @@ export function StudentsTab({
             })}
             {filteredStudents.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-muted-foreground text-xs">
-                  Студенты на практике не найдены
+                <td colSpan={7} className="py-12 text-center text-muted-foreground text-xs">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div className="font-medium text-foreground">Студенты на практике не найдены</div>
+                    <p className="text-[11px] max-w-sm text-muted-foreground">
+                      Вы можете зачислить учебную группу или отдельных студентов колледжа на практику и сразу распределить их по организациям.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={onOpenEnrollModal}
+                      className="mt-1 h-8 text-xs px-3 bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 shadow-none"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Зачислить студентов на практику
+                    </Button>
+                  </div>
                 </td>
               </tr>
             )}

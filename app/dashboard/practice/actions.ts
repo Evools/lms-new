@@ -86,7 +86,13 @@ export interface PracticeFullDataResponse {
   students: StudentPracticeRecordDTO[];
   diaryPlans: SpecialtyDiaryPlanDTO[];
   rewrittenDayIds: string[];
-  groupsList: { id: string; name: string; course: number; specialty: string }[];
+  groupsList: {
+    id: string;
+    name: string;
+    course: number;
+    specialty: string;
+    students?: { id: string; name: string }[];
+  }[];
 }
 
 // 1. Get All Practice Data
@@ -108,6 +114,12 @@ export async function getPracticeFullDataAction(): Promise<PracticeFullDataRespo
           name: true,
           course: true,
           specialty: { select: { name: true } },
+          students: {
+            select: {
+              student: { select: { id: true, name: true } },
+            },
+            orderBy: { student: { name: "asc" } },
+          },
         },
         orderBy: { name: "asc" },
       });
@@ -121,6 +133,7 @@ export async function getPracticeFullDataAction(): Promise<PracticeFullDataRespo
           name: g.name,
           course: g.course || 1,
           specialty: g.specialty?.name || "Общая специальность",
+          students: g.students.map((gs) => ({ id: gs.student.id, name: gs.student.name })),
         })),
       };
     }
@@ -157,6 +170,12 @@ export async function getPracticeFullDataAction(): Promise<PracticeFullDataRespo
           name: true,
           course: true,
           specialty: { select: { name: true } },
+          students: {
+            select: {
+              student: { select: { id: true, name: true } },
+            },
+            orderBy: { student: { name: "asc" } },
+          },
         },
         orderBy: { name: "asc" },
       }),
@@ -234,6 +253,7 @@ export async function getPracticeFullDataAction(): Promise<PracticeFullDataRespo
       name: g.name,
       course: g.course || 1,
       specialty: g.specialty?.name || "Общая специальность",
+      students: g.students.map((gs) => ({ id: gs.student.id, name: gs.student.name })),
     })),
   };
   } catch (error) {
@@ -695,4 +715,102 @@ export async function resetRewrittenDaysAction(dayIds: string[]) {
   });
 
   return { success: true };
+}
+
+// 8. Enroll Students to Practice Action
+export async function enrollStudentsToPracticeAction(data: {
+  selectedStudents: { studentId: string; studentName: string }[];
+  groupId: string;
+  groupName: string;
+  course: number;
+  specialty: string;
+  practiceType: "Учебная (ознакомительная)" | "Производственная" | "Преддипломная";
+  startDate: string;
+  endDate: string;
+  companyId?: string | null;
+  collegeMentor?: string | null;
+  companyMentor?: string | null;
+}) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "STUDENT") {
+    throw new Error("Недостаточно прав для зачисления студентов на практику");
+  }
+
+  let targetCompany: any = null;
+  if (data.companyId) {
+    targetCompany = await prisma.companyPartner.findUnique({
+      where: { id: data.companyId },
+    });
+  }
+
+  const todayStr = new Date().toLocaleDateString("ru-RU");
+  const createdRecords: any[] = [];
+
+  for (const st of data.selectedStudents) {
+    // Check if already exists for this practice type
+    const existing = await prisma.studentPractice.findFirst({
+      where: {
+        studentName: st.studentName,
+        groupName: data.groupName,
+        practiceType: data.practiceType,
+      },
+    });
+
+    if (existing) {
+      continue;
+    }
+
+    const isAssigned = Boolean(targetCompany);
+    const status = isAssigned ? "Проходит практику" : "Не распределен";
+
+    const record = await prisma.studentPractice.create({
+      data: {
+        studentId: st.studentId,
+        studentName: st.studentName,
+        groupId: data.groupId,
+        groupName: data.groupName,
+        course: data.course,
+        specialty: data.specialty,
+        practiceType: data.practiceType,
+        companyId: targetCompany?.id || null,
+        companyName: targetCompany?.name || null,
+        collegeMentor: data.collegeMentor || null,
+        companyMentor: data.companyMentor || targetCompany?.contactPerson || null,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        status,
+        movements: isAssigned
+          ? {
+              create: {
+                date: todayStr,
+                type: "Первичное направление",
+                toCompany: targetCompany.name,
+                practiceType: data.practiceType,
+                reason: `Зачисление и плановое распределение группы ${data.groupName} на практику`,
+                mentor: data.companyMentor || targetCompany?.contactPerson,
+              },
+            }
+          : undefined,
+      },
+      include: {
+        movements: true,
+      },
+    });
+
+    createdRecords.push(record);
+  }
+
+  if (targetCompany && createdRecords.length > 0) {
+    await prisma.companyPartner.update({
+      where: { id: targetCompany.id },
+      data: { quotaUsed: { increment: createdRecords.length } },
+    });
+  }
+
+  revalidatePath("/dashboard/practice");
+  return {
+    success: true,
+    enrolledCount: createdRecords.length,
+    records: createdRecords,
+  };
 }
