@@ -78,7 +78,9 @@ export function MemoPlanDialog({
                 onValueChange={(val) => setPlanForm({ ...planForm, groupName: val })}
               >
                 <SelectTrigger className="h-8 text-xs bg-background w-full font-medium">
-                  <SelectValue placeholder="Выберите группу..." />
+                  <SelectValue placeholder="Выберите группу...">
+                    {planForm.groupName || "Выберите группу..."}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Array.from(new Set([...groupsList, ...(planForm.groupName ? [planForm.groupName] : [])]))

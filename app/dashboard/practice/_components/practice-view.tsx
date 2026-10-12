@@ -53,6 +53,8 @@ import { PrintMemoDialog } from "./dialogs/print-memo-dialog";
 import { SectionsManagerDialog, NewSectionFormData } from "./dialogs/sections-manager-dialog";
 import { ResetConfirmDialog } from "./dialogs/reset-confirm-dialog";
 import { DeleteCompanyDialog } from "./dialogs/delete-company-dialog";
+import { DeleteDayDialog } from "./dialogs/delete-day-dialog";
+import { DeletePlanDialog } from "./dialogs/delete-plan-dialog";
 import {
   createCompanyAction,
   updateCompanyAction,
@@ -166,9 +168,13 @@ export function PracticeView({
     generateDaysCount: 15,
     defaultHours: 6,
   });
+  const [isDeletePlanDialogOpen, setIsDeletePlanDialogOpen] = useState<boolean>(false);
+  const [planToDelete, setPlanToDelete] = useState<SpecialtyDiaryPlan | null>(null);
 
   // Day Topic Add / Edit Dialog
   const [isDayTopicDialogOpen, setIsDayTopicDialogOpen] = useState<boolean>(false);
+  const [isDeleteDayDialogOpen, setIsDeleteDayDialogOpen] = useState<boolean>(false);
+  const [dayTopicToDelete, setDayTopicToDelete] = useState<DiaryDayTopic | null>(null);
   const [editingDayTopic, setEditingDayTopic] = useState<DiaryDayTopic | null>(null);
   const [dayTopicForm, setDayTopicForm] = useState<DayTopicFormData>({
     dayNumber: 1,
@@ -970,12 +976,14 @@ export function PracticeView({
     setIsDayTopicDialogOpen(false);
   };
 
-  const handleDeleteDayTopic = (dayId: string) => {
-    if (!currentDiaryPlan) return;
-    if (currentDiaryPlan.days.length <= 1) {
-      alert("В памятке должен оставаться хотя бы один день.");
-      return;
-    }
+  const handlePromptDeleteDay = (day: DiaryDayTopic) => {
+    setDayTopicToDelete(day);
+    setIsDeleteDayDialogOpen(true);
+  };
+
+  const handleConfirmDeleteDay = () => {
+    if (!currentDiaryPlan || !dayTopicToDelete) return;
+    const dayId = dayTopicToDelete.id;
 
     setDiaryPlans((prev) =>
       prev.map((p) => {
@@ -996,6 +1004,36 @@ export function PracticeView({
     );
 
     deleteDayTopicAction(currentDiaryPlan.id, dayId).catch(console.error);
+    setIsDeleteDayDialogOpen(false);
+    setDayTopicToDelete(null);
+  };
+
+  const handlePromptDeletePlan = (plan: SpecialtyDiaryPlan) => {
+    setPlanToDelete(plan);
+    setIsDeletePlanDialogOpen(true);
+  };
+
+  const handleConfirmDeletePlan = async () => {
+    if (!planToDelete) return;
+    const planId = planToDelete.id;
+
+    setDiaryPlans((prev) => {
+      const nextPlans = prev.filter((p) => p.id !== planId);
+      if (selectedPlanId === planId) {
+        setSelectedPlanId(nextPlans[0]?.id || "");
+        setPlanStartDate(nextPlans[0]?.startDate || "");
+      }
+      return nextPlans;
+    });
+
+    setIsDeletePlanDialogOpen(false);
+    setPlanToDelete(null);
+
+    try {
+      await deleteDiaryPlanAction(planId);
+    } catch (e) {
+      console.error("Failed to delete diary plan:", e);
+    }
   };
 
   // Sections Management Handlers
@@ -1068,10 +1106,6 @@ export function PracticeView({
   const handleDeleteSection = (sectionName: string) => {
     if (!currentDiaryPlan) return;
     const remainingDays = currentDiaryPlan.days.filter((d) => d.section.trim() !== sectionName.trim());
-    if (remainingDays.length === 0) {
-      alert("В плане должен оставаться хотя бы один раздел программы.");
-      return;
-    }
     const reindexedDays = remainingDays.map((d, idx) => ({ ...d, dayNumber: idx + 1 }));
     const totalHours = reindexedDays.reduce((acc, d) => acc + d.hours, 0);
     setDiaryPlans((prev) =>
@@ -1217,15 +1251,22 @@ export function PracticeView({
   }, [isStudent, students, currentUserName]);
 
   useEffect(() => {
-    if (isStudent && myPracticeInfo && diaryPlans.length > 0) {
+    if (diaryPlans.length === 0) return;
+    if (isStudent && myPracticeInfo) {
       const studentPlan = diaryPlans.find(
         (p) => p.groupName?.toLowerCase() === myPracticeInfo.groupName?.toLowerCase()
       );
       if (studentPlan) {
         setSelectedPlanId(studentPlan.id);
+        if (studentPlan.startDate) setPlanStartDate(studentPlan.startDate);
+        return;
       }
     }
-  }, [isStudent, myPracticeInfo, diaryPlans]);
+    if (!selectedPlanId || !diaryPlans.some((p) => p.id === selectedPlanId)) {
+      setSelectedPlanId(diaryPlans[0].id);
+      if (diaryPlans[0]?.startDate) setPlanStartDate(diaryPlans[0].startDate);
+    }
+  }, [isStudent, myPracticeInfo, diaryPlans, selectedPlanId]);
 
   return (
     <div className="space-y-3 w-full text-xs">
@@ -1553,7 +1594,8 @@ export function PracticeView({
           onOpenEditPlan={handleOpenEditPlan}
           onOpenAddDayTopic={handleOpenAddDayTopic}
           onOpenEditDayTopic={handleOpenEditDayTopic}
-          onDeleteDayTopic={handleDeleteDayTopic}
+          onDeleteDayTopic={handlePromptDeleteDay}
+          onDeletePlan={handlePromptDeletePlan}
           onOpenPrintPlanDialog={() => setIsPrintPlanDialogOpen(true)}
           onOpenSectionsDialog={() => setIsSectionsDialogOpen(true)}
           onOpenResetDialog={() => setIsResetDialogOpen(true)}
@@ -1672,6 +1714,21 @@ export function PracticeView({
             : 0
         }
         onConfirm={handleConfirmDeleteCompany}
+      />
+
+      <DeleteDayDialog
+        open={isDeleteDayDialogOpen}
+        onOpenChange={setIsDeleteDayDialogOpen}
+        day={dayTopicToDelete}
+        isLastDay={Boolean(currentDiaryPlan && currentDiaryPlan.days.length <= 1)}
+        onConfirm={handleConfirmDeleteDay}
+      />
+
+      <DeletePlanDialog
+        open={isDeletePlanDialogOpen}
+        onOpenChange={setIsDeletePlanDialogOpen}
+        plan={planToDelete}
+        onConfirm={handleConfirmDeletePlan}
       />
     </div>
   );

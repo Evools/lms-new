@@ -85,7 +85,8 @@ interface DiaryPlanTabProps {
   onOpenEditPlan: (plan: SpecialtyDiaryPlan) => void;
   onOpenAddDayTopic: () => void;
   onOpenEditDayTopic: (day: DiaryDayTopic) => void;
-  onDeleteDayTopic: (dayId: string) => void;
+  onDeleteDayTopic: (day: DiaryDayTopic) => void;
+  onDeletePlan?: (plan: SpecialtyDiaryPlan) => void;
   onOpenPrintPlanDialog: () => void;
   onOpenSectionsDialog: () => void;
   onOpenResetDialog: () => void;
@@ -125,6 +126,7 @@ export function DiaryPlanTab({
   onOpenAddDayTopic,
   onOpenEditDayTopic,
   onDeleteDayTopic,
+  onDeletePlan,
   onOpenPrintPlanDialog,
   onOpenSectionsDialog,
   onOpenResetDialog,
@@ -184,8 +186,12 @@ export function DiaryPlanTab({
                 if (plan?.startDate) onStartDateChange(plan.startDate);
               }}
             >
-              <SelectTrigger className="h-8 min-w-[280px] sm:w-[340px] text-xs font-medium bg-background border-border">
-                <SelectValue placeholder="Выберите учебную группу" />
+              <SelectTrigger className="h-8 min-w-[280px] sm:w-[380px] text-xs font-medium bg-background border-border">
+                <SelectValue placeholder="Выберите учебную группу">
+                  {currentDiaryPlan
+                    ? `Группа ${currentDiaryPlan.groupName} — ${currentDiaryPlan.specialty} (${currentDiaryPlan.course} курс)`
+                    : "Выберите учебную группу"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {diaryPlans.length === 0 ? (
@@ -487,6 +493,18 @@ export function DiaryPlanTab({
                   >
                     <Edit2 className="h-3 w-3" />
                   </Button>
+
+                  {onDeletePlan && (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => onDeletePlan(currentDiaryPlan)}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      title="Удалить памятку группы"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -830,7 +848,7 @@ export function DiaryPlanTab({
                                                 </button>
                                                 <button
                                                   type="button"
-                                                  onClick={() => onDeleteDayTopic(dayItem.id)}
+                                                  onClick={() => onDeleteDayTopic(dayItem)}
                                                   className="p-1 text-muted-foreground hover:text-destructive rounded transition-colors"
                                                   title="Удалить день из плана"
                                                 >
