@@ -100,5 +100,9 @@ export interface CollegeGroupInfo {
 export interface PracticeViewProps {
   userRole: string;
   currentUserName: string;
+  initialCompanies?: CompanyPartner[];
+  initialStudents?: StudentPracticeRecord[];
+  initialDiaryPlans?: SpecialtyDiaryPlan[];
+  initialRewrittenDays?: string[];
   initialGroups?: CollegeGroupInfo[];
 }

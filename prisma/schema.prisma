@@ -409,3 +409,120 @@ model Notification {
 
   @@map("notifications")
 }
+
+// ==========================================
+// PRACTICE MANAGEMENT (БАЗА ПРАКТИКИ)
+// ==========================================
+
+model CompanyPartner {
+  id                 String   @id @default(cuid())
+  name               String
+  industry           String
+  specialtyFocus     String?
+  contactPerson      String?
+  position           String?
+  phone              String?
+  email              String?
+  address            String?
+  contractNumber     String?
+  contractValidUntil String?
+  quotaTotal         Int      @default(0)
+  quotaUsed          Int      @default(0)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  studentPractices StudentPractice[]
+
+  @@map("company_partners")
+}
+
+model StudentPractice {
+  id            String   @id @default(cuid())
+  studentId     String?
+  studentName   String
+  groupId       String?
+  groupName     String
+  course        Int      @default(1)
+  specialty     String
+  practiceType  String   // "Учебная (ознакомительная)", "Производственная", "Преддипломная"
+  companyId     String?
+  companyName   String?
+  collegeMentor String?
+  companyMentor String?
+  startDate     String
+  endDate       String
+  status        String   @default("Не распределен") // "Не распределен", "Направлен", "Проходит практику", "Переведен на другую базу", "Практика завершена"
+  feedbackNote  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company   CompanyPartner?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  movements PracticeMovement[]
+
+  @@map("student_practices")
+}
+
+model PracticeMovement {
+  id                String   @id @default(cuid())
+  studentPracticeId String
+  date              String
+  type              String   // "Первичное направление", "Перевод на другую базу", "Завершение практики", "Изменение вида практики"
+  fromCompany       String?
+  toCompany         String
+  practiceType      String?
+  reason            String
+  mentor            String?
+  createdAt         DateTime @default(now())
+
+  studentPractice StudentPractice @relation(fields: [studentPracticeId], references: [id], onDelete: Cascade)
+
+  @@map("practice_movements")
+}
+
+model PracticeDiaryPlan {
+  id           String   @id @default(cuid())
+  groupName    String
+  groupId      String?
+  title        String
+  specialty    String
+  course       Int      @default(1)
+  practiceType String
+  startDate    String?
+  dailyHours   Int      @default(6)
+  totalDays    Int      @default(0)
+  totalHours   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  days PracticeDiaryDay[]
+
+  @@map("practice_diary_plans")
+}
+
+model PracticeDiaryDay {
+  id           String   @id @default(cuid())
+  planId       String
+  dayNumber    Int
+  section      String
+  topic        String
+  tasksContent String
+  hours        Int      @default(6)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  plan PracticeDiaryPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@map("practice_diary_days")
+}
+
+model PracticeRewrittenDay {
+  id        String   @id @default(cuid())
+  studentId String
+  dayId     String
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, dayId])
+  @@map("practice_rewritten_days")
+}

@@ -50,29 +50,50 @@ import { DayTopicDialog, DayTopicFormData } from "./dialogs/day-topic-dialog";
 import { PrintMemoDialog } from "./dialogs/print-memo-dialog";
 import { SectionsManagerDialog, NewSectionFormData } from "./dialogs/sections-manager-dialog";
 import { ResetConfirmDialog } from "./dialogs/reset-confirm-dialog";
+import {
+  createCompanyAction,
+  updateCompanyAction,
+  deleteCompanyAction,
+  assignStudentsAction,
+  toggleCompletePracticeAction,
+  saveDiaryPlanAction,
+  deleteDiaryPlanAction,
+  saveDayTopicAction,
+  deleteDayTopicAction,
+  toggleDayRewrittenAction,
+  resetRewrittenDaysAction,
+} from "../actions";
 
-export function PracticeView({ userRole, currentUserName, initialGroups = [] }: PracticeViewProps) {
+export function PracticeView({
+  userRole,
+  currentUserName,
+  initialCompanies = [],
+  initialStudents = [],
+  initialDiaryPlans = [],
+  initialRewrittenDays = [],
+  initialGroups = [],
+}: PracticeViewProps) {
   const isStudent = userRole === "STUDENT";
   const [activeTab, setActiveTab] = useState<PracticeTab>(isStudent ? "diary-plan" : "students");
 
-  // Main Data States
-  const [companies, setCompanies] = useState<CompanyPartner[]>([]);
-  const [students, setStudents] = useState<StudentPracticeRecord[]>([]);
-  const [diaryPlans, setDiaryPlans] = useState<SpecialtyDiaryPlan[]>([]);
-  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  // Main Data States (initialized from DB props)
+  const [companies, setCompanies] = useState<CompanyPartner[]>(initialCompanies);
+  const [students, setStudents] = useState<StudentPracticeRecord[]>(initialStudents);
+  const [diaryPlans, setDiaryPlans] = useState<SpecialtyDiaryPlan[]>(initialDiaryPlans);
+  const [isLoaded, setIsLoaded] = useState<boolean>(true);
 
   // Multi-Student Selection State
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   // Diary Plan Tab States
-  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
-  const [planStartDate, setPlanStartDate] = useState<string>("");
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(initialDiaryPlans[0]?.id || "");
+  const [planStartDate, setPlanStartDate] = useState<string>(initialDiaryPlans[0]?.startDate || "");
   const [copiedDayId, setCopiedDayId] = useState<string | null>(null);
   const [memoDaySearch, setMemoDaySearch] = useState<string>("");
   const [isPrintPlanDialogOpen, setIsPrintPlanDialogOpen] = useState<boolean>(false);
 
   // Rewriting to Physical Diary States
-  const [rewrittenDayIds, setRewrittenDayIds] = useState<string[]>([]);
+  const [rewrittenDayIds, setRewrittenDayIds] = useState<string[]>(initialRewrittenDays);
   const [rewriteFilter, setRewriteFilter] = useState<"ALL" | "PENDING" | "DONE">("ALL");
   const [isCurriculumTableExpanded, setIsCurriculumTableExpanded] = useState<boolean>(false);
   const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
@@ -83,12 +104,8 @@ export function PracticeView({ userRole, currentUserName, initialGroups = [] }: 
       const saved = localStorage.getItem(`practice_rewritten_${selectedPlanId}`);
       if (saved) {
         setRewrittenDayIds(JSON.parse(saved));
-      } else {
-        setRewrittenDayIds([]);
       }
-    } catch (e) {
-      setRewrittenDayIds([]);
-    }
+    } catch (e) {}
   }, [selectedPlanId]);
 
   const handleToggleDayRewritten = (dayId: string) => {
@@ -99,13 +116,16 @@ export function PracticeView({ userRole, currentUserName, initialGroups = [] }: 
       } catch (e) {}
       return next;
     });
+    toggleDayRewrittenAction(dayId).catch(console.error);
   };
 
   const handleConfirmResetRewrittenDays = () => {
+    const dayIds = currentDiaryPlan?.days.map((d) => d.id) || [];
     setRewrittenDayIds([]);
     try {
       localStorage.removeItem(`practice_rewritten_${selectedPlanId}`);
     } catch (e) {}
+    resetRewrittenDaysAction(dayIds).catch(console.error);
     setIsResetDialogOpen(false);
   };
 
@@ -610,6 +630,17 @@ export function PracticeView({ userRole, currentUserName, initialGroups = [] }: 
       })
     );
 
+    // Call server action in background to persist to database
+    assignStudentsAction({
+      studentIds: targetStudentIds,
+      companyId: targetCompany.id,
+      practiceType: moveForm.practiceType,
+      reason: finalReason,
+      startDate: moveForm.startDate,
+      endDate: moveForm.endDate,
+      companyMentor: moveForm.companyMentor || targetCompany.contactPerson || "",
+    }).catch(console.error);
+
     setSelectedStudentIds([]);
     setIsMoveModalOpen(false);
   };
@@ -730,6 +761,38 @@ export function PracticeView({ userRole, currentUserName, initialGroups = [] }: 
       setDiaryPlans((prev) => [...prev, newPlan]);
       setSelectedPlanId(newPlanId);
       if (newPlan.startDate) setPlanStartDate(newPlan.startDate);
+
+      saveDiaryPlanAction({
+        groupName: planForm.groupName,
+        title: planForm.title || `${groupLabel}: ${planForm.specialty} (${planForm.course} курс)`,
+        specialty: planForm.specialty,
+        course: planForm.course,
+        practiceType: planForm.practiceType,
+        startDate: planForm.startDate,
+        generateDaysCount: planForm.generateDaysCount,
+        defaultHours: planForm.defaultHours,
+      })
+        .then((saved) => {
+          if (saved?.id) {
+            setDiaryPlans((prev) =>
+              prev.map((p) => (p.id === newPlanId ? { ...p, id: saved.id } : p))
+            );
+            setSelectedPlanId(saved.id);
+          }
+        })
+        .catch(console.error);
+    }
+
+    if (editingPlan) {
+      saveDiaryPlanAction({
+        id: editingPlan.id,
+        groupName: planForm.groupName,
+        title: planForm.title,
+        specialty: planForm.specialty,
+        course: planForm.course,
+        practiceType: planForm.practiceType,
+        startDate: planForm.startDate,
+      }).catch(console.error);
     }
 
     setIsPlanDialogOpen(false);
@@ -821,6 +884,16 @@ export function PracticeView({ userRole, currentUserName, initialGroups = [] }: 
       );
     }
 
+    saveDayTopicAction({
+      planId: currentDiaryPlan.id,
+      dayId: editingDayTopic?.id,
+      dayNumber: dayTopicForm.dayNumber,
+      section: dayTopicForm.section.trim(),
+      topic: dayTopicForm.topic.trim(),
+      tasksContent: dayTopicForm.tasksContent.trim(),
+      hours: dayTopicForm.hours,
+    }).catch(console.error);
+
     setIsDayTopicDialogOpen(false);
   };
 
@@ -848,6 +921,8 @@ export function PracticeView({ userRole, currentUserName, initialGroups = [] }: 
         };
       })
     );
+
+    deleteDayTopicAction(currentDiaryPlan.id, dayId).catch(console.error);
   };
 
   // Sections Management Handlers
@@ -983,19 +1058,31 @@ export function PracticeView({ userRole, currentUserName, initialGroups = [] }: 
       setCompanies((prev) =>
         prev.map((c) => (c.id === editingCompany.id ? { ...c, ...companyForm } : c))
       );
+      updateCompanyAction(editingCompany.id, companyForm).catch(console.error);
     } else {
+      const tempId = `comp-${Date.now()}`;
       const newComp: CompanyPartner = {
-        id: `comp-${Date.now()}`,
+        id: tempId,
         ...companyForm,
         quotaUsed: 0,
       };
       setCompanies((prev) => [newComp, ...prev]);
+      createCompanyAction(companyForm)
+        .then((res) => {
+          if (res?.id) {
+            setCompanies((prev) =>
+              prev.map((c) => (c.id === tempId ? { ...c, id: res.id } : c))
+            );
+          }
+        })
+        .catch(console.error);
     }
     setIsCompanyDialogOpen(false);
   };
 
   const handleDeleteCompany = (id: string) => {
     setCompanies((prev) => prev.filter((c) => c.id !== id));
+    deleteCompanyAction(id).catch(console.error);
   };
 
   const handleToggleCompletePractice = (rec: StudentPracticeRecord) => {
@@ -1004,6 +1091,7 @@ export function PracticeView({ userRole, currentUserName, initialGroups = [] }: 
     setStudents((prev) =>
       prev.map((s) => (s.id === rec.id ? { ...s, status: nextStatus } : s))
     );
+    toggleCompletePracticeAction(rec.id).catch(console.error);
   };
 
   const handleOpenDocPreview = (rec: StudentPracticeRecord) => {
