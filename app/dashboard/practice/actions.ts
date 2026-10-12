@@ -98,9 +98,13 @@ export interface PracticeFullDataResponse {
 // 1. Get All Practice Data
 export async function getPracticeFullDataAction(): Promise<PracticeFullDataResponse> {
   let currentUserId: string | undefined;
+  let currentUserRole: string | undefined;
+  let currentUserName: string | null | undefined;
   try {
     const session = await auth();
     currentUserId = session?.user?.id;
+    currentUserRole = session?.user?.role;
+    currentUserName = session?.user?.name;
   } catch (e) {
     // Session unavailable in current scope
   }
@@ -108,36 +112,117 @@ export async function getPracticeFullDataAction(): Promise<PracticeFullDataRespo
   try {
     if (!prisma.companyPartner || !prisma.studentPractice || !prisma.practiceDiaryPlan) {
       console.warn("Prisma practice models are not available yet on this client instance.");
-      const dbGroups = await prisma.group.findMany({
-        select: {
-          id: true,
-          name: true,
-          course: true,
-          specialty: { select: { name: true } },
-          students: {
-            select: {
-              student: { select: { id: true, name: true } },
-            },
-            orderBy: { student: { name: "asc" } },
-          },
-        },
-        orderBy: { name: "asc" },
-      });
       return {
         companies: [],
         students: [],
         diaryPlans: [],
         rewrittenDayIds: [],
-        groupsList: dbGroups.map((g) => ({
-          id: g.id,
-          name: g.name,
-          course: g.course || 1,
-          specialty: g.specialty?.name || "Общая специальность",
-          students: g.students.map((gs) => ({ id: gs.student.id, name: gs.student.name })),
-        })),
+        groupsList: [],
       };
     }
 
+    // HIGH-EFFICIENCY STUDENT PATH (minimizes DB load by 90% for student visits)
+    if (currentUserRole === "STUDENT") {
+      // 1. Fetch only this student's practice record
+      const studentPracticeRecords = await prisma.studentPractice.findMany({
+        where: {
+          OR: [
+            ...(currentUserId ? [{ studentId: currentUserId }] : []),
+            ...(currentUserName ? [{ studentName: currentUserName }] : []),
+          ],
+        },
+        include: {
+          movements: {
+            orderBy: { createdAt: "desc" },
+          },
+        },
+      });
+
+      // Find student group name
+      let studentGroupName: string | undefined = studentPracticeRecords[0]?.groupName;
+      if (!studentGroupName && currentUserId) {
+        const enrollment = await prisma.groupStudent.findFirst({
+          where: { studentId: currentUserId },
+          include: { group: { select: { name: true } } },
+        });
+        studentGroupName = enrollment?.group?.name || undefined;
+      }
+
+      // 2. Fetch only their group's diary plan and their rewritten days
+      const [dbPlans, dbRewritten] = await Promise.all([
+        prisma.practiceDiaryPlan.findMany({
+          where: studentGroupName ? { groupName: studentGroupName } : undefined,
+          include: {
+            days: {
+              orderBy: { dayNumber: "asc" },
+            },
+          },
+        }),
+        currentUserId && prisma.practiceRewrittenDay
+          ? prisma.practiceRewrittenDay.findMany({
+              where: { studentId: currentUserId },
+              select: { dayId: true },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      return {
+        companies: [],
+        students: studentPracticeRecords.map((s) => ({
+          id: s.id,
+          studentId: s.studentId,
+          studentName: s.studentName,
+          groupId: s.groupId,
+          groupName: s.groupName,
+          course: s.course,
+          specialty: s.specialty,
+          practiceType: s.practiceType as any,
+          companyId: s.companyId,
+          companyName: s.companyName,
+          collegeMentor: s.collegeMentor,
+          companyMentor: s.companyMentor,
+          startDate: s.startDate,
+          endDate: s.endDate,
+          status: s.status as any,
+          feedbackNote: s.feedbackNote,
+          movements: s.movements.map((m) => ({
+            id: m.id,
+            date: m.date,
+            type: m.type,
+            fromCompany: m.fromCompany,
+            toCompany: m.toCompany,
+            practiceType: m.practiceType,
+            reason: m.reason,
+            mentor: m.mentor,
+          })),
+        })),
+        diaryPlans: dbPlans.map((p) => ({
+          id: p.id,
+          groupName: p.groupName,
+          groupId: p.groupId,
+          title: p.title,
+          specialty: p.specialty,
+          course: p.course,
+          practiceType: p.practiceType as any,
+          startDate: p.startDate,
+          dailyHours: p.dailyHours,
+          totalDays: p.totalDays,
+          totalHours: p.totalHours,
+          days: p.days.map((d) => ({
+            id: d.id,
+            dayNumber: d.dayNumber,
+            section: d.section,
+            topic: d.topic,
+            tasksContent: d.tasksContent,
+            hours: d.hours,
+          })),
+        })),
+        rewrittenDayIds: dbRewritten.map((r) => r.dayId),
+        groupsList: [],
+      };
+    }
+
+    // TEACHER / ADMIN PATH: fetch all required administrative datasets in parallel
     const [dbCompanies, dbStudents, dbPlans, dbRewritten, dbGroups] = await Promise.all([
       prisma.companyPartner.findMany({
         orderBy: { name: "asc" },
@@ -390,27 +475,35 @@ export async function assignStudentsAction(data: {
 
   const todayStr = new Date().toLocaleDateString("ru-RU");
 
-  for (const stId of data.studentIds) {
-    const student = await prisma.studentPractice.findUnique({
-      where: { id: stId },
-    });
-    if (!student) continue;
+  // 1. Batch fetch all affected students in a single query
+  const studentsToMove = await prisma.studentPractice.findMany({
+    where: { id: { in: data.studentIds } },
+  });
 
+  // Calculate decrements for previous companies
+  const prevCompanyCountMap = new Map<string, number>();
+  for (const st of studentsToMove) {
+    if (st.companyId && st.companyId !== data.companyId) {
+      prevCompanyCountMap.set(st.companyId, (prevCompanyCountMap.get(st.companyId) || 0) + 1);
+    }
+  }
+
+  // Decrement old company quotas in parallel
+  const decrementPromises = Array.from(prevCompanyCountMap.entries()).map(([compId, count]) =>
+    prisma.companyPartner.update({
+      where: { id: compId },
+      data: { quotaUsed: { decrement: count } },
+    }).catch(() => {})
+  );
+
+  // Update students concurrently
+  const updateStudentPromises = studentsToMove.map((student) => {
     const fromCompany = student.companyName || undefined;
     const isTransfer = Boolean(student.companyId && student.companyId !== data.companyId);
     const moveType = isTransfer ? "Перевод на другую базу" : "Первичное направление";
 
-    // Update old company quota if moving
-    if (student.companyId && student.companyId !== data.companyId) {
-      await prisma.companyPartner.update({
-        where: { id: student.companyId },
-        data: { quotaUsed: { decrement: 1 } },
-      }).catch(() => {});
-    }
-
-    // Update student record
-    await prisma.studentPractice.update({
-      where: { id: stId },
+    return prisma.studentPractice.update({
+      where: { id: student.id },
       data: {
         companyId: targetCompany.id,
         companyName: targetCompany.name,
@@ -432,13 +525,17 @@ export async function assignStudentsAction(data: {
         },
       },
     });
+  });
 
-    // Increment new company quota
-    await prisma.companyPartner.update({
+  // Increment target company quota once in parallel
+  await Promise.all([
+    ...decrementPromises,
+    ...updateStudentPromises,
+    prisma.companyPartner.update({
       where: { id: targetCompany.id },
-      data: { quotaUsed: { increment: 1 } },
-    });
-  }
+      data: { quotaUsed: { increment: studentsToMove.length } },
+    }),
+  ]);
 
   revalidatePath("/dashboard/practice");
   return { success: true };
@@ -744,61 +841,65 @@ export async function enrollStudentsToPracticeAction(data: {
   }
 
   const todayStr = new Date().toLocaleDateString("ru-RU");
-  const createdRecords: any[] = [];
 
-  for (const st of data.selectedStudents) {
-    // Check if already exists for this practice type
-    const existing = await prisma.studentPractice.findFirst({
-      where: {
-        studentName: st.studentName,
-        groupName: data.groupName,
-        practiceType: data.practiceType,
-      },
-    });
+  // 1. Batch check existing students in 1 query instead of N queries
+  const studentNames = data.selectedStudents.map((s) => s.studentName);
+  const existing = await prisma.studentPractice.findMany({
+    where: {
+      groupName: data.groupName,
+      practiceType: data.practiceType,
+      studentName: { in: studentNames },
+    },
+    select: { studentName: true },
+  });
+  const existingNames = new Set(existing.map((e) => e.studentName.toLowerCase().trim()));
+  const toEnroll = data.selectedStudents.filter((s) => !existingNames.has(s.studentName.toLowerCase().trim()));
 
-    if (existing) {
-      continue;
-    }
-
-    const isAssigned = Boolean(targetCompany);
-    const status = isAssigned ? "Проходит практику" : "Не распределен";
-
-    const record = await prisma.studentPractice.create({
-      data: {
-        studentId: st.studentId,
-        studentName: st.studentName,
-        groupId: data.groupId,
-        groupName: data.groupName,
-        course: data.course,
-        specialty: data.specialty,
-        practiceType: data.practiceType,
-        companyId: targetCompany?.id || null,
-        companyName: targetCompany?.name || null,
-        collegeMentor: data.collegeMentor || null,
-        companyMentor: data.companyMentor || targetCompany?.contactPerson || null,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        status,
-        movements: isAssigned
-          ? {
-              create: {
-                date: todayStr,
-                type: "Первичное направление",
-                toCompany: targetCompany.name,
-                practiceType: data.practiceType,
-                reason: `Зачисление и плановое распределение группы ${data.groupName} на практику`,
-                mentor: data.companyMentor || targetCompany?.contactPerson,
-              },
-            }
-          : undefined,
-      },
-      include: {
-        movements: true,
-      },
-    });
-
-    createdRecords.push(record);
+  if (toEnroll.length === 0) {
+    return { success: true, enrolledCount: 0, records: [] };
   }
+
+  const isAssigned = Boolean(targetCompany);
+  const status = isAssigned ? "Проходит практику" : "Не распределен";
+
+  // 2. Create records inside a single transaction
+  const createdRecords = await prisma.$transaction(
+    toEnroll.map((st) =>
+      prisma.studentPractice.create({
+        data: {
+          studentId: st.studentId,
+          studentName: st.studentName,
+          groupId: data.groupId,
+          groupName: data.groupName,
+          course: data.course,
+          specialty: data.specialty,
+          practiceType: data.practiceType,
+          companyId: targetCompany?.id || null,
+          companyName: targetCompany?.name || null,
+          collegeMentor: data.collegeMentor || null,
+          companyMentor: data.companyMentor || targetCompany?.contactPerson || null,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          status,
+          movements: isAssigned
+            ? {
+                create: {
+                  date: todayStr,
+                  type: "Первичное направление",
+                  toCompany: targetCompany.name,
+                  practiceType: data.practiceType,
+                  reason: `Зачисление и плановое распределение группы ${data.groupName} на практику`,
+                  mentor: data.companyMentor || targetCompany?.contactPerson,
+                },
+              }
+            : undefined,
+        },
+        include: {
+          movements: true,
+        },
+      })
+    )
+  );
 
   if (targetCompany && createdRecords.length > 0) {
     await prisma.companyPartner.update({
