@@ -20,7 +20,7 @@ interface CompaniesTabProps {
   filteredCompanies: CompanyPartner[];
   students: StudentPracticeRecord[];
   onOpenEditCompany: (company: CompanyPartner) => void;
-  onDeleteCompany: (companyId: string) => void;
+  onDeleteCompany: (company: CompanyPartner) => void;
   onShowStudentsForCompany: (companyId: string) => void;
 }
 
@@ -69,7 +69,7 @@ export function CompaniesTab({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDeleteCompany(comp.id)}
+                      onClick={() => onDeleteCompany(comp)}
                       className="p-1 hover:text-destructive text-muted-foreground rounded hover:bg-muted"
                       title="Удалить компанию"
                     >

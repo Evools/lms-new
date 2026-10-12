@@ -52,6 +52,7 @@ import { DayTopicDialog, DayTopicFormData } from "./dialogs/day-topic-dialog";
 import { PrintMemoDialog } from "./dialogs/print-memo-dialog";
 import { SectionsManagerDialog, NewSectionFormData } from "./dialogs/sections-manager-dialog";
 import { ResetConfirmDialog } from "./dialogs/reset-confirm-dialog";
+import { DeleteCompanyDialog } from "./dialogs/delete-company-dialog";
 import {
   createCompanyAction,
   updateCompanyAction,
@@ -235,6 +236,8 @@ export function PracticeView({
 
   // Dialog States
   const [isCompanyDialogOpen, setIsCompanyDialogOpen] = useState<boolean>(false);
+  const [isDeleteCompanyDialogOpen, setIsDeleteCompanyDialogOpen] = useState<boolean>(false);
+  const [companyToDelete, setCompanyToDelete] = useState<CompanyPartner | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyPartner | null>(null);
   const [companyForm, setCompanyForm] = useState<CompanyFormData>({
     name: "",
@@ -1150,9 +1153,38 @@ export function PracticeView({
     setIsCompanyDialogOpen(false);
   };
 
-  const handleDeleteCompany = (id: string) => {
-    setCompanies((prev) => prev.filter((c) => c.id !== id));
-    deleteCompanyAction(id).catch(console.error);
+  const handlePromptDeleteCompany = (comp: CompanyPartner) => {
+    setCompanyToDelete(comp);
+    setIsDeleteCompanyDialogOpen(true);
+  };
+
+  const handleConfirmDeleteCompany = async () => {
+    if (!companyToDelete) return;
+    const companyId = companyToDelete.id;
+
+    // Optimistic update for company and affected students
+    setCompanies((prev) => prev.filter((c) => c.id !== companyId));
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.companyId === companyId
+          ? {
+              ...s,
+              companyId: undefined,
+              companyName: undefined,
+              status: "Не распределен",
+            }
+          : s
+      )
+    );
+    setIsDeleteCompanyDialogOpen(false);
+
+    try {
+      await deleteCompanyAction(companyId);
+    } catch (err) {
+      console.error("Failed to delete company:", err);
+    } finally {
+      setCompanyToDelete(null);
+    }
   };
 
   const handleToggleCompletePractice = (rec: StudentPracticeRecord) => {
@@ -1480,7 +1512,7 @@ export function PracticeView({
           filteredCompanies={filteredCompanies}
           students={students}
           onOpenEditCompany={handleOpenEditCompany}
-          onDeleteCompany={handleDeleteCompany}
+          onDeleteCompany={handlePromptDeleteCompany}
           onShowStudentsForCompany={(cId) => {
             setActiveTab("students");
             setCompanyFilter(cId);
@@ -1628,6 +1660,18 @@ export function PracticeView({
         onOpenChange={setIsResetDialogOpen}
         groupName={currentDiaryPlan?.groupName}
         onConfirm={handleConfirmResetRewrittenDays}
+      />
+
+      <DeleteCompanyDialog
+        open={isDeleteCompanyDialogOpen}
+        onOpenChange={setIsDeleteCompanyDialogOpen}
+        company={companyToDelete}
+        assignedStudentsCount={
+          companyToDelete
+            ? students.filter((s) => s.companyId === companyToDelete.id).length
+            : 0
+        }
+        onConfirm={handleConfirmDeleteCompany}
       />
     </div>
   );
