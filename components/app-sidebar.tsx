@@ -26,6 +26,8 @@ import {
   BookMarked,
   FolderOpen,
   CalendarDays,
+  Briefcase,
+  Building2,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -94,6 +96,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "График дежурств",
               url: "/dashboard/duty",
               icon: <Clock className="h-4 w-4" />,
+            },
+            {
+              title: "База практики",
+              url: "/dashboard/practice",
+              icon: <Building2 className="h-4 w-4" />,
             },
           ],
         },
@@ -181,6 +188,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               url: "/dashboard/duty",
               icon: <Clock className="h-4 w-4" />,
             },
+            {
+              title: "База практики",
+              url: "/dashboard/practice",
+              icon: <Building2 className="h-4 w-4" />,
+            },
           ],
         },
         {
@@ -260,6 +272,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             title: "Тесты & Опросы",
             url: "/dashboard/lms/tests",
             icon: <FileCheck2 className="h-4 w-4" />,
+          },
+          {
+            title: "Памятка по практике",
+            url: "/dashboard/practice",
+            icon: <FileText className="h-4 w-4" />,
           },
         ],
       },
