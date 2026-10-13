@@ -722,3 +722,169 @@ export async function updateStudentRollNumberInGroupAction(
   }
 }
 
+export interface StudentCardDTO {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  avatar?: string | null;
+  rollNumber?: string | null;
+  roleInGroup: "STUDENT" | "MONITOR" | "DEPUTY_MONITOR";
+  isDutyExempt?: boolean;
+  dutyExemptReason?: string | null;
+  joinedAt: string;
+  createdAt: string;
+  accountStatus: "Активен" | "Временный пароль";
+  tempPassword?: string | null;
+  groupName: string;
+  attendance: {
+    total: number;
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    percent: number;
+    recentAbsences: Array<{
+      date: string;
+      subjectName: string;
+      status: "ABSENT" | "EXCUSED";
+      comment?: string | null;
+    }>;
+  };
+  academics: {
+    submittedAssignments: number;
+    averageGrade?: string | null;
+  };
+}
+
+export async function getStudentCardDataAction(
+  studentId: string,
+  groupId: string
+): Promise<StudentCardDTO | null> {
+  const session = await auth();
+  if (!session?.user) return null;
+
+  try {
+    const [student, group, attendanceRecords, submissions] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: studentId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          avatar: true,
+          tempPassword: true,
+          isDutyExempt: true,
+          dutyExemptReason: true,
+          rollNumber: true,
+          createdAt: true,
+        },
+      }),
+      prisma.group.findUnique({
+        where: { id: groupId },
+        select: {
+          name: true,
+          monitorId: true,
+          deputyMonitorId: true,
+          students: {
+            where: { studentId },
+            select: { joinedAt: true },
+          },
+        },
+      }),
+      prisma.attendance.findMany({
+        where: { studentId },
+        select: {
+          status: true,
+          date: true,
+          comment: true,
+          groupSubject: {
+            select: {
+              subject: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { date: "desc" },
+        take: 150,
+      }),
+      prisma.assignmentSubmission.findMany({
+        where: { studentId },
+        select: { grade: true },
+      }),
+    ]);
+
+    if (!student || !group) return null;
+
+    let roleInGroup: "STUDENT" | "MONITOR" | "DEPUTY_MONITOR" = "STUDENT";
+    if (group.monitorId === student.id) {
+      roleInGroup = "MONITOR";
+    } else if (group.deputyMonitorId === student.id) {
+      roleInGroup = "DEPUTY_MONITOR";
+    }
+
+    const totalAttendance = attendanceRecords.length;
+    const present = attendanceRecords.filter((a) => a.status === "PRESENT").length;
+    const late = attendanceRecords.filter((a) => a.status === "LATE").length;
+    const absent = attendanceRecords.filter((a) => a.status === "ABSENT").length;
+    const excused = attendanceRecords.filter((a) => a.status === "EXCUSED").length;
+    const percent =
+      totalAttendance > 0 ? Math.round(((present + late) / totalAttendance) * 100) : 100;
+
+    const recentAbsences = attendanceRecords
+      .filter((a) => a.status === "ABSENT" || a.status === "EXCUSED")
+      .slice(0, 5)
+      .map((a) => ({
+        date: a.date.toLocaleDateString("ru-RU"),
+        subjectName: a.groupSubject?.subject?.name || "Дисциплина",
+        status: a.status as "ABSENT" | "EXCUSED",
+        comment: a.comment,
+      }));
+
+    const gradedSubmissions = submissions.filter((s) => typeof s.grade === "number");
+    const avgGrade =
+      gradedSubmissions.length > 0
+        ? (
+            gradedSubmissions.reduce((acc, curr) => acc + (curr.grade || 0), 0) /
+            gradedSubmissions.length
+          ).toFixed(1)
+        : null;
+
+    const joinedAtDate = group.students[0]?.joinedAt || student.createdAt;
+
+    return {
+      id: student.id,
+      name: student.name,
+      email: student.email,
+      phone: student.phone,
+      avatar: student.avatar,
+      rollNumber: (student as any).rollNumber || null,
+      roleInGroup,
+      isDutyExempt: student.isDutyExempt,
+      dutyExemptReason: student.dutyExemptReason,
+      joinedAt: new Date(joinedAtDate).toLocaleDateString("ru-RU"),
+      createdAt: student.createdAt.toLocaleDateString("ru-RU"),
+      accountStatus: student.tempPassword ? "Временный пароль" : "Активен",
+      tempPassword: student.tempPassword || null,
+      groupName: group.name,
+      attendance: {
+        total: totalAttendance,
+        present,
+        late,
+        absent,
+        excused,
+        percent,
+        recentAbsences,
+      },
+      academics: {
+        submittedAssignments: submissions.length,
+        averageGrade: avgGrade,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to fetch student card data:", error);
+    return null;
+  }
+}
+
+

@@ -482,7 +482,7 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <Link href={`/dashboard/students/${st.id}/edit`} className="font-semibold text-xs text-foreground hover:underline hover:text-primary transition-colors block truncate">
+                        <Link href={`/dashboard/students/${st.id}`} className="font-semibold text-xs text-foreground hover:underline hover:text-primary transition-colors block truncate" title="Личная карточка студента">
                           {st.name}
                         </Link>
                         <div className="text-[10px] text-muted-foreground font-mono truncate">{st.email}</div>

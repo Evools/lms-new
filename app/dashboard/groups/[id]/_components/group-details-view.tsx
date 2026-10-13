@@ -81,6 +81,7 @@ import {
   Hash,
   Edit2,
   Save,
+  CalendarCheck,
 } from "lucide-react";
 import {
   GroupDetailsDTO,
@@ -654,16 +655,19 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
 
                     {/* Name + badges */}
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <Avatar className="h-7 w-7 border shrink-0">
-                        <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
-                          {st.name.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Link href={`/dashboard/students/${st.id}`} title="Личная карточка студента">
+                        <Avatar className="h-7 w-7 border shrink-0 hover:border-primary transition-colors">
+                          <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                            {st.name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Link>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Link
-                            href={`/dashboard/students/${st.id}/edit`}
+                            href={`/dashboard/students/${st.id}`}
                             className="text-xs font-medium text-foreground hover:text-primary hover:underline transition-colors truncate"
+                            title="Личная карточка студента"
                           >
                             {st.name}
                           </Link>
@@ -767,6 +771,9 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
                               <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
+                            </DropdownMenuItem>
+                            <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}`} />}>
+                              <UserCheck className="h-3.5 w-3.5 mr-2 text-primary" /> Личная карточка
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenRollNumberEdit(st)}>
                               <Hash className="h-3.5 w-3.5 mr-2 text-primary" /> Поименный номер (П/Н)
