@@ -517,58 +517,95 @@ export function ScholarshipView({
       `}</style>
 
       {/* SCREEN UI (Hidden during print) */}
-      <div className="screen-only-view space-y-3">
-        {/* Top Main Card */}
-        <div className="bg-card border rounded-xl p-3.5 space-y-3">
-          {/* Title & Actions Row */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-            <div>
-              <h1 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+      <div className="screen-only-view space-y-2.5">
+        {/* Top Control Bar (Compact, Stable, No Jittering) */}
+        <div className="bg-card border rounded-xl p-3 space-y-2.5 shadow-2xs">
+          {/* Row 1: Title, Group Selector, Month Stepper, Action Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <h1 className="text-sm font-bold text-foreground flex items-center gap-1.5 shrink-0">
                 <Award className="h-4 w-4 text-primary" />
-                Ведомость успеваемости и формирования стипендии
+                Стипендия
               </h1>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Вносите оценки студентов (например, <strong>54554</strong> или <strong>5</strong>) и их поименные номера. Студенты с хотя бы одной тройкой или двойкой не включаются в приказ на стипендию.
-              </p>
+
+              {/* Group Selector */}
+              <div className="w-56 shrink-0">
+                <Select value={selectedGroupId} onValueChange={handleGroupChange}>
+                  <SelectTrigger className="h-7 text-xs bg-background w-full font-medium">
+                    <SelectValue placeholder="Выберите группу">
+                      {currentGroup
+                        ? `${currentGroup.name} (${currentGroup.students.length} студ.)`
+                        : "Выберите группу"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((g) => (
+                      <SelectItem key={g.id} value={g.id} className="text-xs">
+                        <span className="font-semibold text-foreground">Группа {g.name}</span>{" "}
+                        <span className="text-muted-foreground text-[11px]">({g.students.length} студ.)</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Month Stepper */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={handlePrevMonth}
+                  className="h-7 w-7 p-0"
+                  title="Предыдущий месяц"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <div className="h-7 px-2.5 rounded-md border border-border bg-background flex items-center justify-center font-bold text-xs text-center font-mono min-w-[130px]">
+                  {formatMonthKeyToLabel(selectedMonth)}
+                </div>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={handleNextMonth}
+                  className="h-7 w-7 p-0"
+                  title="Следующий месяц"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              {hasUnsavedChanges && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] h-6 px-2 border-amber-500/40 text-amber-700 bg-amber-500/10"
-                >
-                  Есть несохраненные изменения
-                </Badge>
-              )}
-
-              {saveSuccessMessage && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] h-6 px-2 border-emerald-500/40 text-emerald-700 bg-emerald-500/10"
-                >
-                  <CheckCircle2 className="h-3 w-3 mr-1 inline" />
-                  {saveSuccessMessage}
-                </Badge>
-              )}
+            {/* Right Action Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {hasUnsavedChanges ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] h-7 px-2.5 rounded-md bg-primary/10 text-primary border border-primary/20 font-medium">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  Не сохранено
+                </span>
+              ) : saveSuccessMessage ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] h-7 px-2.5 rounded-md bg-muted text-foreground border border-border font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                  Сохранено
+                </span>
+              ) : null}
 
               <Button
                 size="xs"
                 variant="outline"
                 onClick={handleExportWord}
-                className="h-8 gap-1.5 font-medium border-primary/40 text-primary hover:bg-primary/10"
-                title="Выгрузить официальный документ в Word 1-в-1 по шаблону"
+                className="h-7 px-2.5 gap-1 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5"
+                title="Выгрузить 2-страничный официальный документ в Word (.docx)"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span>Экспорт в Word (.docx)</span>
+                <span>Word (.docx)</span>
               </Button>
 
               <Button
                 size="xs"
                 variant="outline"
                 onClick={() => window.print()}
-                className="h-8 gap-1.5 font-medium"
-                title="Печать официального документа (без сайдбара и лишних элементов)"
+                className="h-7 px-2.5 gap-1 text-xs font-medium"
+                title="Печать 2 страниц ведомости и табеля (Ctrl+P)"
               >
                 <Printer className="h-3.5 w-3.5" />
                 <span>Печать</span>
@@ -578,336 +615,213 @@ export function ScholarshipView({
                 size="xs"
                 onClick={handleSave}
                 disabled={isPending}
-                className="h-8 gap-1.5 font-medium"
+                className="h-7 px-3 gap-1.5 text-xs font-medium"
               >
                 <Save className="h-3.5 w-3.5" />
-                <span>{isPending ? "Сохранение..." : "Сохранить ведомость"}</span>
+                <span>{isPending ? "Сохранение..." : "Сохранить"}</span>
               </Button>
             </div>
           </div>
 
-          {/* Group Selector & Month Stepper Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
-            {/* Group Selector */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-foreground flex items-center gap-1">
-                <GraduationCap className="h-3.5 w-3.5 text-primary" />
-                Учебная группа:
-              </label>
-              <Select value={selectedGroupId} onValueChange={handleGroupChange}>
-                <SelectTrigger className="h-8 text-xs bg-background w-full font-medium">
-                  <SelectValue placeholder="Выберите группу">
-                    {currentGroup
-                      ? `Группа ${currentGroup.name} (${currentGroup.students.length} студентов)`
-                      : "Выберите группу"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id} className="text-xs">
-                      <div className="flex items-center justify-between gap-3 w-full">
-                        <span className="font-semibold text-foreground">Группа {g.name}</span>
-                        <span className="text-muted-foreground text-[11px]">
-                          {g.specialtyName ? `${g.specialtyName} • ` : ""}
-                          {g.students.length} студ.
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Month Stepper */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-foreground">
-                Отчетный месяц:
-              </label>
-              <div className="flex items-center gap-1">
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={handlePrevMonth}
-                  className="h-8 w-8 p-0"
-                  title="Предыдущий месяц"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div className="h-8 px-3 rounded-md border border-border bg-background flex items-center justify-center font-bold text-xs flex-1 text-center font-mono">
-                  {formatMonthKeyToLabel(selectedMonth)}
-                </div>
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={handleNextMonth}
-                  className="h-8 w-8 p-0"
-                  title="Следующий месяц"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Quick Fill / Clear Buttons */}
-            <div className="space-y-1 flex flex-col justify-end">
-              <label className="text-[11px] font-semibold text-muted-foreground">
-                Быстрые действия:
-              </label>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={handleQuickFillDemo}
-                  className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1 border border-dashed"
-                  title="Заполнить типовыми оценками и поименными номерами"
-                >
-                  <Sparkles className="h-3 w-3 text-primary" />
-                  <span>Заполнить пример</span>
-                </Button>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={handleClearAllGrades}
-                  className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1"
-                  title="Очистить все выставленные оценки"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Очистить оценки</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Subjects list bar for current month */}
-          <div className="p-2.5 rounded-lg bg-muted/30 border space-y-2">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
-                <BookMarked className="h-3.5 w-3.5 text-primary" />
-                Предметы в ведомости этого месяца ({subjects.length}):
-              </span>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => setIsAddSubjectOpen(true)}
-                className="h-6 px-2 text-[11px] gap-1 font-medium bg-background border-primary/40 text-primary hover:bg-primary/10"
-              >
-                <Plus className="h-3 w-3" />
-                <span>Добавить предмет</span>
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              {subjects.length === 0 ? (
-                <span className="text-muted-foreground text-[11px]">
-                  В ведомости еще нет предметов. Нажмите «Добавить предмет».
-                </span>
-              ) : (
-                subjects.map((subj) => (
-                  <div
-                    key={subj}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background border border-border text-foreground text-xs"
+          {/* Row 2: Search, Filter Tabs, Summary Stats & Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t text-xs">
+            {/* Search & Filter pills */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative w-48">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Поиск по ФИО..."
+                  className="h-7 pl-8 pr-7 text-xs bg-background"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
-                    <span className="font-medium">{subj}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSubject(subj)}
-                      className="p-0.5 text-muted-foreground hover:text-destructive rounded transition-colors"
-                      title={`Убрать ${subj} из ведомости`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
 
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
-            <div className="p-2.5 rounded-lg border bg-background flex flex-col justify-between">
-              <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-                <span>Всего студентов</span>
-                <Users className="h-3.5 w-3.5 text-muted-foreground" />
-              </div>
-              <div className="text-lg font-bold font-mono mt-1 text-foreground">
-                {summaryKPI.totalStudents}
-              </div>
-              <span className="text-[10px] text-muted-foreground">В группе {currentGroup?.name}</span>
-            </div>
-
-            <div className="p-2.5 rounded-lg border bg-emerald-500/5 border-emerald-500/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between text-emerald-700 text-[11px]">
-                <span className="font-semibold">Отличники</span>
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-              </div>
-              <div className="text-lg font-bold font-mono mt-1 text-emerald-600">
-                {summaryKPI.excellentCount}
-              </div>
-              <span className="text-[10px] text-emerald-700 font-medium">Повышенная стипендия (на «5»)</span>
-            </div>
-
-            <div className="p-2.5 rounded-lg border bg-blue-500/5 border-blue-500/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between text-blue-700 text-[11px]">
-                <span className="font-semibold">Ударники</span>
-                <CheckCircle className="h-3.5 w-3.5 text-blue-600" />
-              </div>
-              <div className="text-lg font-bold font-mono mt-1 text-blue-600">
-                {summaryKPI.goodCount}
-              </div>
-              <span className="text-[10px] text-blue-700 font-medium">Обычная стипендия (на «5» и «4»)</span>
-            </div>
-
-            <div className="p-2.5 rounded-lg border bg-rose-500/5 border-rose-500/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between text-rose-700 text-[11px]">
-                <span className="font-semibold">Сняты со стипендии</span>
-                <XCircle className="h-3.5 w-3.5 text-rose-600" />
-              </div>
-              <div className="text-lg font-bold font-mono mt-1 text-rose-600">
-                {summaryKPI.noScholarshipCount}
-              </div>
-              <span className="text-[10px] text-rose-700 font-medium">Есть хоть одна тройка/неуд</span>
-            </div>
-
-            <div className="p-2.5 rounded-lg border bg-background flex flex-col justify-between col-span-2 sm:col-span-1">
-              <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-                <span>Средний балл группы</span>
-                <Award className="h-3.5 w-3.5 text-primary" />
-              </div>
-              <div className="text-lg font-bold font-mono mt-1 text-primary">
-                {summaryKPI.groupAverageGrade > 0 ? summaryKPI.groupAverageGrade.toFixed(2) : "—"}
-              </div>
-              <span className="text-[10px] text-muted-foreground">По всем дисциплинам</span>
-            </div>
-          </div>
-
-          {/* Toolbar: Search & Filter Tabs */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
-            {/* Search */}
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск студента по ФИО..."
-                className="h-8 pl-8 pr-7 text-xs bg-background"
-              />
-              {searchQuery && (
+              <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs">
                 <button
                   type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setStatusFilter("ALL")}
+                  className={`h-6 px-2.5 rounded-md font-medium transition-colors ${
+                    statusFilter === "ALL"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
-                  <X className="h-3 w-3" />
+                  Все ({calculatedRows.length})
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("EXCELLENT")}
+                  className={`h-6 px-2.5 rounded-md font-medium transition-colors ${
+                    statusFilter === "EXCELLENT"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Отличники ({summaryKPI.excellentCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("GOOD")}
+                  className={`h-6 px-2.5 rounded-md font-medium transition-colors ${
+                    statusFilter === "GOOD"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Ударники ({summaryKPI.goodCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("NO_SCHOLARSHIP")}
+                  className={`h-6 px-2.5 rounded-md font-medium transition-colors ${
+                    statusFilter === "NO_SCHOLARSHIP"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Сняты ({summaryKPI.noScholarshipCount})
+                </button>
+              </div>
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setStatusFilter("ALL")}
-                className={`h-6 px-2.5 rounded-md text-xs font-medium transition-colors ${
-                  statusFilter === "ALL"
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+            {/* Quick KPI stats & Quick demo fill */}
+            <div className="flex items-center gap-2 flex-wrap text-[11px]">
+              <span className="px-2 py-0.5 rounded bg-muted/60 border text-foreground font-mono">
+                Ср. балл группы: <strong>{summaryKPI.groupAverageGrade > 0 ? summaryKPI.groupAverageGrade.toFixed(2) : "—"}</strong>
+              </span>
+
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={handleQuickFillDemo}
+                className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground border border-dashed"
+                title="Заполнить типовыми оценками"
               >
-                Все ({calculatedRows.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter("EXCELLENT")}
-                className={`h-6 px-2.5 rounded-md text-xs font-medium transition-colors ${
-                  statusFilter === "EXCELLENT"
-                    ? "bg-emerald-600 text-white"
-                    : "text-muted-foreground hover:text-emerald-600"
-                }`}
+                <Sparkles className="h-3 w-3 mr-1 text-primary" />
+                Пример
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={handleClearAllGrades}
+                className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+                title="Очистить все оценки"
               >
-                Отличники ({summaryKPI.excellentCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter("GOOD")}
-                className={`h-6 px-2.5 rounded-md text-xs font-medium transition-colors ${
-                  statusFilter === "GOOD"
-                    ? "bg-blue-600 text-white"
-                    : "text-muted-foreground hover:text-blue-600"
-                }`}
-              >
-                Ударники ({summaryKPI.goodCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter("NO_SCHOLARSHIP")}
-                className={`h-6 px-2.5 rounded-md text-xs font-medium transition-colors ${
-                  statusFilter === "NO_SCHOLARSHIP"
-                    ? "bg-rose-600 text-white"
-                    : "text-muted-foreground hover:text-rose-600"
-                }`}
-              >
-                Сняты со стипендии ({summaryKPI.noScholarshipCount})
-              </button>
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Очистить
+              </Button>
             </div>
           </div>
 
-          {/* Local draft restored notice banner */}
-          {restoredFromDraft && (
-            <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between gap-3 text-xs text-foreground">
-              <div className="flex items-center gap-2 font-medium">
-                <Sparkles className="h-4 w-4 text-primary shrink-0" />
-                <span>
-                  <strong>Локальный черновик восстановлен:</strong> данные сохранены в вашем браузере при случайном закрытии или обрыве связи. Нажмите <strong>«Сохранить ведомость»</strong>, чтобы зафиксировать их в БД.
-                </span>
-              </div>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={handleDiscardDraft}
-                className="h-6 text-[11px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 font-medium"
-              >
-                Сбросить черновик
-              </Button>
+          {/* Row 3: Disciplines pill list */}
+          <div className="flex items-center justify-between gap-2 pt-1 border-t text-[11px]">
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              <span className="font-semibold text-muted-foreground shrink-0 flex items-center gap-1">
+                <BookMarked className="h-3 w-3 text-primary" />
+                Предметы ({subjects.length}):
+              </span>
+              {subjects.map((subj) => (
+                <div
+                  key={subj}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-background border border-border text-foreground text-[11px]"
+                >
+                  <span className="truncate max-w-[130px]">{subj}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSubject(subj)}
+                    className="text-muted-foreground hover:text-destructive"
+                    title={`Убрать ${subj}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
             </div>
-          )}
 
-          {/* SPREADSHEET TABLE: Matrix of students, roll numbers & subjects */}
-          <div className="border rounded-lg overflow-x-auto bg-background">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setIsAddSubjectOpen(true)}
+              className="h-6 px-2 text-[10px] gap-1 shrink-0 border-primary/30 text-primary hover:bg-primary/5"
+            >
+              <Plus className="h-3 w-3" />
+              <span>Добавить предмет</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Local draft restored notice (compact) */}
+        {restoredFromDraft && (
+          <div className="px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between gap-2 text-[11px] text-foreground">
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>Черновик восстановлен из локальной памяти браузера.</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="text-muted-foreground hover:text-destructive underline text-[10px]"
+            >
+              Сбросить
+            </button>
+          </div>
+        )}
+
+        {/* SPREADSHEET TABLE: Matrix of students, roll numbers & subjects */}
+        <div className="border rounded-xl bg-card overflow-hidden shadow-2xs">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-235px)]">
             <table className="w-full text-xs border-collapse text-left table-fixed">
               <colgroup>
-                <col className="w-10" />
-                <col className="w-20" />
-                <col className="w-56" />
+                <col style={{ width: "40px" }} />
+                <col style={{ width: "64px" }} />
+                <col style={{ width: "220px" }} />
                 {subjects.map((s) => (
-                  <col key={s} className="w-28" />
+                  <col key={s} style={{ width: "96px" }} />
                 ))}
-                <col className="w-24" />
-                <col className="w-16" />
-                <col className="w-44" />
+                <col style={{ width: "96px" }} />
+                <col style={{ width: "64px" }} />
+                <col style={{ width: "140px" }} />
               </colgroup>
-              <thead>
-                <tr className="bg-muted/50 border-b text-[11px] text-muted-foreground">
-                  <th className="p-2 text-center border-r font-semibold">№</th>
-                  <th className="p-2 text-center border-r font-semibold">П/Н</th>
-                  <th className="p-2 text-left border-r font-semibold">
+              <thead className="sticky top-0 z-30 bg-muted/95 backdrop-blur-xs border-b">
+                <tr className="h-9 text-[11px] text-muted-foreground">
+                  <th className="sticky left-0 z-40 bg-muted p-1 text-center border-r font-semibold">
+                    №
+                  </th>
+                  <th
+                    className="sticky left-10 z-40 bg-muted p-1 text-center border-r font-semibold"
+                    title="Поименный номер студента"
+                  >
+                    П/Н
+                  </th>
+                  <th className="sticky left-[104px] z-40 bg-muted p-2 text-left border-r font-semibold shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                     Ф.И.О. учащихся
                   </th>
                   {subjects.map((subj) => (
                     <th
                       key={subj}
-                      className="p-2 text-center border-r font-semibold truncate"
+                      className="p-1 text-center border-r font-semibold truncate"
                       title={subj}
                     >
                       {subj}
                     </th>
                   ))}
-                  <th className="p-2 text-center border-r font-semibold">
+                  <th className="p-1 text-center border-r font-semibold">
                     Оценки (5/4/3/2)
                   </th>
-                  <th className="p-2 text-center border-r font-semibold">
+                  <th className="p-1 text-center border-r font-semibold">
                     Ср. балл
                   </th>
-                  <th className="p-2 text-center font-semibold">
+                  <th className="p-1 text-center font-semibold">
                     Статус стипендии
                   </th>
                 </tr>
@@ -927,37 +841,38 @@ export function ScholarshipView({
                     return (
                       <tr
                         key={row.studentId}
-                        className="hover:bg-muted/10 transition-colors h-10"
+                        className="hover:bg-muted/10 transition-colors h-10 border-b"
                       >
-                        <td className="p-2 text-center font-mono text-muted-foreground border-r">
+                        <td className="sticky left-0 z-10 bg-card p-1 text-center font-mono text-muted-foreground border-r">
                           {idx + 1}
                         </td>
 
                         {/* Поименный номер (П/Н) - только показ, без ввода */}
-                        <td className="p-2 text-center font-mono text-xs text-foreground/80 border-r" title="Поименный номер студента">
+                        <td
+                          className="sticky left-10 z-10 bg-card p-1 text-center font-mono text-xs text-foreground/80 border-r"
+                          title="Поименный номер студента"
+                        >
                           {row.rollNumber || rollNumbers[row.studentId] || "—"}
                         </td>
 
-                        <td className="p-2 font-medium text-foreground border-r truncate" title={row.studentName}>
+                        <td
+                          className="sticky left-[104px] z-10 bg-card p-2 font-medium text-foreground border-r truncate shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]"
+                          title={row.studentName}
+                        >
                           <span className="font-semibold">{row.studentName}</span>
                         </td>
 
-                        {/* Subject cells: Stable clean inputs, ZERO hover shaking */}
+                        {/* Subject cells: ZERO JITTER, clean standard inputs */}
                         {subjects.map((subj) => {
                           const currentVal = row.grades[subj] || "";
-                          const parsed = parseGradeString(currentVal);
                           const avg = row.subjectAverages[subj];
                           const hasBad = /[1-3]/.test(currentVal);
-                          const isAll5 = parsed.length > 0 && !hasBad && parsed.every((g) => g === 5);
-                          const isGood = parsed.length > 0 && !hasBad && parsed.some((g) => g === 4);
 
-                          let inputClasses = "border-border bg-background text-foreground";
+                          let inputClasses = "border-border bg-background text-foreground focus:border-primary";
                           if (hasBad) {
-                            inputClasses = "border-rose-400 bg-rose-500/15 text-rose-800 font-bold focus:border-rose-500";
-                          } else if (isAll5) {
-                            inputClasses = "border-emerald-400/50 bg-emerald-500/10 text-emerald-700 font-bold focus:border-emerald-500";
-                          } else if (isGood) {
-                            inputClasses = "border-blue-400/50 bg-blue-500/10 text-blue-700 font-bold focus:border-blue-500";
+                            inputClasses = "border-destructive/30 bg-destructive/5 text-destructive font-medium focus:border-destructive";
+                          } else if (currentVal) {
+                            inputClasses = "border-border bg-background text-foreground font-medium focus:border-primary";
                           }
 
                           return (
@@ -965,45 +880,39 @@ export function ScholarshipView({
                               key={subj}
                               className="p-1 text-center border-r"
                             >
-                              <div className="flex flex-col items-center justify-center">
+                              <div className="flex flex-col items-center justify-center h-full">
                                 <input
                                   type="text"
                                   value={currentVal}
                                   onChange={(e) => handleSetGrade(row.studentId, subj, e.target.value)}
                                   placeholder="—"
-                                  className={`h-7 w-full px-1.5 text-center text-xs font-mono tracking-wider rounded border transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${inputClasses}`}
-                                  title={`Оценки по ${subj}. Вводите подряд, например: 54554 или 5`}
+                                  className={`h-6 w-full px-1 text-center text-xs font-mono rounded border transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${inputClasses}`}
+                                  title={`Оценки по ${subj}. Вводите подряд: 54554 или 5`}
                                 />
-                                {avg !== null && (
-                                  <span className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5">
-                                    ср. {avg}
-                                  </span>
-                                )}
+                                <span className="text-[9px] font-mono leading-none h-3 mt-0.5 text-muted-foreground block truncate">
+                                  {avg !== null ? `ср. ${avg}` : " "}
+                                </span>
                               </div>
                             </td>
                           );
                         })}
 
                         {/* Grades counter breakdown */}
-                        <td className="p-2 text-center border-r font-mono text-[11px]">
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-emerald-600 font-bold" title="Количество 5-к">
-                              {row.count5}
-                            </span>
+                        <td className="p-1 text-center border-r font-mono text-[11px]">
+                          <div className="flex items-center justify-center gap-1 text-foreground">
+                            <span title="Количество 5-к">{row.count5}</span>
                             <span className="text-muted-foreground">/</span>
-                            <span className="text-blue-600 font-bold" title="Количество 4-к">
-                              {row.count4}
-                            </span>
+                            <span title="Количество 4-к">{row.count4}</span>
                             <span className="text-muted-foreground">/</span>
                             <span
-                              className={`font-bold ${row.count3 > 0 ? "text-amber-700" : "text-muted-foreground"}`}
+                              className={row.count3 > 0 ? "text-destructive font-medium" : "text-muted-foreground"}
                               title="Количество 3-к"
                             >
                               {row.count3}
                             </span>
                             <span className="text-muted-foreground">/</span>
                             <span
-                              className={`font-bold ${row.count2 > 0 ? "text-rose-700" : "text-muted-foreground"}`}
+                              className={row.count2 > 0 ? "text-destructive font-medium" : "text-muted-foreground"}
                               title="Количество 2-к"
                             >
                               {row.count2}
@@ -1012,16 +921,16 @@ export function ScholarshipView({
                         </td>
 
                         {/* Average Grade */}
-                        <td className="p-2 text-center font-mono font-bold text-foreground border-r">
+                        <td className="p-1 text-center font-mono font-bold text-foreground border-r">
                           {row.averageGrade > 0 ? row.averageGrade.toFixed(2) : "—"}
                         </td>
 
                         {/* Scholarship Status Badge */}
-                        <td className="p-2 text-center">
+                        <td className="p-1 text-center">
                           {row.status === "EXCELLENT" && (
                             <Badge
                               variant="outline"
-                              className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30 text-[10px] gap-1 font-semibold"
+                              className="bg-primary/10 text-primary border-primary/20 text-[10px] gap-1 font-medium"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               <span>Отличник (на «5»)</span>
@@ -1031,9 +940,9 @@ export function ScholarshipView({
                           {row.status === "GOOD" && (
                             <Badge
                               variant="outline"
-                              className="bg-blue-500/10 text-blue-700 border-blue-500/30 text-[10px] gap-1 font-semibold"
+                              className="border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300 text-[10px] gap-1 font-medium"
                             >
-                              <CheckCircle className="h-3 w-3" />
+                              <CheckCircle className="h-3 w-3 text-sky-600 dark:text-sky-400 shrink-0" />
                               <span>Ударник (на «5» и «4»)</span>
                             </Badge>
                           )}
@@ -1041,17 +950,17 @@ export function ScholarshipView({
                           {row.status === "NO_SCHOLARSHIP" && (
                             <Badge
                               variant="outline"
-                              className="bg-rose-500/10 text-rose-700 border-rose-500/40 text-[10px] gap-1 font-semibold"
+                              className="border-destructive/30 bg-destructive/10 text-destructive dark:bg-destructive/20 text-[10px] gap-1 font-medium"
                               title={row.statusReason}
                             >
-                              <XCircle className="h-3 w-3" />
+                              <XCircle className="h-3 w-3 shrink-0" />
                               <span>Снят со стипендии</span>
                             </Badge>
                           )}
 
                           {row.status === "PENDING" && (
                             <span className="text-muted-foreground text-[11px]">
-                              Нет оценок
+                              —
                             </span>
                           )}
                         </td>
@@ -1062,6 +971,7 @@ export function ScholarshipView({
               </tbody>
             </table>
           </div>
+        </div>
 
           {/* Footer info note */}
           <div className="p-2 rounded-lg bg-muted/20 border flex items-center gap-2 text-muted-foreground text-[11px]">
@@ -1070,7 +980,6 @@ export function ScholarshipView({
               Правило формирования стипендии: в официальный приказ включаются только учащиеся <strong>на «5»</strong> (отличники) и <strong>на «5» и «4»</strong> (ударники). При наличии хотя бы одной тройки студент исключается из списка.
             </span>
           </div>
-        </div>
 
         {/* Add Subject Dialog */}
         <AddSubjectDialog

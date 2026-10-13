@@ -495,8 +495,8 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
                 activeMonthStat.scholarship.status === "EXCELLENT"
                   ? "bg-primary/5 border-primary/30"
                   : activeMonthStat.scholarship.status === "GOOD"
-                  ? "bg-emerald-500/5 border-emerald-500/30"
-                  : "bg-rose-500/5 border-rose-500/30"
+                  ? "bg-sky-500/5 border-sky-500/30"
+                  : "bg-destructive/5 border-destructive/30"
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
@@ -505,8 +505,8 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
                     activeMonthStat.scholarship.status === "EXCELLENT"
                       ? "text-primary"
                       : activeMonthStat.scholarship.status === "GOOD"
-                      ? "text-emerald-600"
-                      : "text-rose-600"
+                      ? "text-sky-600 dark:text-sky-400"
+                      : "text-destructive"
                   }`}
                 />
                 <div>
@@ -517,8 +517,8 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
                         activeMonthStat.scholarship.status === "EXCELLENT"
                           ? "text-primary font-bold"
                           : activeMonthStat.scholarship.status === "GOOD"
-                          ? "text-emerald-600 font-bold"
-                          : "text-rose-600 font-bold"
+                          ? "text-sky-600 dark:text-sky-400 font-bold"
+                          : "text-destructive font-bold"
                       }
                     >
                       {activeMonthStat.scholarship.statusLabel}
@@ -987,8 +987,8 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
                                   item.scholarship?.status === "EXCELLENT"
                                     ? "border-primary/40 bg-primary/10 text-primary"
                                     : item.scholarship?.status === "GOOD"
-                                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                    : "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                    ? "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                                    : "border-destructive/40 bg-destructive/10 text-destructive dark:text-destructive"
                                 }`}
                               >
                                 {item.scholarship?.statusLabel}
