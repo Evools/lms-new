@@ -541,7 +541,11 @@ export function ScholarshipView({
 
               {/* Group Selector */}
               <div className="w-56 shrink-0">
-                <Select value={selectedGroupId} onValueChange={handleGroupChange}>
+                <Select
+                  value={selectedGroupId}
+                  onValueChange={handleGroupChange}
+                  disabled={isPending}
+                >
                   <SelectTrigger className="h-7 text-xs bg-background w-full font-medium">
                     <SelectValue placeholder="Выберите группу">
                       {currentGroup
@@ -566,6 +570,7 @@ export function ScholarshipView({
                   size="xs"
                   variant="outline"
                   onClick={handlePrevMonth}
+                  disabled={isPending}
                   className="h-7 w-7 p-0"
                   title="Предыдущий месяц"
                 >
@@ -585,6 +590,7 @@ export function ScholarshipView({
                   size="xs"
                   variant="outline"
                   onClick={handleNextMonth}
+                  disabled={isPending}
                   className="h-7 w-7 p-0"
                   title="Следующий месяц"
                 >
@@ -811,8 +817,22 @@ export function ScholarshipView({
         )}
 
         {/* SPREADSHEET TABLE: Matrix of students, roll numbers & subjects */}
-        <div className="border rounded-xl bg-card overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-235px)]">
+        <div className="border rounded-xl bg-card overflow-hidden shadow-2xs relative min-h-[300px]">
+          {/* Loading overlay when switching months or groups */}
+          {isPending && (
+            <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-[1.5px] flex items-center justify-center pointer-events-auto">
+              <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg bg-card border border-border shadow-sm text-xs font-medium text-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+                <span>Загрузка данных ведомости...</span>
+              </div>
+            </div>
+          )}
+
+          <div
+            className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-235px)] transition-opacity duration-150 ${
+              isPending ? "opacity-30 pointer-events-none select-none" : ""
+            }`}
+          >
             <table className="w-full text-xs border-collapse text-left table-fixed">
               <colgroup>
                 <col style={{ width: "40px" }} />
