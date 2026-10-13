@@ -82,6 +82,7 @@ model User {
   dutySchedules   DutySchedule[]
   testSubmissions TestSubmission[]
   notifications   Notification[]
+  achievements    StudentAchievement[]
 
   @@map("users")
 }
@@ -544,3 +545,49 @@ model ScholarshipRecord {
   @@unique([groupId, month])
   @@map("scholarship_records")
 }
+
+// ==========================================
+// STUDENT PORTFOLIO & ACHIEVEMENTS (ПОРТФОЛИО)
+// ==========================================
+
+enum AchievementCategory {
+  OLYMPIAD      // Олимпиада / конкурс
+  HACKATHON     // Хакатон / IT-чемпионат
+  CERTIFICATE   // Сертификат / профессиональный курс
+  SCIENCE       // Наука / публикация / доклад
+  SPORT         // Спорт
+  CREATIVE      // Творчество / культура
+  VOLUNTEER     // Волонтёрство / соц. проект
+  OTHER         // Другое
+}
+
+enum AchievementLevel {
+  INTERNATIONAL // Международный
+  NATIONAL      // Республиканский / Всероссийский
+  REGIONAL      // Областной / Городской
+  COLLEGE       // Внутриколледжный
+}
+
+model StudentAchievement {
+  id          String              @id @default(cuid())
+  studentId   String
+  title       String              // Название достижения / грамоты
+  category    AchievementCategory @default(OLYMPIAD)
+  level       AchievementLevel    @default(COLLEGE)
+  date        DateTime            // Дата получения
+  place       String?             // 1 место, Победитель, Призёр, Сертификат, Участник
+  issuer      String?             // Кем выдано / Организатор
+  description String?             // Описание / за что получено
+  fileUrl     String?             // Ссылка на скан сертификата / грамоты / фото
+  isVerified  Boolean             @default(false)
+  verifiedBy  String?             // Имя или ID проверившего куратора/админа
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  student     User                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([category])
+  @@map("student_achievements")
+}
+

@@ -643,6 +643,32 @@ export interface StudentCardDTO {
   };
   monthlyStats: StudentMonthlyStatItem[];
   subjectStats: StudentSubjectStatItem[];
+  achievements: StudentAchievementDTO[];
+}
+
+export interface StudentAchievementDTO {
+  id: string;
+  studentId: string;
+  title: string;
+  category:
+    | "OLYMPIAD"
+    | "HACKATHON"
+    | "CERTIFICATE"
+    | "SCIENCE"
+    | "SPORT"
+    | "CREATIVE"
+    | "VOLUNTEER"
+    | "OTHER";
+  level: "INTERNATIONAL" | "NATIONAL" | "REGIONAL" | "COLLEGE";
+  date: string;
+  dateRaw: string;
+  place?: string | null;
+  issuer?: string | null;
+  description?: string | null;
+  fileUrl?: string | null;
+  isVerified: boolean;
+  verifiedBy?: string | null;
+  createdAt: string;
 }
 
 const RU_MONTHS: Record<string, string> = {
@@ -671,7 +697,7 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
     const session = await auth();
     if (!session?.user) return null;
 
-    const [user, attendanceRecords, submissions] = await Promise.all([
+    const [user, attendanceRecords, submissions, rawAchievements] = await Promise.all([
       prisma.user.findUnique({
         where: { id: studentId },
         include: {
@@ -724,6 +750,10 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
         },
         orderBy: { submittedAt: "desc" },
         take: 50,
+      }),
+      prisma.studentAchievement.findMany({
+        where: { studentId },
+        orderBy: { date: "desc" },
       }),
     ]);
 
@@ -1000,11 +1030,168 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
       },
       monthlyStats,
       subjectStats,
+      achievements: rawAchievements.map((a) => ({
+        id: a.id,
+        studentId: a.studentId,
+        title: a.title,
+        category: a.category as StudentAchievementDTO["category"],
+        level: a.level as StudentAchievementDTO["level"],
+        date: a.date.toLocaleDateString("ru-RU"),
+        dateRaw: a.date.toISOString().slice(0, 10),
+        place: a.place,
+        issuer: a.issuer,
+        description: a.description,
+        fileUrl: a.fileUrl,
+        isVerified: a.isVerified,
+        verifiedBy: a.verifiedBy,
+        createdAt: a.createdAt.toLocaleDateString("ru-RU"),
+      })),
     };
   } catch (error) {
     console.error("getStudentCardDataAction error:", error);
     return null;
   }
+}
+
+/**
+ * Add an achievement to the student's portfolio
+ */
+export async function addStudentAchievementAction(
+  studentId: string,
+  data: {
+    title: string;
+    category: StudentAchievementDTO["category"];
+    level: StudentAchievementDTO["level"];
+    date: string;
+    place?: string;
+    issuer?: string;
+    description?: string;
+    fileUrl?: string;
+  }
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Не авторизован");
+
+  const isSelf = session.user.id === studentId;
+  const isPrivileged = session.user.role === "ADMIN" || session.user.role === "TEACHER";
+  if (!isSelf && !isPrivileged) throw new Error("Недостаточно прав для добавления");
+
+  const achievement = await prisma.studentAchievement.create({
+    data: {
+      studentId,
+      title: data.title.trim(),
+      category: data.category,
+      level: data.level,
+      date: new Date(data.date),
+      place: data.place?.trim() || null,
+      issuer: data.issuer?.trim() || null,
+      description: data.description?.trim() || null,
+      fileUrl: data.fileUrl?.trim() || null,
+      isVerified: isPrivileged,
+      verifiedBy: isPrivileged ? session.user.name || session.user.email : null,
+    },
+  });
+
+  revalidatePath(`/dashboard/students/${studentId}`);
+  return { success: true, achievement };
+}
+
+/**
+ * Update an existing achievement
+ */
+export async function updateStudentAchievementAction(
+  achievementId: string,
+  studentId: string,
+  data: {
+    title: string;
+    category: StudentAchievementDTO["category"];
+    level: StudentAchievementDTO["level"];
+    date: string;
+    place?: string;
+    issuer?: string;
+    description?: string;
+    fileUrl?: string;
+  }
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Не авторизован");
+
+  const isPrivileged = session.user.role === "ADMIN" || session.user.role === "TEACHER";
+  const existing = await prisma.studentAchievement.findUnique({
+    where: { id: achievementId },
+    select: { studentId: true },
+  });
+
+  if (!existing) throw new Error("Достижение не найдено");
+  if (existing.studentId !== session.user.id && !isPrivileged) {
+    throw new Error("Недостаточно прав для редактирования");
+  }
+
+  const updated = await prisma.studentAchievement.update({
+    where: { id: achievementId },
+    data: {
+      title: data.title.trim(),
+      category: data.category,
+      level: data.level,
+      date: new Date(data.date),
+      place: data.place?.trim() || null,
+      issuer: data.issuer?.trim() || null,
+      description: data.description?.trim() || null,
+      fileUrl: data.fileUrl?.trim() || null,
+    },
+  });
+
+  revalidatePath(`/dashboard/students/${studentId}`);
+  return { success: true, achievement: updated };
+}
+
+/**
+ * Delete an achievement
+ */
+export async function deleteStudentAchievementAction(achievementId: string, studentId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Не авторизован");
+
+  const isPrivileged = session.user.role === "ADMIN" || session.user.role === "TEACHER";
+  const existing = await prisma.studentAchievement.findUnique({
+    where: { id: achievementId },
+    select: { studentId: true },
+  });
+
+  if (!existing) throw new Error("Достижение не найдено");
+  if (existing.studentId !== session.user.id && !isPrivileged) {
+    throw new Error("Недостаточно прав для удаления");
+  }
+
+  await prisma.studentAchievement.delete({ where: { id: achievementId } });
+  revalidatePath(`/dashboard/students/${studentId}`);
+  return { success: true };
+}
+
+/**
+ * Toggle verification of an achievement by curator/teacher/admin
+ */
+export async function toggleVerifyAchievementAction(achievementId: string, studentId: string) {
+  const session = await auth();
+  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+    throw new Error("Только куратор или администратор может подтверждать достижения");
+  }
+
+  const existing = await prisma.studentAchievement.findUnique({
+    where: { id: achievementId },
+  });
+  if (!existing) throw new Error("Достижение не найдено");
+
+  const updated = await prisma.studentAchievement.update({
+    where: { id: achievementId },
+    data: {
+      isVerified: !existing.isVerified,
+      verifiedBy: !existing.isVerified ? session.user.name || session.user.email : null,
+    },
+  });
+
+  revalidatePath(`/dashboard/students/${studentId}`);
+  return { success: true, isVerified: updated.isVerified };
 }
 
 

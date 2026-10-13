@@ -56,9 +56,11 @@ import {
   RotateCcw,
   BookMarked,
   FileCheck,
+  Trophy,
 } from "lucide-react";
 import { StudentCardDTO, resetPasswordAction } from "../../actions";
 import { updateStudentRollNumberInGroupAction } from "@/app/dashboard/groups/actions";
+import { StudentPortfolioTab } from "./student-portfolio-tab";
 
 interface StudentCardViewProps {
   student: StudentCardDTO;
@@ -70,7 +72,7 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
   const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
 
   // Active Main Tab
-  const [activeTab, setActiveTab] = useState<"overview" | "monthly" | "subjects">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "monthly" | "subjects" | "portfolio">("overview");
 
   // Selected Month filter ("ALL" or specific "YYYY-MM")
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>("ALL");
@@ -445,6 +447,19 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
         >
           <BookMarked className="h-3.5 w-3.5" />
           <span>По дисциплинам ({student.subjectStats.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("portfolio")}
+          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors ${
+            activeTab === "portfolio"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Trophy className="h-3.5 w-3.5" />
+          <span>Портфолио и достижения ({student.achievements?.length || 0})</span>
         </button>
       </div>
 
@@ -1136,6 +1151,14 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
             )}
           </div>
         </div>
+      )}
+
+      {/* TAB 4: PORTFOLIO & ACHIEVEMENTS */}
+      {activeTab === "portfolio" && (
+        <StudentPortfolioTab
+          student={student}
+          userRole={userRole as "STUDENT" | "TEACHER" | "ADMIN"}
+        />
       )}
 
       {/* Dialog for Quick Editing Student Roll Number (П/Н) */}
