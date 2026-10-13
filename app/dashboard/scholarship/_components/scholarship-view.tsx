@@ -337,6 +337,34 @@ export function ScholarshipView({
     });
   }, [calculatedRows, searchQuery, statusFilter]);
 
+  const printAcademicYearInfo = useMemo(() => {
+    let y = new Date().getFullYear();
+    let m = new Date().getMonth() + 1;
+    if (selectedMonth && selectedMonth.includes("-")) {
+      const parts = selectedMonth.split("-");
+      y = parseInt(parts[0], 10) || y;
+      m = parseInt(parts[1], 10) || m;
+    }
+    const monthsRu = [
+      "январь",
+      "февраль",
+      "март",
+      "апрель",
+      "май",
+      "июнь",
+      "июль",
+      "август",
+      "сентябрь",
+      "октябрь",
+      "ноябрь",
+      "декабрь",
+    ];
+    return {
+      monthName: monthsRu[m - 1] || "сентябрь",
+      academicYear: m >= 8 ? `${y}-${y + 1}` : `${y - 1}-${y}`,
+    };
+  }, [selectedMonth]);
+
   // Save to database
   const handleSave = () => {
     if (!currentGroup) return;
@@ -384,7 +412,9 @@ export function ScholarshipView({
       await exportScholarshipDocx({
         groupName: currentGroup.name,
         monthLabel: formatMonthKeyToLabel(selectedMonth),
+        selectedMonth,
         students: calculatedRows,
+        subjects,
         specialtyName: currentGroup.specialtyName || "Разработчик Веб и мультимедийных приложений",
         curatorName: currentGroup.curatorName || "Вопольский В.В",
       });
@@ -470,6 +500,12 @@ export function ScholarshipView({
             color: #000000 !important;
             background: #ffffff !important;
             font-family: "Times New Roman", Times, serif !important;
+          }
+
+          .scholarship-page-break {
+            page-break-before: always;
+            break-before: page;
+            margin-top: 20mm;
           }
         }
 
@@ -1229,7 +1265,7 @@ export function ScholarshipView({
           </tbody>
         </table>
 
-        {/* Footer Signature */}
+        {/* Page 1 Footer Signature */}
         <div
           style={{
             marginTop: "60px",
@@ -1242,6 +1278,187 @@ export function ScholarshipView({
           <div>Мастер п/о _____________________</div>
           <div style={{ marginRight: "30px" }}>
             {currentGroup?.curatorName || "Вопольский В.В"}
+          </div>
+        </div>
+
+        {/* ============================================================== */}
+        {/* PAGE 2: ТАБЕЛЬ УЧЕТА УСПЕВАЕМОСТИ УЧАЩИХСЯ (ПО ДИСЦИПЛИНАМ)    */}
+        {/* ============================================================== */}
+        <div className="scholarship-page-break">
+          <div style={{ textAlign: "center", marginBottom: "18px" }}>
+            <div style={{ fontWeight: "bold", fontSize: "13pt", lineHeight: 1.3 }}>
+              Табель учета успеваемость учащихся группы {currentGroup?.name} по профессии «{currentGroup?.specialtyName || "Разработчик Веб и мультимедийных приложений"}» за {printAcademicYearInfo.monthName} месяц {printAcademicYearInfo.academicYear} учебного года
+            </div>
+          </div>
+
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              border: "1.5px solid #000000",
+              fontSize: "10pt",
+              fontFamily: "Times New Roman, serif",
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    padding: "4px",
+                    textAlign: "center",
+                    width: "36px",
+                    fontWeight: "bold",
+                    verticalAlign: "middle",
+                  }}
+                >
+                  №<br />п/п
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000000",
+                    padding: "4px 8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    verticalAlign: "middle",
+                  }}
+                >
+                  Ф.И.О. учащихся
+                </th>
+                {subjects.map((subj) => (
+                  <th
+                    key={subj}
+                    style={{
+                      border: "1px solid #000000",
+                      textAlign: "center",
+                      verticalAlign: "bottom",
+                      padding: "6px 2px",
+                      width: "34px",
+                      height: "115px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        writingMode: "vertical-rl",
+                        transform: "rotate(180deg)",
+                        whiteSpace: "nowrap",
+                        fontSize: "9pt",
+                        fontWeight: "bold",
+                        margin: "0 auto",
+                      }}
+                    >
+                      {subj}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const scholarshipEligibleRows = calculatedRows.filter(
+                  (st) => st.status === "EXCELLENT" || st.status === "GOOD"
+                );
+
+                if (scholarshipEligibleRows.length === 0) {
+                  return (
+                    <tr>
+                      <td
+                        colSpan={2 + subjects.length}
+                        style={{
+                          border: "1px solid #000000",
+                          padding: "8px",
+                          textAlign: "center",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        Учащихся, назначенных на стипендию, нет
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return scholarshipEligibleRows.map((st, idx) => (
+                  <tr key={st.studentId}>
+                    <td
+                      style={{
+                        border: "1px solid #000000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {idx + 1}.
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000000",
+                        padding: "4px 8px",
+                        textAlign: "left",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {st.studentName}
+                    </td>
+                    {subjects.map((subj) => (
+                      <td
+                        key={subj}
+                        style={{
+                          border: "1px solid #000000",
+                          padding: "4px 2px",
+                          textAlign: "center",
+                          fontFamily: "monospace, sans-serif",
+                          fontWeight: "bold",
+                          fontSize: "9.5pt",
+                        }}
+                      >
+                        {st.grades[subj] || ""}
+                      </td>
+                    ))}
+                  </tr>
+                ));
+              })()}
+            </tbody>
+          </table>
+
+          {/* Page 2 Signatures & Commission Block */}
+          <div
+            style={{
+              marginTop: "45px",
+              fontSize: "10.5pt",
+              lineHeight: 1.45,
+            }}
+          >
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: "35%", verticalAlign: "top", fontWeight: "bold" }}>
+                    Мастер п/о группы {currentGroup?.name}
+                  </td>
+                  <td style={{ width: "65%", verticalAlign: "top", fontWeight: "bold" }}>
+                    {currentGroup?.curatorName || "Вопольский В.В"}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ verticalAlign: "top", fontWeight: "bold", paddingTop: "6px" }}>
+                    Председатель
+                  </td>
+                  <td style={{ verticalAlign: "top", paddingTop: "6px" }}>
+                    Зам. директора по УВР Бейшенова К.Ж
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ verticalAlign: "top", fontWeight: "bold", paddingTop: "6px" }}>
+                    Члены комиссии
+                  </td>
+                  <td style={{ verticalAlign: "top", paddingTop: "6px" }}>
+                    Старший мастер Сатыбалдиева К.Б.<br />
+                    Преподаватель кыргыз.языка: Жумакенова А.К.<br />
+                    Преподаватель русского.языка: Тиленбаева Н.Ы.<br />
+                    Мастер п/о Цыс Р.Ф<br />
+                    Мастер п/о Бейшенова Б.Ж
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
