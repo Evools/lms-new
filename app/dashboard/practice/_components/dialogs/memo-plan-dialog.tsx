@@ -62,7 +62,7 @@ export function MemoPlanDialog({
           <DialogDescription className="text-xs text-muted-foreground">
             {editingPlan
               ? "Измените учебную группу, специальность, курс или расчасовку."
-              : "Задайте учебную группу, дату старта и количество дней. Система автоматически сформирует индивидуальный план и расчасовку."}
+              : "Задайте учебную группу, дату старта и параметры. После создания вы сможете наполнять памятку своими днями и заданиями."}
           </DialogDescription>
         </DialogHeader>
 
@@ -175,45 +175,19 @@ export function MemoPlanDialog({
             </Select>
           </div>
 
-          {!editingPlan && (
-            <div className="space-y-2 pt-1 border-t">
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-foreground">Кол-во дней практики</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={60}
-                    value={planForm.generateDaysCount}
-                    onChange={(e) =>
-                      setPlanForm({ ...planForm, generateDaysCount: parseInt(e.target.value, 10) || 15 })
-                    }
-                    className="h-8 text-xs bg-background font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-foreground">Часов в день</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={planForm.defaultHours}
-                    onChange={(e) =>
-                      setPlanForm({ ...planForm, defaultHours: parseInt(e.target.value, 10) || 6 })
-                    }
-                    className="h-8 text-xs bg-background font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-              </div>
-
-              <div className="p-2 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Итоговая расчасовка программы:</span>
-                <span className="font-bold font-mono text-primary">
-                  {Math.max(1, planForm.generateDaysCount) * Math.max(1, planForm.defaultHours)} ак. часов
-                </span>
-              </div>
-            </div>
-          )}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-foreground">Норма часов в день (по умолчанию для новых дней)</label>
+            <Input
+              type="number"
+              min={1}
+              max={12}
+              value={planForm.defaultHours}
+              onChange={(e) =>
+                setPlanForm({ ...planForm, defaultHours: parseInt(e.target.value, 10) || 6 })
+              }
+              className="h-8 text-xs bg-background font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          </div>
         </div>
 
         <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">

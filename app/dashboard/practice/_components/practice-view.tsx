@@ -792,35 +792,7 @@ export function PracticeView({
         })
       );
     } else {
-      const daysCount = Math.max(1, Math.min(60, planForm.generateDaysCount || 15));
       const hoursPerDay = planForm.defaultHours || 6;
-      const generatedDays: DiaryDayTopic[] = [];
-
-      for (let i = 1; i <= daysCount; i++) {
-        let section = "Раздел 1. Вводный инструктаж и организация рабочего места";
-        let topic = `День ${i}: Практическая работа по специальности`;
-        let tasks = "Выполнение индивидуального производственного задания согласно графику практики.";
-
-        if (i === 1) {
-          section = "Раздел 1. Вводный инструктаж и безопасность";
-          topic = "Инструктаж по ТБ и охране труда. Ознакомление с регламентом предприятия";
-          tasks = "Прохождение вводного инструктажа по технике безопасности. Подготовка рабочего места и ознакомление с правилами внутреннего трудового распорядка.";
-        } else if (i === daysCount) {
-          section = "Раздел. Итоговая отчетность и аттестация";
-          topic = "Оформление дневника практики и составление отчета";
-          tasks = "Заполнение всех разделов физического дневника практики, согласование выполненных работ с наставником и получение отзыва-характеристики.";
-        }
-
-        generatedDays.push({
-          id: `day-${Date.now()}-${i}`,
-          dayNumber: i,
-          section,
-          topic,
-          tasksContent: tasks,
-          hours: hoursPerDay,
-        });
-      }
-
       const newPlanId = `plan-${Date.now()}`;
       const groupLabel = planForm.groupName.trim() || "Новая группа";
       const newPlan: SpecialtyDiaryPlan = {
@@ -832,9 +804,9 @@ export function PracticeView({
         practiceType: planForm.practiceType,
         startDate: planForm.startDate.trim() || "15.10.2026",
         dailyHours: hoursPerDay,
-        totalDays: daysCount,
-        totalHours: daysCount * hoursPerDay,
-        days: generatedDays,
+        totalDays: 0,
+        totalHours: 0,
+        days: [],
       };
 
       setDiaryPlans((prev) => [...prev, newPlan]);
@@ -848,7 +820,7 @@ export function PracticeView({
         course: planForm.course,
         practiceType: planForm.practiceType,
         startDate: planForm.startDate,
-        generateDaysCount: planForm.generateDaysCount,
+        generateDaysCount: 0,
         defaultHours: planForm.defaultHours,
       })
         .then((saved) => {

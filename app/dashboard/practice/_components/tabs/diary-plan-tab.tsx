@@ -412,7 +412,7 @@ export function DiaryPlanTab({
                         <td className="p-2 font-medium text-foreground border-r">{sec.section}</td>
                         <td className="p-2 text-center font-mono border-r">{sec.daysCount} дн.</td>
                         <td className="p-2 text-center font-mono text-muted-foreground border-r">
-                          {(sec.hoursCount / sec.daysCount).toFixed(0)} ч.
+                          {(sec.hoursCount / (sec.daysCount || 1)).toFixed(0)} ч.
                         </td>
                         <td className="p-2 text-center font-mono font-bold text-primary border-r">
                           {sec.hoursCount} ч.
@@ -664,7 +664,31 @@ export function DiaryPlanTab({
                 </tr>
               </thead>
               <tbody className="divide-y text-xs">
-                {filteredPlanDays.length === 0 ? (
+                {currentDiaryPlan.days.length === 0 ? (
+                  <tr>
+                    <td colSpan={isStudent ? 5 : 6} className="p-8 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <BookOpenCheck className="h-8 w-8 text-muted-foreground/40" />
+                        <p className="text-xs font-medium text-foreground">В памятке пока нет добавленных дней</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {isStudent
+                            ? "Преподаватель еще не внес темы и задания практики для вашей группы."
+                            : "Нажмите «Добавить день #1», чтобы начать формировать план практики."}
+                        </p>
+                        {!isStudent && (
+                          <Button
+                            size="xs"
+                            onClick={onOpenAddDayTopic}
+                            className="mt-1 h-7 px-3 text-xs gap-1 font-medium"
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>Добавить день #1</span>
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredPlanDays.length === 0 ? (
                   <tr>
                     <td colSpan={isStudent ? 5 : 6} className="p-8 text-center text-muted-foreground">
                       Дней по выбранному фильтру не найдено.

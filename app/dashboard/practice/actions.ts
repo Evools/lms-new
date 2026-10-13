@@ -613,36 +613,38 @@ export async function saveDiaryPlanAction(data: {
     return updated;
   }
 
-  // Create new plan with initial generated days
-  const daysCount = data.generateDaysCount || 15;
+  // Only generate days if explicitly requested (count > 0). Default is a clean, empty plan.
+  const daysCount = (data.generateDaysCount && data.generateDaysCount > 0) ? data.generateDaysCount : 0;
   const hoursPerDay = data.defaultHours || 6;
   const totalHours = daysCount * hoursPerDay;
 
-  const generatedDays = Array.from({ length: daysCount }).map((_, idx) => ({
-    dayNumber: idx + 1,
-    section:
-      idx < 2
-        ? "Раздел 1. Вводный инструктаж и рабочее окружение"
-        : idx < daysCount - 2
-        ? "Раздел 2. Практическая подготовка и выполнение заданий"
-        : "Раздел 3. Оформление отчетности и защита дневника",
-    topic:
-      idx === 0
-        ? "Инструктаж по технике безопасности и правила внутреннего распорядка"
-        : idx === 1
-        ? "Подготовка рабочего места и настройка программного окружения"
-        : idx === daysCount - 1
-        ? "Оформление дневника практики и защита выполненных работ"
-        : `Выполнение производственных заданий (День #${idx + 1})`,
-    tasksContent:
-      idx === 0
-        ? "Прохождение вводного инструктажа по ТБ и пожарной безопасности на предприятии."
-        : idx === daysCount - 1
-        ? "Окончательное оформление физического дневника практики, составление отчета."
-        : `Выполнение практических задач в соответствии с заданием руководителя практики.`,
-    hours: hoursPerDay,
-    order: idx + 1,
-  }));
+  const generatedDays = daysCount > 0
+    ? Array.from({ length: daysCount }).map((_, idx) => ({
+        dayNumber: idx + 1,
+        section:
+          idx < 2
+            ? "Раздел 1. Вводный инструктаж и рабочее окружение"
+            : idx < daysCount - 2
+            ? "Раздел 2. Практическая подготовка и выполнение заданий"
+            : "Раздел 3. Оформление отчетности и защита дневника",
+        topic:
+          idx === 0
+            ? "Инструктаж по технике безопасности и правила внутреннего распорядка"
+            : idx === 1
+            ? "Подготовка рабочего места и настройка программного окружения"
+            : idx === daysCount - 1
+            ? "Оформление дневника практики и защита выполненных работ"
+            : `Выполнение производственных заданий (День #${idx + 1})`,
+        tasksContent:
+          idx === 0
+            ? "Прохождение вводного инструктажа по ТБ и пожарной безопасности на предприятии."
+            : idx === daysCount - 1
+            ? "Окончательное оформление физического дневника практики, составление отчета."
+            : `Выполнение практических задач в соответствии с заданием руководителя практики.`,
+        hours: hoursPerDay,
+        order: idx + 1,
+      }))
+    : [];
 
   const created = await prisma.practiceDiaryPlan.create({
     data: {
@@ -655,9 +657,13 @@ export async function saveDiaryPlanAction(data: {
       dailyHours: hoursPerDay,
       totalDays: daysCount,
       totalHours: totalHours,
-      days: {
-        create: generatedDays,
-      },
+      ...(generatedDays.length > 0
+        ? {
+            days: {
+              create: generatedDays,
+            },
+          }
+        : {}),
     },
   });
 
@@ -746,27 +752,31 @@ export async function deleteDayTopicAction(planId: string, dayId: string) {
     where: { id: dayId },
   });
 
-  // Reindex remaining days
+  // Reindex remaining days in a single batch transaction
   const remainingDays = await prisma.practiceDiaryDay.findMany({
     where: { planId },
     orderBy: { dayNumber: "asc" },
   });
 
-  for (let i = 0; i < remainingDays.length; i++) {
-    await prisma.practiceDiaryDay.update({
-      where: { id: remainingDays[i].id },
-      data: { dayNumber: i + 1, order: i + 1 },
-    });
-  }
-
   const totalHours = remainingDays.reduce((acc, d) => acc + (d.hours || 0), 0);
-  await prisma.practiceDiaryPlan.update({
-    where: { id: planId },
-    data: {
-      totalDays: remainingDays.length,
-      totalHours: totalHours,
-    },
-  });
+
+  const updates = remainingDays.map((d, i) =>
+    prisma.practiceDiaryDay.update({
+      where: { id: d.id },
+      data: { dayNumber: i + 1, order: i + 1 },
+    })
+  );
+
+  await prisma.$transaction([
+    ...updates,
+    prisma.practiceDiaryPlan.update({
+      where: { id: planId },
+      data: {
+        totalDays: remainingDays.length,
+        totalHours: totalHours,
+      },
+    }),
+  ]);
 
   revalidatePath("/dashboard/practice");
   return { success: true };
