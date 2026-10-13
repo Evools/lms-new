@@ -26,6 +26,7 @@ export interface StudentDetailDTO {
   role: "STUDENT" | "TEACHER" | "ADMIN";
   groupName: string;
   enrollmentType: "Бюджет" | "Контракт";
+  rollNumber?: string | null;
 }
 
 export interface StudentListItemDTO {
@@ -416,6 +417,7 @@ export async function getStudentByIdAction(id: string): Promise<StudentDetailDTO
       role: (student.role as "STUDENT" | "TEACHER" | "ADMIN") || "STUDENT",
       groupName,
       enrollmentType: "Бюджет",
+      rollNumber: (student as any).rollNumber || null,
     };
   } catch (error) {
     console.error("Error fetching student by ID:", error);
@@ -425,7 +427,10 @@ export async function getStudentByIdAction(id: string): Promise<StudentDetailDTO
 
 export async function updateStudentAction(
   id: string,
-  input: Partial<CreateStudentInput> & { role?: "STUDENT" | "TEACHER" | "ADMIN" }
+  input: Partial<CreateStudentInput> & {
+    role?: "STUDENT" | "TEACHER" | "ADMIN";
+    rollNumber?: string | null;
+  }
 ) {
   try {
     const session = await auth();
@@ -451,6 +456,7 @@ export async function updateStudentAction(
         email: input.email?.trim().toLowerCase() || existing.email,
         phone: input.phone !== undefined ? input.phone.trim() || null : existing.phone,
         role: input.role || existing.role,
+        ...(input.rollNumber !== undefined ? { rollNumber: input.rollNumber?.trim() || null } : {}),
       },
     });
 
@@ -476,6 +482,8 @@ export async function updateStudentAction(
     }
 
     revalidatePath("/dashboard/students");
+    revalidatePath("/dashboard/groups");
+    revalidatePath("/dashboard/scholarship");
     return { success: true };
   } catch (error) {
     console.error("Error updating student:", error);

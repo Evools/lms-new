@@ -52,6 +52,7 @@ model User {
   name         String
   avatar       String?
   phone        String?
+  rollNumber   String?  // Поименный номер студента в журнале (например, "3969")
   role             Role     @default(STUDENT)
   isActive         Boolean  @default(true)
   isDutyExempt     Boolean  @default(false)
@@ -131,10 +132,11 @@ model Group {
   monitor       User?        @relation("GroupMonitor", fields: [monitorId], references: [id], onDelete: SetNull)
   deputyMonitor User?        @relation("GroupDeputyMonitor", fields: [deputyMonitorId], references: [id], onDelete: SetNull)
 
-  students      GroupStudent[]
-  groupSubjects GroupSubject[]
-  dutySchedules DutySchedule[]
-  announcements Announcement[]
+  students           GroupStudent[]
+  groupSubjects      GroupSubject[]
+  dutySchedules      DutySchedule[]
+  announcements      Announcement[]
+  scholarshipRecords ScholarshipRecord[]
 
   @@map("groups")
 }
@@ -525,4 +527,20 @@ model PracticeRewrittenDay {
 
   @@unique([studentId, dayId])
   @@map("practice_rewritten_days")
+}
+
+model ScholarshipRecord {
+  id         String   @id @default(cuid())
+  groupId    String
+  month      String   // e.g., "2026-10"
+  monthLabel String?  // e.g., "Октябрь 2026"
+  subjects   Json     // list of subject names: string[]
+  gradesData Json     // student grades matrix: Record<string, StudentGradeRecord>
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, month])
+  @@map("scholarship_records")
 }

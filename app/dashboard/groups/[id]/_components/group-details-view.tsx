@@ -78,6 +78,9 @@ import {
   EyeOff,
   RefreshCw,
   Copy,
+  Hash,
+  Edit2,
+  Save,
 } from "lucide-react";
 import {
   GroupDetailsDTO,
@@ -89,6 +92,7 @@ import {
   createGroupAnnouncementAction,
   updateGroupAnnouncementAction,
   deleteGroupAnnouncementAction,
+  updateStudentRollNumberInGroupAction,
 } from "../../actions";
 import { toggleStudentDutyExemptionAction } from "@/app/dashboard/duty/actions";
 import { resetPasswordAction } from "@/app/dashboard/students/actions";
@@ -129,6 +133,51 @@ export function GroupDetailsView({
   const [isCopiedResetPassword, setIsCopiedResetPassword] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
+
+  // Student roll number edit modal state (П/Н)
+  const [rollNumberTargetStudent, setRollNumberTargetStudent] = useState<GroupStudentDTO | null>(null);
+  const [studentRollNumberInput, setStudentRollNumberInput] = useState("");
+  const [isSavingRollNumber, setIsSavingRollNumber] = useState(false);
+
+  const handleOpenRollNumberEdit = (student: GroupStudentDTO) => {
+    setRollNumberTargetStudent(student);
+    setStudentRollNumberInput(student.rollNumber || "");
+  };
+
+  const handleSaveRollNumber = async () => {
+    if (!rollNumberTargetStudent) return;
+    setIsSavingRollNumber(true);
+    try {
+      const res = await updateStudentRollNumberInGroupAction(
+        rollNumberTargetStudent.id,
+        studentRollNumberInput,
+        group.id
+      );
+      if (res.success) {
+        toast.add({
+          title: `Поименный номер для ${rollNumberTargetStudent.name} сохранен`,
+          type: "success",
+        });
+        const idx = group.studentsList.findIndex((s) => s.id === rollNumberTargetStudent.id);
+        if (idx !== -1) {
+          group.studentsList[idx].rollNumber = studentRollNumberInput.trim() || null;
+        }
+        setRollNumberTargetStudent(null);
+      } else {
+        toast.add({
+          title: res.error || "Ошибка сохранения",
+          type: "error",
+        });
+      }
+    } catch (err: any) {
+      toast.add({
+        title: err?.message || "Ошибка сервера",
+        type: "error",
+      });
+    } finally {
+      setIsSavingRollNumber(false);
+    }
+  };
 
   const generateRandomPassword = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
@@ -198,7 +247,8 @@ export function GroupDetailsView({
     return (
       s.name.toLowerCase().includes(query) ||
       s.email.toLowerCase().includes(query) ||
-      (s.phone && s.phone.toLowerCase().includes(query))
+      (s.phone && s.phone.toLowerCase().includes(query)) ||
+      (s.rollNumber && s.rollNumber.toLowerCase().includes(query))
     );
   });
 
@@ -567,8 +617,9 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
 
             <div className="rounded-xl border overflow-hidden">
               {/* Table header */}
-              <div className="grid grid-cols-[28px_1fr_auto] md:grid-cols-[28px_1fr_160px_130px_auto] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_auto] md:grid-cols-[28px_60px_1fr_160px_130px_auto] items-center gap-3 px-3 py-2 bg-muted/40 border-b text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                 <span className="text-center">#</span>
+                <span className="hidden md:block text-center">П/Н</span>
                 <span>Студент</span>
                 <span className="hidden md:block">Email</span>
                 <span className="hidden md:block">Телефон</span>
@@ -579,10 +630,27 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                 {filteredStudents.map((st: GroupStudentDTO, idx: number) => (
                   <div
                     key={st.id}
-                    className="grid grid-cols-[28px_1fr_auto] md:grid-cols-[28px_1fr_160px_130px_auto] items-center gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors"
+                    className="grid grid-cols-[28px_1fr_auto] md:grid-cols-[28px_60px_1fr_160px_130px_auto] items-center gap-3 px-3 py-2.5 hover:bg-muted/20 transition-colors"
                   >
                     {/* Index */}
                     <span className="text-[11px] text-muted-foreground text-center font-medium">{idx + 1}</span>
+
+                    {/* П/Н (Поименный номер) */}
+                    <div className="hidden md:flex items-center justify-center">
+                      {isAdminOrTeacher ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRollNumberEdit(st)}
+                          className="group/pn inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded border border-dashed border-border hover:border-primary hover:bg-primary/5 transition-colors text-[11px] font-mono text-foreground"
+                          title="Нажмите, чтобы изменить поименный номер (П/Н)"
+                        >
+                          <span>{st.rollNumber || "—"}</span>
+                          <Edit2 className="h-2.5 w-2.5 opacity-0 group-hover/pn:opacity-100 text-primary transition-opacity" />
+                        </button>
+                      ) : (
+                        <span className="text-[11px] font-mono text-muted-foreground">{st.rollNumber || "—"}</span>
+                      )}
+                    </div>
 
                     {/* Name + badges */}
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -599,6 +667,11 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                           >
                             {st.name}
                           </Link>
+                          {st.rollNumber && (
+                            <Badge variant="outline" className="md:hidden shrink-0 font-mono text-[9px] px-1 py-0 font-medium border-border">
+                              П/Н {st.rollNumber}
+                            </Badge>
+                          )}
                           {st.roleInGroup === "MONITOR" && (
                             <Badge className="shrink-0 bg-primary text-primary-foreground text-[9px] px-1.5 py-0 gap-0.5 font-medium whitespace-nowrap">
                               <Crown className="h-2.5 w-2.5 shrink-0" /> Староста
@@ -694,6 +767,9 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenResetPassword(st)}>
                               <KeyRound className="h-3.5 w-3.5 mr-2 text-primary" /> Сбросить пароль
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenRollNumberEdit(st)}>
+                              <Hash className="h-3.5 w-3.5 mr-2 text-primary" /> Поименный номер (П/Н)
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
@@ -1322,6 +1398,69 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
             </DialogFooter>
           </DialogContent>
         )}
+      </Dialog>
+
+      {/* Dialog for Editing Student Roll Number (П/Н) */}
+      <Dialog
+        open={rollNumberTargetStudent !== null}
+        onOpenChange={(open) => !open && setRollNumberTargetStudent(null)}
+      >
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[380px]">
+          <DialogHeader className="pb-2 border-b text-left gap-1">
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+              <Hash className="h-4 w-4 text-primary" />
+              Поименный номер (П/Н)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Студент: <span className="font-semibold text-foreground">{rollNumberTargetStudent?.name}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">
+                Поименный номер в журнале
+              </label>
+              <Input
+                value={studentRollNumberInput}
+                onChange={(e) => setStudentRollNumberInput(e.target.value)}
+                placeholder="Например, 3969"
+                className="h-8 text-xs font-mono bg-background"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSaveRollNumber();
+                  }
+                }}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Номер используется в стипендиальных ведомостях, приказах и отчетах группы.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-8 text-xs px-3"
+              onClick={() => setRollNumberTargetStudent(null)}
+              disabled={isSavingRollNumber}
+            >
+              Отмена
+            </Button>
+            <Button
+              size="xs"
+              className="h-8 text-xs px-3 gap-1.5"
+              onClick={handleSaveRollNumber}
+              disabled={isSavingRollNumber}
+            >
+              <Save className="h-3.5 w-3.5" />
+              {isSavingRollNumber ? "Сохранение..." : "Сохранить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );

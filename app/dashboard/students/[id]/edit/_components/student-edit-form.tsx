@@ -36,6 +36,7 @@ import {
   AlertCircle,
   Save,
   Edit,
+  Hash,
 } from "lucide-react";
 import { StudentDetailDTO, updateStudentAction } from "../../../actions";
 
@@ -65,6 +66,7 @@ export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEdi
   const [gender, setGender] = useState<"Мужской" | "Женский">("Мужской");
   const [group, setGroup] = useState(student.groupName || "ИС-1-25");
   const [enrollmentType, setEnrollmentType] = useState<"Бюджет" | "Контракт">(student.enrollmentType || "Бюджет");
+  const [rollNumber, setRollNumber] = useState(student.rollNumber || "");
 
   const [birthDate, setBirthDate] = useState("");
   const [nationalId, setNationalId] = useState("");
@@ -101,6 +103,7 @@ export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEdi
         role: selectedRole,
         groupName: group,
         enrollmentType: enrollmentType,
+        rollNumber: rollNumber.trim() || null,
       });
 
       setIsSubmitting(false);
@@ -343,6 +346,18 @@ export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEdi
                 </Select>
               </div>
 
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs flex items-center gap-1">
+                  <Hash className="h-3 w-3 text-primary" /> Поименный номер (П/Н)
+                </label>
+                <Input
+                  placeholder="Например, 3969"
+                  value={rollNumber}
+                  onChange={(e) => setRollNumber(e.target.value)}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
               <div className="sm:col-span-2 space-y-1">
                 <label className="font-medium text-foreground text-xs flex items-center gap-1.5 font-semibold">
                   <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Роль пользователя в системе <span className="text-destructive">*</span>
@@ -418,6 +433,12 @@ export function StudentEditForm({ student, userRole, dbGroups = [] }: StudentEdi
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>ID:</span>
                 <span className="font-mono text-foreground font-semibold">{student.id.slice(0, 8)}...</span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>П/Н (Поименный №):</span>
+                <span className="font-mono text-foreground font-semibold">
+                  {rollNumber.trim() || "Не присвоен"}
+                </span>
               </div>
               {phone && (
                 <div className="flex items-center justify-between text-muted-foreground">

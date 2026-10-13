@@ -28,6 +28,7 @@ import {
   CalendarDays,
   Briefcase,
   Building2,
+  Award,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -101,6 +102,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "База практики",
               url: "/dashboard/practice",
               icon: <Building2 className="h-4 w-4" />,
+            },
+            {
+              title: "Стипендия",
+              url: "/dashboard/scholarship",
+              icon: <Award className="h-4 w-4" />,
             },
           ],
         },
@@ -192,6 +198,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "База практики",
               url: "/dashboard/practice",
               icon: <Building2 className="h-4 w-4" />,
+            },
+            {
+              title: "Стипендия",
+              url: "/dashboard/scholarship",
+              icon: <Award className="h-4 w-4" />,
             },
           ],
         },

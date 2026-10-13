@@ -15,6 +15,7 @@ export interface UserProfileDetailsDTO {
   createdAt: string;
   // Extra role-specific stats
   groupName?: string | null;
+  rollNumber?: string | null;
   submittedAssignmentsCount?: number;
   attendancePercent?: number;
   createdMaterialsCount?: number;
@@ -68,6 +69,7 @@ export async function getProfileDataAction(): Promise<UserProfileDetailsDTO | nu
       avatar: user.avatar,
       createdAt: user.createdAt.toISOString(),
       groupName: groupStudent?.group?.name || null,
+      rollNumber: (user as any).rollNumber || null,
       submittedAssignmentsCount: user._count.submissions,
       attendancePercent: user.role === "STUDENT" ? attendancePercent : undefined,
       createdMaterialsCount: user._count.createdMaterials,

@@ -23,6 +23,7 @@ import {
   Phone,
   Calendar,
   Sparkles,
+  Hash,
 } from "lucide-react";
 import type { UserProfileDetailsDTO } from "../actions";
 import {
@@ -134,7 +135,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
       </div>
 
       {/* Profile Overview Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {profile.role === "STUDENT" ? (
           <>
             <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
@@ -143,6 +144,14 @@ export function ProfileView({ profile }: ProfileViewProps) {
               </div>
               <div className="text-sm font-bold text-foreground truncate">
                 {profile.groupName || "Не назначена"}
+              </div>
+            </div>
+            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+              <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Hash className="h-3.5 w-3.5 text-primary" /> Поименный № (П/Н)
+              </div>
+              <div className="text-sm font-bold text-foreground font-mono">
+                {profile.rollNumber || "—"}
               </div>
             </div>
             <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
@@ -161,7 +170,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 {profile.attendancePercent ?? 100}%
               </div>
             </div>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs col-span-2 sm:col-span-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 text-primary" /> Зарегистрирован
               </div>

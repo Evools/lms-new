@@ -31,6 +31,7 @@ export interface GroupStudentDTO {
   tempPassword?: string | null;
   isDutyExempt?: boolean;
   dutyExemptReason?: string | null;
+  rollNumber?: string | null;
 }
 
 export interface GroupSubjectDTO {
@@ -390,6 +391,7 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
             tempPassword: true,
             isDutyExempt: true,
             dutyExemptReason: true,
+            rollNumber: true,
           },
         },
       },
@@ -414,6 +416,7 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
         tempPassword: gs.student.tempPassword || null,
         isDutyExempt: gs.student.isDutyExempt,
         dutyExemptReason: gs.student.dutyExemptReason,
+        rollNumber: (gs.student as any).rollNumber || null,
       };
     });
 
@@ -687,3 +690,35 @@ export async function deleteGroupAnnouncementAction(groupId: string, announcemen
     return { success: false, error: error instanceof Error ? error.message : "Ошибка при удалении объявления" };
   }
 }
+
+export async function updateStudentRollNumberInGroupAction(
+  studentId: string,
+  rollNumber: string,
+  groupId?: string
+) {
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: "Требуется авторизация" };
+  }
+
+  try {
+    const trimmed = rollNumber.trim();
+    await prisma.user.update({
+      where: { id: studentId },
+      data: {
+        rollNumber: trimmed ? trimmed : null,
+      },
+    });
+
+    if (groupId) {
+      revalidatePath(`/dashboard/groups/${groupId}`);
+    }
+    revalidatePath("/dashboard/scholarship");
+    revalidatePath("/dashboard/students");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update student roll number:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при обновлении поименного номера" };
+  }
+}
+
