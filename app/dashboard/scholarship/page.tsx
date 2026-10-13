@@ -9,7 +9,11 @@ export const metadata = {
   description: "Формирование ежемесячной стипендии, расчет отличников и ударников по оценкам дисциплин",
 };
 
-export default async function ScholarshipPage() {
+export default async function ScholarshipPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ group?: string; month?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
@@ -18,7 +22,8 @@ export default async function ScholarshipPage() {
     redirect("/dashboard");
   }
 
-  const data = await getScholarshipDataAction();
+  const { group, month } = await searchParams;
+  const data = await getScholarshipDataAction(group, month);
 
   if (!data.groups || data.groups.length === 0) {
     return (
@@ -36,6 +41,7 @@ export default async function ScholarshipPage() {
 
   return (
     <ScholarshipView
+      key={`${data.activeGroupId}_${data.activeMonth}`}
       groups={data.groups}
       initialGroupId={data.activeGroupId}
       initialMonth={data.activeMonth}

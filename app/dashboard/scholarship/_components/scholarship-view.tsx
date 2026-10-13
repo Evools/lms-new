@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   ScholarshipGroupInfo,
   SavedScholarshipRecord,
@@ -45,6 +46,7 @@ import {
   AlertTriangle,
   X,
   Hash,
+  Loader2,
 } from "lucide-react";
 
 interface ScholarshipViewProps {
@@ -60,6 +62,7 @@ export function ScholarshipView({
   initialMonth,
   initialRecord,
 }: ScholarshipViewProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   // State: selected group & month
@@ -217,6 +220,15 @@ export function ScholarshipView({
     setHasUnsavedChanges(false);
   };
 
+  // Navigation helper: loads month and group data from database
+  const navigateTo = (newGroupId: string, newMonth: string) => {
+    setSelectedGroupId(newGroupId);
+    setSelectedMonth(newMonth);
+    startTransition(() => {
+      router.replace(`/dashboard/scholarship?group=${newGroupId}&month=${newMonth}`);
+    });
+  };
+
   // Month navigation helpers
   const handlePrevMonth = () => {
     const [yearStr, monthNumStr] = selectedMonth.split("-");
@@ -227,8 +239,7 @@ export function ScholarshipView({
       y--;
     }
     const newMonth = `${y}-${String(m).padStart(2, "0")}`;
-    setSelectedMonth(newMonth);
-    setHasUnsavedChanges(true);
+    navigateTo(selectedGroupId, newMonth);
   };
 
   const handleNextMonth = () => {
@@ -240,20 +251,20 @@ export function ScholarshipView({
       y++;
     }
     const newMonth = `${y}-${String(m).padStart(2, "0")}`;
-    setSelectedMonth(newMonth);
-    setHasUnsavedChanges(true);
+    navigateTo(selectedGroupId, newMonth);
   };
 
   // Group switch handler
   const handleGroupChange = (newGroupId: string) => {
-    setSelectedGroupId(newGroupId);
-    const grp = groups.find((g) => g.id === newGroupId);
-    if (grp) {
-      if (grp.defaultSubjects.length > 0) {
-        setSubjects(grp.defaultSubjects);
-      }
+    navigateTo(newGroupId, selectedMonth);
+  };
+
+  // Reset subjects to group curriculum defaults
+  const handleResetToGroupSubjects = () => {
+    if (currentGroup?.defaultSubjects && currentGroup.defaultSubjects.length > 0) {
+      setSubjects(currentGroup.defaultSubjects);
+      setHasUnsavedChanges(true);
     }
-    setHasUnsavedChanges(true);
   };
 
   // Add subject to statement
@@ -561,7 +572,14 @@ export function ScholarshipView({
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
                 <div className="h-7 px-2.5 rounded-md border border-border bg-background flex items-center justify-center font-bold text-xs text-center font-mono min-w-[130px]">
-                  {formatMonthKeyToLabel(selectedMonth)}
+                  {isPending ? (
+                    <span className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
+                      <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                      Загрузка...
+                    </span>
+                  ) : (
+                    formatMonthKeyToLabel(selectedMonth)
+                  )}
                 </div>
                 <Button
                   size="xs"
@@ -748,15 +766,30 @@ export function ScholarshipView({
               ))}
             </div>
 
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => setIsAddSubjectOpen(true)}
-              className="h-6 px-2 text-[10px] gap-1 shrink-0 border-primary/30 text-primary hover:bg-primary/5"
-            >
-              <Plus className="h-3 w-3" />
-              <span>Добавить предмет</span>
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {currentGroup?.defaultSubjects && currentGroup.defaultSubjects.length > 0 && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={handleResetToGroupSubjects}
+                  className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground border border-dashed"
+                  title="Восстановить список дисциплин из учебного плана группы"
+                >
+                  <RotateCcw className="h-2.5 w-2.5 mr-1" />
+                  План группы ({currentGroup.defaultSubjects.length})
+                </Button>
+              )}
+
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => setIsAddSubjectOpen(true)}
+                className="h-6 px-2 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/5"
+              >
+                <Plus className="h-3 w-3" />
+                <span>Добавить предмет</span>
+              </Button>
+            </div>
           </div>
         </div>
 
