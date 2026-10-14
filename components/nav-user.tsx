@@ -43,7 +43,7 @@ export function NavUser({
     role: "ADMIN" | "TEACHER" | "STUDENT";
   };
 }) {
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const roleConfigs = {
     ADMIN: { label: "Администратор", variant: "default" as const, icon: Shield },
@@ -115,11 +115,29 @@ export function NavUser({
             <DropdownMenuSeparator />
 
             <DropdownMenuGroup>
-              <DropdownMenuItem render={<Link href="/dashboard/profile" />}>
+              <DropdownMenuItem
+                render={
+                  <Link
+                    href="/dashboard/profile"
+                    onClick={() => {
+                      if (isMobile) setOpenMobile(false);
+                    }}
+                  />
+                }
+              >
                 <User className="mr-2 h-4 w-4" />
                 Мой профиль
               </DropdownMenuItem>
-              <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
+              <DropdownMenuItem
+                render={
+                  <Link
+                    href="/dashboard/settings"
+                    onClick={() => {
+                      if (isMobile) setOpenMobile(false);
+                    }}
+                  />
+                }
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 Настройки
               </DropdownMenuItem>

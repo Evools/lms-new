@@ -59,11 +59,13 @@ function NavMainCollapsibleItem({
   isCurrentActive,
   pathname,
   isCollapsed,
+  onNavigate,
 }: {
   item: NavGroupItem;
   isCurrentActive: boolean;
   pathname: string;
   isCollapsed: boolean;
+  onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(isCurrentActive);
 
@@ -112,6 +114,7 @@ function NavMainCollapsibleItem({
                   render={
                     <Link
                       href={subItem.url}
+                      onClick={onNavigate}
                       className={`text-xs flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer transition-colors ${
                         isSubActive
                           ? "bg-primary/10 text-primary font-semibold"
@@ -174,7 +177,7 @@ function NavMainCollapsibleItem({
                 <SidebarMenuSubButton
                   isActive={isSubActive}
                   className="rounded-md text-xs h-7 px-2 font-normal transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-normal text-muted-foreground hover:text-foreground"
-                  render={<Link href={subItem.url} />}
+                  render={<Link href={subItem.url} onClick={onNavigate} />}
                 >
                   <span className="truncate">{subItem.title}</span>
                 </SidebarMenuSubButton>
@@ -193,8 +196,14 @@ export function NavMain({
   sections: NavMainSection[];
 }) {
   const pathname = usePathname();
-  const { state, isMobile } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
+
+  const handleNavigate = React.useCallback(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [isMobile, setOpenMobile]);
 
   return (
     <>
@@ -220,7 +229,7 @@ export function NavMain({
                       isActive={isDirectActive}
                       tooltip={item.title}
                       className="rounded-md font-medium text-xs h-8 px-2.5 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
-                      render={<Link href={item.url} />}
+                      render={<Link href={item.url} onClick={handleNavigate} />}
                     >
                       <span
                         className={`shrink-0 flex items-center justify-center transition-colors ${
@@ -252,6 +261,7 @@ export function NavMain({
                   isCurrentActive={isCurrentActive}
                   pathname={pathname}
                   isCollapsed={isCollapsed}
+                  onNavigate={handleNavigate}
                 />
               );
             })}
