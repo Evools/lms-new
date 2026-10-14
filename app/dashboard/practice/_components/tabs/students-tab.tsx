@@ -20,6 +20,8 @@ import {
   CheckCircle2,
   UserPlus,
   Users,
+  UserMinus,
+  Trash2,
 } from "lucide-react";
 import { CompanyPartner, StudentPracticeRecord } from "../types";
 import { AnimatedCounter } from "../animated-counter";
@@ -47,6 +49,10 @@ interface StudentsTabProps {
   onOpenDocPreview: (rec: StudentPracticeRecord) => void;
   onToggleCompletePractice: (rec: StudentPracticeRecord) => void;
   onOpenEnrollModal: () => void;
+  onUnassignSingle: (rec: StudentPracticeRecord) => void;
+  onUnassignSelected: () => void;
+  onPromptDeleteSingle: (rec: StudentPracticeRecord) => void;
+  onPromptDeleteSelected: () => void;
 }
 
 export function StudentsTab({
@@ -72,6 +78,10 @@ export function StudentsTab({
   onOpenDocPreview,
   onToggleCompletePractice,
   onOpenEnrollModal,
+  onUnassignSingle,
+  onUnassignSelected,
+  onPromptDeleteSingle,
+  onPromptDeleteSelected,
 }: StudentsTabProps) {
   return (
     <div className="space-y-3">
@@ -207,7 +217,7 @@ export function StudentsTab({
 
       {/* Floating / Sticky Multi-Selection Action Bar */}
       {selectedStudentIds.length > 0 && (
-        <div className="bg-primary/10 border border-primary/30 p-2.5 rounded-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1">
+        <div className="bg-primary/10 border border-primary/30 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1">
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
@@ -216,11 +226,11 @@ export function StudentsTab({
               <AnimatedCounter value={selectedStudentIds.length} />
             </Badge>
             <span className="text-xs font-medium text-foreground">
-              студентов выбрано для распределения
+              студентов выбрано
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Button
               size="xs"
               variant="ghost"
@@ -233,13 +243,34 @@ export function StudentsTab({
             <Button
               size="xs"
               onClick={onOpenMoveSelected}
-              className="h-7 px-3 text-xs gap-1.5 font-medium shadow-2xs"
+              className="h-7 px-3 text-xs gap-1.5 font-medium shadow-none"
             >
               <ArrowRightLeft className="h-3.5 w-3.5" />
               <span>
-                Направить выбранных (
-                <AnimatedCounter value={selectedStudentIds.length} />) на базу
+                Направить на базу ({selectedStudentIds.length})
               </span>
+            </Button>
+
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={onUnassignSelected}
+              className="h-7 px-2.5 text-xs gap-1 font-medium border-border hover:bg-muted"
+              title="Отвязать выбранных студентов от организаций и вернуть в статус «Не распределен»"
+            >
+              <UserMinus className="h-3.5 w-3.5" />
+              <span>Отвязать от баз</span>
+            </Button>
+
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={onPromptDeleteSelected}
+              className="h-7 px-2.5 text-xs gap-1 font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+              title="Удалить выбранных студентов из практики"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Удалить ({selectedStudentIds.length})</span>
             </Button>
           </div>
         </div>
@@ -432,12 +463,38 @@ export function StudentsTab({
                         <span>{rec.companyName ? "Перевести" : "Направить"}</span>
                       </Button>
 
+                      {/* Row Action: Отвязать от базы практики */}
+                      {rec.companyName && (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => onUnassignSingle(rec)}
+                          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"
+                          title="Отвязать студента от базы практики (вернуть в статус «Не распределен»)"
+                        >
+                          <UserMinus className="h-3 w-3 mr-1 text-muted-foreground" />
+                          <span className="hidden sm:inline">Отвязать</span>
+                        </Button>
+                      )}
+
+                      {/* Row Action: Быстрый доступ к Истории перемещений */}
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => onOpenHistoryModal(rec)}
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"
+                        title="История перемещений студента"
+                      >
+                        <History className="h-3 w-3 mr-1 text-muted-foreground" />
+                        <span className="hidden sm:inline">История</span>
+                      </Button>
+
                       {rec.companyName && (
                         <Button
                           size="xs"
                           variant="ghost"
                           onClick={() => onOpenDocPreview(rec)}
-                          className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                          className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-muted"
                           title="Печать официального направления"
                         >
                           <Printer className="h-3 w-3 mr-1 text-primary" />
@@ -477,6 +534,17 @@ export function StudentsTab({
                           </span>
                         </Button>
                       )}
+
+                      {/* Row Action: Удалить с практики */}
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => onPromptDeleteSingle(rec)}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        title="Удалить студента из практики"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </td>
                 </tr>

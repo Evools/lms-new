@@ -445,8 +445,153 @@ export async function deleteCompanyAction(id: string) {
     throw new Error("Недостаточно прав");
   }
 
+  const company = await prisma.companyPartner.findUnique({
+    where: { id },
+    select: { name: true },
+  });
+
+  const todayStr = new Date().toLocaleDateString("ru-RU");
+
+  // Find all students assigned to this company
+  const affectedStudents = await prisma.studentPractice.findMany({
+    where: {
+      OR: [
+        { companyId: id },
+        ...(company?.name ? [{ companyName: company.name }] : []),
+      ],
+    },
+    select: { id: true, companyName: true, practiceType: true },
+  });
+
+  // Record detachment movements and reset students to "Не распределен"
+  for (const st of affectedStudents) {
+    await prisma.practiceMovement.create({
+      data: {
+        studentPracticeId: st.id,
+        date: todayStr,
+        type: "Снятие с базы практики",
+        fromCompany: st.companyName || company?.name || "Организация",
+        toCompany: "Не распределен",
+        practiceType: st.practiceType,
+        reason: "Организация удалена из реестра баз практик",
+      },
+    });
+  }
+
+  await prisma.studentPractice.updateMany({
+    where: {
+      OR: [
+        { companyId: id },
+        ...(company?.name ? [{ companyName: company.name }] : []),
+      ],
+    },
+    data: {
+      companyId: null,
+      companyName: null,
+      companyMentor: null,
+      status: "Не распределен",
+    },
+  });
+
   await prisma.companyPartner.delete({
     where: { id },
+  });
+
+  revalidatePath("/dashboard/practice");
+  return { success: true };
+}
+
+// Unassign students from company back to "Не распределен"
+export async function unassignStudentsPracticeAction(studentIds: string[], reason?: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "STUDENT") {
+    throw new Error("Недостаточно прав");
+  }
+
+  if (!studentIds.length) return { success: true };
+
+  const students = await prisma.studentPractice.findMany({
+    where: { id: { in: studentIds } },
+  });
+
+  const todayStr = new Date().toLocaleDateString("ru-RU");
+  const compDecrementMap = new Map<string, number>();
+
+  for (const st of students) {
+    if (st.companyId) {
+      compDecrementMap.set(st.companyId, (compDecrementMap.get(st.companyId) || 0) + 1);
+    }
+
+    if (st.companyName || st.companyId) {
+      await prisma.practiceMovement.create({
+        data: {
+          studentPracticeId: st.id,
+          date: todayStr,
+          type: "Открепление от базы",
+          fromCompany: st.companyName || undefined,
+          toCompany: "Не распределен",
+          practiceType: st.practiceType,
+          reason: reason || "Откреплен от базы практики по решению колледжа",
+        },
+      });
+    }
+  }
+
+  // Decrement quotas
+  for (const [compId, count] of compDecrementMap.entries()) {
+    await prisma.companyPartner.update({
+      where: { id: compId },
+      data: { quotaUsed: { decrement: count } },
+    }).catch(() => {});
+  }
+
+  // Update student records
+  await prisma.studentPractice.updateMany({
+    where: { id: { in: studentIds } },
+    data: {
+      companyId: null,
+      companyName: null,
+      companyMentor: null,
+      status: "Не распределен",
+    },
+  });
+
+  revalidatePath("/dashboard/practice");
+  return { success: true };
+}
+
+// Delete student practice records entirely
+export async function deleteStudentsPracticeAction(studentIds: string[]) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "STUDENT") {
+    throw new Error("Недостаточно прав");
+  }
+
+  if (!studentIds.length) return { success: true };
+
+  const students = await prisma.studentPractice.findMany({
+    where: { id: { in: studentIds } },
+    select: { id: true, companyId: true },
+  });
+
+  // Decrement quota for companies if any of them were assigned
+  const compDecrementMap = new Map<string, number>();
+  for (const st of students) {
+    if (st.companyId) {
+      compDecrementMap.set(st.companyId, (compDecrementMap.get(st.companyId) || 0) + 1);
+    }
+  }
+
+  for (const [compId, count] of compDecrementMap.entries()) {
+    await prisma.companyPartner.update({
+      where: { id: compId },
+      data: { quotaUsed: { decrement: count } },
+    }).catch(() => {});
+  }
+
+  // Delete students (movements cascade delete automatically)
+  await prisma.studentPractice.deleteMany({
+    where: { id: { in: studentIds } },
   });
 
   revalidatePath("/dashboard/practice");

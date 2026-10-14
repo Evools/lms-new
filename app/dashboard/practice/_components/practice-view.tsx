@@ -55,11 +55,14 @@ import { ResetConfirmDialog } from "./dialogs/reset-confirm-dialog";
 import { DeleteCompanyDialog } from "./dialogs/delete-company-dialog";
 import { DeleteDayDialog } from "./dialogs/delete-day-dialog";
 import { DeletePlanDialog } from "./dialogs/delete-plan-dialog";
+import { DeleteStudentDialog } from "./dialogs/delete-student-dialog";
 import {
   createCompanyAction,
   updateCompanyAction,
   deleteCompanyAction,
   assignStudentsAction,
+  unassignStudentsPracticeAction,
+  deleteStudentsPracticeAction,
   enrollStudentsToPracticeAction,
   toggleCompletePracticeAction,
   saveDiaryPlanAction,
@@ -202,49 +205,23 @@ export function PracticeView({
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [companyFilter, setCompanyFilter] = useState<string>("ALL");
 
-  // Persistence
+  // Clean up legacy localStorage cache so it doesn't overwrite fresh server DB data
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.companies)) setCompanies(parsed.companies);
-        if (Array.isArray(parsed.students)) setStudents(parsed.students);
-        if (Array.isArray(parsed.diaryPlans)) {
-          setDiaryPlans(parsed.diaryPlans);
-          if (parsed.diaryPlans[0]?.id) {
-            setSelectedPlanId(parsed.diaryPlans[0].id);
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load practice data from storage", e);
-    } finally {
-      setIsLoaded(true);
-    }
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
   }, []);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          companies,
-          students,
-          diaryPlans,
-        })
-      );
-    } catch (e) {
-      console.error("Failed to save practice data to storage", e);
-    }
-  }, [companies, students, diaryPlans, isLoaded]);
 
   // Dialog States
   const [isCompanyDialogOpen, setIsCompanyDialogOpen] = useState<boolean>(false);
   const [isDeleteCompanyDialogOpen, setIsDeleteCompanyDialogOpen] = useState<boolean>(false);
   const [companyToDelete, setCompanyToDelete] = useState<CompanyPartner | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyPartner | null>(null);
+
+  // Student Delete Dialog States
+  const [isDeleteStudentDialogOpen, setIsDeleteStudentDialogOpen] = useState<boolean>(false);
+  const [studentToDelete, setStudentToDelete] = useState<StudentPracticeRecord | null>(null);
+  const [isDeleteBatchStudentsDialogOpen, setIsDeleteBatchStudentsDialogOpen] = useState<boolean>(false);
   const [companyForm, setCompanyForm] = useState<CompanyFormData>({
     name: "",
     industry: "IT & Разработка ПО",
@@ -1193,6 +1170,187 @@ export function PracticeView({
     }
   };
 
+  // Student Unassignment Handlers
+  const handleUnassignSingle = async (student: StudentPracticeRecord) => {
+    const prevCompanyId = student.companyId;
+    const todayFormatted = (() => {
+      const d = new Date();
+      const day = d.getDate().toString().padStart(2, "0");
+      const month = (d.getMonth() + 1).toString().padStart(2, "0");
+      const year = d.getFullYear();
+      return `${day}.${month}.${year}`;
+    })();
+
+    const newMovementEntry: PracticeMovementRecord = {
+      id: `mov-${Date.now()}-${student.id}`,
+      date: todayFormatted,
+      type: "Открепление от базы",
+      fromCompany: student.companyName,
+      toCompany: "Не распределен",
+      practiceType: student.practiceType,
+      reason: "Откреплен от базы практики",
+      mentor: undefined,
+    };
+
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === student.id
+          ? {
+              ...s,
+              companyId: undefined,
+              companyName: undefined,
+              companyMentor: undefined,
+              status: "Не распределен",
+              movements: [...(s.movements || []), newMovementEntry],
+            }
+          : s
+      )
+    );
+
+    if (prevCompanyId) {
+      setCompanies((prev) =>
+        prev.map((c) =>
+          c.id === prevCompanyId ? { ...c, quotaUsed: Math.max(0, c.quotaUsed - 1) } : c
+        )
+      );
+    }
+
+    try {
+      await unassignStudentsPracticeAction([student.id]);
+    } catch (err) {
+      console.error("Failed to unassign student:", err);
+    }
+  };
+
+  const handleUnassignSelected = async () => {
+    if (selectedStudentIds.length === 0) return;
+
+    const todayFormatted = (() => {
+      const d = new Date();
+      const day = d.getDate().toString().padStart(2, "0");
+      const month = (d.getMonth() + 1).toString().padStart(2, "0");
+      const year = d.getFullYear();
+      return `${day}.${month}.${year}`;
+    })();
+
+    const targetSet = new Set(selectedStudentIds);
+    const prevCompanyCountMap = new Map<string, number>();
+
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (!targetSet.has(s.id)) return s;
+        if (s.companyId) {
+          prevCompanyCountMap.set(s.companyId, (prevCompanyCountMap.get(s.companyId) || 0) + 1);
+        }
+
+        const newMovementEntry: PracticeMovementRecord = {
+          id: `mov-${Date.now()}-${s.id}`,
+          date: todayFormatted,
+          type: "Открепление от базы",
+          fromCompany: s.companyName,
+          toCompany: "Не распределен",
+          practiceType: s.practiceType,
+          reason: "Групповое открепление от базы практики",
+          mentor: undefined,
+        };
+
+        return {
+          ...s,
+          companyId: undefined,
+          companyName: undefined,
+          companyMentor: undefined,
+          status: "Не распределен",
+          movements: [...(s.movements || []), newMovementEntry],
+        };
+      })
+    );
+
+    setCompanies((prev) =>
+      prev.map((c) => {
+        const dec = prevCompanyCountMap.get(c.id) || 0;
+        return dec > 0 ? { ...c, quotaUsed: Math.max(0, c.quotaUsed - dec) } : c;
+      })
+    );
+
+    const idsToUnassign = [...selectedStudentIds];
+    setSelectedStudentIds([]);
+
+    try {
+      await unassignStudentsPracticeAction(idsToUnassign);
+    } catch (err) {
+      console.error("Failed to unassign selected students:", err);
+    }
+  };
+
+  // Student Deletion Handlers
+  const handlePromptDeleteStudent = (student: StudentPracticeRecord) => {
+    setStudentToDelete(student);
+    setIsDeleteStudentDialogOpen(true);
+  };
+
+  const handleConfirmDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    const targetId = studentToDelete.id;
+    const prevCompanyId = studentToDelete.companyId;
+
+    setStudents((prev) => prev.filter((s) => s.id !== targetId));
+    setSelectedStudentIds((prev) => prev.filter((id) => id !== targetId));
+
+    if (prevCompanyId) {
+      setCompanies((prev) =>
+        prev.map((c) =>
+          c.id === prevCompanyId ? { ...c, quotaUsed: Math.max(0, c.quotaUsed - 1) } : c
+        )
+      );
+    }
+
+    setIsDeleteStudentDialogOpen(false);
+    setStudentToDelete(null);
+
+    try {
+      await deleteStudentsPracticeAction([targetId]);
+    } catch (err) {
+      console.error("Failed to delete student from practice:", err);
+    }
+  };
+
+  const handlePromptDeleteSelectedStudents = () => {
+    if (selectedStudentIds.length === 0) return;
+    setIsDeleteBatchStudentsDialogOpen(true);
+  };
+
+  const handleConfirmDeleteSelectedStudents = async () => {
+    if (selectedStudentIds.length === 0) return;
+
+    const targetSet = new Set(selectedStudentIds);
+    const prevCompanyCountMap = new Map<string, number>();
+
+    students.forEach((s) => {
+      if (targetSet.has(s.id) && s.companyId) {
+        prevCompanyCountMap.set(s.companyId, (prevCompanyCountMap.get(s.companyId) || 0) + 1);
+      }
+    });
+
+    setStudents((prev) => prev.filter((s) => !targetSet.has(s.id)));
+
+    setCompanies((prev) =>
+      prev.map((c) => {
+        const dec = prevCompanyCountMap.get(c.id) || 0;
+        return dec > 0 ? { ...c, quotaUsed: Math.max(0, c.quotaUsed - dec) } : c;
+      })
+    );
+
+    const idsToDelete = [...selectedStudentIds];
+    setSelectedStudentIds([]);
+    setIsDeleteBatchStudentsDialogOpen(false);
+
+    try {
+      await deleteStudentsPracticeAction(idsToDelete);
+    } catch (err) {
+      console.error("Failed to delete selected students from practice:", err);
+    }
+  };
+
   const handleToggleCompletePractice = (rec: StudentPracticeRecord) => {
     const isCompleted = rec.status === "Практика завершена";
     const nextStatus: StudentPracticeStatus = isCompleted ? "Проходит практику" : "Практика завершена";
@@ -1513,6 +1671,10 @@ export function PracticeView({
           onOpenDocPreview={handleOpenDocPreview}
           onToggleCompletePractice={handleToggleCompletePractice}
           onOpenEnrollModal={() => setIsEnrollModalOpen(true)}
+          onUnassignSingle={handleUnassignSingle}
+          onUnassignSelected={handleUnassignSelected}
+          onPromptDeleteSingle={handlePromptDeleteStudent}
+          onPromptDeleteSelected={handlePromptDeleteSelectedStudents}
         />
       )}
 
@@ -1701,6 +1863,20 @@ export function PracticeView({
         onOpenChange={setIsDeletePlanDialogOpen}
         plan={planToDelete}
         onConfirm={handleConfirmDeletePlan}
+      />
+
+      <DeleteStudentDialog
+        open={isDeleteStudentDialogOpen}
+        onOpenChange={setIsDeleteStudentDialogOpen}
+        student={studentToDelete}
+        onConfirm={handleConfirmDeleteStudent}
+      />
+
+      <DeleteStudentDialog
+        open={isDeleteBatchStudentsDialogOpen}
+        onOpenChange={setIsDeleteBatchStudentsDialogOpen}
+        count={selectedStudentIds.length}
+        onConfirm={handleConfirmDeleteSelectedStudents}
       />
     </div>
   );
