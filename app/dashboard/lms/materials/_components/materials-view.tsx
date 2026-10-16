@@ -63,6 +63,7 @@ import {
   Send,
   Play,
   Layers,
+  Folder,
   GripVertical,
   ArrowUp,
   ArrowDown,
@@ -836,16 +837,18 @@ export function MaterialsView({
               className={cn(
                 "bg-card rounded-xl border shadow-xs md:sticky md:top-20 md:self-start md:max-h-[calc(100vh-6rem)] static max-h-none overflow-y-auto overflow-x-hidden md:z-10 transition-all duration-300 ease-in-out shrink-0",
                 isSidebarOpen
-                  ? "w-full md:w-[290px] lg:w-[330px] p-3.5 space-y-3 opacity-100"
+                  ? "w-full md:w-[290px] lg:w-[330px] p-3 space-y-2.5 opacity-100"
                   : "hidden md:block md:w-0 md:min-w-0 md:max-w-0 md:p-0 md:border-0 md:opacity-0 md:pointer-events-none md:shadow-none md:overflow-hidden"
               )}
             >
-              <div className="w-full md:w-[260px] lg:w-[300px] space-y-3 transition-opacity duration-200">
-                {/* Header */}
+              <div className="w-full space-y-2.5 transition-opacity duration-200">
+                {/* Header with Counter Badge */}
                 <div className="flex items-center justify-between border-b pb-2">
-                  <div>
+                  <div className="flex items-center gap-2">
                     <h2 className="text-xs font-bold text-foreground">Материалы</h2>
-                    <p className="text-[11px] text-muted-foreground">{displayMaterials.length} материалов</p>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-semibold text-muted-foreground">
+                      {displayMaterials.length}
+                    </Badge>
                   </div>
 
                   <div className="flex items-center gap-1">
@@ -884,16 +887,16 @@ export function MaterialsView({
                       : "grid-rows-[0fr] opacity-0 md:grid-rows-[1fr] md:opacity-100"
                   )}
                 >
-                  <div className="overflow-hidden space-y-3">
-                    {/* Action Buttons */}
+                  <div className="overflow-hidden space-y-2.5">
+                    {/* Action Buttons in Compact 2-Column Grid */}
                     {canCreate && (
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-1.5">
                         <Link
                           href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
                           className="block"
                         >
-                          <Button size="xs" className="w-full h-8 text-xs gap-1.5 font-medium shadow-xs">
-                            <Plus className="h-3.5 w-3.5" /> Добавить материал
+                          <Button size="xs" className="w-full h-7 text-xs px-2 gap-1 font-medium shadow-xs truncate">
+                            <Plus className="h-3 w-3 shrink-0" /> Материал
                           </Button>
                         </Link>
 
@@ -902,15 +905,15 @@ export function MaterialsView({
                           size="xs"
                           variant="outline"
                           onClick={() => setIsCreateChapterOpen(true)}
-                          className="w-full h-8 text-xs gap-1.5 text-foreground hover:text-primary font-medium"
+                          className="w-full h-7 text-xs px-2 gap-1 text-foreground hover:text-primary font-medium truncate"
                         >
-                          <BookMarked className="h-3.5 w-3.5 text-primary" /> Создать главу
+                          <Folder className="h-3 w-3 text-primary shrink-0" /> Глава
                         </Button>
                       </div>
                     )}
 
                     {/* Chapters Accordion List */}
-                    <div className="space-y-1 pt-1 overflow-y-auto pr-1">
+                    <div className="space-y-1 pt-0.5 overflow-y-auto pr-1">
                       {displayTopics.map((topic, topicIdx) => {
                         const isExpanded = expandedTopics[topic.id] ?? true;
                         const topicMats = topic.materials || [];
@@ -918,26 +921,27 @@ export function MaterialsView({
                         return (
                           <div key={topic.id} className="space-y-0.5">
                             {/* Chapter Header Item */}
-                            <div className="p-2 rounded-lg hover:bg-muted/60 transition-colors flex items-center justify-between group select-none">
+                            <div className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors flex items-center justify-between group select-none gap-2">
                               <div
                                 onClick={() => toggleTopicExpand(topic.id)}
-                                className="cursor-pointer flex-1 truncate space-y-0.5"
+                                className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0"
                               >
-                                <span className="text-xs font-bold text-foreground truncate block">
+                                <Folder className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                                <span
+                                  className="text-xs font-medium text-foreground truncate"
+                                  title={topic.title}
+                                >
                                   {topicIdx + 1}. {topic.title}
                                 </span>
-                                {topic.subjectName && (
-                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-primary/5 text-primary border-primary/20 font-medium">
-                                    {topic.subjectName}
-                                  </Badge>
-                                )}
+                                <span
+                                  className="text-[10px] text-muted-foreground/80 font-medium px-1.5 py-0.5 rounded-md bg-muted/60 leading-none shrink-0"
+                                  title={`Материалов в главе: ${topicMats.length}`}
+                                >
+                                  {topicMats.length}
+                                </span>
                               </div>
 
                               <div className="flex items-center gap-1 shrink-0">
-                                <span className="text-[10px] text-muted-foreground mr-1">
-                                  {topicMats.length} ресурсов
-                                </span>
-
                                 {canCreate && (
                                   <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                                     <button
@@ -1069,10 +1073,10 @@ export function MaterialsView({
                                         setIsMobileSidebarOpen(false);
                                       }}
                                       className={cn(
-                                        "p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat select-none border border-transparent gap-2 min-w-0",
+                                        "p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat select-none border gap-2 min-w-0",
                                         isSelected
-                                          ? "bg-primary/10 text-primary font-medium border-l-4 border-l-primary shadow-xs"
-                                          : "text-foreground hover:bg-muted/40 font-normal",
+                                          ? "bg-primary/10 text-primary font-medium border-primary shadow-xs"
+                                          : "text-foreground hover:bg-muted/40 font-normal border-transparent",
                                         isDragging && "opacity-40 border-dashed border-primary/50 bg-primary/5",
                                         isDragOver && "border-primary bg-primary/10"
                                       )}
