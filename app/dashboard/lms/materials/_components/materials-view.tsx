@@ -63,6 +63,9 @@ import {
   Send,
   Play,
   Layers,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -73,6 +76,7 @@ import {
   deleteTopicAction,
   deleteMaterialAction,
   toggleMaterialPublishAction,
+  reorderMaterialsAction,
 } from "@/app/dashboard/lms/actions";
 import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
@@ -247,15 +251,106 @@ export function MaterialsView({
     });
   };
 
-  const displayTopics = topicsWithMaterials.filter((t) => {
+  // Local Topics State for smooth reordering and optimistic updates
+  const [localTopics, setLocalTopics] = useState<TopicWithMaterialsDTO[]>(topicsWithMaterials);
+
+  useEffect(() => {
+    setLocalTopics(topicsWithMaterials);
+  }, [topicsWithMaterials]);
+
+  const displayTopics = localTopics.filter((t) => {
     if (!currentSubjectObj) return true;
     return t.subjectName === currentSubjectObj.subjectName;
   });
 
-  const displayMaterials = materials.filter((m) => {
-    if (!currentSubjectObj) return true;
-    return m.subjectName === currentSubjectObj.subjectName;
-  });
+  const displayMaterials = React.useMemo(() => {
+    const list = displayTopics.flatMap((t) => t.materials || []);
+    if (list.length > 0) return list;
+    return materials.filter((m) => {
+      if (!currentSubjectObj) return true;
+      return m.subjectName === currentSubjectObj.subjectName;
+    });
+  }, [displayTopics, materials, currentSubjectObj]);
+
+  // Drag and Drop state for materials
+  const [draggedMatInfo, setDraggedMatInfo] = useState<{
+    topicId: string;
+    materialId: string;
+  } | null>(null);
+  const [dragOverMatId, setDragOverMatId] = useState<string | null>(null);
+  const [dragOverTopicId, setDragOverTopicId] = useState<string | null>(null);
+
+  const handleMoveMaterial = async (
+    fromTopicId: string,
+    materialId: string,
+    toTopicId: string,
+    targetIndex: number
+  ) => {
+    // Check if position didn't actually change
+    const sourceTopic = localTopics.find((t) => t.id === fromTopicId);
+    const currentIndex = sourceTopic?.materials.findIndex((m) => m.id === materialId) ?? -1;
+
+    if (fromTopicId === toTopicId && (currentIndex === targetIndex || currentIndex === -1)) {
+      // Zero database requests - dropped in the same place!
+      return;
+    }
+
+    let movedMaterial: MaterialDTO | null = null;
+
+    // 1. Remove from source topic
+    const nextTopics = localTopics.map((topic) => {
+      if (topic.id === fromTopicId) {
+        const remainingMats = (topic.materials || []).filter((m) => {
+          if (m.id === materialId) {
+            movedMaterial = m;
+            return false;
+          }
+          return true;
+        });
+        return { ...topic, materials: remainingMats };
+      }
+      return topic;
+    });
+
+    if (!movedMaterial) return;
+
+    // 2. Insert into target topic at targetIndex
+    const finalTopics = nextTopics.map((topic) => {
+      if (topic.id === toTopicId) {
+        const mats = [...(topic.materials || [])];
+        const safeIndex = Math.max(0, Math.min(targetIndex, mats.length));
+        mats.splice(safeIndex, 0, { ...(movedMaterial as MaterialDTO), topicId: toTopicId });
+        return { ...topic, materials: mats };
+      }
+      return topic;
+    });
+
+    // Optimistically update UI
+    setLocalTopics(finalTopics);
+
+    // Call server action to persist order
+    try {
+      const targetMats = finalTopics.find((t) => t.id === toTopicId)?.materials || [];
+      const targetIds = targetMats.map((m) => m.id);
+      const res = await reorderMaterialsAction(toTopicId, targetIds);
+
+      if (fromTopicId !== toTopicId) {
+        const sourceMats = finalTopics.find((t) => t.id === fromTopicId)?.materials || [];
+        const sourceIds = sourceMats.map((m) => m.id);
+        await reorderMaterialsAction(fromTopicId, sourceIds);
+      }
+
+      if (res.success) {
+        toast.add({ title: "Порядок материалов сохранен", type: "success" });
+      } else {
+        toast.add({ title: res.error || "Ошибка сохранения порядка", type: "error" });
+        router.refresh();
+      }
+    } catch {
+      toast.add({ title: "Ошибка при сохранении", type: "error" });
+      router.refresh();
+    }
+  };
 
   // Active Selected Material State
   const initialActiveMat =
@@ -408,6 +503,12 @@ export function MaterialsView({
       const res = await deleteMaterialAction(deleteMaterialTarget.id);
       if (res.success) {
         toast.add({ title: "Материал удален!", type: "success" });
+        setLocalTopics((prev) =>
+          prev.map((t) => ({
+            ...t,
+            materials: t.materials.filter((m) => m.id !== deleteMaterialTarget.id),
+          }))
+        );
         if (activeMaterial?.id === deleteMaterialTarget.id) {
           setActiveMaterial(materials.find((m) => m.id !== deleteMaterialTarget.id) || null);
         }
@@ -893,31 +994,109 @@ export function MaterialsView({
                                 isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                               )}
                             >
-                              <div className="overflow-hidden pl-2 space-y-0.5 border-l border-border/60 ml-2">
+                              <div
+                                onDragOver={(e) => {
+                                  if (draggedMatInfo) {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = "move";
+                                  }
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  if (draggedMatInfo) {
+                                    handleMoveMaterial(
+                                      draggedMatInfo.topicId,
+                                      draggedMatInfo.materialId,
+                                      topic.id,
+                                      topicMats.length
+                                    );
+                                    setDraggedMatInfo(null);
+                                    setDragOverMatId(null);
+                                    setDragOverTopicId(null);
+                                  }
+                                }}
+                                className="overflow-hidden pl-2 space-y-0.5 border-l border-border/60 ml-2"
+                              >
                                 {topicMats.map((mat, matIdx) => {
                                   const isSelected = currentMat?.id === mat.id;
+                                  const isDragging = draggedMatInfo?.materialId === mat.id;
+                                  const isDragOver = dragOverMatId === mat.id && !isDragging;
 
                                   return (
                                     <div
                                       key={mat.id}
+                                      draggable={canCreate}
+                                      onDragStart={(e) => {
+                                        if (!canCreate) return;
+                                        e.dataTransfer.effectAllowed = "move";
+                                        e.dataTransfer.setData("text/plain", mat.id);
+                                        setDraggedMatInfo({ topicId: topic.id, materialId: mat.id });
+                                      }}
+                                      onDragOver={(e) => {
+                                        if (!draggedMatInfo) return;
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.dataTransfer.dropEffect = "move";
+                                      }}
+                                      onDragEnter={(e) => {
+                                        e.stopPropagation();
+                                        if (draggedMatInfo && draggedMatInfo.materialId !== mat.id) {
+                                          setDragOverMatId(mat.id);
+                                          setDragOverTopicId(topic.id);
+                                        }
+                                      }}
+                                      onDragEnd={() => {
+                                        setDraggedMatInfo(null);
+                                        setDragOverMatId(null);
+                                        setDragOverTopicId(null);
+                                      }}
+                                      onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (!draggedMatInfo) return;
+                                        handleMoveMaterial(
+                                          draggedMatInfo.topicId,
+                                          draggedMatInfo.materialId,
+                                          topic.id,
+                                          matIdx
+                                        );
+                                        setDraggedMatInfo(null);
+                                        setDragOverMatId(null);
+                                        setDragOverTopicId(null);
+                                      }}
                                       onClick={() => {
                                         handleNavigateMaterial(mat);
                                         setIsMobileSidebarOpen(false);
                                       }}
-                                      className={`p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat ${
+                                      className={cn(
+                                        "p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat select-none border border-transparent gap-2 min-w-0",
                                         isSelected
                                           ? "bg-primary/10 text-primary font-medium border-l-4 border-l-primary shadow-xs"
-                                          : "text-foreground hover:bg-muted/40 font-normal"
-                                      }`}
+                                          : "text-foreground hover:bg-muted/40 font-normal",
+                                        isDragging && "opacity-40 border-dashed border-primary/50 bg-primary/5",
+                                        isDragOver && "border-primary bg-primary/10"
+                                      )}
                                     >
-                                      <div className="flex items-center gap-2 truncate pr-1 min-w-0">
-                                        <span className="text-[11px] truncate">
+                                      <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
+                                        {canCreate && (
+                                          <span
+                                            className="text-muted-foreground/40 hover:text-foreground cursor-grab active:cursor-grabbing p-0.5 shrink-0 transition-colors"
+                                            title="Перетащите для изменения порядка"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <GripVertical className="h-3.5 w-3.5" />
+                                          </span>
+                                        )}
+                                        <span className="text-[11px] truncate flex-1" title={mat.title}>
                                           {matIdx + 1}. {mat.title}
                                         </span>
                                         {!mat.isPublished && (
-                                          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-muted/60 text-muted-foreground border-dashed gap-0.5 shrink-0">
-                                            <EyeOff className="h-2.5 w-2.5" /> Черновик
-                                          </Badge>
+                                          <span
+                                            className="text-muted-foreground/70 shrink-0 inline-flex items-center"
+                                            title="Черновик (не опубликован)"
+                                          >
+                                            <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                          </span>
                                         )}
                                       </div>
 
@@ -930,7 +1109,7 @@ export function MaterialsView({
                                                 e.stopPropagation();
                                                 setCopyMaterialTarget(mat);
                                               }}
-                                              className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
+                                              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
                                               title="Копировать материал в другую группу"
                                             >
                                               <Copy className="h-3 w-3" />
@@ -939,7 +1118,7 @@ export function MaterialsView({
                                             <Link
                                               href={`/dashboard/lms/materials/${mat.id}/edit?group=${selectedGroupId}`}
                                               onClick={(e) => e.stopPropagation()}
-                                              className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
+                                              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
                                               title="Редактировать материал"
                                             >
                                               <Pencil className="h-3 w-3" />
@@ -951,7 +1130,7 @@ export function MaterialsView({
                                                 e.stopPropagation();
                                                 setDeleteMaterialTarget(mat);
                                               }}
-                                              className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors inline-flex items-center justify-center"
                                               title="Удалить материал"
                                             >
                                               <Trash2 className="h-3 w-3" />
@@ -959,9 +1138,11 @@ export function MaterialsView({
                                           </div>
                                         )}
 
-                                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                        <span
+                                          className="p-1 rounded text-muted-foreground shrink-0 inline-flex items-center justify-center"
+                                          title={getMaterialTypeLabel(mat.type)}
+                                        >
                                           {getMaterialTypeIcon(mat.type)}
-                                          <span>{getMaterialTypeLabel(mat.type)}</span>
                                         </span>
                                       </div>
                                     </div>
@@ -969,8 +1150,33 @@ export function MaterialsView({
                                 })}
 
                                 {topicMats.length === 0 && (
-                                  <div className="py-2 pl-2 text-[10px] text-muted-foreground italic">
-                                    Нет материалов в этой главе
+                                  <div
+                                    onDragOver={(e) => {
+                                      if (draggedMatInfo) {
+                                        e.preventDefault();
+                                        e.dataTransfer.dropEffect = "move";
+                                      }
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      if (draggedMatInfo) {
+                                        handleMoveMaterial(
+                                          draggedMatInfo.topicId,
+                                          draggedMatInfo.materialId,
+                                          topic.id,
+                                          0
+                                        );
+                                        setDraggedMatInfo(null);
+                                        setDragOverMatId(null);
+                                        setDragOverTopicId(null);
+                                      }
+                                    }}
+                                    className={cn(
+                                      "py-2.5 px-2 text-[10px] text-muted-foreground italic rounded-lg transition-colors border border-transparent",
+                                      draggedMatInfo && "border-dashed border-primary/40 bg-primary/5"
+                                    )}
+                                  >
+                                    {draggedMatInfo ? "Перетащите сюда" : "Нет материалов в этой главе"}
                                   </div>
                                 )}
                               </div>

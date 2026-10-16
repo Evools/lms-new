@@ -32,6 +32,7 @@ export interface MaterialDTO {
   fileUrl?: string | null;
   linkUrl?: string | null;
   isPublished: boolean;
+  order?: number;
   createdAt: string;
 }
 
@@ -539,7 +540,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
         },
         materials: {
           where: role === "STUDENT" ? { isPublished: true } : undefined,
-          orderBy: { createdAt: "asc" },
+          orderBy: [{ order: "asc" }, { createdAt: "asc" }],
           include: {
             author: { select: { name: true } },
           },
@@ -576,7 +577,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
         },
         author: { select: { name: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     });
 
     const materials: MaterialDTO[] = dbMaterials.map((m) => ({
@@ -592,6 +593,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       content: m.content,
       fileUrl: m.fileUrl,
       linkUrl: m.linkUrl,
+      order: m.order,
       isPublished: m.isPublished,
       createdAt: m.createdAt.toISOString(),
     }));
@@ -616,6 +618,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
         content: m.content,
         fileUrl: m.fileUrl,
         linkUrl: m.linkUrl,
+        order: m.order,
         isPublished: m.isPublished,
         createdAt: m.createdAt.toISOString(),
       })),
@@ -723,6 +726,10 @@ export async function createMaterialAction(data: {
       targetTopicId = defaultTopic.id;
     }
 
+    const existingCount = await prisma.material.count({
+      where: { topicId: targetTopicId },
+    });
+
     const createdMaterial = await prisma.material.create({
       data: {
         topicId: targetTopicId,
@@ -732,6 +739,7 @@ export async function createMaterialAction(data: {
         content: data.content?.trim() || null,
         fileUrl: data.fileUrl?.trim() || null,
         linkUrl: data.linkUrl?.trim() || null,
+        order: existingCount,
         isPublished: data.isPublished !== undefined ? data.isPublished : true,
       },
       include: {
@@ -868,6 +876,66 @@ export async function toggleMaterialPublishAction(materialId: string) {
   } catch (err) {
     console.error("toggleMaterialPublishAction error:", err);
     return { success: false, error: "Ошибка при изменении статуса публикации" };
+  }
+}
+
+export async function reorderMaterialsAction(topicId: string, orderedMaterialIds: string[]) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для сортировки материалов" };
+    }
+
+    if (!orderedMaterialIds || orderedMaterialIds.length === 0) {
+      return { success: true };
+    }
+
+    await prisma.$transaction(
+      orderedMaterialIds.map((id, index) =>
+        prisma.material.update({
+          where: { id },
+          data: {
+            order: index,
+            ...(topicId ? { topicId } : {}),
+          },
+        })
+      )
+    );
+
+    revalidatePath("/dashboard/lms/materials");
+    return { success: true };
+  } catch (err) {
+    console.error("reorderMaterialsAction error:", err);
+    return { success: false, error: "Ошибка при сохранении порядка материалов" };
+  }
+}
+
+export async function reorderTopicsAction(orderedTopicIds: string[]) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+      return { success: false, error: "Недостаточно прав для сортировки глав" };
+    }
+
+    if (!orderedTopicIds || orderedTopicIds.length === 0) {
+      return { success: true };
+    }
+
+    await prisma.$transaction(
+      orderedTopicIds.map((id, index) =>
+        prisma.topic.update({
+          where: { id },
+          data: { order: index },
+        })
+      )
+    );
+
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms/topics");
+    return { success: true };
+  } catch (err) {
+    console.error("reorderTopicsAction error:", err);
+    return { success: false, error: "Ошибка при сохранении порядка глав" };
   }
 }
 
@@ -2208,6 +2276,7 @@ export async function copyMaterialToGroupsAction(params: {
           content: sourceMaterial.content,
           fileUrl: sourceMaterial.fileUrl,
           linkUrl: sourceMaterial.linkUrl,
+          order: sourceMaterial.order,
           isPublished: sourceMaterial.isPublished,
         },
       });
@@ -2282,6 +2351,7 @@ export async function copyTopicToGroupsAction(params: {
             content: m.content,
             fileUrl: m.fileUrl,
             linkUrl: m.linkUrl,
+            order: m.order,
             isPublished: m.isPublished,
           })),
         });
