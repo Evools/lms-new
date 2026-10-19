@@ -70,6 +70,7 @@ import {
   PowerOff,
   Accessibility,
   Zap,
+  Loader2,
 } from "lucide-react";
 import {
   DayDutyGroupDTO,
@@ -81,6 +82,8 @@ import {
   addDisciplinaryDutyAction,
   toggleGroupDutyAction,
   toggleStudentDutyExemptionAction,
+  saveGroupDutySettingsAction,
+  DutySettingsOptions,
   StudentDutyStatDTO,
   GroupStudentWithDutyInfo,
 } from "../actions";
@@ -94,6 +97,7 @@ interface DutyScheduleViewProps {
   groupDutyStats: StudentDutyStatDTO[];
   selectedGroupId?: string;
   isDutyEnabled?: boolean;
+  initialDutySettings?: DutySettingsOptions;
   embedded?: boolean;
 }
 
@@ -113,6 +117,7 @@ export function DutyScheduleView({
   groupDutyStats = [],
   selectedGroupId,
   isDutyEnabled = true,
+  initialDutySettings,
   embedded = false,
 }: DutyScheduleViewProps) {
   const router = useRouter();
@@ -121,6 +126,7 @@ export function DutyScheduleView({
   const [currentGroupId, setCurrentGroupId] = useState<string>(
     selectedGroupId || (groupsList[0]?.id || "")
   );
+  const [isChangingGroup, setIsChangingGroup] = useState(false);
 
   useEffect(() => {
     if (selectedGroupId) {
@@ -132,57 +138,93 @@ export function DutyScheduleView({
 
   useEffect(() => {
     setDaysList(weeklyDays);
-  }, [weeklyDays]);
+    setIsChangingGroup(false);
+  }, [weeklyDays, selectedGroupId]);
+
+  const isGroupLoading = isChangingGroup || (isPending && currentGroupId !== selectedGroupId);
 
   const [activeTab, setActiveTab] = useState<"WEEKLY" | "STATS" | "SETTINGS">("WEEKLY");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Detailed Duty Settings state
+  // Detailed Duty Settings state (initialized from group's server settings, default 5-day week)
   const [dutyEnabledLocal, setDutyEnabledLocal] = useState<boolean>(isDutyEnabled);
-  const [dutyPerDaySetting, setDutyPerDaySetting] = useState<number>(0); // 0 = Auto
-  const [dutyCountPerDay, setDutyCountPerDay] = useState<string>("auto");
-  const [activeDutyDays, setActiveDutyDays] = useState<number[]>([0, 1, 2, 3, 4, 5]); // Mon-Sat
-  const [responsibleMode, setResponsibleMode] = useState<"NONE" | "MONITOR" | "DEPUTY" | "CUSTOM">("MONITOR");
-  const [customResponsibleStudentId, setCustomResponsibleStudentId] = useState<string>("");
-  const [dutyAlgorithm, setDutyAlgorithm] = useState<"FAIR" | "ALPHABETICAL" | "RANDOM">("FAIR");
-  const [excludedStudentIds, setExcludedStudentIds] = useState<string[]>([]);
+  const [dutyPerDaySetting, setDutyPerDaySetting] = useState<number>(initialDutySettings?.perDay ?? 0); // 0 = Auto
+  const [dutyCountPerDay, setDutyCountPerDay] = useState<string>(
+    initialDutySettings?.perDay ? String(initialDutySettings.perDay) : "auto"
+  );
+  const [activeDutyDays, setActiveDutyDays] = useState<number[]>(
+    initialDutySettings?.activeDays ?? [0, 1, 2, 3, 4]
+  );
+  const [responsibleMode, setResponsibleMode] = useState<"NONE" | "MONITOR" | "DEPUTY" | "CUSTOM">(
+    initialDutySettings?.responsibleMode ?? "MONITOR"
+  );
+  const [customResponsibleStudentId, setCustomResponsibleStudentId] = useState<string>(
+    initialDutySettings?.customResponsibleStudentId ?? ""
+  );
+  const [dutyAlgorithm, setDutyAlgorithm] = useState<"FAIR" | "ALPHABETICAL" | "RANDOM">(
+    initialDutySettings?.algorithm ?? "FAIR"
+  );
+  const [excludedStudentIds, setExcludedStudentIds] = useState<string[]>(
+    initialDutySettings?.excludedStudentIds ?? []
+  );
   const [exemptionSearch, setExemptionSearch] = useState<string>("");
 
   useEffect(() => {
     setDutyEnabledLocal(isDutyEnabled);
   }, [isDutyEnabled]);
 
-  // Load persistent settings for current group from localStorage
+  // Synchronize settings when switching groups or receiving updated server settings
   useEffect(() => {
-    if (!currentGroupId || typeof window === "undefined") return;
-    try {
-      const saved = localStorage.getItem(`lms_duty_settings_${currentGroupId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed.dutyPerDaySetting === "number") {
-          setDutyPerDaySetting(parsed.dutyPerDaySetting);
-          setDutyCountPerDay(parsed.dutyPerDaySetting === 0 ? "auto" : String(parsed.dutyPerDaySetting));
-        }
-        if (Array.isArray(parsed.activeDutyDays)) {
-          setActiveDutyDays(parsed.activeDutyDays);
-        }
-        if (parsed.responsibleMode) {
-          setResponsibleMode(parsed.responsibleMode);
-        }
-        if (parsed.customResponsibleStudentId) {
-          setCustomResponsibleStudentId(parsed.customResponsibleStudentId);
-        }
-        if (parsed.dutyAlgorithm) {
-          setDutyAlgorithm(parsed.dutyAlgorithm);
-        }
-        if (Array.isArray(parsed.excludedStudentIds)) {
-          setExcludedStudentIds(parsed.excludedStudentIds);
-        }
+    if (initialDutySettings) {
+      if (Array.isArray(initialDutySettings.activeDays)) {
+        setActiveDutyDays(initialDutySettings.activeDays);
       }
-    } catch {
-      // ignore
+      if (typeof initialDutySettings.perDay === "number") {
+        setDutyPerDaySetting(initialDutySettings.perDay);
+        setDutyCountPerDay(initialDutySettings.perDay === 0 ? "auto" : String(initialDutySettings.perDay));
+      }
+      if (initialDutySettings.responsibleMode) {
+        setResponsibleMode(initialDutySettings.responsibleMode);
+      }
+      if (initialDutySettings.customResponsibleStudentId !== undefined) {
+        setCustomResponsibleStudentId(initialDutySettings.customResponsibleStudentId);
+      }
+      if (initialDutySettings.algorithm) {
+        setDutyAlgorithm(initialDutySettings.algorithm);
+      }
+      if (Array.isArray(initialDutySettings.excludedStudentIds)) {
+        setExcludedStudentIds(initialDutySettings.excludedStudentIds);
+      }
+    } else if (typeof window !== "undefined" && currentGroupId) {
+      try {
+        const saved = localStorage.getItem(`lms_duty_settings_${currentGroupId}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed.dutyPerDaySetting === "number") {
+            setDutyPerDaySetting(parsed.dutyPerDaySetting);
+            setDutyCountPerDay(parsed.dutyPerDaySetting === 0 ? "auto" : String(parsed.dutyPerDaySetting));
+          }
+          if (Array.isArray(parsed.activeDutyDays)) {
+            setActiveDutyDays(parsed.activeDutyDays);
+          }
+          if (parsed.responsibleMode) {
+            setResponsibleMode(parsed.responsibleMode);
+          }
+          if (parsed.customResponsibleStudentId) {
+            setCustomResponsibleStudentId(parsed.customResponsibleStudentId);
+          }
+          if (parsed.dutyAlgorithm) {
+            setDutyAlgorithm(parsed.dutyAlgorithm);
+          }
+          if (Array.isArray(parsed.excludedStudentIds)) {
+            setExcludedStudentIds(parsed.excludedStudentIds);
+          }
+        }
+      } catch {
+        // ignore
+      }
     }
-  }, [currentGroupId]);
+  }, [initialDutySettings, currentGroupId]);
 
   const handleTogglePermanentExemption = (studentId: string, isExempt: boolean, reason?: string) => {
     startTransition(async () => {
@@ -270,35 +312,35 @@ export function DutyScheduleView({
     });
   };
 
-  // Save detailed duty settings
+  // Save detailed duty settings to DB
   const handleSaveDutySettings = () => {
     if (!currentGroupId) return;
-    const currentSettings = {
+    const effectivePerDay = dutyPerDaySetting > 0 ? dutyPerDaySetting : (dutyCountPerDay === "auto" ? 2 : Number(dutyCountPerDay));
+    const currentSettings: DutySettingsOptions = {
+      isDutyEnabled: dutyEnabledLocal,
+      perDay: effectivePerDay,
+      activeDays: activeDutyDays,
+      includeLeader: responsibleMode !== "NONE",
+      responsibleMode,
+      customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
+      algorithm: dutyAlgorithm,
+      excludedStudentIds,
+    };
+    saveGroupSettingsToStorage({
       dutyPerDaySetting,
       activeDutyDays,
       responsibleMode,
       customResponsibleStudentId,
       dutyAlgorithm,
       excludedStudentIds,
-    };
-    saveGroupSettingsToStorage(currentSettings);
+    });
 
     startTransition(async () => {
-      const effectivePerDay = dutyPerDaySetting > 0 ? dutyPerDaySetting : (dutyCountPerDay === "auto" ? undefined : Number(dutyCountPerDay));
-      const res = await generateWeeklyDutyAction(currentGroupId, {
-        isDutyEnabled: dutyEnabledLocal,
-        perDay: effectivePerDay,
-        activeDays: activeDutyDays,
-        includeLeader: responsibleMode !== "NONE",
-        responsibleMode,
-        customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
-        algorithm: dutyAlgorithm,
-        excludedStudentIds,
-      });
+      const res = await saveGroupDutySettingsAction(currentGroupId, currentSettings);
 
       if (res.success) {
         toast.add({
-          title: "Настройки сохранены и график обновлен!",
+          title: "Настройки группы сохранены в системе и график обновлен!",
           type: "success",
         });
         setActiveTab("WEEKLY");
@@ -311,8 +353,12 @@ export function DutyScheduleView({
 
   // Group Switcher
   const handleGroupChange = (groupId: string) => {
+    if (groupId === currentGroupId) return;
     setCurrentGroupId(groupId);
-    router.push(`/dashboard/duty?group=${groupId}`);
+    setIsChangingGroup(true);
+    startTransition(() => {
+      router.push(`/dashboard/duty?group=${groupId}`);
+    });
   };
 
   // Generate auto-rotation (respecting all configured group settings)
@@ -801,8 +847,12 @@ export function DutyScheduleView({
           {/* Group Selector Dropdown */}
           {!embedded && groupsList.length > 0 && (
             <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs shadow-2xs flex-1 sm:flex-initial min-w-[140px]">
-              <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-              <Select value={currentGroupId} onValueChange={handleGroupChange}>
+              {isGroupLoading ? (
+                <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
+              ) : (
+                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+              )}
+              <Select value={currentGroupId} onValueChange={handleGroupChange} disabled={isGroupLoading}>
                 <SelectTrigger className="h-6 text-xs font-semibold border-0 bg-transparent p-0 shadow-none focus:ring-0 w-full">
                   <SelectValue>{currentGroupObj ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
                 </SelectTrigger>
@@ -929,7 +979,11 @@ export function DutyScheduleView({
               : "text-muted-foreground hover:text-foreground"
               }`}
           >
-            <Calendar className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
+            {isGroupLoading && activeTab === "WEEKLY" ? (
+              <Loader2 className="h-3.5 w-3.5 inline-block mr-1.5 animate-spin text-primary" />
+            ) : (
+              <Calendar className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
+            )}
             <span className="hidden sm:inline">График группы {currentGroupObj?.name ? `(${currentGroupObj.name})` : ""}</span>
             <span className="sm:hidden">График</span>
           </button>
@@ -942,7 +996,11 @@ export function DutyScheduleView({
               : "text-muted-foreground hover:text-foreground"
               }`}
           >
-            <BarChart3 className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
+            {isGroupLoading && activeTab === "STATS" ? (
+              <Loader2 className="h-3.5 w-3.5 inline-block mr-1.5 animate-spin text-primary" />
+            ) : (
+              <BarChart3 className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
+            )}
             <span>Аудит и рейтинг</span>
           </button>
 
@@ -955,7 +1013,11 @@ export function DutyScheduleView({
                 : "text-muted-foreground hover:text-foreground"
                 }`}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
+              {isGroupLoading && activeTab === "SETTINGS" ? (
+                <Loader2 className="h-3.5 w-3.5 inline-block mr-1.5 animate-spin text-primary" />
+              ) : (
+                <SlidersHorizontal className="h-3.5 w-3.5 inline-block mr-1.5 text-primary" />
+              )}
               <span>Настройки</span>
             </button>
           )}
@@ -1051,7 +1113,16 @@ export function DutyScheduleView({
 
       {/* TAB 1: WEEKLY GROUP SCHEDULE */}
       {activeTab === "WEEKLY" && (
-        <Card className="print:hidden p-0 border overflow-hidden" data-tour="duty-roster">
+        <Card className="relative print:hidden p-0 border overflow-hidden" data-tour="duty-roster">
+          {/* Loading Overlay */}
+          {isGroupLoading && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-all">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span>Загрузка графика группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}...</span>
+              </div>
+            </div>
+          )}
           <CardHeader className="p-3 border-b bg-muted/30">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -1197,6 +1268,8 @@ export function DutyScheduleView({
                       <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                         {day.isSunday ? (
                           <span className="text-[11px] text-muted-foreground/60 italic">Выходной день</span>
+                        ) : !activeDutyDays.includes(["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"].indexOf(day.dayName)) && (!day.dutyStudents || day.dutyStudents.length === 0) ? (
+                          <span className="text-[11px] text-muted-foreground/60 italic">Не учебный / не дежурный день</span>
                         ) : day.dutyStudents && day.dutyStudents.length > 0 ? (
                           day.dutyStudents.map((st) => {
                             const isAbsentInDb = st.attendanceStatus === "ABSENT" || st.attendanceStatus === "EXCUSED";
@@ -1362,7 +1435,16 @@ export function DutyScheduleView({
 
       {/* TAB 2: DUTY STATS & AUDIT */}
       {activeTab === "STATS" && (
-        <Card className="print:hidden p-0 border overflow-hidden">
+        <Card className="relative print:hidden p-0 border overflow-hidden">
+          {/* Loading Overlay */}
+          {isGroupLoading && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-all">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span>Загрузка статистики группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}...</span>
+              </div>
+            </div>
+          )}
           <CardHeader className="p-3 border-b bg-muted/30">
             <CardTitle className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4 text-primary" /> Рейтинг и аудит дежурств группы {currentGroupObj?.name}
@@ -1445,7 +1527,16 @@ export function DutyScheduleView({
 
       {/* TAB 3: DUTY ROTATION SETTINGS */}
       {activeTab === "SETTINGS" && (
-        <Card className="print:hidden p-4 space-y-4 text-xs bg-card border shadow-xs">
+        <Card className="relative print:hidden p-4 space-y-4 text-xs bg-card border shadow-xs">
+          {/* Loading Overlay */}
+          {isGroupLoading && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-all rounded-xl">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span>Загрузка настроек группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}...</span>
+              </div>
+            </div>
+          )}
           <CardHeader className="p-0 pb-3 border-b">
             <div>
               <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">

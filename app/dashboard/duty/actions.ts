@@ -106,9 +106,11 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
   weeklyDays: DayDutyGroupDTO[];
   allSchedules: DutyItemDTO[];
   groupStudents: GroupStudentWithDutyInfo[];
+  groupDutyStats: StudentDutyStatDTO[];
   selectedGroupId: string;
   isDutyEnabled?: boolean;
   canManageDuty?: boolean;
+  groupDutySettings?: DutySettingsOptions;
 }> {
   try {
     const session = await auth();
@@ -153,16 +155,18 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       }
     }
 
-    const targetGroupObj = targetGroupId
-      ? await prisma.group.findUnique({
-          where: { id: targetGroupId },
-          select: { id: true, name: true, isDutyEnabled: true, monitorId: true, deputyMonitorId: true },
-        })
-      : null;
-    const targetGroupIsDutyEnabled = targetGroupObj ? targetGroupObj.isDutyEnabled : true;
-    const isMonitor = Boolean(userId && targetGroupObj?.monitorId === userId);
-    const isDeputyMonitor = Boolean(userId && targetGroupObj?.deputyMonitorId === userId);
-    const canManageDuty = role === "ADMIN" || role === "TEACHER" || isMonitor || isDeputyMonitor;
+    if (!targetGroupId) {
+      return {
+        groups,
+        weeklyDays: [],
+        allSchedules: [],
+        groupStudents: [],
+        groupDutyStats: [],
+        selectedGroupId: "",
+        isDutyEnabled: true,
+        canManageDuty: false,
+      };
+    }
 
     const now = new Date();
     const monday = getMondayOfCurrentWeek();
@@ -174,96 +178,138 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
     const yesterdayUtc = new Date(todayUtc.getTime() - 24 * 60 * 60 * 1000);
     const todayEndUtc = new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000);
 
-    // AUTO-ROTATION ON VIEW: Check if schedule exists for this week.
-    // If not, and duty is enabled for this group, automatically generate fair weekly rotation so
-    // headman, deputy, and students never have to manually fill schedules every single week.
-    if (targetGroupId && targetGroupIsDutyEnabled) {
-      const existingCount = await prisma.dutySchedule.count({
-        where: {
-          groupId: targetGroupId,
-          date: { gte: startDate, lt: endDate },
-        },
-      });
-      if (existingCount === 0) {
-        try {
-          await internalGenerateWeeklyDuty(targetGroupId);
-        } catch (autoGenErr) {
-          console.error("Auto-rotation on view error:", autoGenErr);
-        }
-      }
-    }
-
-    let groupStudents: GroupStudentWithDutyInfo[] = [];
-    let groupMonitorName = "";
-    if (targetGroupId) {
-      const g = await prisma.group.findUnique({
+    // Run independent group queries concurrently in parallel via Promise.all
+    const [groupData, groupDutySettings, initialWeekSchedules, initialHistoricalDuties, weekAttendances] = await Promise.all([
+      prisma.group.findUnique({
         where: { id: targetGroupId },
         include: {
-          monitor: { select: { id: true, name: true } },
-          deputyMonitor: { select: { id: true, name: true } },
+          monitor: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } },
+          deputyMonitor: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } },
           students: {
             include: { student: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } } },
             orderBy: { student: { name: "asc" } },
           },
         },
-      });
-      if (g) {
-        groupStudents = g.students.map((gs) => ({
-          id: gs.student.id,
-          name: gs.student.name,
-          isDutyExempt: gs.student.isDutyExempt,
-          dutyExemptReason: gs.student.dutyExemptReason,
-          totalDutiesCount: 0,
-          completedDutiesCount: 0,
-          lastDutyTimestamp: 0,
-        }));
-        // Ensure monitor and deputyMonitor are present in groupStudents list
-        if (g.monitor && !groupStudents.some((s) => s.id === g.monitor!.id)) {
-          groupStudents.push({
-            id: g.monitor.id,
-            name: g.monitor.name,
-            isDutyExempt: false,
-            dutyExemptReason: null,
-            totalDutiesCount: 0,
-            completedDutiesCount: 0,
-            lastDutyTimestamp: 0,
-          });
-        }
-        if (g.deputyMonitor && !groupStudents.some((s) => s.id === g.deputyMonitor!.id)) {
-          groupStudents.push({
-            id: g.deputyMonitor.id,
-            name: g.deputyMonitor.name,
-            isDutyExempt: false,
-            dutyExemptReason: null,
-            totalDutiesCount: 0,
-            completedDutiesCount: 0,
-            lastDutyTimestamp: 0,
-          });
-        }
-        if (g.monitor) groupMonitorName = g.monitor.name;
+      }),
+      getGroupDutySettings(targetGroupId),
+      prisma.dutySchedule.findMany({
+        where: {
+          groupId: targetGroupId,
+          date: { gte: startDate, lt: endDate },
+        },
+        include: {
+          student: { select: { id: true, name: true } },
+          group: { select: { id: true, name: true } },
+        },
+        orderBy: { date: "asc" },
+      }),
+      prisma.dutySchedule.findMany({
+        where: { groupId: targetGroupId },
+        select: { studentId: true, date: true, isLeader: true },
+        orderBy: { date: "desc" },
+      }),
+      prisma.attendance.findMany({
+        where: {
+          groupSubject: { groupId: targetGroupId },
+          date: { gte: startDate, lt: endDate },
+        },
+        select: {
+          studentId: true,
+          date: true,
+          status: true,
+          comment: true,
+        },
+      }),
+    ]);
+
+    const targetGroupIsDutyEnabled = groupData ? groupData.isDutyEnabled : true;
+    const isMonitor = Boolean(userId && groupData?.monitor?.id === userId);
+    const isDeputyMonitor = Boolean(userId && groupData?.deputyMonitor?.id === userId);
+    const canManageDuty = role === "ADMIN" || role === "TEACHER" || isMonitor || isDeputyMonitor;
+
+    let dbSchedules = initialWeekSchedules;
+    let allHistoricalDuties = initialHistoricalDuties;
+
+    // AUTO-ROTATION ON VIEW: Check if schedule exists for this week.
+    // If not, and duty is enabled for this group, automatically generate fair weekly rotation
+    if (targetGroupIsDutyEnabled && dbSchedules.length === 0) {
+      try {
+        await internalGenerateWeeklyDuty(targetGroupId, groupDutySettings);
+        // Re-fetch week schedules & historical duties after generating
+        const [refreshedWeek, refreshedHistorical] = await Promise.all([
+          prisma.dutySchedule.findMany({
+            where: {
+              groupId: targetGroupId,
+              date: { gte: startDate, lt: endDate },
+            },
+            include: {
+              student: { select: { id: true, name: true } },
+              group: { select: { id: true, name: true } },
+            },
+            orderBy: { date: "asc" },
+          }),
+          prisma.dutySchedule.findMany({
+            where: { groupId: targetGroupId },
+            select: { studentId: true, date: true, isLeader: true },
+            orderBy: { date: "desc" },
+          }),
+        ]);
+        dbSchedules = refreshedWeek;
+        allHistoricalDuties = refreshedHistorical;
+      } catch (autoGenErr) {
+        console.error("Auto-rotation on view error:", autoGenErr);
       }
     }
 
-    // Fetch ALL historical duty records across all time for this group to track accurate queue priority
-    const allHistoricalDuties = targetGroupId
-      ? await prisma.dutySchedule.findMany({
-        where: {
-          groupId: targetGroupId,
-          isLeader: false,
-        },
-        select: { studentId: true, date: true },
-        orderBy: { date: "desc" },
-      })
-      : [];
+    // Build groupStudents list
+    let groupStudents: GroupStudentWithDutyInfo[] = [];
+    if (groupData) {
+      groupStudents = groupData.students.map((gs) => ({
+        id: gs.student.id,
+        name: gs.student.name,
+        isDutyExempt: gs.student.isDutyExempt,
+        dutyExemptReason: gs.student.dutyExemptReason,
+        totalDutiesCount: 0,
+        completedDutiesCount: 0,
+        lastDutyTimestamp: 0,
+      }));
 
+      // Ensure monitor and deputyMonitor are present in groupStudents list
+      if (groupData.monitor && !groupStudents.some((s) => s.id === groupData.monitor!.id)) {
+        groupStudents.push({
+          id: groupData.monitor.id,
+          name: groupData.monitor.name,
+          isDutyExempt: groupData.monitor.isDutyExempt,
+          dutyExemptReason: groupData.monitor.dutyExemptReason,
+          totalDutiesCount: 0,
+          completedDutiesCount: 0,
+          lastDutyTimestamp: 0,
+        });
+      }
+      if (groupData.deputyMonitor && !groupStudents.some((s) => s.id === groupData.deputyMonitor!.id)) {
+        groupStudents.push({
+          id: groupData.deputyMonitor.id,
+          name: groupData.deputyMonitor.name,
+          isDutyExempt: groupData.deputyMonitor.isDutyExempt,
+          dutyExemptReason: groupData.deputyMonitor.dutyExemptReason,
+          totalDutiesCount: 0,
+          completedDutiesCount: 0,
+          lastDutyTimestamp: 0,
+        });
+      }
+    }
+
+    // Calculate historical statistics and last duty info
     const totalDutyCount: Record<string, number> = {};
     const completedDutyCount: Record<string, number> = {};
+    const scheduledDutyCount: Record<string, number> = {};
     const lastDutyTimestampMap: Record<string, number> = {};
     const lastDutyFormattedMap: Record<string, string> = {};
 
     groupStudents.forEach((s) => {
       totalDutyCount[s.id] = 0;
       completedDutyCount[s.id] = 0;
+      scheduledDutyCount[s.id] = 0;
       lastDutyTimestampMap[s.id] = 0;
     });
 
@@ -271,11 +317,14 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       const sDate = new Date(d.date);
       const sUtc = parseDateToUtc(sDate);
       const sTime = sUtc.getTime();
+      const isCompleted = sTime < todayEndUtc.getTime();
 
       if (totalDutyCount[d.studentId] !== undefined) {
         totalDutyCount[d.studentId]++;
-        if (sTime < todayEndUtc.getTime()) {
+        if (isCompleted) {
           completedDutyCount[d.studentId]++;
+        } else {
+          scheduledDutyCount[d.studentId]++;
         }
       }
 
@@ -325,41 +374,19 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       };
     });
 
-    let dbSchedules = await prisma.dutySchedule.findMany({
-      where: {
-        date: { gte: startDate, lt: endDate },
-        ...(targetGroupId ? { groupId: targetGroupId } : {}),
-      },
-      include: {
-        student: { select: { id: true, name: true } },
-        group: { select: { id: true, name: true } },
-      },
-      orderBy: { date: "asc" },
-    });
-
-    // Query group attendances for this week to reflect real-time attendance in duty roster
-    const groupSubjects = targetGroupId
-      ? await prisma.groupSubject.findMany({
-        where: { groupId: targetGroupId },
-        select: { id: true },
-      })
-      : [];
-    const groupSubjectIds = groupSubjects.map((gs) => gs.id);
-
-    const weekAttendances = groupSubjectIds.length > 0
-      ? await prisma.attendance.findMany({
-        where: {
-          groupSubjectId: { in: groupSubjectIds },
-          date: { gte: startDate, lt: endDate },
-        },
-        select: {
-          studentId: true,
-          date: true,
-          status: true,
-          comment: true,
-        },
-      })
-      : [];
+    // Calculate groupDutyStats for the "Аудит и рейтинг" tab (zero extra DB queries!)
+    const groupDutyStats: StudentDutyStatDTO[] = groupStudents.map((s) => ({
+      studentId: s.id,
+      studentName: s.name,
+      completedDutiesCount: completedDutyCount[s.id] || 0,
+      scheduledDutiesCount: scheduledDutyCount[s.id] || 0,
+      totalDutiesCount: totalDutyCount[s.id] || 0,
+      lastDutyDate: lastDutyFormattedMap[s.id] || "Еще не дежурил(а)",
+      isMonitor: Boolean(groupData?.monitor?.id === s.id),
+      isDeputyMonitor: Boolean(groupData?.deputyMonitor?.id === s.id),
+      isDutyExempt: s.isDutyExempt,
+      dutyExemptReason: s.dutyExemptReason,
+    }));
 
     // Helper map: key = `${studentId}_${dayDateStr}`
     const attendanceByStudentAndDay = new Map<
@@ -468,8 +495,11 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       weeklyDays,
       allSchedules,
       groupStudents,
+      groupDutyStats,
       selectedGroupId: targetGroupId,
       isDutyEnabled: targetGroupIsDutyEnabled,
+      canManageDuty,
+      groupDutySettings,
     };
   } catch (error) {
     console.error("Failed to fetch duty schedule:", error);
@@ -478,6 +508,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       weeklyDays: [],
       allSchedules: [],
       groupStudents: [],
+      groupDutyStats: [],
       selectedGroupId: "",
     };
   }
@@ -692,17 +723,24 @@ export async function getAllGroupsTodayDutyAction(): Promise<AllGroupsTodayDutyD
 /** Fetch duty statistics for all students in a specific group */
 export async function getGroupDutyStatsAction(groupId: string): Promise<StudentDutyStatDTO[]> {
   try {
-    const group = await prisma.group.findUnique({
-      where: { id: groupId },
-      include: {
-        monitor: { select: { id: true } },
-        deputyMonitor: { select: { id: true } },
-        students: {
-          include: { student: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } } },
-          orderBy: { student: { name: "asc" } },
+    const [group, allGroupSchedules] = await Promise.all([
+      prisma.group.findUnique({
+        where: { id: groupId },
+        include: {
+          monitor: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } },
+          deputyMonitor: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } },
+          students: {
+            include: { student: { select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true } } },
+            orderBy: { student: { name: "asc" } },
+          },
         },
-      },
-    });
+      }),
+      prisma.dutySchedule.findMany({
+        where: { groupId },
+        select: { studentId: true, date: true, isLeader: true },
+        orderBy: { date: "desc" },
+      }),
+    ]);
 
     if (!group) return [];
 
@@ -710,12 +748,6 @@ export async function getGroupDutyStatsAction(groupId: string): Promise<StudentD
     const todayUtc = parseDateToUtc(now);
     const yesterdayUtc = new Date(todayUtc.getTime() - 24 * 60 * 60 * 1000);
     const todayEndUtc = new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000);
-
-    const allGroupSchedules = await prisma.dutySchedule.findMany({
-      where: { groupId },
-      select: { studentId: true, date: true, isLeader: true },
-      orderBy: { date: "desc" },
-    });
 
     const completedCounts: Record<string, number> = {};
     const scheduledCounts: Record<string, number> = {};
@@ -764,49 +796,39 @@ export async function getGroupDutyStatsAction(groupId: string): Promise<StudentD
     });
 
     if (group.monitor && !resultStats.some((s) => s.studentId === group.monitor!.id)) {
-      const mon = await prisma.user.findUnique({
-        where: { id: group.monitor.id },
-        select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true },
+      const mon = group.monitor;
+      const completed = completedCounts[mon.id] || 0;
+      const scheduled = scheduledCounts[mon.id] || 0;
+      resultStats.push({
+        studentId: mon.id,
+        studentName: mon.name,
+        completedDutiesCount: completed,
+        scheduledDutiesCount: scheduled,
+        totalDutiesCount: completed + scheduled,
+        lastDutyDate: lastCompletedDates[mon.id] || "Еще не дежурил(а)",
+        isMonitor: true,
+        isDeputyMonitor: false,
+        isDutyExempt: mon.isDutyExempt,
+        dutyExemptReason: mon.dutyExemptReason,
       });
-      if (mon) {
-        const completed = completedCounts[mon.id] || 0;
-        const scheduled = scheduledCounts[mon.id] || 0;
-        resultStats.push({
-          studentId: mon.id,
-          studentName: mon.name,
-          completedDutiesCount: completed,
-          scheduledDutiesCount: scheduled,
-          totalDutiesCount: completed + scheduled,
-          lastDutyDate: lastCompletedDates[mon.id] || "Еще не дежурил(а)",
-          isMonitor: true,
-          isDeputyMonitor: false,
-          isDutyExempt: mon.isDutyExempt,
-          dutyExemptReason: mon.dutyExemptReason,
-        });
-      }
     }
 
     if (group.deputyMonitor && !resultStats.some((s) => s.studentId === group.deputyMonitor!.id)) {
-      const dep = await prisma.user.findUnique({
-        where: { id: group.deputyMonitor.id },
-        select: { id: true, name: true, isDutyExempt: true, dutyExemptReason: true },
+      const dep = group.deputyMonitor;
+      const completed = completedCounts[dep.id] || 0;
+      const scheduled = scheduledCounts[dep.id] || 0;
+      resultStats.push({
+        studentId: dep.id,
+        studentName: dep.name,
+        completedDutiesCount: completed,
+        scheduledDutiesCount: scheduled,
+        totalDutiesCount: completed + scheduled,
+        lastDutyDate: lastCompletedDates[dep.id] || "Еще не дежурил(а)",
+        isMonitor: false,
+        isDeputyMonitor: true,
+        isDutyExempt: dep.isDutyExempt,
+        dutyExemptReason: dep.dutyExemptReason,
       });
-      if (dep) {
-        const completed = completedCounts[dep.id] || 0;
-        const scheduled = scheduledCounts[dep.id] || 0;
-        resultStats.push({
-          studentId: dep.id,
-          studentName: dep.name,
-          completedDutiesCount: completed,
-          scheduledDutiesCount: scheduled,
-          totalDutiesCount: completed + scheduled,
-          lastDutyDate: lastCompletedDates[dep.id] || "Еще не дежурил(а)",
-          isMonitor: false,
-          isDeputyMonitor: true,
-          isDutyExempt: dep.isDutyExempt,
-          dutyExemptReason: dep.dutyExemptReason,
-        });
-      }
     }
 
     return resultStats;
@@ -904,12 +926,148 @@ export interface DutySettingsOptions {
   excludedStudentIds?: string[];
 }
 
+/** Fetch persistent duty settings for a group from DB (or fallback to group's actual class schedule) */
+export async function getGroupDutySettings(groupId: string): Promise<DutySettingsOptions> {
+  if (!groupId) {
+    return {
+      isDutyEnabled: true,
+      perDay: 2,
+      activeDays: [0, 1, 2, 3, 4],
+      includeLeader: true,
+      responsibleMode: "MONITOR",
+      algorithm: "FAIR",
+      excludedStudentIds: [],
+    };
+  }
+
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: `duty_settings_${groupId}` },
+    });
+    if (setting?.value) {
+      const parsed = JSON.parse(setting.value);
+      if (parsed && typeof parsed === "object") {
+        return {
+          isDutyEnabled: parsed.isDutyEnabled ?? true,
+          perDay: typeof parsed.perDay === "number" ? parsed.perDay : (typeof parsed.dutyPerDaySetting === "number" ? parsed.dutyPerDaySetting : 2),
+          activeDays: Array.isArray(parsed.activeDays)
+            ? parsed.activeDays
+            : (Array.isArray(parsed.activeDutyDays) ? parsed.activeDutyDays : [0, 1, 2, 3, 4]),
+          includeLeader: parsed.includeLeader ?? (parsed.responsibleMode !== "NONE"),
+          responsibleMode: parsed.responsibleMode || "MONITOR",
+          customResponsibleStudentId: parsed.customResponsibleStudentId || "",
+          algorithm: parsed.algorithm || parsed.dutyAlgorithm || "FAIR",
+          excludedStudentIds: Array.isArray(parsed.excludedStudentIds) ? parsed.excludedStudentIds : [],
+        };
+      }
+    }
+  } catch (err) {
+    console.error("Failed to read group duty settings from DB:", err);
+  }
+
+  // If no saved settings exist in DB yet:
+  // Check if group actually has any classes/attendances on Saturday (day 6 of week)
+  let hasSaturday = false;
+  try {
+    const attendances = await prisma.attendance.findMany({
+      where: { groupSubject: { groupId } },
+      select: { date: true },
+      take: 100,
+    });
+    hasSaturday = attendances.some((a) => new Date(a.date).getUTCDay() === 6);
+  } catch {
+    hasSaturday = false;
+  }
+
+  const defaultSettings: DutySettingsOptions = {
+    isDutyEnabled: true,
+    perDay: 2,
+    activeDays: hasSaturday ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4], // Mon-Fri (5 days) by default if group has no Saturday classes!
+    includeLeader: true,
+    responsibleMode: "MONITOR",
+    algorithm: "FAIR",
+    excludedStudentIds: [],
+  };
+
+  // Cache default settings in systemSetting so future runs use the exact same configuration
+  try {
+    await prisma.systemSetting.upsert({
+      where: { key: `duty_settings_${groupId}` },
+      create: {
+        key: `duty_settings_${groupId}`,
+        value: JSON.stringify(defaultSettings),
+      },
+      update: {},
+    });
+  } catch {
+    // ignore
+  }
+
+  return defaultSettings;
+}
+
+/** Save persistent group duty settings to DB and regenerate rotation using them */
+export async function saveGroupDutySettingsAction(
+  groupId: string,
+  settings: DutySettingsOptions
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const isAllowed = await checkDutyPermission(groupId);
+    if (!isAllowed) {
+      return { success: false, error: "Недостаточно прав для изменения настроек дежурств" };
+    }
+
+    const payload = {
+      isDutyEnabled: settings.isDutyEnabled ?? true,
+      perDay: settings.perDay ?? 2,
+      activeDays: settings.activeDays ?? [0, 1, 2, 3, 4],
+      includeLeader: settings.includeLeader ?? (settings.responsibleMode !== "NONE"),
+      responsibleMode: settings.responsibleMode || "MONITOR",
+      customResponsibleStudentId: settings.customResponsibleStudentId || "",
+      algorithm: settings.algorithm || "FAIR",
+      excludedStudentIds: settings.excludedStudentIds || [],
+    };
+
+    await prisma.systemSetting.upsert({
+      where: { key: `duty_settings_${groupId}` },
+      create: {
+        key: `duty_settings_${groupId}`,
+        value: JSON.stringify(payload),
+      },
+      update: {
+        value: JSON.stringify(payload),
+      },
+    });
+
+    if (settings.isDutyEnabled !== undefined) {
+      await prisma.group.update({
+        where: { id: groupId },
+        data: { isDutyEnabled: settings.isDutyEnabled },
+      });
+    }
+
+    // Immediately regenerate current week schedule using the newly saved settings
+    const genRes = await internalGenerateWeeklyDuty(groupId, payload);
+    revalidatePath("/dashboard/duty");
+    revalidatePath(`/dashboard/groups/${groupId}`);
+    return genRes;
+  } catch (error) {
+    console.error("Failed to save group duty settings:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка при сохранении настроек" };
+  }
+}
+
 export async function internalGenerateWeeklyDuty(
   groupId: string,
   options?: DutySettingsOptions
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const opts: DutySettingsOptions = options || {};
+    // Merge with persisted group settings from DB
+    const savedSettings = await getGroupDutySettings(groupId);
+    const opts: DutySettingsOptions = {
+      ...savedSettings,
+      ...(options || {}),
+    };
 
     const monday = getMondayOfCurrentWeek();
     const startDate = parseDateToUtc(monday);
@@ -929,10 +1087,18 @@ export async function internalGenerateWeeklyDuty(
       }
     }
     const perDayOverride = opts.perDay;
-    const activeDays = opts.activeDays || [0, 1, 2, 3, 4, 5];
-    const includeLeader = opts.includeLeader ?? true;
+    const activeDays = opts.activeDays || savedSettings.activeDays || [0, 1, 2, 3, 4];
+    const includeLeader = opts.includeLeader ?? (opts.responsibleMode !== "NONE");
     const algorithm = opts.algorithm || "FAIR";
     const excludedIds = new Set(opts.excludedStudentIds || []);
+
+    // Wipe current week's schedule before regenerating, so inactive days (like Saturday) or outdated assignments are cleanly removed
+    await prisma.dutySchedule.deleteMany({
+      where: {
+        groupId,
+        date: { gte: startDate, lt: endDate },
+      },
+    });
 
     const group = await prisma.group.findUnique({
       where: { id: groupId },
@@ -1037,25 +1203,17 @@ export async function internalGenerateWeeklyDuty(
     });
 
     // Query group attendances for this week to skip students with НБ / ABSENT on specific days
-    const groupSubjects = await prisma.groupSubject.findMany({
-      where: { groupId },
-      select: { id: true },
+    const weekAttendances = await prisma.attendance.findMany({
+      where: {
+        groupSubject: { groupId },
+        date: { gte: startDate, lt: endDate },
+      },
+      select: {
+        studentId: true,
+        date: true,
+        status: true,
+      },
     });
-    const groupSubjectIds = groupSubjects.map((gs) => gs.id);
-
-    const weekAttendances = groupSubjectIds.length > 0
-      ? await prisma.attendance.findMany({
-        where: {
-          groupSubjectId: { in: groupSubjectIds },
-          date: { gte: startDate, lt: endDate },
-        },
-        select: {
-          studentId: true,
-          date: true,
-          status: true,
-        },
-      })
-      : [];
 
     // Map of absent students per date string: key = `${studentId}_${YYYY-MM-DD}`
     const absentStudentsOnDate = new Set<string>();
@@ -1065,6 +1223,13 @@ export async function internalGenerateWeeklyDuty(
         absentStudentsOnDate.add(`${att.studentId}_${dStr}`);
       }
     });
+
+    const dutyEntriesToCreate: {
+      groupId: string;
+      studentId: string;
+      date: Date;
+      isLeader: boolean;
+    }[] = [];
 
     for (let i = 0; i < 6; i++) {
       if (!activeDays.includes(i)) continue;
@@ -1141,35 +1306,32 @@ export async function internalGenerateWeeklyDuty(
         lastDutyTime[id] = targetTime;
       });
 
-      // Create duty entries using upsert
+      // Collect duty entries for bulk creation
       for (const sid of dayStudentIds) {
-        await prisma.dutySchedule.upsert({
-          where: {
-            groupId_studentId_date: {
-              groupId,
-              studentId: sid,
-              date: targetDate,
-            },
-          },
-          create: { groupId, studentId: sid, date: targetDate, isLeader: false },
-          update: { isLeader: false },
+        dutyEntriesToCreate.push({
+          groupId,
+          studentId: sid,
+          date: targetDate,
+          isLeader: false,
         });
       }
 
-      // Create leader/responsible entry if configured
+      // Collect leader/responsible entry if configured
       if (effectiveLeaderId && !dayStudentIds.includes(effectiveLeaderId)) {
-        await prisma.dutySchedule.upsert({
-          where: {
-            groupId_studentId_date: {
-              groupId,
-              studentId: effectiveLeaderId,
-              date: targetDate,
-            },
-          },
-          create: { groupId, studentId: effectiveLeaderId, date: targetDate, isLeader: true },
-          update: { isLeader: true },
+        dutyEntriesToCreate.push({
+          groupId,
+          studentId: effectiveLeaderId,
+          date: targetDate,
+          isLeader: true,
         });
       }
+    }
+
+    if (dutyEntriesToCreate.length > 0) {
+      await prisma.dutySchedule.createMany({
+        data: dutyEntriesToCreate,
+        skipDuplicates: true,
+      });
     }
 
     return { success: true };

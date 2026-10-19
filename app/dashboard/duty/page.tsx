@@ -1,9 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import {
-  getDutyScheduleAction,
-  getGroupDutyStatsAction,
-} from "./actions";
+import { getDutyScheduleAction } from "./actions";
 import { DutyScheduleView } from "./_components/duty-schedule-view";
 
 interface PageProps {
@@ -20,11 +17,17 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
   const { group } = await searchParams;
   const role = session.user.role || "STUDENT";
 
-  const { groups, weeklyDays, groupStudents, isDutyEnabled, selectedGroupId, canManageDuty } =
-    await getDutyScheduleAction(group);
+  const {
+    groups,
+    weeklyDays,
+    groupStudents,
+    groupDutyStats,
+    isDutyEnabled,
+    selectedGroupId,
+    canManageDuty,
+    groupDutySettings,
+  } = await getDutyScheduleAction(group);
   const targetGroupId = selectedGroupId || group || groups[0]?.id || "";
-
-  const groupDutyStats = targetGroupId ? await getGroupDutyStatsAction(targetGroupId) : [];
 
   return (
     <DutyScheduleView
@@ -36,6 +39,7 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
       groupDutyStats={groupDutyStats}
       selectedGroupId={targetGroupId}
       isDutyEnabled={isDutyEnabled}
+      initialDutySettings={groupDutySettings}
     />
   );
 }
