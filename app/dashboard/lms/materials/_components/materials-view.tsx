@@ -67,6 +67,7 @@ import {
   GripVertical,
   ArrowUp,
   ArrowDown,
+  Share2,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -364,12 +365,14 @@ export function MaterialsView({
   // Reader interactive state
   const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
   const [copiedResourceUrl, setCopiedResourceUrl] = useState<string | null>(null);
+  const [isShareCopied, setIsShareCopied] = useState(false);
   const [activeContentTab, setActiveContentTab] = useState<"all" | "video" | "resources" | "text">("all");
   const contentTopRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedVideoIndex(0);
     setCopiedResourceUrl(null);
+    setIsShareCopied(false);
     setActiveContentTab("all");
     if (contentTopRef.current) {
       contentTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -625,6 +628,17 @@ export function MaterialsView({
     }
   };
 
+  const handleShareMaterial = () => {
+    if (!currentMat) return;
+    if (typeof window === "undefined") return;
+
+    const url = `${window.location.origin}/dashboard/lms/materials?group=${selectedGroupId}&subject=${selectedSubjectId}&material=${currentMat.id}`;
+    navigator.clipboard.writeText(url);
+    setIsShareCopied(true);
+    toast.add({ title: "Ссылка на урок скопирована в буфер обмена", type: "success" });
+    setTimeout(() => setIsShareCopied(false), 2000);
+  };
+
   const getMaterialTypeLabel = (t: MaterialType) => {
     switch (t) {
       case MaterialType.LECTURE:
@@ -775,18 +789,6 @@ export function MaterialsView({
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> Назад к предметам
               </Button>
-              {!isSidebarOpen && (
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={() => setIsSidebarOpen(true)}
-                  className="h-7 text-xs px-2.5 gap-1.5 text-primary border-primary/30 hover:bg-primary/5 font-medium"
-                  title="Развернуть блок материалов"
-                >
-                  <PanelLeftOpen className="h-3.5 w-3.5" />
-                  <span>Материалы ({displayMaterials.length})</span>
-                </Button>
-              )}
               <div className="h-4 w-px bg-border hidden sm:block" />
               <div className="flex items-center gap-2">
                 <BookMarked className="h-4 w-4 text-primary" />
@@ -835,85 +837,120 @@ export function MaterialsView({
             {/* LEFT SIDEBAR: CHAPTERS & MATERIALS TREE FOR THIS SUBJECT */}
             <div
               className={cn(
-                "bg-card rounded-xl border shadow-xs md:sticky md:top-20 md:self-start md:max-h-[calc(100vh-6rem)] static max-h-none overflow-y-auto overflow-x-hidden md:z-10 transition-all duration-300 ease-in-out shrink-0",
+                "bg-card rounded-xl border shadow-xs md:sticky md:top-20 md:self-start md:max-h-[calc(100vh-6rem)] static max-h-none overflow-hidden md:z-10 transition-all duration-300 ease-in-out shrink-0 flex flex-col",
                 isSidebarOpen
-                  ? "w-full md:w-[290px] lg:w-[330px] p-3 space-y-2.5 opacity-100"
-                  : "hidden md:block md:w-0 md:min-w-0 md:max-w-0 md:p-0 md:border-0 md:opacity-0 md:pointer-events-none md:shadow-none md:overflow-hidden"
+                  ? "w-full md:w-[290px] lg:w-[330px] p-3"
+                  : "w-full md:w-11 p-3 md:p-2 md:items-center"
               )}
             >
-              <div className="w-full space-y-2.5 transition-opacity duration-200">
-                {/* Header with Counter Badge */}
-                <div className="flex items-center justify-between border-b pb-2">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xs font-bold text-foreground">Материалы</h2>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-semibold text-muted-foreground">
+              {/* DESKTOP COLLAPSED RAIL: ONLY ON MD+ SCREENS WHEN COLLAPSED */}
+              {!isSidebarOpen && (
+                <div className="hidden md:flex flex-col items-center gap-2.5 py-1 w-full h-full select-none">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setIsSidebarOpen(true)}
+                    title="Развернуть материалы"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <PanelLeftOpen className="h-4 w-4 text-primary" />
+                  </Button>
+
+                  <div className="h-px w-5 bg-border" />
+
+                  <button
+                    type="button"
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="cursor-pointer [writing-mode:vertical-lr] rotate-180 text-[11px] font-semibold text-muted-foreground hover:text-foreground tracking-wide py-1 flex items-center gap-1.5 transition-colors"
+                    title="Развернуть материалы"
+                  >
+                    <span>Материалы</span>
+                    <Badge variant="secondary" className="text-[10px] px-1 py-0 h-3.5 font-semibold text-muted-foreground [writing-mode:horizontal-tb] rotate-180">
                       {displayMaterials.length}
                     </Badge>
+                  </button>
+                </div>
+              )}
+
+              {/* REGULAR SIDEBAR: ALWAYS FULL-WIDTH ON MOBILE; ON DESKTOP ONLY WHEN OPEN */}
+              <div
+                className={cn(
+                  "w-full flex flex-col flex-1 min-h-0 space-y-2 transition-opacity duration-200",
+                  !isSidebarOpen && "md:hidden"
+                )}
+              >
+                {/* Fixed Top Header & Action Buttons */}
+                <div className="shrink-0 space-y-2 border-b pb-2">
+                  {/* Header with Counter Badge */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xs font-bold text-foreground">Материалы</h2>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-semibold text-muted-foreground">
+                        {displayMaterials.length}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {/* Desktop Collapse Button */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setIsSidebarOpen(false)}
+                        title="Свернуть блок материалов"
+                        className="hidden md:inline-flex h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1 font-medium"
+                      >
+                        <PanelLeftClose className="h-3.5 w-3.5" />
+                        <span>Свернуть</span>
+                      </Button>
+
+                      {/* Mobile Toggle Button */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+                        className="md:hidden h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1 font-medium"
+                      >
+                        <span>{isMobileSidebarOpen ? "Свернуть" : "Развернуть"}</span>
+                        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", isMobileSidebarOpen && "rotate-180")} />
+                      </Button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    {/* Desktop Collapse Button */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => setIsSidebarOpen(false)}
-                      title="Свернуть блок материалов"
-                      className="hidden md:inline-flex h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1 font-medium"
-                    >
-                      <PanelLeftClose className="h-3.5 w-3.5" />
-                      <span>Свернуть</span>
-                    </Button>
+                  {/* Action Buttons in Compact 2-Column Grid (Fixed in Header) */}
+                  {canCreate && (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Link
+                        href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
+                        className="block"
+                      >
+                        <Button size="xs" className="w-full h-7 text-xs px-2 gap-1 font-medium shadow-xs truncate">
+                          <Plus className="h-3 w-3 shrink-0" /> Материал
+                        </Button>
+                      </Link>
 
-                    {/* Mobile Toggle Button */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
-                      className="md:hidden h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1 font-medium"
-                    >
-                      <span>{isMobileSidebarOpen ? "Свернуть" : "Развернуть"}</span>
-                      <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", isMobileSidebarOpen && "rotate-180")} />
-                    </Button>
-                  </div>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        onClick={() => setIsCreateChapterOpen(true)}
+                        className="w-full h-7 text-xs px-2 gap-1 text-foreground hover:text-primary font-medium truncate"
+                      >
+                        <Folder className="h-3 w-3 text-primary shrink-0" /> Глава
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
+                {/* Scrollable Chapters Accordion List */}
                 <div
                   className={cn(
-                    "grid transition-all duration-300 ease-in-out",
-                    isMobileSidebarOpen
-                      ? "grid-rows-[1fr] opacity-100"
-                      : "grid-rows-[0fr] opacity-0 md:grid-rows-[1fr] md:opacity-100"
+                    "flex-1 min-h-0 overflow-y-auto overflow-x-hidden pt-0.5 space-y-1 pr-1",
+                    isMobileSidebarOpen ? "block" : "hidden md:block"
                   )}
                 >
-                  <div className="overflow-hidden space-y-2.5">
-                    {/* Action Buttons in Compact 2-Column Grid */}
-                    {canCreate && (
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <Link
-                          href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
-                          className="block"
-                        >
-                          <Button size="xs" className="w-full h-7 text-xs px-2 gap-1 font-medium shadow-xs truncate">
-                            <Plus className="h-3 w-3 shrink-0" /> Материал
-                          </Button>
-                        </Link>
-
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="outline"
-                          onClick={() => setIsCreateChapterOpen(true)}
-                          className="w-full h-7 text-xs px-2 gap-1 text-foreground hover:text-primary font-medium truncate"
-                        >
-                          <Folder className="h-3 w-3 text-primary shrink-0" /> Глава
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Chapters Accordion List */}
-                    <div className="space-y-1 pt-0.5 overflow-y-auto pr-1">
                       {displayTopics.map((topic, topicIdx) => {
                         const isExpanded = expandedTopics[topic.id] ?? true;
                         const topicMats = topic.materials || [];
@@ -1198,8 +1235,6 @@ export function MaterialsView({
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
             {/* RIGHT MAIN AREA: SELECTED MATERIAL CONTENT VIEWER */}
             <div
@@ -1267,19 +1302,6 @@ export function MaterialsView({
                     </div>
                   )}
 
-                  {!isSidebarOpen && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => setIsSidebarOpen(true)}
-                      className="h-7 text-xs px-2 gap-1 text-foreground hover:text-primary font-medium"
-                      title="Развернуть список материалов"
-                    >
-                      <PanelLeftOpen className="h-3.5 w-3.5 text-primary" />
-                      <span className="hidden sm:inline">Список материалов</span>
-                    </Button>
-                  )}
-
                   <span className="text-[11px]">
                     {new Date(currentMat.createdAt).toLocaleDateString("ru-RU", {
                       day: "2-digit",
@@ -1287,6 +1309,27 @@ export function MaterialsView({
                       year: "numeric",
                     })}
                   </span>
+
+                  {/* Share Lesson Link Button */}
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={handleShareMaterial}
+                    className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-foreground font-medium"
+                    title="Скопировать прямую ссылку на этот урок"
+                  >
+                    {isShareCopied ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="text-xs text-emerald-600 font-medium">Скопировано</span>
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="h-3.5 w-3.5" />
+                        <span className="text-xs">Поделиться</span>
+                      </>
+                    )}
+                  </Button>
 
                   {canCreate && (
                     <div className="flex items-center gap-1">
