@@ -267,7 +267,7 @@ export function AttendanceStatsView({
       "Был",
       "НБ (Неуваж.)",
       "Опоздал",
-      "Справка (Уваж.)",
+      "Уваж. (справка / отпрос)",
       "% Посещаемости",
     ];
 
@@ -433,7 +433,7 @@ export function AttendanceStatsView({
                   <th className="border border-black p-1.5 w-16 text-center font-bold">Был</th>
                   <th className="border border-black p-1.5 w-20 text-center font-bold">Н/Б (неув.)</th>
                   <th className="border border-black p-1.5 w-16 text-center font-bold">Опоздал</th>
-                  <th className="border border-black p-1.5 w-20 text-center font-bold">Справка</th>
+                  <th className="border border-black p-1.5 w-20 text-center font-bold">Уваж.</th>
                   <th className="border border-black p-1.5 w-24 text-center font-bold">% Посещ.</th>
                 </tr>
               </thead>
@@ -863,7 +863,7 @@ export function AttendanceStatsView({
                   <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-primary">Был</th>
                   <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-destructive">Н/Б</th>
                   <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-amber-600">Опоздал</th>
-                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-blue-600">Справка</th>
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-blue-600">Уваж.</th>
                   <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 min-w-[170px] text-right">% Посещаемости</th>
                 </tr>
               </thead>

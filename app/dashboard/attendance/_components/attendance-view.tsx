@@ -549,7 +549,8 @@ export function AttendanceView({
         <>
           <style jsx global>{`
             @media screen {
-              #printable-attendance-sheet {
+              #printable-attendance-sheet,
+              .attendance-printable-doc {
                 display: none !important;
               }
             }
@@ -564,7 +565,21 @@ export function AttendanceView({
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
               }
-              #printable-attendance-sheet {
+              aside,
+              header,
+              nav,
+              [data-sidebar="sidebar"],
+              [data-slot="sidebar"],
+              [data-slot="sidebar-gap"],
+              [data-slot="sidebar-container"],
+              [data-slot="sidebar-rail"],
+              [data-slot="sidebar-trigger"],
+              .screen-only-view,
+              .no-print {
+                display: none !important;
+              }
+              #printable-attendance-sheet,
+              .attendance-printable-doc {
                 display: block !important;
                 width: 100% !important;
                 max-width: 100% !important;
@@ -589,26 +604,36 @@ export function AttendanceView({
               thead {
                 display: table-header-group;
               }
+              tfoot {
+                display: table-footer-group;
+              }
             }
           `}</style>
-          <div id="printable-attendance-sheet" className="space-y-4 font-sans text-black">
-            <div className="text-center border-b-2 border-black pb-3 space-y-1">
-              <h1 className="text-lg font-bold uppercase tracking-wide">Журнал учета посещаемости занятий</h1>
-              <div className="text-xs font-semibold text-gray-800">
-                Группа: <strong>{currentGroupObj?.name || "—"}</strong> | Предмет: <strong>{currentSubjectObj?.subjectName || "—"}</strong>
+          <div id="printable-attendance-sheet" className="attendance-printable-doc font-sans text-black space-y-3">
+            {/* Header */}
+            <div className="border-b-2 border-black pb-2 text-center space-y-1">
+              <div className="text-[10px] tracking-wider uppercase text-neutral-600 font-semibold">
+                Группа: {currentGroupObj?.name || "—"}
               </div>
-              <div className="text-xs text-gray-600">
-                Преподаватель: {currentSubjectObj?.teacherName || "—"} | Дата: {formatDisplayDate(currentDateStr)}
+              <h1 className="text-base font-bold uppercase tracking-wide">
+                Журнал учета посещаемости занятий
+              </h1>
+              <div className="text-xs font-medium text-neutral-800">
+                Дисциплина: <strong>{currentSubjectObj?.subjectName || "—"}</strong> • Преподаватель: <strong>{currentSubjectObj?.teacherName || "—"}</strong>
+              </div>
+              <div className="text-[11px] text-neutral-600">
+                Дата занятия: <strong>{formatDisplayDate(currentDateStr)}</strong>
               </div>
             </div>
 
+            {/* Attendance Table */}
             <table className="w-full border-collapse border border-black text-xs">
               <thead>
-                <tr className="bg-gray-100 border-b border-black text-black">
-                  <th className="border border-black p-2 text-center w-12 font-bold">№</th>
-                  <th className="border border-black p-2 text-left font-bold">ФИО Учащегося</th>
-                  <th className="border border-black p-2 text-center w-32 font-bold">Статус</th>
-                  <th className="border border-black p-2 text-left font-bold">Примечание</th>
+                <tr className="bg-neutral-100 border-b border-black text-black">
+                  <th className="border border-black p-1.5 text-center w-8 font-bold">№</th>
+                  <th className="border border-black p-1.5 text-left font-bold">ФИО Студента</th>
+                  <th className="border border-black p-1.5 text-center w-24 font-bold">Статус</th>
+                  <th className="border border-black p-1.5 text-left font-bold">Примечание</th>
                 </tr>
               </thead>
               <tbody>
@@ -616,18 +641,18 @@ export function AttendanceView({
                   const rec = records[st.studentId] || { status: AttendanceStatus.PRESENT, comment: "" };
                   return (
                     <tr key={st.studentId} className="border-b border-black">
-                      <td className="border border-black p-2 text-center font-mono">{idx + 1}</td>
-                      <td className="border border-black p-2 font-medium">{st.studentName}</td>
-                      <td className="border border-black p-2 text-center font-semibold">
+                      <td className="border border-black p-1.5 text-center font-mono">{idx + 1}</td>
+                      <td className="border border-black p-1.5 font-medium">{st.studentName}</td>
+                      <td className="border border-black p-1.5 text-center font-semibold">
                         {rec.status === AttendanceStatus.PRESENT
                           ? "Был"
                           : rec.status === AttendanceStatus.ABSENT
                           ? "НБ"
                           : rec.status === AttendanceStatus.LATE
                           ? "Опоздал"
-                          : "Справка"}
+                          : "Уваж."}
                       </td>
-                      <td className="border border-black p-2 text-gray-600">{rec.comment || "—"}</td>
+                      <td className="border border-black p-1.5 text-neutral-700">{rec.comment || "—"}</td>
                     </tr>
                   );
                 })}
@@ -635,25 +660,25 @@ export function AttendanceView({
             </table>
 
             {/* Daily Summary & Signatures */}
-            <div className="pt-4 space-y-3 text-xs">
-              <div className="flex justify-between items-center text-xs font-semibold border-t border-b border-black py-1.5">
+            <div className="pt-2 space-y-3 text-xs">
+              <div className="flex justify-between items-center font-semibold border-t border-b border-black py-1.5 px-2 bg-neutral-50/50">
                 <span>Всего студентов: {filteredStudents.length}</span>
                 <span>Присутствуют: {presentCount}</span>
                 <span>Пропуски (Н/Б): {absentCount}</span>
                 <span>Опоздания: {lateCount}</span>
-                <span>Справки (уваж.): {excusedCount}</span>
+                <span>Уважительные: {excusedCount}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-8 pt-2">
-                <div className="space-y-4">
-                  <div className="font-semibold">Преподаватель:</div>
-                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold shrink-0">Преподаватель:</span>
+                  <div className="border-b border-black flex-1 text-center text-xs text-neutral-700 pb-0.5">
                     / {currentSubjectObj?.teacherName || "________________________"} /
                   </div>
                 </div>
-                <div className="space-y-4">
-                  <div className="font-semibold">Староста группы:</div>
-                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold shrink-0">Староста:</span>
+                  <div className="border-b border-black flex-1 text-center text-xs text-neutral-500 pb-0.5">
                     (подпись / расшифровка)
                   </div>
                 </div>
@@ -958,7 +983,7 @@ export function AttendanceView({
               <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">3</kbd> Опоздал
             </span>
             <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">4</kbd> Справка
+              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">4</kbd> Уваж.
             </span>
             <span>
               <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">Ctrl+S</kbd> Сохранить
@@ -1034,7 +1059,7 @@ export function AttendanceView({
                 : "text-muted-foreground hover:text-foreground hover:bg-muted"
             }`}
           >
-            Справка ({excusedCount})
+            Уважительные ({excusedCount})
           </button>
         </div>
 
@@ -1189,9 +1214,9 @@ export function AttendanceView({
                               ? "bg-sky-500 text-white shadow-2xs"
                               : "text-muted-foreground hover:text-foreground hover:bg-muted"
                           }`}
-                          title="Уважительная причина (справка)"
+                          title="Уважительная причина (отпросился, справка, заявление)"
                         >
-                          Справка
+                          Уваж.
                         </button>
                       </div>
                     ) : (
@@ -1214,19 +1239,45 @@ export function AttendanceView({
                             ? "Отсутствует (НБ)"
                             : rec.status === "LATE"
                             ? "Опоздал"
-                            : "Справка"}
+                            : rec.comment
+                            ? `Уваж. (${rec.comment})`
+                            : "Уважительная"}
                         </Badge>
                       </div>
                     )}
 
                     <div>
                       {isAdminOrTeacher ? (
-                        <Input
-                          placeholder="Примечание..."
-                          value={rec.comment}
-                          onChange={(e) => handleCommentChange(st.studentId, e.target.value)}
-                          className="h-7 text-xs bg-background"
-                        />
+                        <div className="space-y-1">
+                          <Input
+                            placeholder="Примечание..."
+                            value={rec.comment}
+                            onChange={(e) => handleCommentChange(st.studentId, e.target.value)}
+                            className="h-7 text-xs bg-background"
+                          />
+                          {rec.status === AttendanceStatus.EXCUSED && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {(["Отпросился", "Справка", "По семейным", "Мероприятие"] as const).map((reason) => {
+                                const isSelected = rec.comment?.trim() === reason;
+                                return (
+                                  <button
+                                    key={reason}
+                                    type="button"
+                                    onClick={() => handleCommentChange(st.studentId, isSelected ? "" : reason)}
+                                    className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer font-medium ${
+                                      isSelected
+                                        ? "bg-primary text-primary-foreground border-primary"
+                                        : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
+                                    }`}
+                                    title={`Указать: ${reason}`}
+                                  >
+                                    {reason}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-xs text-muted-foreground truncate block">
                           {rec.comment || "—"}
@@ -1326,7 +1377,9 @@ export function AttendanceView({
                             ? "Отсутствует (НБ)"
                             : rec.status === "LATE"
                             ? "Опоздал"
-                            : "Справка"}
+                            : rec.comment
+                            ? `Уваж. (${rec.comment})`
+                            : "Уважительная"}
                         </Badge>
                       )}
                     </div>
@@ -1377,19 +1430,44 @@ export function AttendanceView({
                               ? "bg-sky-500 text-white shadow-2xs"
                               : "text-muted-foreground hover:text-foreground hover:bg-muted"
                           }`}
+                          title="Уважительная причина (отпросился, справка, заявление)"
                         >
-                          Справка
+                          Уваж.
                         </button>
                       </div>
                     )}
 
                     {isAdminOrTeacher ? (
-                      <Input
-                        placeholder="Примечание (причина, комментарий...)"
-                        value={rec.comment}
-                        onChange={(e) => handleCommentChange(st.studentId, e.target.value)}
-                        className="h-8 text-xs bg-background w-full"
-                      />
+                      <div className="space-y-1.5">
+                        <Input
+                          placeholder="Примечание (причина, комментарий...)"
+                          value={rec.comment}
+                          onChange={(e) => handleCommentChange(st.studentId, e.target.value)}
+                          className="h-8 text-xs bg-background w-full"
+                        />
+                        {rec.status === AttendanceStatus.EXCUSED && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {(["Отпросился", "Справка", "По семейным", "Мероприятие"] as const).map((reason) => {
+                              const isSelected = rec.comment?.trim() === reason;
+                              return (
+                                <button
+                                  key={reason}
+                                  type="button"
+                                  onClick={() => handleCommentChange(st.studentId, isSelected ? "" : reason)}
+                                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer font-medium ${
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border-border"
+                                  }`}
+                                  title={`Указать: ${reason}`}
+                                >
+                                  {reason}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       rec.comment && (
                         <div className="text-[11px] text-muted-foreground bg-muted/30 px-2.5 py-1.5 rounded border">
