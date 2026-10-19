@@ -62,6 +62,37 @@ const SORT_LABELS: Record<SortField, string> = {
   name: "По алфавиту (ФИО)",
 };
 
+function formatDateRu(ymdStr: string): string {
+  if (!ymdStr) return "—";
+  const parts = ymdStr.split("-").map(Number);
+  if (parts.length !== 3 || isNaN(parts[0])) return ymdStr;
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  return d.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function getPresetLabel(p: PeriodPreset): string {
+  switch (p) {
+    case "THIS_WEEK":
+      return "Текущая неделя";
+    case "THIS_MONTH":
+      return "Текущий месяц";
+    case "LAST_MONTH":
+      return "Прошлый месяц";
+    case "SEMESTER":
+      return "Семестр";
+    case "ACADEMIC_YEAR":
+      return "Учебный год";
+    case "CUSTOM":
+      return "Свой период";
+    default:
+      return "";
+  }
+}
+
 function getPresetDates(preset: PeriodPreset): { start: string; end: string } {
   const now = new Date();
   const todayStr = now.toISOString().split("T")[0];
@@ -262,10 +293,245 @@ export function AttendanceStatsView({
     window.print();
   };
 
+  const selectedSubjectObj =
+    selectedSubjectId !== "all"
+      ? subjects.find((s) => s.id === selectedSubjectId)
+      : null;
+
   return (
     <div className="space-y-3 text-xs">
-      {/* Filters & Range Toolbar */}
-      <div className="bg-card p-3 rounded-xl border shadow-xs space-y-3">
+      {/* Print Styles for Summary Attendance Sheet */}
+      <style jsx global>{`
+        @media screen {
+          .attendance-printable-doc {
+            display: none !important;
+          }
+        }
+
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 15mm 15mm 15mm 15mm;
+          }
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          aside,
+          header,
+          nav,
+          [data-sidebar="sidebar"],
+          [data-slot="sidebar"],
+          [data-slot="sidebar-gap"],
+          [data-slot="sidebar-container"],
+          [data-slot="sidebar-rail"],
+          [data-slot="sidebar-trigger"],
+          .screen-only-view,
+          .no-print {
+            display: none !important;
+          }
+          .attendance-printable-doc {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 4mm 8mm !important;
+            margin: 0 auto !important;
+            color: #000000 !important;
+            background: #ffffff !important;
+          }
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          th, td {
+            padding: 5px 8px !important;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tfoot {
+            display: table-footer-group;
+          }
+        }
+      `}</style>
+
+      {/* Printable Document for Period Attendance Stats */}
+      <div id="printable-attendance-stats" className="attendance-printable-doc font-sans text-black space-y-4">
+        {/* Header */}
+        <div className="border-b-2 border-black pb-3 text-center space-y-1">
+          <div className="text-[10px] tracking-wider uppercase text-neutral-600 font-semibold">
+            Учебная часть • Информационная система учета посещаемости
+          </div>
+          <h1 className="text-lg font-bold uppercase tracking-wide">
+            Сводная ведомость посещаемости занятий
+          </h1>
+          <div className="text-xs font-semibold text-neutral-800">
+            Группа: <strong>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Все группы"}</strong>
+            {selectedSubjectObj ? (
+              <> • Дисциплина: <strong>{selectedSubjectObj.subjectName}</strong> ({selectedSubjectObj.teacherName})</>
+            ) : (
+              <> • Дисциплина: <strong>Все дисциплины учебного плана</strong></>
+            )}
+          </div>
+          <div className="text-[11px] text-neutral-600">
+            Период: <strong>{formatDateRu(dates.start)}</strong> — <strong>{formatDateRu(dates.end)}</strong>
+            {" "}({getPresetLabel(preset)})
+            {" • "}
+            Дата формирования: <strong>{formatDateRu(new Date().toISOString().split("T")[0])}</strong>
+          </div>
+        </div>
+
+        {!statsData ? (
+          <div className="py-12 text-center text-xs text-neutral-600 font-medium">
+            Загрузка сводных данных посещаемости...
+          </div>
+        ) : (
+          <>
+            {/* KPI Summary Block */}
+            <div className="grid grid-cols-6 gap-2 border border-black p-2 text-center text-xs bg-neutral-50/50">
+              <div>
+                <div className="text-[10px] text-neutral-600">Всего занятий</div>
+                <div className="font-bold text-sm font-mono">{statsData.totalLessons}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-600">Ср. посещаемость</div>
+                <div className="font-bold text-sm font-mono">{statsData.groupAttendanceRate}%</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-600">Присутствовали</div>
+                <div className="font-bold text-sm font-mono">{statsData.totalPresent}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-600">Пропуски (Н/Б)</div>
+                <div className="font-bold text-sm font-mono">{statsData.totalAbsent}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-600">Опоздания</div>
+                <div className="font-bold text-sm font-mono">{statsData.totalLate}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-600">Справки (уваж.)</div>
+                <div className="font-bold text-sm font-mono">{statsData.totalExcused}</div>
+              </div>
+            </div>
+
+            {/* Attendance Table */}
+            <table className="w-full border-collapse border border-black text-[11px]">
+              <thead>
+                <tr className="bg-neutral-100 border-b border-black text-black">
+                  <th className="border border-black p-1.5 w-8 text-center font-bold">№</th>
+                  <th className="border border-black p-1.5 text-left font-bold">ФИО Студента</th>
+                  <th className="border border-black p-1.5 w-20 text-center font-bold">Всего пар</th>
+                  <th className="border border-black p-1.5 w-16 text-center font-bold">Был</th>
+                  <th className="border border-black p-1.5 w-20 text-center font-bold">Н/Б (неув.)</th>
+                  <th className="border border-black p-1.5 w-16 text-center font-bold">Опоздал</th>
+                  <th className="border border-black p-1.5 w-20 text-center font-bold">Справка</th>
+                  <th className="border border-black p-1.5 w-24 text-center font-bold">% Посещ.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {processedStudents.map((st, idx) => (
+                  <tr key={st.studentId} className="border-b border-black">
+                    <td className="border border-black p-1.5 text-center font-mono">{idx + 1}</td>
+                    <td className="border border-black p-1.5 font-medium">
+                      {st.studentName}
+                      {st.isMonitor && (
+                        <span className="text-[10px] text-neutral-600 font-normal"> (староста)</span>
+                      )}
+                    </td>
+                    <td className="border border-black p-1.5 text-center font-mono">{st.totalLessons}</td>
+                    <td className="border border-black p-1.5 text-center font-mono font-semibold">{st.presentCount}</td>
+                    <td className="border border-black p-1.5 text-center font-mono font-semibold">
+                      {st.absentCount > 0 ? st.absentCount : 0}
+                    </td>
+                    <td className="border border-black p-1.5 text-center font-mono">{st.lateCount}</td>
+                    <td className="border border-black p-1.5 text-center font-mono">{st.excusedCount}</td>
+                    <td className="border border-black p-1.5 text-center font-mono font-bold">
+                      {st.attendanceRate}%
+                    </td>
+                  </tr>
+                ))}
+                {processedStudents.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="border border-black p-4 text-center text-neutral-500">
+                      За выбранный период записей посещаемости не найдено
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              {processedStudents.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-black bg-neutral-100 font-bold">
+                    <td colSpan={2} className="border border-black p-1.5 text-right font-bold">
+                      ИТОГО ПО ГРУППЕ:
+                    </td>
+                    <td className="border border-black p-1.5 text-center font-mono">
+                      {statsData.totalLessons}
+                    </td>
+                    <td className="border border-black p-1.5 text-center font-mono">
+                      {statsData.totalPresent}
+                    </td>
+                    <td className="border border-black p-1.5 text-center font-mono">
+                      {statsData.totalAbsent}
+                    </td>
+                    <td className="border border-black p-1.5 text-center font-mono">
+                      {statsData.totalLate}
+                    </td>
+                    <td className="border border-black p-1.5 text-center font-mono">
+                      {statsData.totalExcused}
+                    </td>
+                    <td className="border border-black p-1.5 text-center font-mono font-bold">
+                      {statsData.groupAttendanceRate}%
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+
+            {/* Signatures block */}
+            <div className="pt-6 space-y-4 text-xs">
+              <div className="grid grid-cols-3 gap-6">
+                <div className="space-y-6">
+                  <div className="font-semibold">Куратор группы:</div>
+                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
+                    (подпись / расшифровка)
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div className="font-semibold">Староста группы:</div>
+                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
+                    (подпись / расшифровка)
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div className="font-semibold">Зам. директора по УВР:</div>
+                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
+                    (подпись / расшифровка)
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center text-[10px] text-neutral-500 pt-3 border-t border-neutral-300">
+                <div>М.П. (Место для печати)</div>
+                <div>Дата выдачи: «___» _____________ 20___ г.</div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Screen-only Interactive Content */}
+      <div className="screen-only-view print:hidden space-y-3">
+        {/* Filters & Range Toolbar */}
+        <div className="bg-card p-3 rounded-xl border shadow-xs space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 items-center">
           {/* Group Selector */}
           <div className="lg:col-span-4">
@@ -587,18 +853,18 @@ export function AttendanceStatsView({
 
         {/* Table Content */}
         {!isPending && (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[300px]">
             <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b bg-muted/40 text-[11px] text-muted-foreground font-semibold">
-                  <th className="py-2.5 px-3 w-10 text-center">№</th>
-                  <th className="py-2.5 px-3 min-w-[200px]">Студент</th>
-                  <th className="py-2.5 px-3 text-center">Всего пар</th>
-                  <th className="py-2.5 px-3 text-center text-primary">Был</th>
-                  <th className="py-2.5 px-3 text-center text-destructive">Н/Б</th>
-                  <th className="py-2.5 px-3 text-center text-amber-600">Опоздал</th>
-                  <th className="py-2.5 px-3 text-center text-blue-600">Справка</th>
-                  <th className="py-2.5 px-3 min-w-[170px] text-right">% Посещаемости</th>
+              <thead className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs border-b shadow-2xs">
+                <tr className="border-b text-[11px] text-muted-foreground font-semibold">
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 w-10 text-center">№</th>
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 min-w-[200px]">Студент</th>
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center">Всего пар</th>
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-primary">Был</th>
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-destructive">Н/Б</th>
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-amber-600">Опоздал</th>
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 text-center text-blue-600">Справка</th>
+                  <th className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs py-2.5 px-3 min-w-[170px] text-right">% Посещаемости</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -718,6 +984,7 @@ export function AttendanceStatsView({
             </table>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

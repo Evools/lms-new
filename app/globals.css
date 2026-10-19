@@ -132,3 +132,52 @@
     @apply font-sans;
   }
 }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+
+  /* Hide sidebar, layout header, navigations and screen elements */
+  aside,
+  header,
+  nav,
+  [data-sidebar="sidebar"],
+  [data-slot="sidebar"],
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-container"],
+  [data-slot="sidebar-rail"],
+  [data-slot="sidebar-trigger"],
+  [data-slot="sidebar-inset"] > header,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset layout constraints for full-width printout */
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  [data-slot="sidebar-inset"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  [data-slot="sidebar-inset"] > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+}
+

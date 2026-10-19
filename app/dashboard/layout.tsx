@@ -47,9 +47,10 @@ export default async function DashboardLayout({
           role: role ?? "STUDENT",
           avatar: avatar ?? null,
         }}
+        className="print:hidden"
       />
-      <SidebarInset className="flex min-h-screen flex-col bg-background min-w-0 max-w-full overflow-x-clip">
-        <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b bg-background px-4">
+      <SidebarInset className="flex min-h-screen flex-col bg-background min-w-0 max-w-full overflow-x-clip print:min-h-0 print:overflow-visible print:p-0 print:m-0 print:border-none print:shadow-none">
+        <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b bg-background px-4 print:hidden">
           <div className="flex items-center gap-3">
             <SidebarTrigger className="rounded-md" />
             <Separator orientation="vertical" className="h-4" />
@@ -71,13 +72,15 @@ export default async function DashboardLayout({
           </div>
         </header>
 
-        <div className="flex-1 p-4 sm:p-6 min-w-0 max-w-full overflow-x-clip" data-tour="dashboard-content">
+        <div className="flex-1 p-4 sm:p-6 min-w-0 max-w-full overflow-x-clip print:p-0 print:m-0 print:overflow-visible" data-tour="dashboard-content">
           {children}
         </div>
       </SidebarInset>
 
-      <OnboardingTour />
-      <TourHubModal userRole={role ?? "STUDENT"} />
+      <div className="print:hidden">
+        <OnboardingTour />
+        <TourHubModal userRole={role ?? "STUDENT"} />
+      </div>
     </SidebarProvider>
   );
 }

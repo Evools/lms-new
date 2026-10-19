@@ -544,50 +544,124 @@ export function AttendanceView({
 
   return (
     <div className="space-y-4 pb-24 text-xs font-sans">
-      {/* Printable Sheet (Hidden on screen, Visible on print) */}
-      <div id="printable-attendance-sheet" className="hidden print:block space-y-4">
-        <div className="text-center border-b pb-4">
-          <h1 className="text-lg font-bold uppercase">Журнал учета посещаемости занятий</h1>
-          <div className="text-sm font-medium mt-1">
-            Группа: {currentGroupObj?.name || "—"} | Предмет: {currentSubjectObj?.subjectName || "—"}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            Преподаватель: {currentSubjectObj?.teacherName || "—"} | Дата: {formatDisplayDate(currentDateStr)}
-          </div>
-        </div>
+      {/* Printable Sheet for Daily Mode (Hidden on screen, Visible on print only in daily mode) */}
+      {mainViewTab === "daily" && (
+        <>
+          <style jsx global>{`
+            @media screen {
+              #printable-attendance-sheet {
+                display: none !important;
+              }
+            }
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 15mm 15mm 15mm 15mm;
+              }
+              body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              #printable-attendance-sheet {
+                display: block !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                padding: 4mm 8mm !important;
+                margin: 0 auto !important;
+                color: #000000 !important;
+                background: #ffffff !important;
+              }
+              table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                page-break-inside: auto;
+              }
+              tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+              }
+              th, td {
+                padding: 5px 8px !important;
+              }
+              thead {
+                display: table-header-group;
+              }
+            }
+          `}</style>
+          <div id="printable-attendance-sheet" className="space-y-4 font-sans text-black">
+            <div className="text-center border-b-2 border-black pb-3 space-y-1">
+              <h1 className="text-lg font-bold uppercase tracking-wide">Журнал учета посещаемости занятий</h1>
+              <div className="text-xs font-semibold text-gray-800">
+                Группа: <strong>{currentGroupObj?.name || "—"}</strong> | Предмет: <strong>{currentSubjectObj?.subjectName || "—"}</strong>
+              </div>
+              <div className="text-xs text-gray-600">
+                Преподаватель: {currentSubjectObj?.teacherName || "—"} | Дата: {formatDisplayDate(currentDateStr)}
+              </div>
+            </div>
 
-        <table className="w-full border-collapse border border-foreground/20 text-xs">
-          <thead>
-            <tr className="bg-muted/40">
-              <th className="border border-foreground/20 p-2 text-center w-12">№</th>
-              <th className="border border-foreground/20 p-2 text-left">ФИО Учащегося</th>
-              <th className="border border-foreground/20 p-2 text-center w-32">Статус</th>
-              <th className="border border-foreground/20 p-2 text-left">Примечание</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStudents.map((st, idx) => {
-              const rec = records[st.studentId] || { status: AttendanceStatus.PRESENT, comment: "" };
-              return (
-                <tr key={st.studentId} className="border-b border-foreground/10">
-                  <td className="border border-foreground/20 p-2 text-center font-mono">{idx + 1}</td>
-                  <td className="border border-foreground/20 p-2 font-medium">{st.studentName}</td>
-                  <td className="border border-foreground/20 p-2 text-center">
-                    {rec.status === AttendanceStatus.PRESENT
-                      ? "Был"
-                      : rec.status === AttendanceStatus.ABSENT
-                      ? "НБ"
-                      : rec.status === AttendanceStatus.LATE
-                      ? "Опоздал"
-                      : "Справка"}
-                  </td>
-                  <td className="border border-foreground/20 p-2 text-muted-foreground">{rec.comment || "—"}</td>
+            <table className="w-full border-collapse border border-black text-xs">
+              <thead>
+                <tr className="bg-gray-100 border-b border-black text-black">
+                  <th className="border border-black p-2 text-center w-12 font-bold">№</th>
+                  <th className="border border-black p-2 text-left font-bold">ФИО Учащегося</th>
+                  <th className="border border-black p-2 text-center w-32 font-bold">Статус</th>
+                  <th className="border border-black p-2 text-left font-bold">Примечание</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {filteredStudents.map((st, idx) => {
+                  const rec = records[st.studentId] || { status: AttendanceStatus.PRESENT, comment: "" };
+                  return (
+                    <tr key={st.studentId} className="border-b border-black">
+                      <td className="border border-black p-2 text-center font-mono">{idx + 1}</td>
+                      <td className="border border-black p-2 font-medium">{st.studentName}</td>
+                      <td className="border border-black p-2 text-center font-semibold">
+                        {rec.status === AttendanceStatus.PRESENT
+                          ? "Был"
+                          : rec.status === AttendanceStatus.ABSENT
+                          ? "НБ"
+                          : rec.status === AttendanceStatus.LATE
+                          ? "Опоздал"
+                          : "Справка"}
+                      </td>
+                      <td className="border border-black p-2 text-gray-600">{rec.comment || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Daily Summary & Signatures */}
+            <div className="pt-4 space-y-3 text-xs">
+              <div className="flex justify-between items-center text-xs font-semibold border-t border-b border-black py-1.5">
+                <span>Всего студентов: {filteredStudents.length}</span>
+                <span>Присутствуют: {presentCount}</span>
+                <span>Пропуски (Н/Б): {absentCount}</span>
+                <span>Опоздания: {lateCount}</span>
+                <span>Справки (уваж.): {excusedCount}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8 pt-2">
+                <div className="space-y-4">
+                  <div className="font-semibold">Преподаватель:</div>
+                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
+                    / {currentSubjectObj?.teacherName || "________________________"} /
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="font-semibold">Староста группы:</div>
+                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
+                    (подпись / расшифровка)
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Screen Header & Main View Mode Switcher */}
       <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs">
