@@ -28,6 +28,7 @@ export interface StudentMockItem {
 export interface WorkflowDocument {
   id: string;
   docNumber: string;
+  templateId?: string;
   title: string;
   category: DocumentCategoryType;
   categoryLabel: string;
@@ -42,6 +43,7 @@ export interface WorkflowDocument {
     attendanceRate?: number;
     debts?: number;
   }[];
+  authorId?: string;
   authorName: string;
   authorRole: string;
   createdAt: string;
@@ -52,6 +54,8 @@ export interface WorkflowDocument {
   generalReason: string;
   descriptionText: string;
   approvalSteps: {
+    stepIndex?: number;
+    role?: string;
     roleTitle: string;
     name: string;
     status: "PENDING" | "APPROVED" | "REJECTED";
@@ -60,6 +64,55 @@ export interface WorkflowDocument {
   }[];
   currentApprovalStepIndex: number;
   isArchived?: boolean;
+}
+
+export type StudentItem = WorkflowDocument["students"][number];
+export type ApprovalStep = WorkflowDocument["approvalSteps"][number];
+
+export function substituteVariables(
+  templateText: string,
+  params: {
+    student?: {
+      name?: string;
+      group?: string;
+      specialty?: string;
+      course?: number;
+      attendanceRate?: number;
+      unexcusedHours?: number;
+      academicDebts?: number;
+      rollNumber?: string;
+    };
+    groupName?: string;
+    curator?: string;
+    period?: string;
+    targetGroup?: string;
+  }
+): string {
+  const { student, groupName, curator, period, targetGroup } = params;
+  return templateText
+    .replace(/\{ФИО_СТУДЕНТА\}/g, student?.name || "Асанов Азамат Бакытович")
+    .replace(/\{ГРУППА\}/g, groupName || student?.group || "ИС-1-25")
+    .replace(
+      /\{СПЕЦИАЛЬНОСТЬ\}/g,
+      student?.specialty || "Информационные системы и программирование"
+    )
+    .replace(/\{КУРС\}/g, String(student?.course || 1))
+    .replace(
+      /\{ПОСЕЩАЕМОСТЬ_С_ЖУРНАЛА\}/g,
+      String(student?.attendanceRate ?? 95)
+    )
+    .replace(
+      /\{ЧАСЫ_ПРОПУСКОВ\}/g,
+      String(student?.unexcusedHours ?? 72)
+    )
+    .replace(
+      /\{КОЛИЧЕСТВО_ДОЛГОВ\}/g,
+      String(student?.academicDebts ?? 3)
+    )
+    .replace(/\{ЛИЧНОЕ_ДЕЛО\}/g, student?.rollNumber || "3941")
+    .replace(/\{ЦЕЛЕВАЯ_ГРУППА\}/g, targetGroup || "—")
+    .replace(/\{КУРАТОР\}/g, curator || "Исаев К. Д.")
+    .replace(/\{ПЕРИОД\}/g, period || "октябрь 2026 г.");
 }
 
 export interface DocumentTemplateItem {

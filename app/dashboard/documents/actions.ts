@@ -162,7 +162,7 @@ export async function createDocumentAction(data: {
   }
 
   try {
-    await prisma.document.create({
+    const created = await prisma.document.create({
       data: {
         title: data.title.trim(),
         description: data.description?.trim() || null,
@@ -170,9 +170,23 @@ export async function createDocumentAction(data: {
         fileUrl: data.fileUrl.trim(),
         authorId: session.user.id,
       },
+      include: {
+        author: true,
+      },
     });
     revalidatePath("/dashboard/documents");
-    return { success: true };
+    return {
+      success: true,
+      document: {
+        id: created.id,
+        title: created.title,
+        description: created.description,
+        category: created.category,
+        fileUrl: created.fileUrl,
+        authorName: created.author.name || "Сотрудник",
+        createdAt: created.createdAt.toISOString(),
+      },
+    };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при создании документа" };
   }
