@@ -348,6 +348,7 @@ export async function updateUserAction(
 
     if (data.password && data.password.trim().length >= 6) {
       updateData.password = await bcrypt.hash(data.password.trim(), 12);
+      updateData.tempPassword = data.password.trim();
     }
 
     await prisma.user.update({
@@ -377,7 +378,8 @@ export async function createUserAction(data: {
   if (!data.name.trim() || !data.email.trim() || !data.password) {
     return { success: false, error: "Заполните все поля" };
   }
-  if (data.password.length < 6) {
+  const cleanPassword = data.password.trim();
+  if (cleanPassword.length < 6) {
     return { success: false, error: "Пароль минимум 6 символов" };
   }
 
@@ -385,12 +387,13 @@ export async function createUserAction(data: {
     const exists = await prisma.user.findUnique({ where: { email: data.email.trim().toLowerCase() } });
     if (exists) return { success: false, error: "Пользователь с таким email уже существует" };
 
-    const hashed = await bcrypt.hash(data.password, 12);
+    const hashed = await bcrypt.hash(cleanPassword, 12);
     await prisma.user.create({
       data: {
         name: data.name.trim(),
         email: data.email.trim().toLowerCase(),
         password: hashed,
+        tempPassword: cleanPassword,
         role: data.role,
         phone: data.phone?.trim() || null,
       },
