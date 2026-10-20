@@ -40,13 +40,14 @@ export function NavUser({
     name: string;
     email: string;
     avatar?: string | null;
-    role: "ADMIN" | "TEACHER" | "STUDENT";
+    role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
   };
 }) {
   const { isMobile, setOpenMobile } = useSidebar();
 
   const roleConfigs = {
     ADMIN: { label: "Администратор", variant: "default" as const, icon: Shield },
+    ADMINISTRATION: { label: "Администрация лицея", variant: "default" as const, icon: Shield },
     TEACHER: { label: "Преподаватель", variant: "secondary" as const, icon: UserCheck },
     STUDENT: { label: "Студент", variant: "outline" as const, icon: GraduationCap },
   };

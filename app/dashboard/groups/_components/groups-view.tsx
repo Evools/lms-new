@@ -37,7 +37,7 @@ import {
 import { createGroupAction, deleteGroupAction, GroupDTO } from "../actions";
 
 interface GroupsViewProps {
-  userRole: "ADMIN" | "TEACHER" | "STUDENT";
+  userRole: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
   initialGroups?: GroupDTO[];
 }
 
@@ -113,6 +113,8 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
           <p className="text-[11px] text-muted-foreground mt-0.5">
             {isAdmin
               ? "Управление учебными потоками, кураторами, старостами и составами групп"
+              : userRole === "ADMINISTRATION"
+              ? "Мониторинг учебных потоков, кураторов и списков студентов"
               : userRole === "TEACHER"
               ? "Учебные группы, в которых вы являетесь преподавателем или куратором"
               : "Ваша учебная группа"}

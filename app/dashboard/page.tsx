@@ -24,6 +24,7 @@ import {
   PieChart as PieChartIcon,
   Crown,
   Shield,
+  Building2,
   FileText,
   Sparkles,
   ChevronRight,
@@ -99,7 +100,7 @@ export default async function DashboardPage() {
     groupPerformanceData: [] as Array<{ group: string; submitted: number }>,
   };
 
-  if (role === "ADMIN") {
+  if (role === "ADMIN" || role === "ADMINISTRATION") {
     const [groupsCount, teachersCount, studentsCount, assignmentsCount, recentSubmissions, recentMaterials] =
       await Promise.all([
         prisma.group.count(),
@@ -340,10 +341,11 @@ export default async function DashboardPage() {
     };
   }
 
-  const roleLabels = {
-    ADMIN: { label: "Администратор", icon: Shield, variant: "default" as const },
-    TEACHER: { label: "Преподаватель", icon: UserCheck, variant: "secondary" as const },
-    STUDENT: { label: "Студент", icon: GraduationCap, variant: "outline" as const },
+  const roleLabels: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline" }> = {
+    ADMIN: { label: "Администратор", icon: Shield, variant: "default" },
+    ADMINISTRATION: { label: "Администрация лицея", icon: Building2, variant: "default" },
+    TEACHER: { label: "Преподаватель", icon: UserCheck, variant: "secondary" },
+    STUDENT: { label: "Студент", icon: GraduationCap, variant: "outline" },
   };
 
   const currentRoleConfig = roleLabels[role] || roleLabels.STUDENT;
@@ -374,6 +376,20 @@ export default async function DashboardPage() {
               <Link href="/dashboard/announcements">
                 <Button size="xs" className="h-8 text-xs gap-1.5 font-medium">
                   <Plus className="h-3.5 w-3.5" /> Создать объявление
+                </Button>
+              </Link>
+              <Link href="/dashboard/reports">
+                <Button size="xs" variant="outline" className="h-8 text-xs gap-1.5 font-medium">
+                  <BarChart3 className="h-3.5 w-3.5" /> Отчёты
+                </Button>
+              </Link>
+            </>
+          )}
+          {role === "ADMINISTRATION" && (
+            <>
+              <Link href="/dashboard/documents">
+                <Button size="xs" className="h-8 text-xs gap-1.5 font-medium">
+                  <FileText className="h-3.5 w-3.5" /> Документы лицея
                 </Button>
               </Link>
               <Link href="/dashboard/reports">
@@ -415,9 +431,9 @@ export default async function DashboardPage() {
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* 1. ADMINISTRATOR DASHBOARD VIEW */}
+      {/* 1. ADMINISTRATOR / ADMINISTRATION DASHBOARD VIEW */}
       {/* ------------------------------------------------------------- */}
-      {role === "ADMIN" && (
+      {(role === "ADMIN" || role === "ADMINISTRATION") && (
         <div className="space-y-4">
           {/* Core Metrics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

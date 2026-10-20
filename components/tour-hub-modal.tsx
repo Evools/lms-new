@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { startOnboardingTour } from "./onboarding-tour";
 import { useRouter } from "next/navigation";
 
-export type UserRole = "STUDENT" | "TEACHER" | "ADMIN";
+export type UserRole = "STUDENT" | "TEACHER" | "ADMIN" | "ADMINISTRATION";
 
 interface TourCard {
   id: string;
@@ -384,6 +384,8 @@ export function TourHubModal({ userRole = "STUDENT" }: { userRole?: UserRole }) 
   const roleLabel =
     userRole === "ADMIN"
       ? "Администратор"
+      : userRole === "ADMINISTRATION"
+      ? "Администрация лицея"
       : userRole === "TEACHER"
       ? "Преподаватель"
       : "Студент";

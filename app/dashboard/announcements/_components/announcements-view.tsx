@@ -70,7 +70,7 @@ export interface AnnouncementItem {
   title: string;
   body: string;
   authorName: string;
-  authorRole: "ADMIN" | "TEACHER";
+  authorRole: "ADMIN" | "TEACHER" | "ADMINISTRATION";
   authorAvatar?: string;
   targetAudience: "LYCEUM" | "GROUP" | "TEACHERS";
   groupName?: string;
@@ -80,7 +80,7 @@ export interface AnnouncementItem {
 }
 
 interface AnnouncementsViewProps {
-  userRole: "ADMIN" | "TEACHER" | "STUDENT";
+  userRole: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
   userName: string;
   initialAnnouncements?: AnnouncementItem[];
 }
@@ -115,7 +115,7 @@ export function AnnouncementsView({
   const [editAudience, setEditAudience] = useState<AnnouncementAudience>("LYCEUM");
   const [editPinned, setEditPinned] = useState(false);
 
-  const canCreate = userRole === "ADMIN" || userRole === "TEACHER";
+  const canCreate = userRole === "ADMIN" || userRole === "TEACHER" || userRole === "ADMINISTRATION";
 
   const handleDownloadFile = (file: FileAttachmentItem) => {
     let downloadUrl = file.fileUrl;
@@ -175,8 +175,8 @@ export function AnnouncementsView({
       id: `ann-${Date.now()}`,
       title: newTitle.trim(),
       body: newBody.trim(),
-      authorName: userName || (userRole === "ADMIN" ? "Администратор" : "Преподаватель"),
-      authorRole: userRole === "ADMIN" ? "ADMIN" : "TEACHER",
+      authorName: userName || (userRole === "ADMIN" ? "Администратор" : userRole === "ADMINISTRATION" ? "Администрация лицея" : "Преподаватель"),
+      authorRole: userRole === "ADMIN" ? "ADMIN" : userRole === "ADMINISTRATION" ? "ADMINISTRATION" : "TEACHER",
       targetAudience: newAudience,
       groupName: newAudience === "GROUP" ? "ИС-1-25" : undefined,
       createdAt: "Только что",

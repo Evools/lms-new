@@ -63,7 +63,12 @@ export interface StudentActivityDTO {
 export async function getReportsDataAction() {
   try {
     const session = await auth();
-    if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
+    if (
+      !session?.user ||
+      (session.user.role !== "ADMIN" &&
+        session.user.role !== "TEACHER" &&
+        session.user.role !== "ADMINISTRATION")
+    ) {
       return { error: "Недостаточно прав для просмотра отчётов" };
     }
 

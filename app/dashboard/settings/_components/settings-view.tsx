@@ -108,13 +108,15 @@ type Tab = "appearance" | "system" | "users" | "academic";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Администратор",
+  ADMINISTRATION: "Администрация лицея",
   TEACHER: "Преподаватель",
   STUDENT: "Студент",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950 dark:text-rose-400 dark:border-rose-800",
-  TEACHER: "bg-primary/10 text-primary border-primary/20",
+  ADMINISTRATION: "bg-primary/10 text-primary border-primary/20",
+  TEACHER: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800",
   STUDENT: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
 };
 
@@ -164,7 +166,7 @@ export function SettingsView({
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
-  const [newUserRole, setNewUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT">("TEACHER");
+  const [newUserRole, setNewUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION">("TEACHER");
   const [newUserPhone, setNewUserPhone] = useState("");
 
   // Edit User Dialog State
@@ -172,7 +174,7 @@ export function SettingsView({
   const [editUserName, setEditUserName] = useState("");
   const [editUserEmail, setEditUserEmail] = useState("");
   const [editUserPhone, setEditUserPhone] = useState("");
-  const [editUserRole, setEditUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT">("TEACHER");
+  const [editUserRole, setEditUserRole] = useState<"ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION">("TEACHER");
   const [editUserPassword, setEditUserPassword] = useState("");
   const [deleteUserTarget, setDeleteUserTarget] = useState<UserProfileDTO | null>(null);
 
@@ -392,7 +394,7 @@ export function SettingsView({
     });
   };
 
-  const handleChangeRole = (userId: string, newRole: "ADMIN" | "TEACHER" | "STUDENT") => {
+  const handleChangeRole = (userId: string, newRole: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION") => {
     startTransition(async () => {
       const res = await changeUserRoleAction(userId, newRole);
       if (res.success) {
@@ -554,10 +556,10 @@ export function SettingsView({
     });
   };
 
-  const [userRoleFilter, setUserRoleFilter] = useState<"STAFF" | "TEACHER" | "ADMIN">("STAFF");
+  const [userRoleFilter, setUserRoleFilter] = useState<"STAFF" | "TEACHER" | "ADMIN" | "ADMINISTRATION">("STAFF");
 
   const filteredUsers = allUsers.filter((u) => {
-    if (u.role !== "TEACHER" && u.role !== "ADMIN") return false;
+    if (u.role !== "TEACHER" && u.role !== "ADMIN" && u.role !== "ADMINISTRATION") return false;
 
     const matchesSearch =
       u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -567,6 +569,7 @@ export function SettingsView({
 
     if (userRoleFilter === "TEACHER") return u.role === "TEACHER";
     if (userRoleFilter === "ADMIN") return u.role === "ADMIN";
+    if (userRoleFilter === "ADMINISTRATION") return u.role === "ADMINISTRATION";
 
     return true;
   });
@@ -1184,17 +1187,27 @@ export function SettingsView({
                 type="button"
                 onClick={() => setUserRoleFilter("STAFF")}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "STAFF"
-                  ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   }`}
               >
-                Все сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN").length})
+                Все сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN" || u.role === "ADMINISTRATION").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setUserRoleFilter("ADMINISTRATION")}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "ADMINISTRATION"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  }`}
+              >
+                Администрация ({allUsers.filter((u) => u.role === "ADMINISTRATION").length})
               </button>
               <button
                 type="button"
                 onClick={() => setUserRoleFilter("TEACHER")}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "TEACHER"
-                  ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   }`}
               >
@@ -1204,7 +1217,7 @@ export function SettingsView({
                 type="button"
                 onClick={() => setUserRoleFilter("ADMIN")}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "ADMIN"
-                  ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   }`}
               >
@@ -1217,7 +1230,8 @@ export function SettingsView({
             <div className="p-3.5 border-b flex items-center justify-between">
               <h2 className="font-bold text-foreground flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
-                {userRoleFilter === "STAFF" && "Все сотрудники и преподаватели"}
+                {userRoleFilter === "STAFF" && "Все сотрудники и руководство"}
+                {userRoleFilter === "ADMINISTRATION" && "Администрация лицея"}
                 {userRoleFilter === "TEACHER" && "Преподавательский состав"}
                 {userRoleFilter === "ADMIN" && "Администраторы системы"}
               </h2>
@@ -1248,15 +1262,16 @@ export function SettingsView({
                         ) : (
                           <Select
                             value={u.role}
-                            onValueChange={(val) => handleChangeRole(u.id, val as "ADMIN" | "TEACHER" | "STUDENT")}
+                            onValueChange={(val) => handleChangeRole(u.id, val as "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION")}
                             disabled={isPending}
                           >
                             <SelectTrigger className="h-6 text-[10px] px-2 border-primary/20 w-auto min-w-[110px]">
                               <SelectValue>{ROLE_LABELS[u.role] || u.role}</SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ADMIN" className="text-xs">Администратор</SelectItem>
+                              <SelectItem value="ADMINISTRATION" className="text-xs">Администрация лицея</SelectItem>
                               <SelectItem value="TEACHER" className="text-xs">Преподаватель</SelectItem>
+                              <SelectItem value="ADMIN" className="text-xs">Администратор</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -1451,11 +1466,12 @@ export function SettingsView({
 
                 <div className="space-y-1">
                   <label className="font-medium text-xs text-foreground font-semibold">Роль в лицее *</label>
-                  <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as "ADMIN" | "TEACHER" | "STUDENT")}>
+                  <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION")}>
                     <SelectTrigger className="h-8 text-xs bg-background font-medium">
                       <SelectValue>{ROLE_LABELS[newUserRole]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="ADMINISTRATION" className="text-xs font-medium">Администрация лицея</SelectItem>
                       <SelectItem value="TEACHER" className="text-xs font-medium">Преподаватель</SelectItem>
                       <SelectItem value="ADMIN" className="text-xs font-medium">Администратор</SelectItem>
                     </SelectContent>
@@ -1653,11 +1669,12 @@ export function SettingsView({
 
               <div className="space-y-1">
                 <label className="font-medium text-xs text-foreground font-semibold">Роль в лицее *</label>
-                <Select value={editUserRole} onValueChange={(v) => setEditUserRole(v as "ADMIN" | "TEACHER" | "STUDENT")}>
+                <Select value={editUserRole} onValueChange={(v) => setEditUserRole(v as "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION")}>
                   <SelectTrigger className="h-8 text-xs bg-background font-medium">
                     <SelectValue>{ROLE_LABELS[editUserRole]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="ADMINISTRATION" className="text-xs font-medium">Администрация лицея</SelectItem>
                     <SelectItem value="TEACHER" className="text-xs font-medium">Преподаватель</SelectItem>
                     <SelectItem value="ADMIN" className="text-xs font-medium">Администратор</SelectItem>
                   </SelectContent>

@@ -12,6 +12,7 @@ enum Role {
   ADMIN
   TEACHER
   STUDENT
+  ADMINISTRATION
 }
 
 enum AttendanceStatus {

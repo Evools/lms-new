@@ -19,7 +19,9 @@ export interface DocumentDTO {
 export async function getDocumentsAction() {
   try {
     const session = await auth();
-    if (!session?.user) return { documents: [], canManage: false };
+    if (!session?.user || session.user.role === "STUDENT") {
+      return { documents: [], canManage: false };
+    }
 
     const docs = await prisma.document.findMany({
       include: { author: { select: { name: true } } },
@@ -37,7 +39,9 @@ export async function getDocumentsAction() {
     }));
 
     const canManage =
-      session.user.role === "ADMIN" || session.user.role === "TEACHER";
+      session.user.role === "ADMIN" ||
+      session.user.role === "TEACHER" ||
+      session.user.role === "ADMINISTRATION";
 
     return { documents, canManage };
   } catch (error) {
@@ -55,7 +59,9 @@ export async function createDocumentAction(data: {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+    (session.user.role !== "ADMIN" &&
+      session.user.role !== "TEACHER" &&
+      session.user.role !== "ADMINISTRATION")
   ) {
     return { success: false, error: "Недостаточно прав" };
   }
@@ -93,7 +99,9 @@ export async function updateDocumentAction(
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+    (session.user.role !== "ADMIN" &&
+      session.user.role !== "TEACHER" &&
+      session.user.role !== "ADMINISTRATION")
   ) {
     return { success: false, error: "Недостаточно прав" };
   }

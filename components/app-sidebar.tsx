@@ -37,7 +37,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: {
     name: string;
     email: string;
-    role: "ADMIN" | "TEACHER" | "STUDENT";
+    role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
     avatar?: string | null;
   };
 }
@@ -168,7 +168,63 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       ];
     }
 
-    // 2. TEACHER ROLE
+    // 2. ADMINISTRATION ROLE (Директорат и руководство лицея: Документы, решения педсовета, мониторинг)
+    if (role === "ADMINISTRATION") {
+      return [
+        {
+          groupLabel: "Руководство",
+          items: [
+            {
+              title: "Сводка лицея",
+              url: "/dashboard",
+              icon: <LayoutDashboard className="h-4 w-4" />,
+            },
+            {
+              title: "Документы лицея",
+              url: "/dashboard/documents",
+              icon: <FileText className="h-4 w-4" />,
+            },
+            {
+              title: "Объявления",
+              url: "/dashboard/announcements",
+              icon: <Megaphone className="h-4 w-4" />,
+            },
+          ],
+        },
+        {
+          groupLabel: "Мониторинг (просмотр)",
+          items: [
+            {
+              title: "Аналитика & Отчёты",
+              url: "/dashboard/reports",
+              icon: <BarChart3 className="h-4 w-4" />,
+            },
+            {
+              title: "Посещаемость пар",
+              url: "/dashboard/attendance",
+              icon: <CalendarCheck className="h-4 w-4" />,
+            },
+            {
+              title: "Учебные группы",
+              url: "/dashboard/groups",
+              icon: <Users className="h-4 w-4" />,
+            },
+            {
+              title: "График дежурств",
+              url: "/dashboard/duty",
+              icon: <Clock className="h-4 w-4" />,
+            },
+            {
+              title: "Стипендия",
+              url: "/dashboard/scholarship",
+              icon: <Award className="h-4 w-4" />,
+            },
+          ],
+        },
+      ];
+    }
+
+    // 3. TEACHER ROLE
     if (role === "TEACHER") {
       return [
         {
@@ -302,7 +358,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         ],
       },
       {
-        groupLabel: "Группа и документы",
+        groupLabel: "Моя группа",
         items: [
           {
             title: "Моя группа",
@@ -318,11 +374,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             title: "График дежурств",
             url: "/dashboard/duty",
             icon: <Clock className="h-4 w-4" />,
-          },
-          {
-            title: "Документы лицея",
-            url: "/dashboard/documents",
-            icon: <FileText className="h-4 w-4" />,
           },
         ],
       },

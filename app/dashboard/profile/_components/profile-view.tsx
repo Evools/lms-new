@@ -37,13 +37,15 @@ interface ProfileViewProps {
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Администратор",
+  ADMINISTRATION: "Администрация лицея",
   TEACHER: "Преподаватель",
   STUDENT: "Студент",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950 dark:text-rose-400 dark:border-rose-800",
-  TEACHER: "bg-primary/10 text-primary border-primary/20",
+  ADMINISTRATION: "bg-primary/10 text-primary border-primary/20",
+  TEACHER: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800",
   STUDENT: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
 };
 

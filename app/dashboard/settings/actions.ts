@@ -10,7 +10,7 @@ export interface UserProfileDTO {
   name: string;
   email: string;
   phone?: string | null;
-  role: "ADMIN" | "TEACHER" | "STUDENT";
+  role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
   avatar?: string | null;
   isActive: boolean;
   createdAt: string;
@@ -290,7 +290,7 @@ export async function toggleUserActiveAction(userId: string, isActive: boolean) 
 }
 
 /** Admin: change user role */
-export async function changeUserRoleAction(userId: string, role: "ADMIN" | "TEACHER" | "STUDENT") {
+export async function changeUserRoleAction(userId: string, role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION") {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
     return { success: false, error: "Только администратор" };
@@ -314,7 +314,7 @@ export async function updateUserAction(
   data: {
     name: string;
     email: string;
-    role: "ADMIN" | "TEACHER" | "STUDENT";
+    role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
     phone?: string;
     password?: string;
   }
@@ -367,7 +367,7 @@ export async function createUserAction(data: {
   name: string;
   email: string;
   password: string;
-  role: "ADMIN" | "TEACHER" | "STUDENT";
+  role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
   phone?: string;
 }) {
   const session = await auth();
@@ -407,7 +407,7 @@ export async function createBulkUsersAction(
   users: Array<{
     name: string;
     email: string;
-    role: "ADMIN" | "TEACHER" | "STUDENT";
+    role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
     phone?: string;
     password?: string;
   }>

@@ -10,7 +10,7 @@ export interface UserProfileDetailsDTO {
   name: string;
   email: string;
   phone?: string | null;
-  role: "ADMIN" | "TEACHER" | "STUDENT";
+  role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
   avatar?: string | null;
   createdAt: string;
   // Extra role-specific stats

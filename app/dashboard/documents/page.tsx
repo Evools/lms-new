@@ -11,6 +11,7 @@ export const metadata = {
 export default async function DocumentsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  if (session.user.role === "STUDENT") redirect("/dashboard");
 
   const data = await getDocumentsAction();
 
