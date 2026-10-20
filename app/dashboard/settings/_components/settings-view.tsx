@@ -640,8 +640,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => applyTheme("light")}
                 className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "light"
-                    ? "border-primary bg-primary/5 shadow-xs"
-                    : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                  ? "border-primary bg-primary/5 shadow-xs"
+                  : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
                   }`}
               >
                 {/* Mockup Preview Light */}
@@ -754,8 +754,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => applyTheme("dark")}
                 className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "dark"
-                    ? "border-primary bg-primary/5 shadow-xs"
-                    : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                  ? "border-primary bg-primary/5 shadow-xs"
+                  : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
                   }`}
               >
                 {/* Mockup Preview Dark */}
@@ -868,8 +868,8 @@ export function SettingsView({
                 type="button"
                 onClick={() => applyTheme("system")}
                 className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "system"
-                    ? "border-primary bg-primary/5 shadow-xs"
-                    : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                  ? "border-primary bg-primary/5 shadow-xs"
+                  : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
                   }`}
               >
                 {/* Mockup Preview Split System */}
@@ -1083,7 +1083,7 @@ export function SettingsView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Название учебного заведения *</label>
-                <Input value={instName} onChange={(e) => setInstName(e.target.value)} placeholder="Лицей №15" className="h-8 text-xs bg-background" />
+                <Input value={instName} onChange={(e) => setInstName(e.target.value)} placeholder="Лицей №98" className="h-8 text-xs bg-background" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Email техподдержки</label>

@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getDocumentsAction } from "./actions";
-import { DocumentsView } from "./_components/documents-view";
+import { DocumentsWorkflowView } from "./_components/documents-workflow-view";
 
 export const metadata = {
-  title: "Документы лицея | Лицей LMS",
-  description: "Методички, положения, инструкции, шаблоны и другие документы лицея",
+  title: "Документооборот и отчётность | Лицей LMS",
+  description: "Автоматизированное формирование, согласование и архив документов лицея",
 };
 
 export default async function DocumentsPage() {
@@ -15,7 +15,7 @@ export default async function DocumentsPage() {
   const data = await getDocumentsAction();
 
   return (
-    <DocumentsView
+    <DocumentsWorkflowView
       documents={data.documents}
       canManage={data.canManage}
     />
