@@ -870,33 +870,396 @@ export function DocumentsWorkflowView({
     }
   };
 
+  const cleanDocumentText = (text: string) => {
+    return text
+      .replace(/54\.02\.01\s*/g, "")
+      .replace(/54\.02\.01/g, "")
+      .replace(/\s*\((?:номер\s+)?личного\s+дела:?[^)]*\)/gi, "")
+      .replace(/\s*\(Личное\s+дело[^)]*\)/gi, "");
+  };
+
+  const generateOfficialDocumentHtml = (doc: {
+    title: string;
+    createdAt?: Date | string;
+    addressee?: string;
+    generalReason?: string;
+    descriptionText: string;
+    students?: any[];
+    signatoryName?: string;
+    signatoryTitle?: string;
+    authorName?: string;
+    authorRole?: string;
+    docNumber?: string;
+  }) => {
+    const studentsList = doc.students || [];
+    const isMulti = studentsList.length > 1;
+    const dateFormatted = doc.createdAt
+      ? new Date(doc.createdAt).toLocaleDateString("ru-RU")
+      : new Date().toLocaleDateString("ru-RU");
+
+    const curatorName =
+      doc.signatoryName ||
+      doc.authorName ||
+      currentUser?.name ||
+      "Вопольский Виктор Владимирович";
+
+    const addresseeText = doc.addressee?.trim() || "По месту требования";
+    const cleanedBody = cleanDocumentText(doc.descriptionText || "");
+    const cleanedGeneralReason = doc.generalReason
+      ? cleanDocumentText(doc.generalReason)
+      : "";
+
+    const studentsRows =
+      isMulti
+        ? `
+        <table class="students-table">
+          <thead>
+            <tr>
+              <th style="width: 28px; text-align: center;">№</th>
+              <th style="text-align: left;">ФИО студента</th>
+              <th style="width: 80px; text-align: center;">Группа</th>
+              <th style="width: 90px; text-align: center;">Посещаемость</th>
+              <th style="width: 80px; text-align: center;">Долги</th>
+              ${
+                studentsList.some((s) => Boolean(s.individualReason?.trim()))
+                  ? '<th style="text-align: left;">Особое примечание</th>'
+                  : ""
+              }
+            </tr>
+          </thead>
+          <tbody>
+            ${studentsList
+              .map(
+                (st, idx) => `
+              <tr>
+                <td style="text-align: center; font-family: monospace;">${idx + 1}</td>
+                <td style="font-weight: 600;">${st.name}</td>
+                <td style="text-align: center;">${st.group || "—"}</td>
+                <td style="text-align: center; font-family: monospace;">${
+                  typeof st.attendanceRate === "number"
+                    ? `${st.attendanceRate}%`
+                    : typeof st.unexcusedHours === "number"
+                    ? `${st.unexcusedHours} ч.`
+                    : "—"
+                }</td>
+                <td style="text-align: center; font-family: monospace;">${
+                  typeof st.debts === "number"
+                    ? st.debts > 0 ? `${st.debts}` : "0"
+                    : typeof st.academicDebts === "number"
+                    ? st.academicDebts > 0 ? `${st.academicDebts}` : "0"
+                    : "0"
+                }</td>
+                ${
+                  studentsList.some((s) => Boolean(s.individualReason?.trim()))
+                    ? `<td>${st.individualReason?.trim() || "—"}</td>`
+                    : ""
+                }
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `
+        : "";
+
+    return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>${doc.title}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: ${isMulti ? "10mm 15mm 10mm 15mm" : "15mm 20mm 15mm 20mm"};
+    }
+    *, *:before, *:after {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #09090b;
+      font-family: Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif;
+      font-size: ${isMulti ? "9.5pt" : "11pt"};
+      line-height: ${isMulti ? "1.35" : "1.45"};
+    }
+    .page-sheet {
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    .official-header {
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .ministry-title {
+      font-size: ${isMulti ? "8.5pt" : "9.5pt"};
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #18181b;
+      margin: 0 0 3px 0;
+    }
+    .lyceum-title {
+      font-size: ${isMulti ? "11.5pt" : "13.5pt"};
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #000000;
+      margin: 0;
+    }
+    .header-rule {
+      border: none;
+      border-top: 1.5px solid #000000;
+      margin: 6px 0 12px 0;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: ${isMulti ? "10px" : "16px"};
+      font-size: ${isMulti ? "9.5pt" : "10.5pt"};
+      color: #09090b;
+    }
+    .meta-date {
+      font-weight: 500;
+    }
+    .meta-addressee {
+      text-align: right;
+      font-weight: 500;
+      max-width: 50%;
+      white-space: pre-line;
+    }
+    .doc-title {
+      text-align: center;
+      font-size: ${isMulti ? "10.5pt" : "12pt"};
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin: ${isMulti ? "10px 0 12px 0" : "16px 0 14px 0"};
+      color: #000000;
+    }
+    .body-paragraph {
+      text-align: justify;
+      text-indent: 0;
+      margin: 0 0 ${isMulti ? "8px" : "12px"} 0;
+    }
+    .lead-reason {
+      margin-bottom: ${isMulti ? "10px" : "14px"};
+    }
+    .students-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0;
+      font-size: 8.5pt;
+      line-height: 1.25;
+      page-break-inside: auto;
+      break-inside: auto;
+    }
+    .students-table th, .students-table td {
+      border: 1px solid #18181b;
+      padding: 3px 5px;
+    }
+    .students-table th {
+      background-color: #f4f4f5;
+      font-weight: 700;
+    }
+    .students-table tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .signatures-divider {
+      border: none;
+      border-top: 1px solid #d4d4d8;
+      margin: ${isMulti ? "14px 0 10px 0" : "22px 0 14px 0"};
+    }
+    .signatures-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 20px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      font-size: ${isMulti ? "9.5pt" : "10.5pt"};
+    }
+    .signature-block {
+      flex: 1;
+    }
+    .signature-role {
+      font-weight: 700;
+      color: #09090b;
+      margin: 0 0 3px 0;
+    }
+    .signature-line {
+      font-size: 8.5pt;
+      color: #71717a;
+      margin: 3px 0 5px 0;
+    }
+    .signature-name {
+      font-weight: 700;
+      color: #09090b;
+      margin: 0;
+    }
+    .text-right {
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-sheet">
+    <div class="official-header">
+      <div class="ministry-title">МИНИСТЕРСТВО ПРОСВЕЩЕНИЯ КЫРГЫЗСКОЙ РЕСПУБЛИКИ</div>
+      <div class="lyceum-title">ПРОФЕССИОНАЛЬНЫЙ ЛИЦЕЙ №98</div>
+    </div>
+    <hr class="header-rule" />
+
+    <div class="meta-row">
+      <div class="meta-date">Дата: ${dateFormatted} г.</div>
+      <div class="meta-addressee">${addresseeText}</div>
+    </div>
+
+    <div class="doc-title">${doc.title}</div>
+
+    ${cleanedGeneralReason ? `<p class="body-paragraph lead-reason">${cleanedGeneralReason}</p>` : ""}
+
+    ${studentsRows}
+
+    ${cleanedBody
+      .split("\n\n")
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => `<p class="body-paragraph">${p.replace(/\n/g, "<br/>")}</p>`)
+      .join("")}
+
+    <hr class="signatures-divider" />
+
+    <div class="signatures-row">
+      <div class="signature-block">
+        <div class="signature-role">Мастер группы (куратор):</div>
+        <div class="signature-line">(подпись) _______________________</div>
+        <div class="signature-name">${curatorName}</div>
+      </div>
+      <div class="signature-block text-right">
+        <div class="signature-role">Зам. директора по учебной части:</div>
+        <div class="signature-line">(подпись) _______________________</div>
+        <div class="signature-name">Тоялиева М. Р.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+  };
+
+  const printHtmlContent = (htmlContent: string) => {
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+    iframe.contentWindow?.document.open();
+    iframe.contentWindow?.document.write(htmlContent);
+    iframe.contentWindow?.document.close();
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1500);
+    }, 300);
+  };
+
   // Real print / export
-  const handlePrintDocument = () => {
-    window.print();
+  const handlePrintDocument = (docToPrint?: WorkflowDocument | null | unknown) => {
+    const targetDoc =
+      docToPrint && typeof docToPrint === "object" && "title" in docToPrint
+        ? (docToPrint as WorkflowDocument)
+        : previewDoc;
+
+    if (!targetDoc && creatorStep === 4) {
+      const creatorDoc = {
+        title: selectedTemplate.title + (creatorGroup ? ` — Группа ${creatorGroup}` : ""),
+        createdAt: new Date(),
+        addressee: creatorAddressee,
+        generalReason: creatorGeneralReason,
+        descriptionText: creatorDescription,
+        students: students.filter((st) => creatorSelectedStudentIds.includes(st.id)),
+        signatoryName: creatorSignatory || currentUser?.name || "Вопольский Виктор Владимирович",
+        signatoryTitle: "Мастер группы (куратор)",
+        authorName: currentUser?.name || "Вопольский Виктор Владимирович",
+        authorRole: "Мастер группы",
+        docNumber: "ПРОЕКТ",
+      };
+      printHtmlContent(generateOfficialDocumentHtml(creatorDoc));
+      return;
+    }
+    if (!targetDoc) return;
+    printHtmlContent(generateOfficialDocumentHtml(targetDoc));
   };
 
   const handleDownloadDocx = (doc: WorkflowDocument) => {
+    const isMulti = doc.students.length > 1;
+    const dateFormatted = new Date(doc.createdAt).toLocaleDateString("ru-RU");
+    const curatorName =
+      doc.signatoryName ||
+      doc.authorName ||
+      currentUser?.name ||
+      "Вопольский Виктор Владимирович";
+    const addresseeText = doc.addressee?.trim() || "По месту требования";
+    const cleanedBody = cleanDocumentText(doc.descriptionText || "");
+    const cleanedGeneralReason = doc.generalReason
+      ? cleanDocumentText(doc.generalReason)
+      : "";
+
     const studentsRows =
-      doc.students.length > 0
+      isMulti
         ? `
-        <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-top:15px; font-size:11pt;">
+        <table border="1" cellpadding="4" cellspacing="0" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom:10px; font-size:9pt; mso-pagination:lines-together;">
           <thead>
-            <tr style="background-color:#f0f0f0;">
+            <tr style="background-color:#f4f4f5; font-weight:bold;">
               <th style="width:30px; text-align:center;">№</th>
-              <th>ФИО обучающегося</th>
-              <th style="width:90px; text-align:center;">Группа</th>
-              <th>Индивидуальные сведения / Основание</th>
+              <th style="text-align:left;">ФИО студента</th>
+              <th style="width:80px; text-align:center;">Группа</th>
+              <th style="width:90px; text-align:center;">Посещаемость</th>
+              <th style="width:80px; text-align:center;">Долги</th>
+              ${
+                doc.students.some((s) => Boolean(s.individualReason?.trim()))
+                  ? '<th style="text-align:left;">Особое примечание</th>'
+                  : ""
+              }
             </tr>
           </thead>
           <tbody>
             ${doc.students
               .map(
                 (st, idx) => `
-              <tr>
-                <td style="text-align:center;">${idx + 1}</td>
+              <tr style="page-break-inside:avoid; mso-pagination:lines-together;">
+                <td style="text-align:center; font-family:monospace;">${idx + 1}</td>
                 <td><strong>${st.name}</strong></td>
-                <td style="text-align:center;">${st.group}</td>
-                <td>${st.individualReason || "Согласно представлению куратора"}</td>
+                <td style="text-align:center;">${st.group || "—"}</td>
+                <td style="text-align:center; font-family:monospace;">${
+                  typeof st.attendanceRate === "number"
+                    ? `${st.attendanceRate}%`
+                    : "—"
+                }</td>
+                <td style="text-align:center; font-family:monospace;">${
+                  typeof st.debts === "number"
+                    ? st.debts > 0 ? `${st.debts}` : "0"
+                    : "0"
+                }</td>
+                ${
+                  doc.students.some((s) => Boolean(s.individualReason?.trim()))
+                    ? `<td>${st.individualReason?.trim() || "—"}</td>`
+                    : ""
+                }
               </tr>
             `
               )
@@ -911,48 +1274,91 @@ export function DocumentsWorkflowView({
       <head>
         <meta charset='utf-8'>
         <title>${doc.title}</title>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
         <style>
-          body { font-family: 'Times New Roman', serif; font-size: 13pt; line-height: 1.4; margin: 25mm 20mm 20mm 25mm; }
-          .header { text-align: center; font-size: 11pt; font-weight: bold; margin-bottom: 25px; line-height: 1.3; }
-          .addressee { text-align: right; margin-left: 50%; font-size: 12pt; margin-bottom: 25px; line-height: 1.3; }
-          .title { text-align: center; font-size: 15pt; font-weight: bold; margin: 25px 0 10px 0; text-transform: uppercase; }
-          .doc-num { text-align: center; font-size: 11pt; margin-bottom: 20px; color: #444; }
-          .content { text-align: justify; text-indent: 1.25cm; margin-bottom: 20px; line-height: 1.4; }
-          .signatures { margin-top: 40px; }
+          @page Section1 {
+            size: 595.3pt 841.9pt;
+            margin: ${isMulti ? "30.0pt 42.0pt 30.0pt 42.0pt" : "42.0pt 56.7pt 42.0pt 56.7pt"};
+            mso-header-margin: 36.0pt;
+            mso-footer-margin: 36.0pt;
+            mso-paper-source: 0;
+          }
+          div.Section1 { page: Section1; }
+          body {
+            font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+            font-size: ${isMulti ? "9.5pt" : "11pt"};
+            line-height: ${isMulti ? "1.3" : "1.45"};
+            color: #000000;
+          }
+          p { margin: 0 0 ${isMulti ? "6pt" : "8pt"} 0; text-align: justify; }
+          .header-center { text-align: center; }
+          .min-title { font-size: ${isMulti ? "8.5pt" : "9.5pt"}; font-weight: bold; text-transform: uppercase; margin-bottom: 2pt; }
+          .lic-title { font-size: ${isMulti ? "11.5pt" : "13.5pt"}; font-weight: bold; text-transform: uppercase; margin-bottom: 4pt; }
+          .divider-line { border-top: 1.5pt solid #000000; margin-bottom: 10pt; }
+          .doc-title { text-align: center; font-size: ${isMulti ? "10.5pt" : "12pt"}; font-weight: bold; text-transform: uppercase; margin: 10pt 0 10pt 0; }
+          .meta-tbl { width: 100%; border: none; margin-bottom: 10pt; }
+          .meta-tbl td { border: none; padding: 0; font-size: ${isMulti ? "9.5pt" : "10.5pt"}; }
+          .sig-tbl { width: 100%; border: none; margin-top: 16pt; mso-pagination: lines-together; page-break-inside: avoid; }
+          .sig-tbl td { border: none; padding: 0; vertical-align: top; }
         </style>
       </head>
-      <body>
-        <div class="header">
-          МИНИСТЕРСТВО ПРОСВЕЩЕНИЯ КЫРГЫЗСКОЙ РЕСПУБЛИКИ<br/>
-          ПРОФЕССИОНАЛЬНЫЙ ЛИЦЕЙ №98
+      <body lang="RU">
+      <div class="Section1">
+        <div class="header-center">
+          <div class="min-title">МИНИСТЕРСТВО ПРОСВЕЩЕНИЯ КЫРГЫЗСКОЙ РЕСПУБЛИКИ</div>
+          <div class="lic-title">ПРОФЕССИОНАЛЬНЫЙ ЛИЦЕЙ №98</div>
         </div>
-        <div class="addressee">
-          ${doc.addressee.replace(/\n/g, "<br/>")}
-        </div>
-        <div class="title">
-          ${doc.title}
-        </div>
-        <div class="doc-num">
-          № ${doc.docNumber} от ${new Date(doc.createdAt).toLocaleDateString("ru-RU")} г.
-        </div>
-        <div class="content">
-          ${doc.descriptionText.replace(/\n/g, "<br/>")}
-        </div>
+        <div class="divider-line"></div>
+
+        <table class="meta-tbl">
+          <tr>
+            <td style="text-align: left; vertical-align: top;">
+              <strong>Дата:</strong> ${dateFormatted} г.
+            </td>
+            <td style="text-align: right; vertical-align: top;">
+              ${addresseeText.replace(/\n/g, "<br/>")}
+            </td>
+          </tr>
+        </table>
+
+        <div class="doc-title">${doc.title}</div>
+
+        ${cleanedGeneralReason ? `<p style="margin-bottom:8pt;">${cleanedGeneralReason}</p>` : ""}
+
         ${studentsRows}
-        <div class="signatures">
-          <table border="0" cellpadding="4" cellspacing="0" style="width:100%; margin-top:35px; border:none;">
-            <tr>
-              <td style="width:50%; vertical-align:top; border:none;">
-                <strong>${doc.signatoryTitle}:</strong><br/><br/>
-                (подпись) _______________________
-              </td>
-              <td style="width:50%; text-align:right; vertical-align:top; border:none;">
-                <strong>${doc.signatoryName}</strong><br/><br/>
-                «___» ____________ 202_ г.
-              </td>
-            </tr>
-          </table>
-        </div>
+
+        ${cleanedBody
+          .split("\n\n")
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((p) => `<p>${p.replace(/\n/g, "<br/>")}</p>`)
+          .join("")}
+
+        <hr style="border: none; border-top: 1pt solid #d4d4d8; margin-top: 18pt; margin-bottom: 12pt;" />
+
+        <table class="sig-tbl">
+          <tr>
+            <td style="width: 50%;">
+              <strong>Мастер группы (куратор):</strong><br/>
+              <span style="font-size: 8.5pt; color: #71717a;">(подпись) _______________________</span><br/>
+              <strong style="margin-top: 4pt; display: inline-block;">${curatorName}</strong>
+            </td>
+            <td style="width: 50%; text-align: right;">
+              <strong>Зам. директора по учебной части:</strong><br/>
+              <span style="font-size: 8.5pt; color: #71717a;">(подпись) _______________________</span><br/>
+              <strong style="margin-top: 4pt; display: inline-block;">Тоялиева М. Р.</strong>
+            </td>
+          </tr>
+        </table>
+      </div>
       </body>
       </html>
     `;
@@ -975,11 +1381,7 @@ export function DocumentsWorkflowView({
   };
 
   const handleDownloadPdf = (doc: WorkflowDocument) => {
-    setPreviewDoc(doc);
-    toast.add({
-      title: `Бланк ${doc.docNumber} открыт. Нажмите «Печать» для сохранения в PDF`,
-      type: "info",
-    });
+    handlePrintDocument(doc);
   };
 
   return (
@@ -2531,65 +2933,60 @@ export function DocumentsWorkflowView({
 
               {/* A4 Sheet Container */}
               <div className="flex justify-center bg-muted/40 p-4 rounded-lg border border-border w-full">
-                <div className="w-full bg-white text-zinc-900 shadow-sm border border-border p-8 rounded-sm font-serif text-xs leading-relaxed print:p-0 print:border-none print:shadow-none">
+                <div className="w-full bg-white text-zinc-900 shadow-sm border border-border p-8 rounded-sm font-sans text-xs leading-relaxed print:p-0 print:border-none print:shadow-none">
                   {/* Official Header */}
-                  <div className="text-center border-b border-zinc-800 pb-3 mb-6">
-                    <p className="text-[10px] tracking-wider uppercase font-semibold text-zinc-700">
+                  <div className="text-center pb-2 mb-3">
+                    <p className="text-[10px] tracking-wider uppercase font-bold text-zinc-900">
                       МИНИСТЕРСТВО ПРОСВЕЩЕНИЯ КЫРГЫЗСКОЙ РЕСПУБЛИКИ
                     </p>
-                    <p className="text-sm font-bold uppercase tracking-wide mt-1 text-zinc-950">
-                      Профессиональный лицей №98
+                    <p className="text-sm font-extrabold uppercase tracking-wide text-zinc-950 mt-0.5">
+                      ПРОФЕССИОНАЛЬНЫЙ ЛИЦЕЙ №98
                     </p>
                   </div>
+                  <hr className="border-t-[1.5px] border-zinc-950 mb-3" />
 
                   {/* Document Meta Row */}
-                  <div className="flex justify-between items-start mb-6">
-                    <div className="text-[11px] font-sans">
-                      <p>Дата: <span className="font-mono">{new Date().toLocaleDateString("ru-RU")} г.</span></p>
+                  <div className="flex justify-between items-start mb-4 text-[11px] font-sans">
+                    <div>
+                      <p>Дата: <span className="font-medium">{new Date().toLocaleDateString("ru-RU")} г.</span></p>
                     </div>
 
-                    {/* Addressee right corner */}
-                    {creatorAddressee?.trim() && (
-                      <div className="text-right text-[11px] max-w-xs whitespace-pre-line font-sans font-medium text-zinc-800">
-                        {creatorAddressee.trim()}
-                      </div>
-                    )}
+                    <div className="text-right text-[11px] max-w-xs whitespace-pre-line font-medium text-zinc-800">
+                      {creatorAddressee?.trim() || "По месту требования"}
+                    </div>
                   </div>
 
                   {/* Title */}
-                  <div className="text-center my-6">
-                    <h2 className="text-sm font-bold uppercase tracking-wider font-sans">
+                  <div className="text-center my-4">
+                    <h2 className="text-xs font-extrabold uppercase tracking-wider font-sans text-zinc-950">
                       {selectedTemplate.title}
                     </h2>
-                    <p className="text-[11px] text-zinc-600 font-sans mt-0.5">
-                      группа {creatorGroup}
-                    </p>
                   </div>
 
                   {/* Document Content */}
                   {selectedTemplate.isMultiStudent ? (
                     <>
                       {creatorGeneralReason && (
-                        <div className="text-justify indent-6 mb-4 font-sans text-xs whitespace-pre-line leading-relaxed">
+                        <div className="text-justify mb-3 font-sans text-xs whitespace-pre-line leading-relaxed">
                           {creatorGeneralReason}
                         </div>
                       )}
 
                       {/* Multi-student Table */}
-                      <div className="my-4">
-                        <table className="w-full border-collapse border border-zinc-800 text-[11px] font-sans">
+                      <div className="my-3">
+                        <table className="w-full border-collapse border border-zinc-800 text-[10.5px] font-sans">
                           <thead>
-                            <tr className="bg-zinc-100 border-b border-zinc-800 font-semibold text-zinc-900">
-                              <th className="border border-zinc-800 p-1.5 w-8 text-center">№</th>
-                              <th className="border border-zinc-800 p-1.5 text-left">ФИО студента</th>
-                              <th className="border border-zinc-800 p-1.5 w-20 text-center">Личное дело</th>
-                              <th className="border border-zinc-800 p-1.5 w-24 text-center">Пропуски (ч.)</th>
-                              <th className="border border-zinc-800 p-1.5 w-24 text-center">Задолженности</th>
+                            <tr className="bg-zinc-100 border-b border-zinc-800 font-bold text-zinc-900">
+                              <th className="border border-zinc-800 p-1 w-8 text-center">№</th>
+                              <th className="border border-zinc-800 p-1 text-left">ФИО студента</th>
+                              <th className="border border-zinc-800 p-1 w-20 text-center">Группа</th>
+                              <th className="border border-zinc-800 p-1 w-24 text-center">Пропуски (ч.)</th>
+                              <th className="border border-zinc-800 p-1 w-24 text-center">Задолженности</th>
                               {enableIndividualReasons &&
                                 creatorSelectedStudentIds.some(
                                   (id) => creatorIndividualReasons[id]?.trim()
                                 ) && (
-                                  <th className="border border-zinc-800 p-1.5 text-left">
+                                  <th className="border border-zinc-800 p-1 text-left">
                                     Особое примечание
                                   </th>
                                 )}
@@ -2600,26 +2997,26 @@ export function DocumentsWorkflowView({
                               creatorSelectedStudentIds.includes(st.id)
                             ).map((st, idx) => (
                               <tr key={st.id} className="border-b border-zinc-800">
-                                <td className="border border-zinc-800 p-1.5 text-center font-mono">
+                                <td className="border border-zinc-800 p-1 text-center font-mono">
                                   {idx + 1}
                                 </td>
-                                <td className="border border-zinc-800 p-1.5 font-medium">
+                                <td className="border border-zinc-800 p-1 font-semibold">
                                   {st.name}
                                 </td>
-                                <td className="border border-zinc-800 p-1.5 text-center font-mono">
-                                  {st.rollNumber}
+                                <td className="border border-zinc-800 p-1 text-center">
+                                  {st.group || creatorGroup || "—"}
                                 </td>
-                                <td className="border border-zinc-800 p-1.5 text-center font-mono">
+                                <td className="border border-zinc-800 p-1 text-center font-mono">
                                   {st.unexcusedHours} ч.
                                 </td>
-                                <td className="border border-zinc-800 p-1.5 text-center font-mono">
-                                  {st.academicDebts > 0 ? `${st.academicDebts} задолж.` : "Нет"}
+                                <td className="border border-zinc-800 p-1 text-center font-mono">
+                                  {st.academicDebts > 0 ? `${st.academicDebts} задолж.` : "0"}
                                 </td>
                                 {enableIndividualReasons &&
                                   creatorSelectedStudentIds.some(
                                     (id) => creatorIndividualReasons[id]?.trim()
                                   ) && (
-                                    <td className="border border-zinc-800 p-1.5 text-zinc-700">
+                                    <td className="border border-zinc-800 p-1 text-zinc-700">
                                       {creatorIndividualReasons[st.id]?.trim() || "—"}
                                     </td>
                                   )}
@@ -2631,86 +3028,44 @@ export function DocumentsWorkflowView({
 
                       {/* Resolution Text */}
                       {creatorDescription && (
-                        <div className="text-justify indent-6 my-4 font-sans text-xs whitespace-pre-line leading-relaxed">
+                        <div className="text-justify my-3 font-sans text-xs whitespace-pre-line leading-relaxed">
                           {creatorDescription}
                         </div>
                       )}
                     </>
                   ) : (
                     /* Single Student Document: Pure formal continuous text */
-                    <div className="text-justify indent-6 my-4 font-sans text-xs whitespace-pre-line leading-relaxed">
+                    <div className="text-justify my-3 font-sans text-xs whitespace-pre-line leading-relaxed">
                       {creatorDescription}
                     </div>
                   )}
 
                   {/* Signatures Block */}
-                  {selectedTemplate.id === "student_characteristic" ? (
-                    <div className="mt-12 pt-6 border-t border-zinc-300 font-sans text-xs flex flex-col gap-5">
-                      <div className="flex flex-col sm:flex-row justify-between items-end gap-6">
-                        {charBlocks.signCurator && (
-                          <div>
-                            <p className="font-medium text-zinc-900">
-                              Мастер группы (куратор):
-                            </p>
-                            <p className="text-[10px] text-zinc-500 mt-3">
-                              (подпись) _______________________
-                            </p>
-                            <p className="font-semibold text-zinc-800 text-[11px] mt-1">
-                              {creatorSignatoryRole.includes("Мастер") ||
-                              creatorSignatoryRole.includes("Куратор")
-                                ? creatorSignatory
-                                : (creatorSignatory || currentUser?.name || "Мастер группы")}
-                            </p>
-                          </div>
-                        )}
-
-                        {charBlocks.signViceDirector && (
-                          <div className={charBlocks.signCurator ? "text-right" : ""}>
-                            <p className="font-medium text-zinc-900">
-                              Зам. директора по учебной части:
-                            </p>
-                            <p className="text-[10px] text-zinc-500 mt-3">
-                              (подпись) _______________________
-                            </p>
-                            <p className="font-semibold text-zinc-800 text-[11px] mt-1">
-                              Тоялиева М. Р.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-
+                  <div className="mt-8 pt-4 border-t border-zinc-300 font-sans text-xs flex justify-between items-end gap-6">
+                    <div>
+                      <p className="font-bold text-zinc-950">
+                        Мастер группы (куратор):
+                      </p>
+                      <p className="text-[9px] text-zinc-500 mt-1.5">
+                        (подпись) _______________________
+                      </p>
+                      <p className="font-bold text-zinc-950 text-[11px] mt-2">
+                        {creatorSignatory || currentUser?.name || "Вопольский Виктор Владимирович"}
+                      </p>
                     </div>
-                  ) : (
-                    /* Other documents (reports, notices): Left = Master of group, Right = Vice Director */
-                    <div className="mt-12 pt-6 border-t border-zinc-300 font-sans text-xs flex flex-col sm:flex-row justify-between items-end gap-6">
-                      <div>
-                        <p className="font-medium text-zinc-900">
-                          Мастер группы (куратор):
-                        </p>
-                        <p className="text-[10px] text-zinc-500 mt-3">
-                          (подпись, дата) _______________________
-                        </p>
-                        <p className="font-semibold text-zinc-800 text-[11px] mt-1">
-                          {creatorSignatoryRole.includes("Мастер") ||
-                          creatorSignatoryRole.includes("Куратор")
-                            ? creatorSignatory
-                            : (creatorSignatory || currentUser?.name || "Мастер группы")}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium text-zinc-900">
-                          Зам. директора по учебной части:
-                        </p>
-                        <p className="text-[10px] text-zinc-500 mt-3">
-                          (подпись) _______________________
-                        </p>
-                        <p className="font-semibold text-zinc-800 text-[11px] mt-1">
-                          Тоялиева М. Р.
-                        </p>
-                      </div>
+
+                    <div className="text-right">
+                      <p className="font-bold text-zinc-950">
+                        Зам. директора по учебной части:
+                      </p>
+                      <p className="text-[9px] text-zinc-500 mt-1.5">
+                        (подпись) _______________________
+                      </p>
+                      <p className="font-bold text-zinc-950 text-[11px] mt-2">
+                        Тоялиева М. Р.
+                      </p>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -3047,46 +3402,47 @@ export function DocumentsWorkflowView({
             <div className="flex flex-col gap-3">
               {/* Printable sheet */}
               <div className="bg-white text-zinc-900 border border-border p-6 rounded font-sans text-xs leading-relaxed">
-                <div className="text-center border-b border-zinc-800 pb-2 mb-4">
-                  <p className="text-[9px] uppercase font-semibold text-zinc-700">
+                <div className="text-center pb-2 mb-3">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-zinc-900">
                     МИНИСТЕРСТВО ПРОСВЕЩЕНИЯ КЫРГЫЗСКОЙ РЕСПУБЛИКИ
                   </p>
-                  <p className="text-xs font-bold uppercase tracking-wide text-zinc-950">
-                    Профессиональный лицей №98
+                  <p className="text-sm font-extrabold uppercase tracking-wide text-zinc-950 mt-0.5">
+                    ПРОФЕССИОНАЛЬНЫЙ ЛИЦЕЙ №98
                   </p>
                 </div>
+                <hr className="border-t-[1.5px] border-zinc-950 mb-3" />
 
-                <div className="flex justify-between items-start mb-4 text-[10px]">
+                <div className="flex justify-between items-start mb-3 text-[11px] font-sans">
                   <div>
-                    <p>Дата: {new Date(previewDoc.createdAt).toLocaleDateString("ru-RU")} г.</p>
+                    <p>Дата: <span className="font-medium">{new Date(previewDoc.createdAt).toLocaleDateString("ru-RU")} г.</span></p>
                   </div>
-                  {previewDoc.addressee?.trim() && (
-                    <div className="text-right whitespace-pre-line font-medium text-zinc-800">
-                      {previewDoc.addressee.trim()}
-                    </div>
-                  )}
+                  <div className="text-right whitespace-pre-line font-medium text-zinc-800 max-w-xs">
+                    {previewDoc.addressee?.trim() || "По месту требования"}
+                  </div>
                 </div>
 
-                <div className="text-center my-4">
-                  <h3 className="font-bold text-xs uppercase tracking-wide">
+                <div className="text-center my-3">
+                  <h3 className="font-extrabold text-xs uppercase tracking-wide text-zinc-950">
                     {previewDoc.title}
                   </h3>
                 </div>
 
-                <p className="text-justify indent-4 my-2 text-[11px]">
-                  {previewDoc.generalReason}
-                </p>
+                {previewDoc.generalReason && (
+                  <p className="text-justify my-2 text-[11px] font-sans">
+                    {cleanDocumentText(previewDoc.generalReason)}
+                  </p>
+                )}
 
                 {previewDoc.students.length > 1 && (
                   <div className="my-3">
-                    <table className="w-full border-collapse border border-zinc-800 text-[10px]">
+                    <table className="w-full border-collapse border border-zinc-800 text-[10px] font-sans">
                       <thead>
-                        <tr className="bg-zinc-100 border-b border-zinc-800 font-semibold">
+                        <tr className="bg-zinc-100 border-b border-zinc-800 font-bold">
                           <th className="border border-zinc-800 p-1 text-center w-6">№</th>
                           <th className="border border-zinc-800 p-1 text-left">ФИО студента</th>
-                          <th className="border border-zinc-800 p-1 text-center w-14">Личн. дело</th>
+                          <th className="border border-zinc-800 p-1 text-center w-16">Группа</th>
                           <th className="border border-zinc-800 p-1 text-center w-16">Посещаемость</th>
-                          <th className="border border-zinc-800 p-1 text-center w-16">Задолженн.</th>
+                          <th className="border border-zinc-800 p-1 text-center w-16">Долги</th>
                           {previewDoc.students.some((st) => Boolean(st.individualReason?.trim())) && (
                             <th className="border border-zinc-800 p-1 text-left">Особое примечание</th>
                           )}
@@ -3098,17 +3454,17 @@ export function DocumentsWorkflowView({
                             <td className="border border-zinc-800 p-1 text-center font-mono">
                               {i + 1}
                             </td>
-                            <td className="border border-zinc-800 p-1 font-medium">
+                            <td className="border border-zinc-800 p-1 font-semibold">
                               {st.name}
                             </td>
-                            <td className="border border-zinc-800 p-1 text-center font-mono">
-                              {st.rollNumber || "—"}
+                            <td className="border border-zinc-800 p-1 text-center">
+                              {st.group || "—"}
                             </td>
                             <td className="border border-zinc-800 p-1 text-center font-mono">
                               {typeof st.attendanceRate === "number" ? `${st.attendanceRate}%` : "—"}
                             </td>
                             <td className="border border-zinc-800 p-1 text-center font-mono">
-                              {typeof st.debts === "number" ? (st.debts > 0 ? `${st.debts}` : "0") : "—"}
+                              {typeof st.debts === "number" ? (st.debts > 0 ? `${st.debts}` : "0") : "0"}
                             </td>
                             {previewDoc.students.some((s) => Boolean(s.individualReason?.trim())) && (
                               <td className="border border-zinc-800 p-1 text-zinc-700">
@@ -3123,39 +3479,35 @@ export function DocumentsWorkflowView({
                 )}
 
                 <div className="text-justify my-3 text-[11px] whitespace-pre-line leading-relaxed font-sans">
-                  {previewDoc.descriptionText}
+                  {cleanDocumentText(previewDoc.descriptionText)}
                 </div>
 
-                <div className="mt-8 pt-4 border-t border-zinc-300 flex flex-col gap-4 text-[11px] font-sans">
+                <div className="mt-7 pt-4 border-t border-zinc-300 flex flex-col gap-4 text-[11px] font-sans">
                   <div className="flex justify-between items-end gap-6">
                     <div>
-                      <p className="font-medium text-zinc-900">
+                      <p className="font-bold text-zinc-950">
                         Мастер группы (куратор):
                       </p>
-                      <p className="text-[9px] text-zinc-500 mt-2">
+                      <p className="text-[9px] text-zinc-500 mt-1.5">
                         (подпись) _______________________
                       </p>
-                      <p className="font-semibold text-zinc-800 text-[11px] mt-1">
-                        {previewDoc.authorRole?.includes("Зам")
-                          ? (previewDoc.signatoryName || "Мастер группы")
-                          : previewDoc.authorName || (currentUser?.name || "Мастер группы")}
+                      <p className="font-bold text-zinc-950 text-[11px] mt-2">
+                        {previewDoc.signatoryName || previewDoc.authorName || (currentUser?.name || "Вопольский Виктор Владимирович")}
                       </p>
                     </div>
 
                     <div className="text-right">
-                      <p className="font-medium text-zinc-900">
+                      <p className="font-bold text-zinc-950">
                         Зам. директора по учебной части:
                       </p>
-                      <p className="text-[9px] text-zinc-500 mt-2">
+                      <p className="text-[9px] text-zinc-500 mt-1.5">
                         (подпись) _______________________
                       </p>
-                      <p className="font-semibold text-zinc-800 text-[11px] mt-1">
+                      <p className="font-bold text-zinc-950 text-[11px] mt-2">
                         Тоялиева М. Р.
                       </p>
                     </div>
                   </div>
-
-
                 </div>
               </div>
 
