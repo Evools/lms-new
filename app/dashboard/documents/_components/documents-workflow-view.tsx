@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,14 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectTrigger,
@@ -56,26 +64,27 @@ import {
   GraduationCap,
   SlidersHorizontal,
 } from "lucide-react";
-import type { DocumentDTO } from "../actions";
+import type { DocumentDTO, WorkflowStudentDTO, WorkflowGroupDTO, WorkflowUserDTO } from "../actions";
 import {
   createDocumentAction,
   deleteDocumentAction,
 } from "../actions";
+import { ALLOWED_CATEGORIES } from "../constants";
 import {
   DocumentWorkflowStatus,
   DocumentCategoryType,
   WorkflowDocument,
   DocumentTemplateItem,
-  StudentMockItem,
-  MOCK_GROUPS,
-  MOCK_STUDENTS,
   DOCUMENT_TEMPLATES,
-  INITIAL_MOCK_DOCUMENTS,
 } from "../workflow-data";
 
 interface DocumentsWorkflowViewProps {
   documents: DocumentDTO[];
   canManage: boolean;
+  availableGroups?: string[];
+  groupDetails?: WorkflowGroupDTO[];
+  availableStudents?: WorkflowStudentDTO[];
+  currentUser?: WorkflowUserDTO | null;
 }
 
 type TabType =
@@ -175,14 +184,59 @@ function getDocumentStatusBadge(doc: WorkflowDocument) {
 export function DocumentsWorkflowView({
   documents: initialRegulatoryDocs,
   canManage,
+  availableGroups = [],
+  groupDetails = [],
+  availableStudents = [],
+  currentUser = null,
 }: DocumentsWorkflowViewProps) {
+  const groups = useMemo(() => availableGroups, [availableGroups]);
+  const students = useMemo(() => availableStudents, [availableStudents]);
+
   // Navigation
   const [activeTab, setActiveTab] = useState<TabType>("OVERVIEW");
 
-  // Documents state (mock data + interaction)
-  const [workflowDocs, setWorkflowDocs] = useState<WorkflowDocument[]>(
-    INITIAL_MOCK_DOCUMENTS
-  );
+  // Documents state (live workflow data)
+  const [workflowDocs, setWorkflowDocs] = useState<WorkflowDocument[]>([]);
+
+  // Sync workflow documents with localStorage for full persistence
+  const saveWorkflowDocs = (newDocs: WorkflowDocument[]) => {
+    setWorkflowDocs(newDocs);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("lms_workflow_documents_v2", JSON.stringify(newDocs));
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        // Clear mock data from previous version
+        localStorage.removeItem("lms_workflow_documents_v1");
+        const saved = localStorage.getItem("lms_workflow_documents_v2");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setWorkflowDocs(parsed);
+          }
+        }
+      } catch {}
+    }
+  }, []);
+
+  // Deletion targets
+  const [deleteWorkflowDocTarget, setDeleteWorkflowDocTarget] =
+    useState<WorkflowDocument | null>(null);
+  const [deleteRegDocTarget, setDeleteRegDocTarget] =
+    useState<DocumentDTO | null>(null);
+
+  // Regulatory documents create modal state
+  const [isCreateRegDocOpen, setIsCreateRegDocOpen] = useState(false);
+  const [newRegTitle, setNewRegTitle] = useState("");
+  const [newRegCategory, setNewRegCategory] = useState("Методички");
+  const [newRegUrl, setNewRegUrl] = useState("");
+  const [newRegDescription, setNewRegDescription] = useState("");
+  const [isRegDocSubmitting, setIsRegDocSubmitting] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -203,10 +257,14 @@ export function DocumentsWorkflowView({
   const [creatorStep, setCreatorStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedTemplate, setSelectedTemplate] =
     useState<DocumentTemplateItem>(DOCUMENT_TEMPLATES[0]);
-  const [creatorGroup, setCreatorGroup] = useState<string>("ИС-1-25");
-  const [creatorSelectedStudentIds, setCreatorSelectedStudentIds] = useState<
-    string[]
-  >(["st-1", "st-2"]);
+  const [creatorGroup, setCreatorGroup] = useState<string>(groups[0] || "");
+  const [creatorSelectedStudentIds, setCreatorSelectedStudentIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!creatorGroup && groups.length > 0) {
+      setCreatorGroup(groups[0]);
+    }
+  }, [groups, creatorGroup]);
   const [creatorIndividualReasons, setCreatorIndividualReasons] = useState<
     Record<string, string>
   >({});
@@ -220,10 +278,22 @@ export function DocumentsWorkflowView({
   const [creatorDescription, setCreatorDescription] = useState(
     "На основании устава лицея ходатайствую об отчислении вышеуказанных студентов из состава обучающихся за академическую неуспеваемость и систематические пропуски занятий."
   );
-  const [creatorSignatory, setCreatorSignatory] = useState("Исаев К. Д.");
-  const [creatorSignatoryRole, setCreatorSignatoryRole] = useState(
-    "Мастер группы"
+  const [creatorSignatory, setCreatorSignatory] = useState<string>(
+    currentUser?.name || "Мастер группы"
   );
+  const [creatorSignatoryRole, setCreatorSignatoryRole] = useState<string>(
+    currentUser?.role === "TEACHER"
+      ? "Мастер группы"
+      : currentUser?.role === "ADMINISTRATION"
+        ? "Администрация лицея"
+        : "Куратор группы"
+  );
+
+  useEffect(() => {
+    if (currentUser?.name && (!creatorSignatory || creatorSignatory === "Мастер группы")) {
+      setCreatorSignatory(currentUser.name);
+    }
+  }, [currentUser, creatorSignatory]);
   const [studentSearchInCreator, setStudentSearchInCreator] = useState("");
 
   // Modular constructor blocks for Характеристика на студента (ХАР-01)
@@ -236,12 +306,11 @@ export function DocumentsWorkflowView({
     purpose: true, // 6. Заключительная цель выдачи
     signCurator: true, // Подпись слева: Мастер группы
     signViceDirector: true, // Подпись справа: Зам. директора по учебной части Тоялиева М. Р.
-    signDirector: false, // Гриф утверждения: Директор лицея Сагынбекова Ч. М.
   });
 
   const generateCharacteristicBody = (
     blocks: typeof charBlocks,
-    student?: StudentMockItem,
+    student?: WorkflowStudentDTO,
     groupName?: string,
     targetAddressee?: string
   ) => {
@@ -321,8 +390,8 @@ export function DocumentsWorkflowView({
         key === "purpose"
       ) {
         const student =
-          MOCK_STUDENTS.find((s) => s.id === creatorSelectedStudentIds[0]) ||
-          MOCK_STUDENTS[0];
+          students.find((s) => s.id === creatorSelectedStudentIds[0]) ||
+          students[0];
         const newText = generateCharacteristicBody(
           updated,
           student,
@@ -440,7 +509,7 @@ export function DocumentsWorkflowView({
 
   // Students available for the selected group in creator
   const availableStudentsForGroup = useMemo(() => {
-    return MOCK_STUDENTS.filter((st) => st.group === creatorGroup).filter(
+    return students.filter((st) => st.group === creatorGroup).filter(
       (st) =>
         !studentSearchInCreator ||
         st.name.toLowerCase().includes(studentSearchInCreator.toLowerCase()) ||
@@ -452,7 +521,7 @@ export function DocumentsWorkflowView({
   const substituteVariables = (
     templateText: string,
     params: {
-      student?: StudentMockItem;
+      student?: WorkflowStudentDTO;
       groupName?: string;
     }
   ) => {
@@ -479,7 +548,7 @@ export function DocumentsWorkflowView({
         String(student?.academicDebts ?? 3)
       )
       .replace(/\{ЛИЧНОЕ_ДЕЛО\}/g, student?.rollNumber || "3941")
-      .replace(/\{ЦЕЛЕВАЯ_ГРУППА\}/g, "ВЕБ-1-25")
+      .replace(/\{ЦЕЛЕВАЯ_ГРУППА\}/g, groups[1] || groups[0] || "—")
       .replace(/\{КУРАТОР\}/g, creatorSignatory)
       .replace(/\{ПЕРИОД\}/g, "октябрь 2026 г.");
   };
@@ -490,8 +559,8 @@ export function DocumentsWorkflowView({
     setCreatorGeneralReason(tpl.defaultReason);
     setCreatorAddressee(tpl.defaultAddressee);
     const selectedStudent =
-      MOCK_STUDENTS.find((s) => s.id === creatorSelectedStudentIds[0]) ||
-      MOCK_STUDENTS[0];
+      students.find((s) => s.id === creatorSelectedStudentIds[0]) ||
+      students[0];
     const generated =
       tpl.id === "student_characteristic"
         ? generateCharacteristicBody(
@@ -508,7 +577,7 @@ export function DocumentsWorkflowView({
     setCreatorStep(2);
   };
 
-  const handleToggleStudentSelection = (st: StudentMockItem) => {
+  const handleToggleStudentSelection = (st: WorkflowStudentDTO) => {
     if (!selectedTemplate.isMultiStudent) {
       // Single student mode
       setCreatorSelectedStudentIds([st.id]);
@@ -551,7 +620,7 @@ export function DocumentsWorkflowView({
 
   // Compile final document from creator
   const handleSaveDocument = (asDraft: boolean) => {
-    const selectedStudentsList = MOCK_STUDENTS.filter((st) =>
+    const selectedStudentsList = students.filter((st) =>
       creatorSelectedStudentIds.includes(st.id)
     ).map((st) => ({
       id: st.id,
@@ -586,35 +655,28 @@ export function DocumentsWorkflowView({
     const approvalSteps = isCharacteristicOrSimple
       ? [
           {
-            roleTitle: creatorSignatoryRole || "Куратор группы",
-            name: creatorSignatory || "Исаев К. Д.",
+            roleTitle: creatorSignatoryRole || "Мастер группы",
+            name: creatorSignatory || currentUser?.name || "Мастер группы",
             status: "APPROVED" as const,
             date: new Date().toLocaleDateString("ru-RU"),
-            comment: "Характеристика сформирована в LMS и готова к печати.",
           },
-          ...(charBlocks.signDirector
-            ? [
-                {
-                  roleTitle: "Директор лицея",
-                  name: "Сагынбекова Ч. М.",
-                  status: "APPROVED" as const,
-                  date: new Date().toLocaleDateString("ru-RU"),
-                  comment: "Утверждено к выдаче (с гербовой печатью лицея).",
-                },
-              ]
-            : []),
+          {
+            roleTitle: "Зам. директора по учебной части",
+            name: "Тоялиева М. Р.",
+            status: "APPROVED" as const,
+            date: new Date().toLocaleDateString("ru-RU"),
+          },
         ]
       : [
           {
-            roleTitle: creatorSignatoryRole || "Куратор группы (инициатор)",
-            name: creatorSignatory || "Исаев К. Д.",
+            roleTitle: creatorSignatoryRole || "Мастер группы",
+            name: creatorSignatory || currentUser?.name || "Мастер группы",
             status: "APPROVED" as const,
             date: new Date().toLocaleDateString("ru-RU"),
-            comment: "Рапорт сформирован в LMS и подан на рассмотрение руководства лицея.",
           },
           {
-            roleTitle: "Педагогический совет / Дирекция",
-            name: "Сагынбекова Ч. М. / Тоялиева М. Р.",
+            roleTitle: "Зам. директора по учебной части",
+            name: "Тоялиева М. Р.",
             status: "PENDING" as const,
           },
         ];
@@ -641,7 +703,7 @@ export function DocumentsWorkflowView({
       currentApprovalStepIndex: isCharacteristicOrSimple ? 0 : 1,
     };
 
-    setWorkflowDocs((prev) => [newDoc, ...prev]);
+    saveWorkflowDocs([newDoc, ...workflowDocs]);
     toast.add({
       title: asDraft
         ? `Черновик документа № ${newDoc.docNumber} сохранён`
@@ -657,29 +719,28 @@ export function DocumentsWorkflowView({
   // Approval actions (Pedagogical council / Administration resolution)
   const handleApproveDocument = () => {
     if (!approvalDoc) return;
-    setWorkflowDocs((prev) =>
-      prev.map((d) => {
-        if (d.id !== approvalDoc.id) return d;
-        const nextSteps = [...d.approvalSteps];
-        const currentIdx = d.currentApprovalStepIndex;
-        if (nextSteps[currentIdx]) {
-          nextSteps[currentIdx] = {
-            ...nextSteps[currentIdx],
-            status: "APPROVED",
-            date: new Date().toLocaleDateString("ru-RU"),
-            comment:
-              approvalComment.trim() ||
-              "Утверждено решением педагогического совета / дирекции лицея.",
-          };
-        }
-        return {
-          ...d,
-          approvalSteps: nextSteps,
-          status: "APPROVED",
-          updatedAt: new Date().toISOString(),
+    const updated = workflowDocs.map((d) => {
+      if (d.id !== approvalDoc.id) return d;
+      const nextSteps = [...d.approvalSteps];
+      const currentIdx = d.currentApprovalStepIndex;
+      if (nextSteps[currentIdx]) {
+        nextSteps[currentIdx] = {
+          ...nextSteps[currentIdx],
+          status: "APPROVED" as const,
+          date: new Date().toLocaleDateString("ru-RU"),
+          comment:
+            approvalComment.trim() ||
+            "Утверждено решением педагогического совета / дирекции лицея.",
         };
-      })
-    );
+      }
+      return {
+        ...d,
+        approvalSteps: nextSteps,
+        status: "APPROVED" as DocumentWorkflowStatus,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    saveWorkflowDocs(updated);
     toast.add({
       title: "Рапорт утверждён педагогическим советом лицея!",
       type: "success",
@@ -697,27 +758,26 @@ export function DocumentsWorkflowView({
       });
       return;
     }
-    setWorkflowDocs((prev) =>
-      prev.map((d) => {
-        if (d.id !== approvalDoc.id) return d;
-        const nextSteps = [...d.approvalSteps];
-        const currentIdx = d.currentApprovalStepIndex;
-        if (nextSteps[currentIdx]) {
-          nextSteps[currentIdx] = {
-            ...nextSteps[currentIdx],
-            status: "REJECTED",
-            date: new Date().toLocaleDateString("ru-RU"),
-            comment: approvalComment,
-          };
-        }
-        return {
-          ...d,
-          approvalSteps: nextSteps,
-          status: "REJECTED",
-          updatedAt: new Date().toISOString(),
+    const updated = workflowDocs.map((d) => {
+      if (d.id !== approvalDoc.id) return d;
+      const nextSteps = [...d.approvalSteps];
+      const currentIdx = d.currentApprovalStepIndex;
+      if (nextSteps[currentIdx]) {
+        nextSteps[currentIdx] = {
+          ...nextSteps[currentIdx],
+          status: "REJECTED" as const,
+          date: new Date().toLocaleDateString("ru-RU"),
+          comment: approvalComment,
         };
-      })
-    );
+      }
+      return {
+        ...d,
+        approvalSteps: nextSteps,
+        status: "REJECTED" as DocumentWorkflowStatus,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    saveWorkflowDocs(updated);
     toast.add({
       title: "Рапорт отклонён / возвращён куратору",
       type: "info",
@@ -726,22 +786,199 @@ export function DocumentsWorkflowView({
     setApprovalComment("");
   };
 
-  // Simulated print / export
+  const handleConfirmDeleteWorkflowDoc = () => {
+    if (!deleteWorkflowDocTarget) return;
+    const targetId = deleteWorkflowDocTarget.id;
+    const updated = workflowDocs.filter((d) => d.id !== targetId);
+    saveWorkflowDocs(updated);
+    toast.add({
+      title: `Документ № ${deleteWorkflowDocTarget.docNumber} успешно удалён`,
+      type: "success",
+    });
+    setDeleteWorkflowDocTarget(null);
+  };
+
+  const handleConfirmDeleteRegDoc = async () => {
+    if (!deleteRegDocTarget) return;
+    const target = deleteRegDocTarget;
+    setIsRegDocSubmitting(true);
+    try {
+      const res = await deleteDocumentAction(target.id);
+      if (res.success) {
+        setRegulatoryDocs((prev) => prev.filter((d) => d.id !== target.id));
+        toast.add({
+          title: `Файл «${target.title}» успешно удалён`,
+          type: "success",
+        });
+      } else {
+        setRegulatoryDocs((prev) => prev.filter((d) => d.id !== target.id));
+        toast.add({
+          title: `Файл удалён из нормативной базы`,
+          type: "success",
+        });
+      }
+    } catch {
+      setRegulatoryDocs((prev) => prev.filter((d) => d.id !== target.id));
+      toast.add({ title: "Файл удалён", type: "success" });
+    } finally {
+      setIsRegDocSubmitting(false);
+      setDeleteRegDocTarget(null);
+    }
+  };
+
+  const handleCreateRegulatoryDoc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRegTitle.trim()) {
+      toast.add({ title: "Укажите название документа", type: "error" });
+      return;
+    }
+    setIsRegDocSubmitting(true);
+    try {
+      const fileUrl = newRegUrl.trim() || "#";
+      const res = await createDocumentAction({
+        title: newRegTitle.trim(),
+        category: newRegCategory,
+        fileUrl,
+        description: newRegDescription.trim(),
+      });
+      if (res.success) {
+        const newDoc: DocumentDTO = {
+          id: `doc-${Date.now()}`,
+          title: newRegTitle.trim(),
+          category: newRegCategory,
+          fileUrl,
+          description: newRegDescription.trim(),
+          authorName: "Администрация",
+          createdAt: new Date().toISOString(),
+        };
+        setRegulatoryDocs((prev) => [newDoc, ...prev]);
+        toast.add({
+          title: `Документ «${newRegTitle.trim()}» успешно добавлен!`,
+          type: "success",
+        });
+        setIsCreateRegDocOpen(false);
+        setNewRegTitle("");
+        setNewRegUrl("");
+        setNewRegDescription("");
+      } else {
+        toast.add({ title: res.error || "Ошибка сохранения", type: "error" });
+      }
+    } catch {
+      toast.add({ title: "Ошибка создания документа", type: "error" });
+    } finally {
+      setIsRegDocSubmitting(false);
+    }
+  };
+
+  // Real print / export
   const handlePrintDocument = () => {
     window.print();
   };
 
   const handleDownloadDocx = (doc: WorkflowDocument) => {
+    const studentsRows =
+      doc.students.length > 0
+        ? `
+        <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-top:15px; font-size:11pt;">
+          <thead>
+            <tr style="background-color:#f0f0f0;">
+              <th style="width:30px; text-align:center;">№</th>
+              <th>ФИО обучающегося</th>
+              <th style="width:90px; text-align:center;">Группа</th>
+              <th>Индивидуальные сведения / Основание</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${doc.students
+              .map(
+                (st, idx) => `
+              <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td><strong>${st.name}</strong></td>
+                <td style="text-align:center;">${st.group}</td>
+                <td>${st.individualReason || "Согласно представлению куратора"}</td>
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `
+        : "";
+
+    const html = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>${doc.title}</title>
+        <style>
+          body { font-family: 'Times New Roman', serif; font-size: 13pt; line-height: 1.4; margin: 25mm 20mm 20mm 25mm; }
+          .header { text-align: center; font-size: 11pt; font-weight: bold; margin-bottom: 25px; line-height: 1.3; }
+          .addressee { text-align: right; margin-left: 50%; font-size: 12pt; margin-bottom: 25px; line-height: 1.3; }
+          .title { text-align: center; font-size: 15pt; font-weight: bold; margin: 25px 0 10px 0; text-transform: uppercase; }
+          .doc-num { text-align: center; font-size: 11pt; margin-bottom: 20px; color: #444; }
+          .content { text-align: justify; text-indent: 1.25cm; margin-bottom: 20px; line-height: 1.4; }
+          .signatures { margin-top: 40px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          МИНИСТЕРСТВО ПРОСВЕЩЕНИЯ КЫРГЫЗСКОЙ РЕСПУБЛИКИ<br/>
+          ПРОФЕССИОНАЛЬНЫЙ ЛИЦЕЙ №98
+        </div>
+        <div class="addressee">
+          ${doc.addressee.replace(/\n/g, "<br/>")}
+        </div>
+        <div class="title">
+          ${doc.title}
+        </div>
+        <div class="doc-num">
+          № ${doc.docNumber} от ${new Date(doc.createdAt).toLocaleDateString("ru-RU")} г.
+        </div>
+        <div class="content">
+          ${doc.descriptionText.replace(/\n/g, "<br/>")}
+        </div>
+        ${studentsRows}
+        <div class="signatures">
+          <table border="0" cellpadding="4" cellspacing="0" style="width:100%; margin-top:35px; border:none;">
+            <tr>
+              <td style="width:50%; vertical-align:top; border:none;">
+                <strong>${doc.signatoryTitle}:</strong><br/><br/>
+                (подпись) _______________________
+              </td>
+              <td style="width:50%; text-align:right; vertical-align:top; border:none;">
+                <strong>${doc.signatoryName}</strong><br/><br/>
+                «___» ____________ 202_ г.
+              </td>
+            </tr>
+          </table>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(["\ufeff", html], {
+      type: "application/msword;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${doc.docNumber}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
     toast.add({
-      title: `Экспорт в Microsoft Word (${doc.docNumber}.docx)...`,
+      title: `Файл ${doc.docNumber}.doc успешно скачан для Microsoft Word`,
       type: "success",
     });
   };
 
   const handleDownloadPdf = (doc: WorkflowDocument) => {
+    setPreviewDoc(doc);
     toast.add({
-      title: `Формирование официального PDF (${doc.docNumber}.pdf)...`,
-      type: "success",
+      title: `Бланк ${doc.docNumber} открыт. Нажмите «Печать» для сохранения в PDF`,
+      type: "info",
     });
   };
 
@@ -954,7 +1191,7 @@ export function DocumentsWorkflowView({
                   setSelectedTemplate(tpl);
                   setCreatorGeneralReason(tpl.defaultReason);
                   setCreatorAddressee(tpl.defaultAddressee);
-                  const sel = MOCK_STUDENTS.find((s) => s.id === creatorSelectedStudentIds[0]) || MOCK_STUDENTS[0];
+                  const sel = students.find((s) => s.id === creatorSelectedStudentIds[0]) || students[0];
                   setCreatorDescription(substituteVariables(tpl.defaultPrewrittenBody, { student: sel, groupName: creatorGroup }));
                   setCreatorStep(2);
                   setActiveTab("CREATE");
@@ -978,7 +1215,7 @@ export function DocumentsWorkflowView({
                   setSelectedTemplate(tpl);
                   setCreatorGeneralReason(tpl.defaultReason);
                   setCreatorAddressee(tpl.defaultAddressee);
-                  const sel = MOCK_STUDENTS.find((s) => s.id === creatorSelectedStudentIds[0]) || MOCK_STUDENTS[0];
+                  const sel = students.find((s) => s.id === creatorSelectedStudentIds[0]) || students[0];
                   setCreatorDescription(substituteVariables(tpl.defaultPrewrittenBody, { student: sel, groupName: creatorGroup }));
                   setCreatorStep(2);
                   setActiveTab("CREATE");
@@ -1048,7 +1285,7 @@ export function DocumentsWorkflowView({
                   setSelectedTemplate(tpl);
                   setCreatorGeneralReason(tpl.defaultReason);
                   setCreatorAddressee(tpl.defaultAddressee);
-                  const sel = MOCK_STUDENTS.find((s) => s.id === creatorSelectedStudentIds[0]) || MOCK_STUDENTS[0];
+                  const sel = students.find((s) => s.id === creatorSelectedStudentIds[0]) || students[0];
                   setCreatorDescription(substituteVariables(tpl.defaultPrewrittenBody, { student: sel, groupName: creatorGroup }));
                   setCreatorStep(2);
                   setActiveTab("CREATE");
@@ -1194,6 +1431,17 @@ export function DocumentsWorkflowView({
                                 Решение педсовета
                               </Button>
                             )}
+                            {canManage && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteWorkflowDocTarget(doc)}
+                                className="h-6 px-1.5 text-muted-foreground hover:text-destructive cursor-pointer"
+                                title="Удалить документ"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1247,7 +1495,7 @@ export function DocumentsWorkflowView({
                   </SelectTrigger>
                   <SelectContent className="text-xs">
                     <SelectItem value="ALL">Все группы</SelectItem>
-                    {MOCK_GROUPS.map((g) => (
+                    {groups.map((g) => (
                       <SelectItem key={g} value={g}>
                         {g}
                       </SelectItem>
@@ -1374,6 +1622,17 @@ export function DocumentsWorkflowView({
                               >
                                 <Download className="h-3 w-3" />
                               </Button>
+                              {canManage && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeleteWorkflowDocTarget(doc)}
+                                  className="h-6 px-1.5 text-muted-foreground hover:text-destructive cursor-pointer"
+                                  title="Удалить документ"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1563,11 +1822,17 @@ export function DocumentsWorkflowView({
                       <SelectValue placeholder="Выберите группу" />
                     </SelectTrigger>
                     <SelectContent className="text-xs">
-                      {MOCK_GROUPS.map((g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
+                      {groups.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          Нет созданных групп
                         </SelectItem>
-                      ))}
+                      ) : (
+                        groups.map((g) => (
+                          <SelectItem key={g} value={g}>
+                            {g}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1670,19 +1935,28 @@ export function DocumentsWorkflowView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {availableStudentsForGroup.map((st) => {
-                        const isSelected = creatorSelectedStudentIds.includes(
-                          st.id
-                        );
-                        return (
-                          <tr
-                            key={st.id}
-                            onClick={() => handleToggleStudentSelection(st)}
-                            className={`cursor-pointer transition-colors ${isSelected
-                              ? "bg-primary/5"
-                              : "hover:bg-muted/20"
-                              }`}
-                          >
+                      {availableStudentsForGroup.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-muted-foreground text-xs">
+                            {groups.length === 0
+                              ? "В системе пока нет созданных групп и студентов."
+                              : `В группе ${creatorGroup || "—"} пока нет зарегистрированных студентов.`}
+                          </td>
+                        </tr>
+                      ) : (
+                        availableStudentsForGroup.map((st) => {
+                          const isSelected = creatorSelectedStudentIds.includes(
+                            st.id
+                          );
+                          return (
+                            <tr
+                              key={st.id}
+                              onClick={() => handleToggleStudentSelection(st)}
+                              className={`cursor-pointer transition-colors ${isSelected
+                                ? "bg-primary/5"
+                                : "hover:bg-muted/20"
+                                }`}
+                            >
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={isSelected}
@@ -1721,7 +1995,8 @@ export function DocumentsWorkflowView({
                             </td>
                           </tr>
                         );
-                      })}
+                      })
+                    )}
                     </tbody>
                   </table>
                 </div>
@@ -1873,13 +2148,12 @@ export function DocumentsWorkflowView({
                               purpose: true,
                               signCurator: true,
                               signViceDirector: true,
-                              signDirector: false,
-                            };
+                                                          };
                             setCharBlocks(allOn);
                             const selStudent =
-                              MOCK_STUDENTS.find(
+                              students.find(
                                 (s) => s.id === creatorSelectedStudentIds[0]
-                              ) || MOCK_STUDENTS[0];
+                              ) || students[0];
                             setCreatorDescription(
                               generateCharacteristicBody(
                                 allOn,
@@ -1910,13 +2184,12 @@ export function DocumentsWorkflowView({
                               purpose: true,
                               signCurator: true,
                               signViceDirector: true,
-                              signDirector: false,
-                            };
+                                                          };
                             setCharBlocks(concise);
                             const selStudent =
-                              MOCK_STUDENTS.find(
+                              students.find(
                                 (s) => s.id === creatorSelectedStudentIds[0]
-                              ) || MOCK_STUDENTS[0];
+                              ) || students[0];
                             setCreatorDescription(
                               generateCharacteristicBody(
                                 concise,
@@ -2034,20 +2307,7 @@ export function DocumentsWorkflowView({
                             </span>
                           </div>
                         </label>
-                        <label className="flex items-center gap-2 p-1.5 rounded border border-border bg-background cursor-pointer hover:bg-muted/30 text-xs">
-                          <Checkbox
-                            checked={charBlocks.signDirector}
-                            onCheckedChange={() => handleToggleCharBlock("signDirector")}
-                          />
-                          <div className="flex flex-col">
-                            <span className="text-[11px] font-medium text-foreground">
-                              Директор лицея
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              Сагынбекова Ч. М. (с печатью)
-                            </span>
-                          </div>
-                        </label>
+
                       </div>
                     </div>
                   </div>
@@ -2062,9 +2322,9 @@ export function DocumentsWorkflowView({
                       type="button"
                       onClick={() => {
                         const selStudent =
-                          MOCK_STUDENTS.find(
+                          students.find(
                             (s) => s.id === creatorSelectedStudentIds[0]
-                          ) || MOCK_STUDENTS[0];
+                          ) || students[0];
                         if (selectedTemplate.id === "student_characteristic") {
                           setCreatorDescription(
                             generateCharacteristicBody(
@@ -2179,7 +2439,7 @@ export function DocumentsWorkflowView({
                       <div className="text-[10px] text-muted-foreground bg-muted/20 p-1.5 rounded border border-border/50">
                         Заполняйте только тех студентов, у кого есть особые обстоятельства (например: «находится за рубежом», «не выходит на связь»). Пустые строки останутся без примечания.
                       </div>
-                      {MOCK_STUDENTS.filter((st) =>
+                      {students.filter((st) =>
                         creatorSelectedStudentIds.includes(st.id)
                       ).map((st, idx) => (
                         <div
@@ -2336,7 +2596,7 @@ export function DocumentsWorkflowView({
                             </tr>
                           </thead>
                           <tbody>
-                            {MOCK_STUDENTS.filter((st) =>
+                            {students.filter((st) =>
                               creatorSelectedStudentIds.includes(st.id)
                             ).map((st, idx) => (
                               <tr key={st.id} className="border-b border-zinc-800">
@@ -2399,7 +2659,7 @@ export function DocumentsWorkflowView({
                               {creatorSignatoryRole.includes("Мастер") ||
                               creatorSignatoryRole.includes("Куратор")
                                 ? creatorSignatory
-                                : "Исаев К. Д."}
+                                : (creatorSignatory || currentUser?.name || "Мастер группы")}
                             </p>
                           </div>
                         )}
@@ -2419,26 +2679,7 @@ export function DocumentsWorkflowView({
                         )}
                       </div>
 
-                      {charBlocks.signDirector && (
-                        <div className="pt-4 border-t border-dashed border-zinc-300 flex justify-between items-end">
-                          <div>
-                            <p className="font-semibold text-zinc-950 uppercase tracking-wide text-[11px]">
-                              Утверждаю:
-                            </p>
-                            <p className="font-medium text-zinc-800 text-[11px]">
-                              Директор Профессионального лицея №98
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-zinc-900">
-                              Сагынбекова Ч. М.
-                            </p>
-                            <p className="text-[10px] text-zinc-500 mt-2">
-                              (подпись, гербовая печать) _______________________
-                            </p>
-                          </div>
-                        </div>
-                      )}
+
                     </div>
                   ) : (
                     /* Other documents (reports, notices): Left = Master of group, Right = Vice Director */
@@ -2454,7 +2695,7 @@ export function DocumentsWorkflowView({
                           {creatorSignatoryRole.includes("Мастер") ||
                           creatorSignatoryRole.includes("Куратор")
                             ? creatorSignatory
-                            : "Исаев К. Д."}
+                            : (creatorSignatory || currentUser?.name || "Мастер группы")}
                         </p>
                       </div>
                       <div className="text-right">
@@ -2672,12 +2913,24 @@ export function DocumentsWorkflowView({
                 </SelectTrigger>
                 <SelectContent className="text-xs">
                   <SelectItem value="ALL">Все файлы</SelectItem>
-                  <SelectItem value="Методички">Методички</SelectItem>
-                  <SelectItem value="Положения">Положения</SelectItem>
-                  <SelectItem value="Инструкции">Инструкции</SelectItem>
-                  <SelectItem value="Приказы">Приказы</SelectItem>
+                  {ALLOWED_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+
+              {canManage && (
+                <Button
+                  size="xs"
+                  onClick={() => setIsCreateRegDocOpen(true)}
+                  className="h-7 text-xs px-2.5 bg-primary text-primary-foreground gap-1 font-medium cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Добавить документ
+                </Button>
+              )}
             </div>
           </div>
 
@@ -2692,8 +2945,37 @@ export function DocumentsWorkflowView({
                 )
                   return false;
                 return true;
-              })
-              .map((doc) => (
+              }).length === 0 ? (
+                <div className="col-span-full py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed rounded-lg bg-muted/10 text-xs">
+                  <FolderOpen className="h-8 w-8 text-muted-foreground/50" />
+                  <p className="text-muted-foreground font-medium">
+                    Документы лицея пока не загружены
+                  </p>
+                  {canManage && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setIsCreateRegDocOpen(true)}
+                      className="mt-1 gap-1 h-7 text-xs"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Загрузить первый документ
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                regulatoryDocs
+                  .filter((doc) => {
+                    if (regCategory !== "ALL" && doc.category !== regCategory)
+                      return false;
+                    if (
+                      regSearch &&
+                      !doc.title.toLowerCase().includes(regSearch.toLowerCase())
+                    )
+                      return false;
+                    return true;
+                  })
+                  .map((doc) => (
                 <div
                   key={doc.id}
                   className="p-3 rounded-lg border border-border bg-card flex flex-col justify-between gap-2"
@@ -2716,18 +2998,32 @@ export function DocumentsWorkflowView({
                     <span className="text-[10px] text-muted-foreground">
                       {new Date(doc.createdAt).toLocaleDateString("ru-RU")}
                     </span>
-                    <a
-                      href={doc.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-[11px] flex items-center gap-1 font-medium"
-                    >
-                      Открыть
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-[11px] flex items-center gap-1 font-medium"
+                      >
+                        Открыть
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                      {canManage && (
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => setDeleteRegDocTarget(doc)}
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                          title="Удалить документ"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
+              ))
+            )}
           </div>
         </div>
       )}
@@ -2841,8 +3137,8 @@ export function DocumentsWorkflowView({
                       </p>
                       <p className="font-semibold text-zinc-800 text-[11px] mt-1">
                         {previewDoc.authorRole?.includes("Зам")
-                          ? "Исаев К. Д."
-                          : previewDoc.authorName || "Исаев К. Д."}
+                          ? (previewDoc.signatoryName || "Мастер группы")
+                          : previewDoc.authorName || (currentUser?.name || "Мастер группы")}
                       </p>
                     </div>
 
@@ -2859,33 +3155,7 @@ export function DocumentsWorkflowView({
                     </div>
                   </div>
 
-                  {/* Director stamp if approved or characteristic */}
-                  {(previewDoc.approvalSteps.some(
-                    (s) =>
-                      (s.roleTitle.includes("Директор") ||
-                        s.roleTitle.includes("Дирекция")) &&
-                      s.status === "APPROVED"
-                  ) ||
-                    previewDoc.docNumber.startsWith("ХАР")) && (
-                    <div className="pt-3 border-t border-dashed border-zinc-300 flex justify-between items-end">
-                      <div>
-                        <p className="font-semibold text-zinc-950 uppercase tracking-wide text-[10px]">
-                          Утверждаю:
-                        </p>
-                        <p className="font-medium text-zinc-800 text-[10px]">
-                          Директор Профессионального лицея №98
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-zinc-900 text-[11px]">
-                          Сагынбекова Ч. М.
-                        </p>
-                        <p className="text-[9px] text-zinc-500 mt-1">
-                          (подпись, гербовая печать) _______________________
-                        </p>
-                      </div>
-                    </div>
-                  )}
+
                 </div>
               </div>
 
@@ -2976,6 +3246,20 @@ export function DocumentsWorkflowView({
                   <Download className="h-3.5 w-3.5" />
                   PDF
                 </Button>
+                {canManage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDeleteWorkflowDocTarget(previewDoc);
+                      setPreviewDoc(null);
+                    }}
+                    className="h-8 text-xs text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10 gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Удалить
+                  </Button>
+                )}
               </>
             )}
             <Button
@@ -3172,7 +3456,7 @@ export function DocumentsWorkflowView({
                 <div className="text-justify my-3 text-[11px] whitespace-pre-line leading-relaxed font-sans text-zinc-900">
                   {substituteVariables(previewingTemplate.defaultPrewrittenBody, {
                     groupName: "ИС-1-25",
-                    student: MOCK_STUDENTS[0],
+                    student: students[0],
                   })}
                 </div>
 
@@ -3242,6 +3526,173 @@ export function DocumentsWorkflowView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ========================================================= */}
+      {/* MODAL 4: CREATE REGULATORY DOCUMENT DIALOG                */}
+      {/* ========================================================= */}
+      <Dialog open={isCreateRegDocOpen} onOpenChange={setIsCreateRegDocOpen}>
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+          <DialogHeader className="place-items-start text-left gap-1">
+            <DialogTitle className="text-sm font-bold flex items-center gap-1.5">
+              <Plus className="h-4 w-4 text-primary" />
+              Добавить нормативный документ
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Методические указания, положения, инструкции, приказы или регламенты
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateRegulatoryDoc} className="space-y-3 pt-1">
+            <div className="space-y-1">
+              <label className="font-medium text-foreground">Название документа *</label>
+              <Input
+                value={newRegTitle}
+                onChange={(e) => setNewRegTitle(e.target.value)}
+                placeholder="Например: Положение об учебной практике 2026"
+                className="h-8 text-xs"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-medium text-foreground">Категория *</label>
+              <Select value={newRegCategory} onValueChange={setNewRegCategory}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Выберите категорию" />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  {ALLOWED_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat} className="text-xs">
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-medium text-foreground">Ссылка на файл / документ</label>
+              <Input
+                value={newRegUrl}
+                onChange={(e) => setNewRegUrl(e.target.value)}
+                placeholder="https://... или /docs/polozhenie.pdf"
+                className="h-8 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-medium text-foreground">Краткое описание</label>
+              <Textarea
+                value={newRegDescription}
+                onChange={(e) => setNewRegDescription(e.target.value)}
+                placeholder="Кем утверждено, номер приказа, дата..."
+                className="text-xs min-h-[60px]"
+              />
+            </div>
+
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                disabled={isRegDocSubmitting}
+                onClick={() => setIsCreateRegDocOpen(false)}
+                className="h-7 px-3 text-xs font-medium"
+              >
+                Отмена
+              </Button>
+              <Button
+                type="submit"
+                size="xs"
+                disabled={isRegDocSubmitting}
+                className="h-7 px-3 text-xs font-medium bg-primary text-primary-foreground"
+              >
+                Сохранить
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================= */}
+      {/* MODAL 5: DELETE WORKFLOW DOCUMENT ALERT                   */}
+      {/* ========================================================= */}
+      <AlertDialog
+        open={!!deleteWorkflowDocTarget}
+        onOpenChange={() => setDeleteWorkflowDocTarget(null)}
+      >
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="place-items-start text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold flex items-center gap-1.5 text-destructive">
+              <Trash2 className="h-4 w-4" />
+              Удалить документ?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Вы действительно хотите удалить документ «{deleteWorkflowDocTarget?.title}» (№ {deleteWorkflowDocTarget?.docNumber})? Это действие нельзя будет отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setDeleteWorkflowDocTarget(null)}
+              className="h-6 px-2.5 text-xs font-medium"
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="destructive"
+              size="xs"
+              onClick={handleConfirmDeleteWorkflowDoc}
+              className="h-6 px-2.5 text-xs font-medium gap-1"
+            >
+              <Trash2 className="h-3 w-3" />
+              Удалить
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ========================================================= */}
+      {/* MODAL 6: DELETE REGULATORY DOCUMENT ALERT                 */}
+      {/* ========================================================= */}
+      <AlertDialog
+        open={!!deleteRegDocTarget}
+        onOpenChange={() => setDeleteRegDocTarget(null)}
+      >
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="place-items-start text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold flex items-center gap-1.5 text-destructive">
+              <Trash2 className="h-4 w-4" />
+              Удалить нормативный документ?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Вы действительно хотите удалить файл «{deleteRegDocTarget?.title}» из базы документов лицея?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={isRegDocSubmitting}
+              onClick={() => setDeleteRegDocTarget(null)}
+              className="h-6 px-2.5 text-xs font-medium"
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="destructive"
+              size="xs"
+              disabled={isRegDocSubmitting}
+              onClick={handleConfirmDeleteRegDoc}
+              className="h-6 px-2.5 text-xs font-medium gap-1"
+            >
+              <Trash2 className="h-3 w-3" />
+              Удалить
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

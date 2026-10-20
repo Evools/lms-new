@@ -16,17 +16,76 @@ export interface DocumentDTO {
 }
 
 
+export interface WorkflowStudentDTO {
+  id: string;
+  name: string;
+  rollNumber: string;
+  group: string;
+  attendanceRate: number;
+  unexcusedHours: number;
+  academicDebts: number;
+  specialty?: string;
+  course?: number;
+  birthYear?: number;
+}
+
+export interface WorkflowGroupDTO {
+  id: string;
+  name: string;
+  course: number;
+  curatorName?: string;
+  specialtyName?: string;
+}
+
+export interface WorkflowUserDTO {
+  id: string;
+  name: string;
+  role: string;
+}
+
 export async function getDocumentsAction() {
   try {
     const session = await auth();
     if (!session?.user || session.user.role === "STUDENT") {
-      return { documents: [], canManage: false };
+      return {
+        documents: [],
+        canManage: false,
+        groups: [],
+        groupDetails: [],
+        students: [],
+        currentUser: null,
+      };
     }
 
-    const docs = await prisma.document.findMany({
-      include: { author: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-    });
+    const [docs, dbGroups, dbGroupStudents] = await Promise.all([
+      prisma.document.findMany({
+        include: { author: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.group.findMany({
+        select: {
+          id: true,
+          name: true,
+          course: true,
+          curator: { select: { id: true, name: true } },
+          specialty: { select: { name: true } },
+        },
+        orderBy: { name: "asc" },
+      }),
+      prisma.groupStudent.findMany({
+        select: {
+          group: { select: { name: true } },
+          student: {
+            select: {
+              id: true,
+              name: true,
+              rollNumber: true,
+            },
+          },
+        },
+        orderBy: { student: { name: "asc" } },
+      }),
+    ]);
 
     const documents: DocumentDTO[] = docs.map((d) => ({
       id: d.id,
@@ -38,15 +97,47 @@ export async function getDocumentsAction() {
       createdAt: d.createdAt.toISOString(),
     }));
 
+    const groupDetails: WorkflowGroupDTO[] = dbGroups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      course: g.course,
+      curatorName: g.curator?.name || undefined,
+      specialtyName: g.specialty?.name || undefined,
+    }));
+    const groups: string[] = dbGroups.map((g) => g.name);
+
+    const students: WorkflowStudentDTO[] = dbGroupStudents.map((gs) => ({
+      id: gs.student.id,
+      name: gs.student.name,
+      rollNumber: gs.student.rollNumber || "",
+      group: gs.group.name,
+      attendanceRate: 100,
+      unexcusedHours: 0,
+      academicDebts: 0,
+    }));
+
     const canManage =
       session.user.role === "ADMIN" ||
       session.user.role === "TEACHER" ||
       session.user.role === "ADMINISTRATION";
 
-    return { documents, canManage };
+    const currentUser: WorkflowUserDTO = {
+      id: session.user.id,
+      name: session.user.name || "Сотрудник лицея",
+      role: session.user.role,
+    };
+
+    return { documents, canManage, groups, groupDetails, students, currentUser };
   } catch (error) {
     console.error("getDocumentsAction error:", error);
-    return { documents: [], canManage: false };
+    return {
+      documents: [],
+      canManage: false,
+      groups: [],
+      groupDetails: [],
+      students: [],
+      currentUser: null,
+    };
   }
 }
 
@@ -127,7 +218,9 @@ export async function deleteDocumentAction(documentId: string) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+    (session.user.role !== "ADMIN" &&
+      session.user.role !== "TEACHER" &&
+      session.user.role !== "ADMINISTRATION")
   ) {
     return { success: false, error: "Недостаточно прав" };
   }

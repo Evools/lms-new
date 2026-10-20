@@ -19,6 +19,10 @@ export default async function DocumentsPage() {
     <DocumentsWorkflowView
       documents={data.documents}
       canManage={data.canManage}
+      availableGroups={data.groups}
+      groupDetails={data.groupDetails}
+      availableStudents={data.students}
+      currentUser={data.currentUser}
     />
   );
 }
