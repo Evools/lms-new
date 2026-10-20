@@ -706,10 +706,10 @@ export function DocumentsWorkflowView({
     saveWorkflowDocs([newDoc, ...workflowDocs]);
     toast.add({
       title: asDraft
-        ? `Черновик документа № ${newDoc.docNumber} сохранён`
+        ? `Черновик документа сохранён`
         : isCharacteristicOrSimple
-          ? `Характеристика № ${newDoc.docNumber} сформирована и готова к печати!`
-          : `Рапорт № ${newDoc.docNumber} подан на рассмотрение руководства лицея!`,
+          ? `Характеристика сформирована и готова к печати!`
+          : `Рапорт подан на рассмотрение руководства лицея!`,
       type: "success",
     });
     setActiveTab("ALL_DOCS");
@@ -792,7 +792,7 @@ export function DocumentsWorkflowView({
     const updated = workflowDocs.filter((d) => d.id !== targetId);
     saveWorkflowDocs(updated);
     toast.add({
-      title: `Документ № ${deleteWorkflowDocTarget.docNumber} успешно удалён`,
+      title: `Документ успешно удалён`,
       type: "success",
     });
     setDeleteWorkflowDocTarget(null);
@@ -3391,7 +3391,7 @@ export function DocumentsWorkflowView({
           <DialogHeader className="place-items-start text-left gap-1">
             <DialogTitle className="text-sm font-bold flex items-center gap-2">
               <FileText className="h-4 w-4 text-primary" />
-              Официальный бланк: {previewDoc?.docNumber}
+              Официальный бланк документа
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               {previewDoc?.title}
@@ -3636,7 +3636,7 @@ export function DocumentsWorkflowView({
               Решение педагогического совета / дирекции лицея
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              {approvalDoc?.docNumber}: {approvalDoc?.title}
+              {approvalDoc?.title}
             </DialogDescription>
           </DialogHeader>
 
@@ -3980,7 +3980,7 @@ export function DocumentsWorkflowView({
               Удалить документ?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-xs text-muted-foreground">
-              Вы действительно хотите удалить документ «{deleteWorkflowDocTarget?.title}» (№ {deleteWorkflowDocTarget?.docNumber})? Это действие нельзя будет отменить.
+              Вы действительно хотите удалить документ «{deleteWorkflowDocTarget?.title}»? Это действие нельзя будет отменить.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
