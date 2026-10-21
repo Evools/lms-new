@@ -112,7 +112,7 @@ export function TemplatePreviewDialog({
                       <td className="border border-zinc-800 p-1 font-semibold">Бакиров Данияр Эркинович</td>
                       <td className="border border-zinc-800 p-1 text-center">ИС-1-25</td>
                       <td className="border border-zinc-800 p-1 text-center font-mono">48%</td>
-                      <td className="border border-zinc-800 p-1">86 часов пропусков, задолженность по аттестации</td>
+                      <td className="border border-zinc-800 p-1">86 часов пропусков без уважительной причины</td>
                     </tr>
                   </tbody>
                 </table>

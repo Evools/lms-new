@@ -354,7 +354,7 @@ export function DocumentsWorkflowView({
 
   const handleSelectAllCriticalStudents = () => {
     const critical = availableStudentsForGroup
-      .filter((s) => s.unexcusedHours >= 50 || s.academicDebts > 0)
+      .filter((s) => s.unexcusedHours >= 36)
       .map((s) => s.id);
     setCreatorSelectedStudentIds(critical);
   };

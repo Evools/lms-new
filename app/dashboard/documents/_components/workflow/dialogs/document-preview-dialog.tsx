@@ -96,9 +96,8 @@ export function DocumentPreviewDialog({
                     <tr className="bg-zinc-100 border-b border-zinc-800 font-bold">
                       <th className="border border-zinc-800 p-1 text-center w-6">№</th>
                       <th className="border border-zinc-800 p-1 text-left">ФИО студента</th>
-                      <th className="border border-zinc-800 p-1 text-center w-16">Группа</th>
-                      <th className="border border-zinc-800 p-1 text-center w-16">Посещаемость</th>
-                      <th className="border border-zinc-800 p-1 text-center w-16">Долги</th>
+                      <th className="border border-zinc-800 p-1 text-center w-20">Группа</th>
+                      <th className="border border-zinc-800 p-1 text-center w-24">Пропуски (ч.)</th>
                       {previewDoc.students.some((st: StudentItem) => Boolean(st.individualReason?.trim())) && (
                         <th className="border border-zinc-800 p-1 text-left">Особое примечание</th>
                       )}
@@ -117,10 +116,11 @@ export function DocumentPreviewDialog({
                           {st.group || "—"}
                         </td>
                         <td className="border border-zinc-800 p-1 text-center font-mono">
-                          {typeof st.attendanceRate === "number" ? `${st.attendanceRate}%` : "—"}
-                        </td>
-                        <td className="border border-zinc-800 p-1 text-center font-mono">
-                          {typeof st.debts === "number" ? (st.debts > 0 ? `${st.debts}` : "0") : "0"}
+                          {typeof st.unexcusedHours === "number"
+                            ? `${st.unexcusedHours} ч.`
+                            : typeof st.attendanceRate === "number"
+                            ? `${st.attendanceRate}%`
+                            : "0 ч."}
                         </td>
                         {previewDoc.students.some((s: StudentItem) => Boolean(s.individualReason?.trim())) && (
                           <td className="border border-zinc-800 p-1 text-zinc-700">

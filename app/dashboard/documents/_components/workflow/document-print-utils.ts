@@ -52,8 +52,7 @@ export const generateOfficialDocumentHtml = (
             <th style="width: 28px; text-align: center;">№</th>
             <th style="text-align: left;">ФИО студента</th>
             <th style="width: 80px; text-align: center;">Группа</th>
-            <th style="width: 90px; text-align: center;">Посещаемость</th>
-            <th style="width: 80px; text-align: center;">Долги</th>
+            <th style="width: 110px; text-align: center;">Пропуски (ч.)</th>
             ${
               studentsList.some((s) => Boolean(s.individualReason?.trim()))
                 ? '<th style="text-align: left;">Особое примечание</th>'
@@ -70,18 +69,11 @@ export const generateOfficialDocumentHtml = (
               <td style="font-weight: 600;">${st.name}</td>
               <td style="text-align: center;">${st.group || "—"}</td>
               <td style="text-align: center; font-family: monospace;">${
-                typeof st.attendanceRate === "number"
-                  ? `${st.attendanceRate}%`
-                  : typeof st.unexcusedHours === "number"
+                typeof st.unexcusedHours === "number"
                   ? `${st.unexcusedHours} ч.`
-                  : "—"
-              }</td>
-              <td style="text-align: center; font-family: monospace;">${
-                typeof st.debts === "number"
-                  ? st.debts > 0 ? `${st.debts}` : "0"
-                  : typeof st.academicDebts === "number"
-                  ? st.academicDebts > 0 ? `${st.academicDebts}` : "0"
-                  : "0"
+                  : typeof st.attendanceRate === "number"
+                  ? `${st.attendanceRate}%`
+                  : "0 ч."
               }</td>
               ${
                 studentsList.some((s) => Boolean(s.individualReason?.trim()))
@@ -334,8 +326,7 @@ export const exportDocumentDocx = (doc: WorkflowDocument, currentUserName?: stri
             <th style="width:30px; text-align:center;">№</th>
             <th style="text-align:left;">ФИО студента</th>
             <th style="width:80px; text-align:center;">Группа</th>
-            <th style="width:90px; text-align:center;">Посещаемость</th>
-            <th style="width:80px; text-align:center;">Долги</th>
+            <th style="width:110px; text-align:center;">Пропуски (ч.)</th>
             ${
               doc.students.some((s) => Boolean(s.individualReason?.trim()))
                 ? '<th style="text-align:left;">Особое примечание</th>'
@@ -352,14 +343,11 @@ export const exportDocumentDocx = (doc: WorkflowDocument, currentUserName?: stri
               <td><strong>${st.name}</strong></td>
               <td style="text-align:center;">${st.group || "—"}</td>
               <td style="text-align:center; font-family:monospace;">${
-                typeof st.attendanceRate === "number"
+                typeof st.unexcusedHours === "number"
+                  ? `${st.unexcusedHours} ч.`
+                  : typeof st.attendanceRate === "number"
                   ? `${st.attendanceRate}%`
-                  : "—"
-              }</td>
-              <td style="text-align:center; font-family:monospace;">${
-                typeof st.debts === "number"
-                  ? st.debts > 0 ? `${st.debts}` : "0"
-                  : "0"
+                  : "0 ч."
               }</td>
               ${
                 doc.students.some((s) => Boolean(s.individualReason?.trim()))

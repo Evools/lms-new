@@ -323,7 +323,7 @@ export function WorkflowCreatorTab({
                   className="h-7 text-xs justify-start"
                 >
                   <AlertCircle className="h-3.5 w-3.5 mr-1.5 text-primary" />
-                  Студенты с пропусками &gt; 50 ч.
+                  Студенты с пропусками &gt; 36 ч.
                 </Button>
                 <Button
                   variant="outline"
@@ -346,7 +346,7 @@ export function WorkflowCreatorTab({
                 Выбрано: {creatorSelectedStudentIds.length} студент(ов)
               </span>
               <span>
-                Данные посещаемости и задолженностей подтягиваются из электронного журнала LMS автоматически.
+                Данные пропусков и посещаемости рассчитываются из электронного журнала LMS автоматически.
               </span>
             </div>
 
@@ -404,13 +404,12 @@ export function WorkflowCreatorTab({
                     <th className="p-2 font-medium">ФИО студента</th>
                     <th className="p-2 font-medium">Посещаемость</th>
                     <th className="p-2 font-medium">Пропуски (ч.)</th>
-                    <th className="p-2 font-medium">Задолженности</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {availableStudentsForGroup.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted-foreground text-xs">
+                      <td colSpan={5} className="p-8 text-center text-muted-foreground text-xs">
                         {groups.length === 0
                           ? "В системе пока нет созданных групп и студентов."
                           : `В группе ${creatorGroup || "—"} пока нет зарегистрированных студентов.`}
@@ -450,17 +449,8 @@ export function WorkflowCreatorTab({
                               {st.attendanceRate}%
                             </span>
                           </td>
-                          <td className="p-2 font-mono text-muted-foreground">
+                          <td className="p-2 font-mono text-muted-foreground font-medium">
                             {st.unexcusedHours} ч.
-                          </td>
-                          <td className="p-2 font-mono text-muted-foreground">
-                            {st.academicDebts > 0 ? (
-                              <span className="text-destructive font-medium">
-                                {st.academicDebts} долга
-                              </span>
-                            ) : (
-                              "0"
-                            )}
                           </td>
                         </tr>
                       );
@@ -902,8 +892,7 @@ export function WorkflowCreatorTab({
                           <th className="border border-zinc-800 p-1 w-8 text-center">№</th>
                           <th className="border border-zinc-800 p-1 text-left">ФИО студента</th>
                           <th className="border border-zinc-800 p-1 w-20 text-center">Группа</th>
-                          <th className="border border-zinc-800 p-1 w-24 text-center">Пропуски (ч.)</th>
-                          <th className="border border-zinc-800 p-1 w-24 text-center">Задолженности</th>
+                          <th className="border border-zinc-800 p-1 w-28 text-center">Пропуски (ч.)</th>
                           {enableIndividualReasons &&
                             creatorSelectedStudentIds.some(
                               (id) => creatorIndividualReasons[id]?.trim()
@@ -928,11 +917,8 @@ export function WorkflowCreatorTab({
                               <td className="border border-zinc-800 p-1 text-center">
                                 {st.group || creatorGroup || "—"}
                               </td>
-                              <td className="border border-zinc-800 p-1 text-center font-mono">
+                              <td className="border border-zinc-800 p-1 text-center font-mono font-medium">
                                 {st.unexcusedHours} ч.
-                              </td>
-                              <td className="border border-zinc-800 p-1 text-center font-mono">
-                                {st.academicDebts > 0 ? `${st.academicDebts} задолж.` : "0"}
                               </td>
                               {enableIndividualReasons &&
                                 creatorSelectedStudentIds.some(

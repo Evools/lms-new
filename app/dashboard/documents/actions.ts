@@ -106,15 +106,55 @@ export async function getDocumentsAction() {
     }));
     const groups: string[] = dbGroups.map((g) => g.name);
 
-    const students: WorkflowStudentDTO[] = dbGroupStudents.map((gs) => ({
-      id: gs.student.id,
-      name: gs.student.name,
-      rollNumber: gs.student.rollNumber || "",
-      group: gs.group.name,
-      attendanceRate: 100,
-      unexcusedHours: 0,
-      academicDebts: 0,
-    }));
+    const studentIds = dbGroupStudents.map((gs) => gs.student.id);
+
+    const attendances =
+      studentIds.length > 0
+        ? await prisma.attendance.findMany({
+            where: { studentId: { in: studentIds } },
+            select: {
+              studentId: true,
+              status: true,
+            },
+          })
+        : [];
+
+    const statsMap = new Map<
+      string,
+      { total: number; absent: number; present: number; late: number; excused: number }
+    >();
+
+    attendances.forEach((att) => {
+      let st = statsMap.get(att.studentId);
+      if (!st) {
+        st = { total: 0, absent: 0, present: 0, late: 0, excused: 0 };
+        statsMap.set(att.studentId, st);
+      }
+      st.total += 1;
+      if (att.status === "ABSENT") st.absent += 1;
+      else if (att.status === "EXCUSED") st.excused += 1;
+      else if (att.status === "LATE") st.late += 1;
+      else if (att.status === "PRESENT") st.present += 1;
+    });
+
+    const students: WorkflowStudentDTO[] = dbGroupStudents.map((gs) => {
+      const st = statsMap.get(gs.student.id);
+      // В системе профессионального образования 1 пропуск (пара/урок) = 2 академических часа
+      const unexcusedHours = (st?.absent || 0) * 2;
+      const total = st?.total || 0;
+      const attended = (st?.present || 0) + (st?.late || 0) + (st?.excused || 0);
+      const attendanceRate = total > 0 ? Math.round((attended / total) * 100) : 100;
+
+      return {
+        id: gs.student.id,
+        name: gs.student.name,
+        rollNumber: gs.student.rollNumber || "",
+        group: gs.group.name,
+        attendanceRate,
+        unexcusedHours,
+        academicDebts: 0,
+      };
+    });
 
     const canManage =
       session.user.role === "ADMIN" ||
