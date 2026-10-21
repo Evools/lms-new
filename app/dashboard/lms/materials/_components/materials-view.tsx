@@ -64,6 +64,9 @@ import {
   Play,
   Layers,
   Folder,
+  FolderOpen,
+  BookmarkCheck,
+  Clock,
   GripVertical,
   ArrowUp,
   ArrowDown,
@@ -93,6 +96,17 @@ export interface TopicWithMaterialsDTO {
   subjectName?: string;
   teacherName?: string;
   materials: MaterialDTO[];
+}
+
+export interface UserMaterialProgress {
+  groupId: string;
+  subjectId: string;
+  subjectName: string;
+  topicId: string;
+  topicTitle: string;
+  materialId: string;
+  materialTitle: string;
+  updatedAt: number;
 }
 
 function getResourceMeta(rawUrl: string) {
@@ -187,6 +201,9 @@ function getResourceMeta(rawUrl: string) {
   };
 }
 
+const getGroupStorageKey = (userId: string, groupId: string) => `lms_materials_last_pos_${userId}_${groupId}`;
+const getSubjectStorageKey = (userId: string, subjectId: string) => `lms_materials_subj_pos_${userId}_${subjectId}`;
+
 interface MaterialsViewProps {
   groups: GroupItemDTO[];
   subjects: GroupSubjectDTO[];
@@ -199,6 +216,7 @@ interface MaterialsViewProps {
   selectedTopicId: string;
   selectedType: string;
   canCreate: boolean;
+  currentUserId?: string;
 }
 
 export function MaterialsView({
@@ -209,21 +227,128 @@ export function MaterialsView({
   selectedGroupId,
   selectedSubjectIdProp = null,
   selectedMaterialIdProp = null,
+  selectedTopicId = "",
+  selectedType = "",
   canCreate,
+  currentUserId,
 }: MaterialsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const currentGroupObj = groups.find((g) => g.id === selectedGroupId);
 
+  // Resolve initial subject if material or topic was given in URL without subject
+  const resolvedInitialSubjectId = React.useMemo(() => {
+    if (selectedSubjectIdProp) return selectedSubjectIdProp;
+    if (selectedMaterialIdProp) {
+      const mat = materials.find((m) => m.id === selectedMaterialIdProp);
+      if (mat?.subjectName) {
+        const s = subjects.find((subj) => subj.subjectName === mat.subjectName);
+        if (s) return s.id;
+      }
+    }
+    if (selectedTopicId) {
+      const top = topicsWithMaterials.find((t) => t.id === selectedTopicId);
+      if (top?.subjectName) {
+        const s = subjects.find((subj) => subj.subjectName === top.subjectName);
+        if (s) return s.id;
+      }
+    }
+    return null;
+  }, [selectedSubjectIdProp, selectedMaterialIdProp, selectedTopicId, materials, subjects, topicsWithMaterials]);
+
   // Selected Subject Filter State (null = show subjects grid, string = show subject materials)
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(selectedSubjectIdProp || null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(resolvedInitialSubjectId);
 
   useEffect(() => {
-    setSelectedSubjectId(selectedSubjectIdProp || null);
-  }, [selectedSubjectIdProp]);
+    if (resolvedInitialSubjectId) {
+      setSelectedSubjectId(resolvedInitialSubjectId);
+    } else if (!selectedSubjectIdProp) {
+      setSelectedSubjectId(null);
+    }
+  }, [resolvedInitialSubjectId, selectedSubjectIdProp]);
 
   const currentSubjectObj = subjects.find((s) => s.id === selectedSubjectId);
+
+  // Progress state for persistence across reload and page exits
+  const [lastViewedProgress, setLastViewedProgress] = useState<UserMaterialProgress | null>(null);
+  const [subjectProgressMap, setSubjectProgressMap] = useState<Record<string, UserMaterialProgress>>({});
+  const activeMatSidebarRef = React.useRef<HTMLDivElement>(null);
+
+  // Load progress from localStorage on mount and when group or subject changes
+  useEffect(() => {
+    if (!currentUserId || typeof window === "undefined") return;
+
+    try {
+      const rawGroup = localStorage.getItem(getGroupStorageKey(currentUserId, selectedGroupId));
+      if (rawGroup) {
+        const parsed: UserMaterialProgress = JSON.parse(rawGroup);
+        const exists = materials.some((m) => m.id === parsed.materialId);
+        if (exists) {
+          setLastViewedProgress(parsed);
+        } else {
+          setLastViewedProgress(null);
+        }
+      } else {
+        setLastViewedProgress(null);
+      }
+
+      const map: Record<string, UserMaterialProgress> = {};
+      subjects.forEach((s) => {
+        const rawSubj = localStorage.getItem(getSubjectStorageKey(currentUserId, s.id));
+        if (rawSubj) {
+          const parsedSubj: UserMaterialProgress = JSON.parse(rawSubj);
+          const exists = materials.some((m) => m.id === parsedSubj.materialId);
+          if (exists) {
+            map[s.id] = parsedSubj;
+          }
+        }
+      });
+      setSubjectProgressMap(map);
+    } catch {
+      // ignore
+    }
+  }, [currentUserId, selectedGroupId, selectedSubjectId, subjects, materials]);
+
+  const saveUserProgress = React.useCallback(
+    (mat: MaterialDTO, subjectId: string, subjectName: string) => {
+      if (!currentUserId || typeof window === "undefined") return;
+      const progress: UserMaterialProgress = {
+        groupId: selectedGroupId,
+        subjectId,
+        subjectName,
+        topicId: mat.topicId,
+        topicTitle: mat.topicTitle,
+        materialId: mat.id,
+        materialTitle: mat.title,
+        updatedAt: Date.now(),
+      };
+
+      try {
+        localStorage.setItem(getGroupStorageKey(currentUserId, selectedGroupId), JSON.stringify(progress));
+        localStorage.setItem(getSubjectStorageKey(currentUserId, subjectId), JSON.stringify(progress));
+        setLastViewedProgress(progress);
+        setSubjectProgressMap((prev) => ({
+          ...prev,
+          [subjectId]: progress,
+        }));
+      } catch {
+        // ignore
+      }
+
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("group", selectedGroupId);
+        url.searchParams.set("subject", subjectId);
+        url.searchParams.set("material", mat.id);
+        url.searchParams.delete("topic");
+        window.history.replaceState(null, "", url.toString());
+      } catch {
+        // ignore
+      }
+    },
+    [currentUserId, selectedGroupId]
+  );
 
   const handleGroupChange = (newGroupId: string) => {
     setSelectedSubjectId(null);
@@ -234,16 +359,63 @@ export function MaterialsView({
 
   const handleSelectSubject = (subjectId: string) => {
     setSelectedSubjectId(subjectId);
-    startTransition(() => {
-      router.push(`/dashboard/lms/materials?group=${selectedGroupId}&subject=${subjectId}`);
-    });
-    const subj = subjects.find((s) => s.id === subjectId);
-    if (subj) {
-      const firstMatOfSubj = materials.find((m) => m.subjectName === subj.subjectName);
-      if (firstMatOfSubj) {
-        setActiveMaterial(firstMatOfSubj);
+
+    let targetMat: MaterialDTO | null = null;
+    if (currentUserId && typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(getSubjectStorageKey(currentUserId, subjectId));
+        if (raw) {
+          const parsed: UserMaterialProgress = JSON.parse(raw);
+          const found = materials.find((m) => m.id === parsed.materialId);
+          if (found) {
+            targetMat = found;
+          }
+        }
+      } catch {
+        // ignore
       }
     }
+
+    const subj = subjects.find((s) => s.id === subjectId);
+    if (!targetMat && subj) {
+      targetMat = materials.find((m) => m.subjectName === subj.subjectName) || null;
+    }
+
+    if (targetMat) {
+      setActiveMaterial(targetMat);
+      if (targetMat.topicId) {
+        setExpandedTopics((prev) => ({ ...prev, [targetMat.topicId]: true }));
+      }
+      if (subj) {
+        saveUserProgress(targetMat, subjectId, subj.subjectName);
+      }
+    }
+
+    const matParam = targetMat ? `&material=${targetMat.id}` : "";
+    startTransition(() => {
+      router.push(`/dashboard/lms/materials?group=${selectedGroupId}&subject=${subjectId}${matParam}`);
+    });
+  };
+
+  const handleResumeLastPosition = (progress: UserMaterialProgress) => {
+    const subj = subjects.find((s) => s.id === progress.subjectId);
+    if (!subj) return;
+
+    setSelectedSubjectId(progress.subjectId);
+    const foundMat = materials.find((m) => m.id === progress.materialId);
+    if (foundMat) {
+      setActiveMaterial(foundMat);
+      if (foundMat.topicId) {
+        setExpandedTopics((prev) => ({ ...prev, [foundMat.topicId]: true }));
+      }
+      saveUserProgress(foundMat, progress.subjectId, progress.subjectName);
+    }
+
+    startTransition(() => {
+      router.push(
+        `/dashboard/lms/materials?group=${selectedGroupId}&subject=${progress.subjectId}&material=${progress.materialId}`
+      );
+    });
   };
 
   const handleBackToSubjects = () => {
@@ -386,9 +558,64 @@ export function MaterialsView({
       const found = materials.find((m) => m.id === selectedMaterialIdProp);
       if (found) {
         setActiveMaterial(found);
+        if (found.topicId) {
+          setExpandedTopics((prev) => ({ ...prev, [found.topicId]: true }));
+        }
+        if (selectedSubjectId && currentSubjectObj) {
+          saveUserProgress(found, selectedSubjectId, currentSubjectObj.subjectName);
+        }
       }
     }
-  }, [selectedMaterialIdProp, materials]);
+  }, [selectedMaterialIdProp, materials, selectedSubjectId, currentSubjectObj, saveUserProgress]);
+
+  // Restore saved position if subject opened without explicit material prop
+  useEffect(() => {
+    if (!selectedMaterialIdProp && selectedSubjectId && currentUserId && typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(getSubjectStorageKey(currentUserId, selectedSubjectId));
+        if (raw) {
+          const parsed: UserMaterialProgress = JSON.parse(raw);
+          const found = materials.find((m) => m.id === parsed.materialId);
+          if (found && (!activeMaterial || activeMaterial.id !== found.id)) {
+            setActiveMaterial(found);
+            if (found.topicId) {
+              setExpandedTopics((prev) => ({ ...prev, [found.topicId]: true }));
+            }
+            if (currentSubjectObj) {
+              saveUserProgress(found, selectedSubjectId, currentSubjectObj.subjectName);
+            }
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      if (activeMaterial && currentSubjectObj && activeMaterial.subjectName === currentSubjectObj.subjectName) {
+        saveUserProgress(activeMaterial, selectedSubjectId, currentSubjectObj.subjectName);
+      }
+    }
+  }, [selectedSubjectId, selectedMaterialIdProp, currentUserId, currentSubjectObj, materials, activeMaterial, saveUserProgress]);
+
+  // Auto-expand chapter when active material changes
+  useEffect(() => {
+    if (activeMaterial?.topicId) {
+      setExpandedTopics((prev) => {
+        if (prev[activeMaterial.topicId]) return prev;
+        return { ...prev, [activeMaterial.topicId]: true };
+      });
+    }
+  }, [activeMaterial?.topicId]);
+
+  // Auto-scroll sidebar to current material
+  useEffect(() => {
+    if (activeMaterial?.id && activeMatSidebarRef.current) {
+      activeMatSidebarRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [activeMaterial?.id]);
 
   // Expanded Chapter State
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>(() => {
@@ -621,6 +848,9 @@ export function MaterialsView({
         [mat.topicId]: true,
       }));
     }
+    if (selectedSubjectId && currentSubjectObj) {
+      saveUserProgress(mat, selectedSubjectId, currentSubjectObj.subjectName);
+    }
     if (contentTopRef.current) {
       contentTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     } else if (typeof window !== "undefined") {
@@ -723,6 +953,36 @@ export function MaterialsView({
               </div>
             )}
 
+            {/* Last Viewed Position Banner */}
+            {lastViewedProgress && (
+              <div className="p-3.5 rounded-xl border border-primary/25 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-lg bg-primary text-primary-foreground shrink-0">
+                    <BookmarkCheck className="h-4 w-4" />
+                  </div>
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span>Ранее вы остановились:</span>
+                      <span className="font-semibold text-foreground truncate">{lastViewedProgress.subjectName}</span>
+                    </div>
+                    <div className="text-xs text-foreground flex items-center gap-1.5 truncate">
+                      <span className="font-medium text-foreground truncate">Тема: {lastViewedProgress.topicTitle}</span>
+                      <span className="text-muted-foreground">•</span>
+                      <span className="text-primary truncate font-medium">{lastViewedProgress.materialTitle}</span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  size="xs"
+                  onClick={() => handleResumeLastPosition(lastViewedProgress)}
+                  className="h-7 text-xs px-3 font-medium shrink-0 self-start sm:self-auto gap-1.5 shadow-none"
+                >
+                  <Play className="h-3 w-3 fill-current" />
+                  <span>Продолжить просмотр</span>
+                </Button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <BookMarked className="h-4 w-4 text-primary" /> Доступные дисциплины ({subjects.length})
@@ -755,10 +1015,16 @@ export function MaterialsView({
                     <p className="text-xs text-muted-foreground truncate">
                       Преподаватель: {subj.teacherName}
                     </p>
+                    {subjectProgressMap[subj.id] && (
+                      <div className="flex items-center gap-1 text-[11px] text-primary font-medium truncate pt-1">
+                        <Clock className="h-3 w-3 shrink-0" />
+                        <span className="truncate">Тема: {subjectProgressMap[subj.id].topicTitle}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-2 border-t flex items-center justify-between text-xs text-primary font-medium">
-                    <span>Открыть материалы</span>
+                    <span>{subjectProgressMap[subj.id] ? "Продолжить чтение" : "Открыть материалы"}</span>
                     <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
                 </div>
@@ -958,75 +1224,99 @@ export function MaterialsView({
                         return (
                           <div key={topic.id} className="space-y-0.5">
                             {/* Chapter Header Item */}
-                            <div className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors flex items-center justify-between group select-none gap-2">
-                              <div
-                                onClick={() => toggleTopicExpand(topic.id)}
-                                className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0"
-                              >
-                                <Folder className="h-3.5 w-3.5 text-primary/70 shrink-0" />
-                                <span
-                                  className="text-xs font-medium text-foreground truncate"
-                                  title={topic.title}
+                            {(() => {
+                              const isCurrentTopic = currentMat?.topicId === topic.id;
+                              return (
+                                <div
+                                  className={cn(
+                                    "p-1.5 rounded-lg transition-colors flex items-center justify-between group select-none gap-2",
+                                    isCurrentTopic
+                                      ? "bg-primary/5 border border-primary/20"
+                                      : "hover:bg-muted/50 border border-transparent"
+                                  )}
                                 >
-                                  {topicIdx + 1}. {topic.title}
-                                </span>
-                                <span
-                                  className="text-[10px] text-muted-foreground/80 font-medium px-1.5 py-0.5 rounded-md bg-muted/60 leading-none shrink-0"
-                                  title={`Материалов в главе: ${topicMats.length}`}
-                                >
-                                  {topicMats.length}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-1 shrink-0">
-                                {canCreate && (
-                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setCopyTopicTarget(topic);
-                                      }}
-                                      className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                      title="Копировать главу в другие группы"
+                                  <div
+                                    onClick={() => toggleTopicExpand(topic.id)}
+                                    className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0"
+                                  >
+                                    {isCurrentTopic ? (
+                                      <FolderOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                                    ) : (
+                                      <Folder className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                                    )}
+                                    <span
+                                      className={cn(
+                                        "text-xs font-medium truncate",
+                                        isCurrentTopic ? "text-primary" : "text-foreground"
+                                      )}
+                                      title={topic.title}
                                     >
-                                      <Copy className="h-3 w-3" />
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenEditChapter(topic);
-                                      }}
-                                      className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                      title="Редактировать главу"
+                                      {topicIdx + 1}. {topic.title}
+                                    </span>
+                                    <span
+                                      className={cn(
+                                        "text-[10px] font-medium px-1.5 py-0.5 rounded-md leading-none shrink-0",
+                                        isCurrentTopic
+                                          ? "bg-primary/10 text-primary"
+                                          : "bg-muted/60 text-muted-foreground/80"
+                                      )}
+                                      title={`Материалов в главе: ${topicMats.length}`}
                                     >
-                                      <Pencil className="h-3 w-3" />
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDeleteChapterTarget(topic);
-                                      }}
-                                      className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                      title="Удалить главу"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
+                                      {topicMats.length}
+                                    </span>
                                   </div>
-                                )}
 
-                                <ChevronDown
-                                  onClick={() => toggleTopicExpand(topic.id)}
-                                  className={`h-3.5 w-3.5 text-muted-foreground cursor-pointer transition-transform duration-200 ${
-                                    isExpanded ? "rotate-0" : "-rotate-90"
-                                  }`}
-                                />
-                              </div>
-                            </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {canCreate && (
+                                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCopyTopicTarget(topic);
+                                          }}
+                                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                          title="Копировать главу в другие группы"
+                                        >
+                                          <Copy className="h-3 w-3" />
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenEditChapter(topic);
+                                          }}
+                                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                          title="Редактировать главу"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeleteChapterTarget(topic);
+                                          }}
+                                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                          title="Удалить главу"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    <ChevronDown
+                                      onClick={() => toggleTopicExpand(topic.id)}
+                                      className={`h-3.5 w-3.5 text-muted-foreground cursor-pointer transition-transform duration-200 ${
+                                        isExpanded ? "rotate-0" : "-rotate-90"
+                                      }`}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             {/* Nested Materials Items under this Chapter */}
                             <div
@@ -1066,6 +1356,7 @@ export function MaterialsView({
                                   return (
                                     <div
                                       key={mat.id}
+                                      ref={isSelected ? activeMatSidebarRef : undefined}
                                       draggable={canCreate}
                                       onDragStart={(e) => {
                                         if (!canCreate) return;
@@ -1110,10 +1401,10 @@ export function MaterialsView({
                                         setIsMobileSidebarOpen(false);
                                       }}
                                       className={cn(
-                                        "p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat select-none border gap-2 min-w-0",
+                                        "p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat select-none border gap-2 min-w-0 font-medium",
                                         isSelected
-                                          ? "bg-primary/10 text-primary font-medium border-primary shadow-xs"
-                                          : "text-foreground hover:bg-muted/40 font-normal border-transparent",
+                                          ? "bg-primary/10 text-primary border-primary"
+                                          : "text-foreground hover:bg-muted/40 border-transparent",
                                         isDragging && "opacity-40 border-dashed border-primary/50 bg-primary/5",
                                         isDragOver && "border-primary bg-primary/10"
                                       )}

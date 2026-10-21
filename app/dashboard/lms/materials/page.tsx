@@ -20,6 +20,7 @@ export default async function MaterialsPage({ searchParams }: PageProps) {
   return (
     <MaterialsView
       {...data}
+      currentUserId={session.user.id}
       selectedSubjectIdProp={subject || null}
       selectedTopicId={topic || ""}
       selectedType={type || ""}
