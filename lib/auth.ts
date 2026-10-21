@@ -136,11 +136,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role;
         token.avatar = user.avatar;
       }
+      if (!token.id && token.sub) {
+        token.id = token.sub;
+      }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.id as string;
+        session.user.id = (token.id as string) || (token.sub as string) || "";
         session.user.role = token.role as Role;
         session.user.avatar = token.avatar as string | null | undefined;
       }

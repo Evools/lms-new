@@ -237,7 +237,7 @@ export function MaterialsView({
 
   const currentGroupObj = groups.find((g) => g.id === selectedGroupId);
 
-  // Resolve initial subject if material or topic was given in URL without subject
+  // Resolve initial subject ONLY if explicitly requested in URL (subject, material, or topic)
   const resolvedInitialSubjectId = React.useMemo(() => {
     if (selectedSubjectIdProp) return selectedSubjectIdProp;
     if (selectedMaterialIdProp) {
@@ -270,49 +270,12 @@ export function MaterialsView({
 
   const currentSubjectObj = subjects.find((s) => s.id === selectedSubjectId);
 
-  // Progress state for persistence across reload and page exits
-  const [lastViewedProgress, setLastViewedProgress] = useState<UserMaterialProgress | null>(null);
-  const [subjectProgressMap, setSubjectProgressMap] = useState<Record<string, UserMaterialProgress>>({});
   const activeMatSidebarRef = React.useRef<HTMLDivElement>(null);
-
-  // Load progress from localStorage on mount and when group or subject changes
-  useEffect(() => {
-    if (!currentUserId || typeof window === "undefined") return;
-
-    try {
-      const rawGroup = localStorage.getItem(getGroupStorageKey(currentUserId, selectedGroupId));
-      if (rawGroup) {
-        const parsed: UserMaterialProgress = JSON.parse(rawGroup);
-        const exists = materials.some((m) => m.id === parsed.materialId);
-        if (exists) {
-          setLastViewedProgress(parsed);
-        } else {
-          setLastViewedProgress(null);
-        }
-      } else {
-        setLastViewedProgress(null);
-      }
-
-      const map: Record<string, UserMaterialProgress> = {};
-      subjects.forEach((s) => {
-        const rawSubj = localStorage.getItem(getSubjectStorageKey(currentUserId, s.id));
-        if (rawSubj) {
-          const parsedSubj: UserMaterialProgress = JSON.parse(rawSubj);
-          const exists = materials.some((m) => m.id === parsedSubj.materialId);
-          if (exists) {
-            map[s.id] = parsedSubj;
-          }
-        }
-      });
-      setSubjectProgressMap(map);
-    } catch {
-      // ignore
-    }
-  }, [currentUserId, selectedGroupId, selectedSubjectId, subjects, materials]);
 
   const saveUserProgress = React.useCallback(
     (mat: MaterialDTO, subjectId: string, subjectName: string) => {
-      if (!currentUserId || typeof window === "undefined") return;
+      if (typeof window === "undefined") return;
+      const uid = currentUserId || "default_user";
       const progress: UserMaterialProgress = {
         groupId: selectedGroupId,
         subjectId,
@@ -325,13 +288,10 @@ export function MaterialsView({
       };
 
       try {
-        localStorage.setItem(getGroupStorageKey(currentUserId, selectedGroupId), JSON.stringify(progress));
-        localStorage.setItem(getSubjectStorageKey(currentUserId, subjectId), JSON.stringify(progress));
-        setLastViewedProgress(progress);
-        setSubjectProgressMap((prev) => ({
-          ...prev,
-          [subjectId]: progress,
-        }));
+        localStorage.setItem(getGroupStorageKey(uid, selectedGroupId), JSON.stringify(progress));
+        localStorage.setItem(getSubjectStorageKey(uid, subjectId), JSON.stringify(progress));
+        localStorage.setItem(`lms_last_mat_${selectedGroupId}`, mat.id);
+        localStorage.setItem(`lms_last_mat_${subjectId}`, mat.id);
       } catch {
         // ignore
       }
@@ -360,15 +320,23 @@ export function MaterialsView({
   const handleSelectSubject = (subjectId: string) => {
     setSelectedSubjectId(subjectId);
 
+    const uid = currentUserId || "default_user";
     let targetMat: MaterialDTO | null = null;
-    if (currentUserId && typeof window !== "undefined") {
+    if (typeof window !== "undefined") {
       try {
-        const raw = localStorage.getItem(getSubjectStorageKey(currentUserId, subjectId));
+        const raw = localStorage.getItem(getSubjectStorageKey(uid, subjectId));
         if (raw) {
           const parsed: UserMaterialProgress = JSON.parse(raw);
           const found = materials.find((m) => m.id === parsed.materialId);
           if (found) {
             targetMat = found;
+          }
+        }
+        if (!targetMat) {
+          const fallbackMatId = localStorage.getItem(`lms_last_mat_${subjectId}`);
+          if (fallbackMatId) {
+            const found = materials.find((m) => m.id === fallbackMatId);
+            if (found) targetMat = found;
           }
         }
       } catch {
@@ -397,26 +365,6 @@ export function MaterialsView({
     });
   };
 
-  const handleResumeLastPosition = (progress: UserMaterialProgress) => {
-    const subj = subjects.find((s) => s.id === progress.subjectId);
-    if (!subj) return;
-
-    setSelectedSubjectId(progress.subjectId);
-    const foundMat = materials.find((m) => m.id === progress.materialId);
-    if (foundMat) {
-      setActiveMaterial(foundMat);
-      if (foundMat.topicId) {
-        setExpandedTopics((prev) => ({ ...prev, [foundMat.topicId]: true }));
-      }
-      saveUserProgress(foundMat, progress.subjectId, progress.subjectName);
-    }
-
-    startTransition(() => {
-      router.push(
-        `/dashboard/lms/materials?group=${selectedGroupId}&subject=${progress.subjectId}&material=${progress.materialId}`
-      );
-    });
-  };
 
   const handleBackToSubjects = () => {
     setSelectedSubjectId(null);
@@ -526,13 +474,48 @@ export function MaterialsView({
     }
   };
 
-  // Active Selected Material State
-  const initialActiveMat =
-    (selectedMaterialIdProp && materials.find((m) => m.id === selectedMaterialIdProp)) ||
-    displayMaterials[0] ||
-    materials[0] ||
-    null;
-  const [activeMaterial, setActiveMaterial] = useState<MaterialDTO | null>(initialActiveMat);
+  // Active Selected Material State (restores saved position if available)
+  const [activeMaterial, setActiveMaterial] = useState<MaterialDTO | null>(() => {
+    if (selectedMaterialIdProp) {
+      const found = materials.find((m) => m.id === selectedMaterialIdProp);
+      if (found) return found;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const uid = currentUserId || "default_user";
+        // 1. Try group-level saved progress
+        const rawGroup = localStorage.getItem(getGroupStorageKey(uid, selectedGroupId));
+        if (rawGroup) {
+          const parsed = JSON.parse(rawGroup);
+          const found = materials.find((m) => m.id === parsed.materialId);
+          if (found) return found;
+        }
+        // 2. Try subject-level saved progress
+        const subjId = resolvedInitialSubjectId || selectedSubjectIdProp;
+        if (subjId) {
+          const rawSubj = localStorage.getItem(getSubjectStorageKey(uid, subjId));
+          if (rawSubj) {
+            const parsed = JSON.parse(rawSubj);
+            const found = materials.find((m) => m.id === parsed.materialId);
+            if (found) return found;
+          }
+          const rawFallback = localStorage.getItem(`lms_last_mat_${subjId}`);
+          if (rawFallback) {
+            const found = materials.find((m) => m.id === rawFallback);
+            if (found) return found;
+          }
+        }
+        const groupFallback = localStorage.getItem(`lms_last_mat_${selectedGroupId}`);
+        if (groupFallback) {
+          const found = materials.find((m) => m.id === groupFallback);
+          if (found) return found;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    return displayMaterials[0] || materials[0] || null;
+  });
 
   // Reader interactive state
   const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
@@ -570,12 +553,24 @@ export function MaterialsView({
 
   // Restore saved position if subject opened without explicit material prop
   useEffect(() => {
-    if (!selectedMaterialIdProp && selectedSubjectId && currentUserId && typeof window !== "undefined") {
+    if (!selectedMaterialIdProp && selectedSubjectId && typeof window !== "undefined") {
+      const uid = currentUserId || "default_user";
       try {
-        const raw = localStorage.getItem(getSubjectStorageKey(currentUserId, selectedSubjectId));
+        const raw = localStorage.getItem(getSubjectStorageKey(uid, selectedSubjectId));
+        let foundMatId: string | null = null;
         if (raw) {
           const parsed: UserMaterialProgress = JSON.parse(raw);
-          const found = materials.find((m) => m.id === parsed.materialId);
+          foundMatId = parsed.materialId;
+        }
+        if (!foundMatId) {
+          foundMatId = localStorage.getItem(`lms_last_mat_${selectedSubjectId}`);
+        }
+        if (!foundMatId) {
+          foundMatId = localStorage.getItem(`lms_last_mat_${selectedGroupId}`);
+        }
+
+        if (foundMatId) {
+          const found = materials.find((m) => m.id === foundMatId);
           if (found && (!activeMaterial || activeMaterial.id !== found.id)) {
             setActiveMaterial(found);
             if (found.topicId) {
@@ -584,18 +579,13 @@ export function MaterialsView({
             if (currentSubjectObj) {
               saveUserProgress(found, selectedSubjectId, currentSubjectObj.subjectName);
             }
-            return;
           }
         }
       } catch {
         // ignore
       }
-
-      if (activeMaterial && currentSubjectObj && activeMaterial.subjectName === currentSubjectObj.subjectName) {
-        saveUserProgress(activeMaterial, selectedSubjectId, currentSubjectObj.subjectName);
-      }
     }
-  }, [selectedSubjectId, selectedMaterialIdProp, currentUserId, currentSubjectObj, materials, activeMaterial, saveUserProgress]);
+  }, [selectedSubjectId, selectedMaterialIdProp, currentUserId, currentSubjectObj, materials, saveUserProgress]);
 
   // Auto-expand chapter when active material changes
   useEffect(() => {
@@ -953,36 +943,6 @@ export function MaterialsView({
               </div>
             )}
 
-            {/* Last Viewed Position Banner */}
-            {lastViewedProgress && (
-              <div className="p-3.5 rounded-xl border border-primary/25 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-primary text-primary-foreground shrink-0">
-                    <BookmarkCheck className="h-4 w-4" />
-                  </div>
-                  <div className="space-y-0.5 min-w-0">
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <span>Ранее вы остановились:</span>
-                      <span className="font-semibold text-foreground truncate">{lastViewedProgress.subjectName}</span>
-                    </div>
-                    <div className="text-xs text-foreground flex items-center gap-1.5 truncate">
-                      <span className="font-medium text-foreground truncate">Тема: {lastViewedProgress.topicTitle}</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="text-primary truncate font-medium">{lastViewedProgress.materialTitle}</span>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  size="xs"
-                  onClick={() => handleResumeLastPosition(lastViewedProgress)}
-                  className="h-7 text-xs px-3 font-medium shrink-0 self-start sm:self-auto gap-1.5 shadow-none"
-                >
-                  <Play className="h-3 w-3 fill-current" />
-                  <span>Продолжить просмотр</span>
-                </Button>
-              </div>
-            )}
-
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <BookMarked className="h-4 w-4 text-primary" /> Доступные дисциплины ({subjects.length})
@@ -1015,16 +975,10 @@ export function MaterialsView({
                     <p className="text-xs text-muted-foreground truncate">
                       Преподаватель: {subj.teacherName}
                     </p>
-                    {subjectProgressMap[subj.id] && (
-                      <div className="flex items-center gap-1 text-[11px] text-primary font-medium truncate pt-1">
-                        <Clock className="h-3 w-3 shrink-0" />
-                        <span className="truncate">Тема: {subjectProgressMap[subj.id].topicTitle}</span>
-                      </div>
-                    )}
                   </div>
 
                   <div className="pt-2 border-t flex items-center justify-between text-xs text-primary font-medium">
-                    <span>{subjectProgressMap[subj.id] ? "Продолжить чтение" : "Открыть материалы"}</span>
+                    <span>Открыть материалы</span>
                     <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
                 </div>
