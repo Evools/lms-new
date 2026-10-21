@@ -108,14 +108,14 @@ export async function getDocumentsAction() {
 
     const studentIds = dbGroupStudents.map((gs) => gs.student.id);
 
-    const attendances =
+    // Высокопроизводительная агрегация на уровне СУБД (GROUP BY):
+    // возвращает только сгруппированные счётчики, не выгружая тысячи строк в память Node.js
+    const attendanceStats =
       studentIds.length > 0
-        ? await prisma.attendance.findMany({
+        ? await prisma.attendance.groupBy({
+            by: ["studentId", "status"],
             where: { studentId: { in: studentIds } },
-            select: {
-              studentId: true,
-              status: true,
-            },
+            _count: { id: true },
           })
         : [];
 
@@ -124,17 +124,18 @@ export async function getDocumentsAction() {
       { total: number; absent: number; present: number; late: number; excused: number }
     >();
 
-    attendances.forEach((att) => {
-      let st = statsMap.get(att.studentId);
+    attendanceStats.forEach((row) => {
+      let st = statsMap.get(row.studentId);
       if (!st) {
         st = { total: 0, absent: 0, present: 0, late: 0, excused: 0 };
-        statsMap.set(att.studentId, st);
+        statsMap.set(row.studentId, st);
       }
-      st.total += 1;
-      if (att.status === "ABSENT") st.absent += 1;
-      else if (att.status === "EXCUSED") st.excused += 1;
-      else if (att.status === "LATE") st.late += 1;
-      else if (att.status === "PRESENT") st.present += 1;
+      const count = row._count.id;
+      st.total += count;
+      if (row.status === "ABSENT") st.absent += count;
+      else if (row.status === "EXCUSED") st.excused += count;
+      else if (row.status === "LATE") st.late += count;
+      else if (row.status === "PRESENT") st.present += count;
     });
 
     const students: WorkflowStudentDTO[] = dbGroupStudents.map((gs) => {
