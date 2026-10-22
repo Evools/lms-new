@@ -53,7 +53,7 @@ export interface MaterialEditData {
 interface EditMaterialViewProps {
   initialMaterial: MaterialEditData;
   groups: GroupItemDTO[];
-  topics: Array<{ id: string; title: string }>;
+  topics: Array<{ id: string; title: string; groupSubjectId?: string }>;
   selectedSubjectId?: string;
 }
 
@@ -148,6 +148,11 @@ export function EditMaterialView({
   const [isPublished, setIsPublished] = useState(initialMaterial.isPublished ?? true);
 
   const targetSubjectId = selectedSubjectId || initialMaterial.subjectId;
+  const filteredTopics = React.useMemo(() => {
+    if (!targetSubjectId) return topics;
+    return topics.filter((t) => !t.groupSubjectId || t.groupSubjectId === targetSubjectId);
+  }, [topics, targetSubjectId]);
+
   const returnUrl = targetSubjectId
     ? `/dashboard/lms/materials?group=${groupId}&subject=${targetSubjectId}&material=${initialMaterial.id}`
     : `/dashboard/lms/materials?group=${groupId}&material=${initialMaterial.id}`;
@@ -448,10 +453,10 @@ export function EditMaterialView({
               <label className="font-medium text-foreground text-xs">Глава *</label>
               <Select value={topicId} onValueChange={setTopicId}>
                 <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                  <SelectValue>{topics.find((t) => t.id === topicId)?.title || "Выберите главу"}</SelectValue>
+                  <SelectValue>{filteredTopics.find((t) => t.id === topicId)?.title || topics.find((t) => t.id === topicId)?.title || "Выберите главу"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {topics.map((t) => (
+                  {filteredTopics.map((t) => (
                     <SelectItem key={t.id} value={t.id} className="text-xs">
                       {t.title}
                     </SelectItem>

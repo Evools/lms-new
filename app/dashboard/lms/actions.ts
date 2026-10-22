@@ -627,7 +627,13 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
     return {
       groups,
       subjects,
-      topics: dbTopics.map((t) => ({ id: t.id, title: t.title })),
+      topics: dbTopics.map((t) => ({
+        id: t.id,
+        title: t.title,
+        groupSubjectId: t.groupSubjectId,
+        subjectName: t.groupSubject.subject.name,
+        teacherName: t.groupSubject.teacher.name,
+      })),
       topicsWithMaterials,
       materials,
       selectedGroupId,
@@ -648,6 +654,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
 
 export async function createMaterialAction(data: {
   groupId?: string;
+  groupSubjectId?: string;
   topicId?: string;
   type: MaterialType;
   title: string;
@@ -668,19 +675,33 @@ export async function createMaterialAction(data: {
 
     let targetTopicId = data.topicId;
 
-    // If no topic selected, auto-resolve or create "Общие материалы" topic for this group
+    // If no topic selected, auto-resolve or create "Общие материалы" topic for this group & subject
     if (!targetTopicId || targetTopicId === "none" || targetTopicId === "auto") {
-      if (!data.groupId) {
+      if (!data.groupId && !data.groupSubjectId) {
         return { success: false, error: "Укажите учебную группу или главу" };
       }
 
-      // Find first groupSubject for this group
-      let groupSubject = await prisma.groupSubject.findFirst({
-        where: { groupId: data.groupId },
-      });
+      // If specific discipline is targeted, use it directly
+      let groupSubject = null;
+      if (data.groupSubjectId) {
+        groupSubject = await prisma.groupSubject.findUnique({
+          where: { id: data.groupSubjectId },
+        });
+      }
+
+      // Otherwise find first groupSubject for this group
+      if (!groupSubject && data.groupId) {
+        groupSubject = await prisma.groupSubject.findFirst({
+          where: { groupId: data.groupId },
+        });
+      }
 
       // If no groupSubject exists yet, assign a default subject
       if (!groupSubject) {
+        if (!data.groupId) {
+          return { success: false, error: "Укажите учебную группу или главу" };
+        }
+
         let defaultSubject = await prisma.subject.findFirst({
           where: { name: "Общие дисциплины" },
         });

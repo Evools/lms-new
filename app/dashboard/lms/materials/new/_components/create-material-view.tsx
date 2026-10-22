@@ -39,8 +39,8 @@ import { toast } from "@/components/ui/toast";
 
 interface CreateMaterialViewProps {
   groups: GroupItemDTO[];
-  subjects?: Array<{ id: string; subjectName: string }>;
-  topics: Array<{ id: string; title: string }>;
+  subjects?: Array<{ id: string; subjectName: string; teacherName?: string }>;
+  topics: Array<{ id: string; title: string; groupSubjectId?: string; subjectName?: string; teacherName?: string }>;
   selectedGroupId: string;
   selectedSubjectId?: string;
   selectedTopicId: string;
@@ -130,14 +130,28 @@ export function CreateMaterialView({
   const [isPending, startTransition] = useTransition();
 
   const [groupId, setGroupId] = useState(selectedGroupId);
-  const [topicId, setTopicId] = useState(selectedTopicId || topics[0]?.id || "auto");
+  const [subjectId, setSubjectId] = useState(
+    selectedSubjectId || (subjects.length > 0 ? subjects[0].id : "")
+  );
+
+  // Filter topics strictly to the selected discipline
+  const filteredTopics = React.useMemo(() => {
+    if (!subjectId) return topics;
+    return topics.filter((t) => !t.groupSubjectId || t.groupSubjectId === subjectId);
+  }, [topics, subjectId]);
+
+  const [topicId, setTopicId] = useState(() => {
+    if (selectedTopicId) return selectedTopicId;
+    if (filteredTopics.length > 0) return filteredTopics[0].id;
+    return "auto";
+  });
   const [type, setType] = useState<MaterialType>(MaterialType.LECTURE);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isPublished, setIsPublished] = useState(true);
 
-  const returnUrl = selectedSubjectId
-    ? `/dashboard/lms/materials?group=${groupId}&subject=${selectedSubjectId}`
+  const returnUrl = subjectId
+    ? `/dashboard/lms/materials?group=${groupId}&subject=${subjectId}`
     : `/dashboard/lms/materials?group=${groupId}`;
 
   // Multiple Video URLs
@@ -151,7 +165,17 @@ export function CreateMaterialView({
 
   const handleGroupChange = (val: string) => {
     setGroupId(val);
-    router.push(`/dashboard/lms/materials/new?group=${val}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`);
+    router.push(`/dashboard/lms/materials/new?group=${val}`);
+  };
+
+  const handleSubjectChange = (newSubjectId: string) => {
+    setSubjectId(newSubjectId);
+    const nextFiltered = topics.filter((t) => !t.groupSubjectId || t.groupSubjectId === newSubjectId);
+    const hasCurrent = nextFiltered.some((t) => t.id === topicId);
+    if (!hasCurrent) {
+      setTopicId(nextFiltered.length > 0 ? nextFiltered[0].id : "auto");
+    }
+    router.push(`/dashboard/lms/materials/new?group=${groupId}&subject=${newSubjectId}`);
   };
 
   const handleAddVideoUrl = () => {
@@ -215,6 +239,7 @@ export function CreateMaterialView({
 
       const res = await createMaterialAction({
         groupId,
+        groupSubjectId: subjectId || undefined,
         topicId: topicId === "auto" ? undefined : topicId,
         type,
         title,
@@ -230,7 +255,7 @@ export function CreateMaterialView({
           type: "success",
         });
         setTimeout(() => {
-          const targetSubjectId = selectedSubjectId || res.subjectId;
+          const targetSubjectId = subjectId || res.subjectId;
           const targetUrl = targetSubjectId
             ? `/dashboard/lms/materials?group=${groupId}&subject=${targetSubjectId}`
             : `/dashboard/lms/materials?group=${groupId}`;
@@ -423,6 +448,26 @@ export function CreateMaterialView({
               </Select>
             </div>
 
+            {subjects.length > 0 && (
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Дисциплина *</label>
+                <Select value={subjectId} onValueChange={handleSubjectChange}>
+                  <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                    <SelectValue>
+                      {subjects.find((s) => s.id === subjectId)?.subjectName || "Выберите дисциплину"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">
+                        {s.subjectName} {s.teacherName ? `(${s.teacherName})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="font-medium text-foreground text-xs">Глава / Раздел</label>
@@ -433,14 +478,14 @@ export function CreateMaterialView({
                   <SelectValue>
                     {topicId === "auto" || !topicId
                       ? "Общие материалы (авто)"
-                      : topics.find((t) => t.id === topicId)?.title || "Общие материалы (авто)"}
+                      : filteredTopics.find((t) => t.id === topicId)?.title || "Общие материалы (авто)"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto" className="text-xs font-medium text-primary">
                     Общие материалы (авто)
                   </SelectItem>
-                  {topics.map((t) => (
+                  {filteredTopics.map((t) => (
                     <SelectItem key={t.id} value={t.id} className="text-xs">
                       {t.title}
                     </SelectItem>
@@ -449,7 +494,7 @@ export function CreateMaterialView({
               </Select>
               {(!topicId || topicId === "auto") && (
                 <p className="text-[11px] text-muted-foreground leading-tight">
-                  Материал будет опубликован в раздел «Общие материалы».
+                  Материал будет опубликован в раздел «Общие материалы» выбранной дисциплины.
                 </p>
               )}
             </div>
