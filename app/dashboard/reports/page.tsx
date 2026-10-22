@@ -39,6 +39,8 @@ export default async function ReportsPage() {
       groupAttendance={data.groupAttendance!}
       groupAssignments={data.groupAssignments!}
       studentActivity={data.studentActivity!}
+      initialPerformanceSheet={data.initialPerformanceSheet || null}
+      initialAbsenceSheet={data.initialAbsenceSheet || null}
     />
   );
 }

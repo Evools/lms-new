@@ -29,6 +29,7 @@ import {
   FileCheck2,
   UserCheck,
   AlertTriangle,
+  Award,
 } from "lucide-react";
 import type {
   ReportSummaryDTO,
@@ -36,8 +37,13 @@ import type {
   GroupAttendanceDTO,
   GroupAssignmentDTO,
   StudentActivityDTO,
+  GroupPerformanceSheetDTO,
+  GroupAbsenceSheetDTO,
 } from "../actions";
+import { getGroupMatrixReportsAction } from "../actions";
 import { exportToExcel } from "@/lib/excel-export";
+import { PerformanceSheetTab } from "./performance-sheet-tab";
+import { AbsenceSheetTab } from "./absence-sheet-tab";
 
 interface ReportsViewProps {
   summary: ReportSummaryDTO;
@@ -45,6 +51,8 @@ interface ReportsViewProps {
   groupAttendance: GroupAttendanceDTO[];
   groupAssignments: GroupAssignmentDTO[];
   studentActivity: StudentActivityDTO[];
+  initialPerformanceSheet?: GroupPerformanceSheetDTO | null;
+  initialAbsenceSheet?: GroupAbsenceSheetDTO | null;
 }
 
 function ProgressBar({ value, className = "" }: { value: number; className?: string }) {
@@ -89,7 +97,13 @@ function KpiCard({
   );
 }
 
-type Tab = "overview" | "attendance" | "assignments" | "students";
+type Tab =
+  | "performance-sheet"
+  | "absence-sheet"
+  | "overview"
+  | "attendance"
+  | "assignments"
+  | "students";
 type StudentFilterMode = "ALL" | "EXCELLENT" | "RISK";
 
 export function ReportsView({
@@ -98,11 +112,67 @@ export function ReportsView({
   groupAttendance,
   groupAssignments,
   studentActivity,
+  initialPerformanceSheet,
+  initialAbsenceSheet,
 }: ReportsViewProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<Tab>("performance-sheet");
+  // Current Group State (Unified across all tabs)
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(
+    initialPerformanceSheet?.groupId || groups[0]?.id || ""
+  );
   const [studentSearch, setStudentSearch] = useState<string>("");
   const [studentFilter, setStudentFilter] = useState<StudentFilterMode>("ALL");
+  const [matrixPeriod, setMatrixPeriod] = useState<string>("ALL");
+  const [performanceSheet, setPerformanceSheet] =
+    useState<GroupPerformanceSheetDTO | null>(initialPerformanceSheet || null);
+  const [absenceSheet, setAbsenceSheet] =
+    useState<GroupAbsenceSheetDTO | null>(initialAbsenceSheet || null);
+  const [isMatrixLoading, setIsMatrixLoading] = useState<boolean>(false);
+
+  const handleSelectGroup = async (groupId: string) => {
+    setSelectedGroupId(groupId);
+    if (groupId === "all") return;
+    setIsMatrixLoading(true);
+    try {
+      const res = await getGroupMatrixReportsAction(groupId, matrixPeriod);
+      if (res && !res.error && res.performanceSheet && res.absenceSheet) {
+        setPerformanceSheet(res.performanceSheet);
+        setAbsenceSheet(res.absenceSheet);
+      }
+    } catch (err) {
+      console.error("Failed to fetch matrix sheets:", err);
+    } finally {
+      setIsMatrixLoading(false);
+    }
+  };
+
+  const handleSelectMatrixPeriod = async (period: string) => {
+    setMatrixPeriod(period);
+    const targetGroup = selectedGroupId === "all" ? (groups[0]?.id || "") : selectedGroupId;
+    if (!targetGroup) return;
+    setIsMatrixLoading(true);
+    try {
+      const res = await getGroupMatrixReportsAction(targetGroup, period);
+      if (res && !res.error && res.performanceSheet && res.absenceSheet) {
+        setPerformanceSheet(res.performanceSheet);
+        setAbsenceSheet(res.absenceSheet);
+      }
+    } catch (err) {
+      console.error("Failed to fetch matrix sheets for period:", err);
+    } finally {
+      setIsMatrixLoading(false);
+    }
+  };
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    if ((tab === "performance-sheet" || tab === "absence-sheet") && selectedGroupId === "all") {
+      const firstGroup = groups[0]?.id || "";
+      if (firstGroup) {
+        handleSelectGroup(firstGroup);
+      }
+    }
+  };
 
   const attendancePct =
     summary.totalAttendanceRecords > 0
@@ -184,10 +254,20 @@ export function ReportsView({
   };
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    {
+      key: "performance-sheet",
+      label: "Сводная успеваемость",
+      icon: <Award className="h-3.5 w-3.5" />,
+    },
+    {
+      key: "absence-sheet",
+      label: "Сводная ведомость (Пропуски)",
+      icon: <Clock className="h-3.5 w-3.5" />,
+    },
     { key: "overview", label: "Обзор", icon: <BarChart3 className="h-3.5 w-3.5" /> },
-    { key: "attendance", label: "Посещаемость", icon: <CalendarCheck className="h-3.5 w-3.5" /> },
+    { key: "attendance", label: "Посещаемость по группам", icon: <CalendarCheck className="h-3.5 w-3.5" /> },
     { key: "assignments", label: "Домашние задания", icon: <ClipboardList className="h-3.5 w-3.5" /> },
-    { key: "students", label: "Успеваемость студентов", icon: <GraduationCap className="h-3.5 w-3.5" /> },
+    { key: "students", label: "Активность студентов", icon: <GraduationCap className="h-3.5 w-3.5" /> },
   ];
 
   return (
@@ -206,23 +286,30 @@ export function ReportsView({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-            <SelectTrigger className="h-8 text-xs bg-background w-[170px] font-medium">
-              <SelectValue>
-                {selectedGroupId === "all"
-                  ? "Все группы"
-                  : groups.find((g) => g.id === selectedGroupId)?.name || "Группа"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs">Все группы</SelectItem>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id} className="text-xs">
-                  Группа {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground font-medium">Группа:</span>
+            <Select value={selectedGroupId} onValueChange={handleSelectGroup} disabled={isMatrixLoading}>
+              <SelectTrigger className="h-8 text-xs bg-background w-[160px] font-medium">
+                <SelectValue placeholder="Выберите группу">
+                  {selectedGroupId === "all"
+                    ? "Все группы"
+                    : groups.find((g) => g.id === selectedGroupId)?.name || "Выберите группу"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {activeTab !== "performance-sheet" && activeTab !== "absence-sheet" && (
+                  <SelectItem value="all" className="text-xs">
+                    Все группы
+                  </SelectItem>
+                )}
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={g.id} className="text-xs">
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <Button
             size="xs"
@@ -243,7 +330,7 @@ export function ReportsView({
           <button
             key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => handleTabChange(tab.key)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
               activeTab === tab.key
                 ? "bg-primary text-primary-foreground shadow-2xs"
@@ -255,6 +342,31 @@ export function ReportsView({
           </button>
         ))}
       </div>
+
+      {/* Tab: Performance Sheet (Сводная успеваемость) */}
+      {activeTab === "performance-sheet" && (
+        <PerformanceSheetTab
+          groups={groups}
+          currentGroupId={selectedGroupId}
+          onSelectGroup={handleSelectGroup}
+          sheet={performanceSheet}
+          onSheetChange={setPerformanceSheet}
+          isLoading={isMatrixLoading}
+        />
+      )}
+
+      {/* Tab: Absence Sheet (Сводная ведомость - Пропуски) */}
+      {activeTab === "absence-sheet" && (
+        <AbsenceSheetTab
+          groups={groups}
+          currentGroupId={selectedGroupId}
+          currentPeriod={matrixPeriod}
+          onSelectGroup={handleSelectGroup}
+          onSelectPeriod={handleSelectMatrixPeriod}
+          sheet={absenceSheet}
+          isLoading={isMatrixLoading}
+        />
+      )}
 
       {/* Tab 1: Overview */}
       {activeTab === "overview" && (
