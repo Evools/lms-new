@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Avatar,
   AvatarFallback,
@@ -30,6 +31,7 @@ import {
   GraduationCap,
   User,
   Settings,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -44,6 +46,19 @@ export function NavUser({
   };
 }) {
   const { isMobile, setOpenMobile } = useSidebar();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logoutAction();
+    } catch {
+      // ignore
+    } finally {
+      window.location.href = "/login";
+    }
+  };
 
   const roleConfigs = {
     ADMIN: { label: "Администратор", variant: "default" as const, icon: Shield },
@@ -147,11 +162,16 @@ export function NavUser({
             <DropdownMenuSeparator />
 
             <DropdownMenuItem
-              onClick={() => logoutAction()}
+              onClick={handleLogout}
+              disabled={isLoggingOut}
               className="text-destructive focus:text-destructive cursor-pointer"
             >
-              <LogOut className="mr-2 h-4 w-4" />
-              Выйти из системы
+              {isLoggingOut ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="mr-2 h-4 w-4" />
+              )}
+              {isLoggingOut ? "Выход из системы..." : "Выйти из системы"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
