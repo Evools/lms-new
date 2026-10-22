@@ -319,15 +319,18 @@ export function MaterialsView({
 
   const handleSelectSubject = (subjectId: string) => {
     setSelectedSubjectId(subjectId);
+    setNewChapterSubjectId(subjectId);
 
     const uid = currentUserId || "default_user";
+    const subj = subjects.find((s) => s.id === subjectId);
     let targetMat: MaterialDTO | null = null;
-    if (typeof window !== "undefined") {
+
+    if (subj && typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem(getSubjectStorageKey(uid, subjectId));
         if (raw) {
           const parsed: UserMaterialProgress = JSON.parse(raw);
-          const found = materials.find((m) => m.id === parsed.materialId);
+          const found = materials.find((m) => m.id === parsed.materialId && m.subjectName === subj.subjectName);
           if (found) {
             targetMat = found;
           }
@@ -335,7 +338,7 @@ export function MaterialsView({
         if (!targetMat) {
           const fallbackMatId = localStorage.getItem(`lms_last_mat_${subjectId}`);
           if (fallbackMatId) {
-            const found = materials.find((m) => m.id === fallbackMatId);
+            const found = materials.find((m) => m.id === fallbackMatId && m.subjectName === subj.subjectName);
             if (found) targetMat = found;
           }
         }
@@ -344,13 +347,14 @@ export function MaterialsView({
       }
     }
 
-    const subj = subjects.find((s) => s.id === subjectId);
     if (!targetMat && subj) {
       targetMat = materials.find((m) => m.subjectName === subj.subjectName) || null;
     }
 
+    // Always update active material (if targetMat is null, activeMaterial becomes null)
+    setActiveMaterial(targetMat);
+
     if (targetMat) {
-      setActiveMaterial(targetMat);
       if (targetMat.topicId) {
         setExpandedTopics((prev) => ({ ...prev, [targetMat.topicId]: true }));
       }
@@ -476,45 +480,65 @@ export function MaterialsView({
 
   // Active Selected Material State (restores saved position if available)
   const [activeMaterial, setActiveMaterial] = useState<MaterialDTO | null>(() => {
+    const targetSubjId = resolvedInitialSubjectId || selectedSubjectIdProp;
+    const targetSubj = targetSubjId ? subjects.find((s) => s.id === targetSubjId) : null;
+
+    // If a subject is explicitly targeted
+    if (targetSubj) {
+      if (selectedMaterialIdProp) {
+        const found = materials.find((m) => m.id === selectedMaterialIdProp && m.subjectName === targetSubj.subjectName);
+        if (found) return found;
+      }
+
+      if (typeof window !== "undefined") {
+        try {
+          const uid = currentUserId || "default_user";
+          const rawSubj = localStorage.getItem(getSubjectStorageKey(uid, targetSubj.id));
+          if (rawSubj) {
+            const parsed: UserMaterialProgress = JSON.parse(rawSubj);
+            const found = materials.find((m) => m.id === parsed.materialId && m.subjectName === targetSubj.subjectName);
+            if (found) return found;
+          }
+          const rawFallback = localStorage.getItem(`lms_last_mat_${targetSubj.id}`);
+          if (rawFallback) {
+            const found = materials.find((m) => m.id === rawFallback && m.subjectName === targetSubj.subjectName);
+            if (found) return found;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // First material of this subject or null (never fall back to other subjects!)
+      return materials.find((m) => m.subjectName === targetSubj.subjectName) || null;
+    }
+
+    // No subject targeted yet (general overview)
     if (selectedMaterialIdProp) {
       const found = materials.find((m) => m.id === selectedMaterialIdProp);
       if (found) return found;
     }
+
     if (typeof window !== "undefined") {
       try {
         const uid = currentUserId || "default_user";
-        // 1. Try group-level saved progress
         const rawGroup = localStorage.getItem(getGroupStorageKey(uid, selectedGroupId));
         if (rawGroup) {
-          const parsed = JSON.parse(rawGroup);
+          const parsed: UserMaterialProgress = JSON.parse(rawGroup);
           const found = materials.find((m) => m.id === parsed.materialId);
           if (found) return found;
-        }
-        // 2. Try subject-level saved progress
-        const subjId = resolvedInitialSubjectId || selectedSubjectIdProp;
-        if (subjId) {
-          const rawSubj = localStorage.getItem(getSubjectStorageKey(uid, subjId));
-          if (rawSubj) {
-            const parsed = JSON.parse(rawSubj);
-            const found = materials.find((m) => m.id === parsed.materialId);
-            if (found) return found;
-          }
-          const rawFallback = localStorage.getItem(`lms_last_mat_${subjId}`);
-          if (rawFallback) {
-            const found = materials.find((m) => m.id === rawFallback);
-            if (found) return found;
-          }
         }
         const groupFallback = localStorage.getItem(`lms_last_mat_${selectedGroupId}`);
         if (groupFallback) {
           const found = materials.find((m) => m.id === groupFallback);
           if (found) return found;
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
-    return displayMaterials[0] || materials[0] || null;
+
+    return materials[0] || null;
   });
 
   // Reader interactive state
@@ -540,6 +564,22 @@ export function MaterialsView({
     if (selectedMaterialIdProp) {
       const found = materials.find((m) => m.id === selectedMaterialIdProp);
       if (found) {
+        if (currentSubjectObj && found.subjectName !== currentSubjectObj.subjectName) {
+          // Stale material from previous discipline! Clear it and clean URL!
+          const subjMat = materials.find((m) => m.subjectName === currentSubjectObj.subjectName) || null;
+          setActiveMaterial(subjMat);
+          if (typeof window !== "undefined") {
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("material");
+              window.history.replaceState(null, "", url.toString());
+            } catch {
+              // ignore
+            }
+          }
+          return;
+        }
+
         setActiveMaterial(found);
         if (found.topicId) {
           setExpandedTopics((prev) => ({ ...prev, [found.topicId]: true }));
@@ -553,39 +593,48 @@ export function MaterialsView({
 
   // Restore saved position if subject opened without explicit material prop
   useEffect(() => {
-    if (!selectedMaterialIdProp && selectedSubjectId && typeof window !== "undefined") {
+    if (!selectedMaterialIdProp && selectedSubjectId && currentSubjectObj && typeof window !== "undefined") {
       const uid = currentUserId || "default_user";
       try {
+        let foundMat: MaterialDTO | null = null;
         const raw = localStorage.getItem(getSubjectStorageKey(uid, selectedSubjectId));
-        let foundMatId: string | null = null;
         if (raw) {
           const parsed: UserMaterialProgress = JSON.parse(raw);
-          foundMatId = parsed.materialId;
+          if (parsed.subjectId === selectedSubjectId) {
+            const found = materials.find((m) => m.id === parsed.materialId && m.subjectName === currentSubjectObj.subjectName);
+            if (found) foundMat = found;
+          }
         }
-        if (!foundMatId) {
-          foundMatId = localStorage.getItem(`lms_last_mat_${selectedSubjectId}`);
+        if (!foundMat) {
+          const fallbackMatId = localStorage.getItem(`lms_last_mat_${selectedSubjectId}`);
+          if (fallbackMatId) {
+            const found = materials.find((m) => m.id === fallbackMatId && m.subjectName === currentSubjectObj.subjectName);
+            if (found) foundMat = found;
+          }
         }
-        if (!foundMatId) {
-          foundMatId = localStorage.getItem(`lms_last_mat_${selectedGroupId}`);
+        if (!foundMat) {
+          foundMat = materials.find((m) => m.subjectName === currentSubjectObj.subjectName) || null;
         }
 
-        if (foundMatId) {
-          const found = materials.find((m) => m.id === foundMatId);
-          if (found && (!activeMaterial || activeMaterial.id !== found.id)) {
-            setActiveMaterial(found);
-            if (found.topicId) {
-              setExpandedTopics((prev) => ({ ...prev, [found.topicId]: true }));
+        if (foundMat) {
+          if (!activeMaterial || activeMaterial.id !== foundMat.id || activeMaterial.subjectName !== currentSubjectObj.subjectName) {
+            setActiveMaterial(foundMat);
+            if (foundMat.topicId) {
+              setExpandedTopics((prev) => ({ ...prev, [foundMat.topicId]: true }));
             }
-            if (currentSubjectObj) {
-              saveUserProgress(found, selectedSubjectId, currentSubjectObj.subjectName);
-            }
+            saveUserProgress(foundMat, selectedSubjectId, currentSubjectObj.subjectName);
+          }
+        } else {
+          // No materials in this subject at all!
+          if (activeMaterial) {
+            setActiveMaterial(null);
           }
         }
       } catch {
         // ignore
       }
     }
-  }, [selectedSubjectId, selectedMaterialIdProp, currentUserId, currentSubjectObj, materials, saveUserProgress]);
+  }, [selectedSubjectId, selectedMaterialIdProp, currentUserId, currentSubjectObj, materials, activeMaterial, saveUserProgress]);
 
   // Auto-expand chapter when active material changes
   useEffect(() => {
@@ -651,16 +700,23 @@ export function MaterialsView({
   };
 
   // Chapter Handlers
+  const handleOpenCreateChapter = () => {
+    setNewChapterSubjectId(selectedSubjectId || subjects[0]?.id || "");
+    setNewChapterTitle("");
+    setIsCreateChapterOpen(true);
+  };
+
   const handleCreateChapter = () => {
-    if (!newChapterTitle.trim() || !newChapterSubjectId) {
+    const targetSubjectId = selectedSubjectId || newChapterSubjectId;
+    if (!newChapterTitle.trim() || !targetSubjectId) {
       toast.add({ title: "Укажите дисциплину и название главы", type: "error" });
       return;
     }
 
     startTransition(async () => {
       const res = await createTopicAction({
-        groupSubjectId: newChapterSubjectId,
-        title: newChapterTitle,
+        groupSubjectId: targetSubjectId,
+        title: newChapterTitle.trim(),
       });
 
       if (res.success) {
@@ -813,7 +869,16 @@ export function MaterialsView({
     return list;
   };
 
-  const currentMat = activeMaterial || materials[0] || null;
+  const currentMat = React.useMemo(() => {
+    if (currentSubjectObj) {
+      if (activeMaterial && activeMaterial.subjectName === currentSubjectObj.subjectName) {
+        return activeMaterial;
+      }
+      const first = displayMaterials[0] || materials.find((m) => m.subjectName === currentSubjectObj.subjectName);
+      return first || null;
+    }
+    return activeMaterial || materials[0] || null;
+  }, [currentSubjectObj, activeMaterial, displayMaterials, materials]);
   const parsedVideos = parseVideoUrls(currentMat?.linkUrl);
   const parsedResources = parseResourceLinks(currentMat?.fileUrl, currentMat?.linkUrl);
 
@@ -1155,7 +1220,7 @@ export function MaterialsView({
                         type="button"
                         size="xs"
                         variant="outline"
-                        onClick={() => setIsCreateChapterOpen(true)}
+                        onClick={handleOpenCreateChapter}
                         className="w-full h-7 text-xs px-2 gap-1 text-foreground hover:text-primary font-medium truncate"
                       >
                         <Folder className="h-3 w-3 text-primary shrink-0" /> Глава
@@ -1472,9 +1537,20 @@ export function MaterialsView({
                       })}
 
                       {displayTopics.length === 0 && (
-                        <div className="py-8 text-center space-y-1 text-muted-foreground">
+                        <div className="py-8 text-center space-y-2 text-muted-foreground px-2">
                           <p className="text-xs font-semibold">Главы не найдены</p>
-                          <p className="text-[11px]">Создайте первую главу для группировки материалов</p>
+                          <p className="text-[11px] leading-tight">Создайте первую главу для группировки материалов</p>
+                          {canCreate && (
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="outline"
+                              onClick={handleOpenCreateChapter}
+                              className="h-7 text-xs px-2.5 mx-auto font-medium mt-1"
+                            >
+                              <Plus className="h-3 w-3 mr-1 text-primary" /> Создать главу
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1888,9 +1964,38 @@ export function MaterialsView({
               )}
             </div>
           ) : (
-            <div className="py-16 text-center text-muted-foreground text-xs space-y-2">
-              <BookOpen className="h-8 w-8 text-muted-foreground/40 mx-auto" />
-              <div className="font-semibold text-foreground">Материал не выбран</div>
+            <div className="py-16 text-center text-muted-foreground text-xs space-y-3 max-w-sm mx-auto">
+              <BookOpen className="h-10 w-10 text-muted-foreground/30 mx-auto" />
+              <div className="space-y-1">
+                <div className="font-semibold text-foreground text-sm">
+                  {currentSubjectObj ? `В дисциплине «${currentSubjectObj.subjectName}» пока нет материалов` : "Материал не выбран"}
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-normal">
+                  {currentSubjectObj
+                    ? "Создайте первую главу курса или добавьте учебный материал (видео, конспект, презентацию)."
+                    : "Выберите материал из списка слева для чтения и изучения."}
+                </p>
+              </div>
+              {canCreate && currentSubjectObj && (
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    onClick={handleOpenCreateChapter}
+                    className="h-8 text-xs px-3 font-medium"
+                  >
+                    <Folder className="h-3.5 w-3.5 mr-1.5 text-primary" /> Создать главу
+                  </Button>
+                  <Link
+                    href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
+                  >
+                    <Button size="xs" className="h-8 text-xs px-3 font-medium">
+                      <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить материал
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1899,7 +2004,16 @@ export function MaterialsView({
   )}
 
       {/* Modal 1: Quick Create Chapter (Topic) */}
-      <Dialog open={isCreateChapterOpen} onOpenChange={setIsCreateChapterOpen}>
+      <Dialog
+        open={isCreateChapterOpen}
+        onOpenChange={(open) => {
+          setIsCreateChapterOpen(open);
+          if (open) {
+            setNewChapterSubjectId(selectedSubjectId || subjects[0]?.id || "");
+            setNewChapterTitle("");
+          }
+        }}
+      >
         <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
           <DialogHeader className="pb-2 border-b gap-1 text-left">
             <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
@@ -1911,21 +2025,43 @@ export function MaterialsView({
           </DialogHeader>
 
           <div className="space-y-3 py-1 text-xs">
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Дисциплина *</label>
-              <Select value={newChapterSubjectId} onValueChange={setNewChapterSubjectId}>
-                <SelectTrigger className="h-8 text-xs bg-background">
-                  <SelectValue>{subjects.find((s) => s.id === newChapterSubjectId)?.subjectName || "Выберите предмет"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id} className="text-xs">
-                      {s.subjectName} ({s.teacherName})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {currentSubjectObj ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <label className="font-medium text-foreground">Дисциплина</label>
+                  {currentSubjectObj.teacherName && (
+                    <span className="text-[11px] text-muted-foreground truncate max-w-[200px]" title={currentSubjectObj.teacherName}>
+                      {currentSubjectObj.teacherName}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <Input
+                    value={currentSubjectObj.subjectName}
+                    disabled
+                    readOnly
+                    className="h-8 text-xs bg-muted/40 text-foreground font-medium pl-8 cursor-default select-none border-input"
+                  />
+                  <BookMarked className="h-3.5 w-3.5 text-primary absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Дисциплина *</label>
+                <Select value={newChapterSubjectId} onValueChange={setNewChapterSubjectId}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue>{subjects.find((s) => s.id === newChapterSubjectId)?.subjectName || "Выберите предмет"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">
+                        {s.subjectName} ({s.teacherName})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs">Название главы *</label>
@@ -1933,7 +2069,14 @@ export function MaterialsView({
                 placeholder="Например: Figma, HTML & CSS, Изучение Grid"
                 value={newChapterTitle}
                 onChange={(e) => setNewChapterTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isPending && newChapterTitle.trim()) {
+                    e.preventDefault();
+                    handleCreateChapter();
+                  }
+                }}
                 className="h-8 text-xs bg-background font-medium"
+                autoFocus
               />
             </div>
           </div>
@@ -1942,7 +2085,7 @@ export function MaterialsView({
             <Button variant="outline" size="xs" onClick={() => setIsCreateChapterOpen(false)}>
               Отмена
             </Button>
-            <Button size="xs" disabled={isPending} onClick={handleCreateChapter}>
+            <Button size="xs" disabled={isPending || !newChapterTitle.trim()} onClick={handleCreateChapter}>
               Создать главу
             </Button>
           </DialogFooter>
