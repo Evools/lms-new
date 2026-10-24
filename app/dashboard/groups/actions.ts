@@ -4,6 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
+export interface AdditionalTeacherDTO {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string | null;
+}
+
 export interface GroupDTO {
   id: string;
   name: string;
@@ -14,6 +22,9 @@ export interface GroupDTO {
   studentCount: number;
   curatorId?: string;
   curatorName?: string;
+  classTeacherId?: string;
+  classTeacherName?: string;
+  additionalTeachers?: AdditionalTeacherDTO[];
   monitorName?: string;
   deputyMonitorName?: string;
   academicYear: string;
@@ -54,6 +65,7 @@ export interface GroupDetailsDTO extends GroupDTO {
   studentsList: GroupStudentDTO[];
   subjectsList: GroupSubjectDTO[];
   announcementsList: GroupAnnouncementDTO[];
+  additionalTeachers: AdditionalTeacherDTO[];
 }
 
 function parseGroupCourse(name: string): number {
@@ -81,7 +93,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
 
     // Filter groups by user role:
     // - ADMIN: sees all groups
-    // - TEACHER: sees only groups where they are curator OR teach a subject
+    // - TEACHER: sees groups where they are curator, class teacher, additional teacher, OR teach a subject
     // - STUDENT: sees only groups where they are enrolled
     let whereClause: Record<string, unknown> | undefined = undefined;
     if (role === "STUDENT" && userId) {
@@ -94,6 +106,8 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
       whereClause = {
         OR: [
           { curatorId: userId },
+          { classTeacherId: userId },
+          { additionalTeachers: { some: { teacherId: userId } } },
           { groupSubjects: { some: { teacherId: userId } } },
         ],
       };
@@ -105,6 +119,12 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
       include: {
         specialty: { select: { id: true, name: true, code: true } },
         curator: { select: { id: true, name: true } },
+        classTeacher: { select: { id: true, name: true } },
+        additionalTeachers: {
+          include: {
+            teacher: { select: { id: true, name: true, email: true } },
+          },
+        },
         monitor: { select: { id: true, name: true } },
         deputyMonitor: { select: { id: true, name: true } },
         academicYear: { select: { name: true } },
@@ -129,6 +149,13 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
         studentCount: item._count.students,
         curatorId: item.curator?.id || undefined,
         curatorName: item.curator?.name || undefined,
+        classTeacherId: item.classTeacher?.id || undefined,
+        classTeacherName: item.classTeacher?.name || undefined,
+        additionalTeachers: item.additionalTeachers?.map((gt) => ({
+          id: gt.teacher.id,
+          name: gt.teacher.name,
+          email: gt.teacher.email,
+        })) || [],
         monitorName: item.monitor?.name || undefined,
         deputyMonitorName: item.deputyMonitor?.name || undefined,
         academicYear: item.academicYear.name,
@@ -187,6 +214,8 @@ export async function createGroupAction(data: {
   name: string;
   course?: number;
   curatorId?: string;
+  classTeacherId?: string;
+  additionalTeacherIds?: string[];
   specialtyId?: string;
   academicYearName?: string;
 }) {
@@ -224,13 +253,32 @@ export async function createGroupAction(data: {
         ? undefined
         : data.specialtyId;
 
+    const cleanCuratorId =
+      !data.curatorId || data.curatorId === "unassigned" || data.curatorId === "none"
+        ? undefined
+        : data.curatorId;
+
+    const cleanClassTeacherId =
+      !data.classTeacherId || data.classTeacherId === "unassigned" || data.classTeacherId === "none"
+        ? undefined
+        : data.classTeacherId;
+
     const created = await prisma.group.create({
       data: {
         name: data.name.trim(),
         course: data.course ?? 1,
         academicYearId: academicYear.id,
-        curatorId: data.curatorId || undefined,
+        curatorId: cleanCuratorId,
+        classTeacherId: cleanClassTeacherId,
         specialtyId: cleanSpecialtyId,
+        additionalTeachers:
+          data.additionalTeacherIds && data.additionalTeacherIds.length > 0
+            ? {
+                create: data.additionalTeacherIds.map((tid) => ({
+                  teacherId: tid,
+                })),
+              }
+            : undefined,
       },
     });
 
@@ -248,6 +296,8 @@ export async function updateGroupAction(
     name: string;
     course?: number;
     curatorId?: string;
+    classTeacherId?: string;
+    additionalTeacherIds?: string[];
     specialtyId?: string;
     academicYearName?: string;
   }
@@ -263,6 +313,8 @@ export async function updateGroupAction(
         id: groupId,
         OR: [
           { curatorId: session.user.id },
+          { classTeacherId: session.user.id },
+          { additionalTeachers: { some: { teacherId: session.user.id } } },
           { groupSubjects: { some: { teacherId: session.user.id } } },
         ],
       },
@@ -289,14 +341,42 @@ export async function updateGroupAction(
         ? null
         : data.specialtyId;
 
-    await prisma.group.update({
-      where: { id: groupId },
-      data: {
-        name: data.name.trim(),
-        ...(data.course !== undefined ? { course: data.course } : {}),
-        curatorId: !data.curatorId || data.curatorId === "none" || data.curatorId === "unassigned" ? null : data.curatorId,
-        specialtyId: cleanSpecialtyId,
-      },
+    const cleanCuratorId =
+      !data.curatorId || data.curatorId === "none" || data.curatorId === "unassigned"
+        ? null
+        : data.curatorId;
+
+    const cleanClassTeacherId =
+      !data.classTeacherId || data.classTeacherId === "none" || data.classTeacherId === "unassigned"
+        ? null
+        : data.classTeacherId;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.group.update({
+        where: { id: groupId },
+        data: {
+          name: data.name.trim(),
+          ...(data.course !== undefined ? { course: data.course } : {}),
+          curatorId: cleanCuratorId,
+          classTeacherId: cleanClassTeacherId,
+          specialtyId: cleanSpecialtyId,
+        },
+      });
+
+      if (data.additionalTeacherIds !== undefined) {
+        await tx.groupTeacher.deleteMany({
+          where: { groupId },
+        });
+
+        if (data.additionalTeacherIds.length > 0) {
+          await tx.groupTeacher.createMany({
+            data: data.additionalTeacherIds.map((tid) => ({
+              groupId,
+              teacherId: tid,
+            })),
+          });
+        }
+      }
     });
 
     revalidatePath("/dashboard/groups");
@@ -333,7 +413,13 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       where: { id: groupId },
       include: {
         specialty: { select: { id: true, name: true, code: true } },
-        curator: { select: { id: true, name: true } },
+        curator: { select: { id: true, name: true, email: true, phone: true } },
+        classTeacher: { select: { id: true, name: true, email: true, phone: true } },
+        additionalTeachers: {
+          include: {
+            teacher: { select: { id: true, name: true, email: true, phone: true, avatar: true } },
+          },
+        },
         monitor: { select: { id: true, name: true } },
         deputyMonitor: { select: { id: true, name: true } },
         academicYear: { select: { name: true } },
@@ -347,7 +433,7 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
 
     // Check access permissions:
     // - ADMIN: can view any group
-    // - TEACHER: can only view if curator or teaches a subject to this group
+    // - TEACHER: can view if curator, class teacher, additional teacher, or teaches a subject to this group
     // - STUDENT: can only view if enrolled in this group
     if (role === "STUDENT" && userId) {
       const isEnrolled = await prisma.groupStudent.findUnique({
@@ -365,6 +451,8 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
           id: groupId,
           OR: [
             { curatorId: userId },
+            { classTeacherId: userId },
+            { additionalTeachers: { some: { teacherId: userId } } },
             { groupSubjects: { some: { teacherId: userId } } },
           ],
         },
@@ -479,6 +567,16 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       studentCount: item._count.students,
       curatorId: item.curator?.id || undefined,
       curatorName: item.curator?.name || undefined,
+      classTeacherId: item.classTeacher?.id || undefined,
+      classTeacherName: item.classTeacher?.name || undefined,
+      additionalTeachers:
+        item.additionalTeachers?.map((gt) => ({
+          id: gt.teacher.id,
+          name: gt.teacher.name,
+          email: gt.teacher.email,
+          phone: gt.teacher.phone || undefined,
+          avatar: gt.teacher.avatar || undefined,
+        })) || [],
       monitorName: item.monitor?.name || undefined,
       deputyMonitorName: item.deputyMonitor?.name || undefined,
       academicYear: item.academicYear.name,
@@ -509,6 +607,8 @@ export async function toggleGroupDutyAction(groupId: string, isDutyEnabled: bool
         id: groupId,
         OR: [
           { curatorId: session.user.id },
+          { classTeacherId: session.user.id },
+          { additionalTeachers: { some: { teacherId: session.user.id } } },
           { groupSubjects: { some: { teacherId: session.user.id } } },
         ],
       },

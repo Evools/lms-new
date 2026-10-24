@@ -77,6 +77,8 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
     const matchesSearch =
       g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (g.curatorName && g.curatorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (g.classTeacherName && g.classTeacherName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (g.additionalTeachers && g.additionalTeachers.some((at) => at.name.toLowerCase().includes(searchQuery.toLowerCase()))) ||
       (g.specialty && g.specialty.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (g.specialtyCode && g.specialtyCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -283,12 +285,22 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                       <span className="text-[10px] text-muted-foreground">студ.</span>
                     </div>
 
-                    {/* Curator */}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <UserCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className={`text-xs truncate ${group.curatorName ? "text-foreground font-medium" : "text-muted-foreground/60"}`}>
-                        {group.curatorName || "Не назначен"}
-                      </span>
+                    {/* Curator & Pedagogical Team */}
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <UserCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className={`text-xs truncate ${group.curatorName ? "text-foreground font-medium" : "text-muted-foreground/60"}`}>
+                          {group.curatorName || "Не назначен"}
+                        </span>
+                      </div>
+                      {(group.classTeacherName || (group.additionalTeachers && group.additionalTeachers.length > 0)) && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pl-5 truncate">
+                          {group.classTeacherName && <span>Кл: {group.classTeacherName}</span>}
+                          {group.additionalTeachers && group.additionalTeachers.length > 0 && (
+                            <span className="text-primary font-medium">+{group.additionalTeachers.length} преп.</span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Monitor */}
@@ -433,6 +445,26 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                       {group.curatorName || "Не назначен"}
                     </span>
                   </div>
+                  {group.classTeacherName && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <UserCheck className="h-3 w-3" /> Классный рук.:
+                      </span>
+                      <span className="font-medium text-foreground truncate max-w-[140px]">
+                        {group.classTeacherName}
+                      </span>
+                    </div>
+                  )}
+                  {group.additionalTeachers && group.additionalTeachers.length > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <GraduationCap className="h-3 w-3 text-primary" /> Доп. преп.:
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {group.additionalTeachers.length} чел.
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground flex items-center gap-1">
                       <Crown className="h-3 w-3 text-primary" /> Староста:

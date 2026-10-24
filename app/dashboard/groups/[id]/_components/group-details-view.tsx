@@ -511,7 +511,8 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
           </div>
 
           {/* Quick KPI Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {/* Quick KPI Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div className="bg-background border p-2 rounded-lg text-center">
               <div className="text-[9px] text-muted-foreground uppercase font-semibold">Студентов в группе</div>
               <div className="text-sm font-bold text-primary flex items-center justify-center gap-1 mt-0.5">
@@ -522,15 +523,24 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
 
             <div className="bg-background border p-2 rounded-lg text-center">
               <div className="text-[9px] text-muted-foreground uppercase font-semibold">Куратор группы</div>
-              <div className="text-xs font-bold text-foreground mt-0.5 truncate max-w-[130px] mx-auto">
+              <div className="text-xs font-bold text-foreground mt-0.5 truncate max-w-[130px] mx-auto" title={group.curatorName || "Не назначен"}>
                 {group.curatorName || "Не назначен"}
               </div>
             </div>
 
-            <div className="bg-background border p-2 rounded-lg text-center col-span-2 sm:col-span-1">
-              <div className="text-[9px] text-muted-foreground uppercase font-semibold">Учебный период</div>
+            <div className="bg-background border p-2 rounded-lg text-center">
+              <div className="text-[9px] text-muted-foreground uppercase font-semibold">Классный рук.</div>
+              <div className="text-xs font-bold text-foreground mt-0.5 truncate max-w-[130px] mx-auto" title={group.classTeacherName || "Не назначен"}>
+                {group.classTeacherName || "Не назначен"}
+              </div>
+            </div>
+
+            <div className="bg-background border p-2 rounded-lg text-center">
+              <div className="text-[9px] text-muted-foreground uppercase font-semibold">Доп. преподаватели</div>
               <div className="text-xs font-bold text-foreground mt-0.5">
-                {group.academicYear}
+                {group.additionalTeachers && group.additionalTeachers.length > 0
+                  ? `${group.additionalTeachers.length} чел.`
+                  : "Не назначены"}
               </div>
             </div>
           </div>
@@ -561,7 +571,7 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
               }`}
           >
             <BookOpen className="h-3.5 w-3.5 shrink-0" />
-            <span>Предметы ({group.subjectsList.length})</span>
+            <span>Педсостав и предметы ({group.subjectsList.length})</span>
           </button>
 
           <button
@@ -811,12 +821,113 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
 
         {/* TAB 2: SUBJECTS & TEACHERS WORKSPACE */}
         {activeTab === "SUBJECTS" && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                {group.subjectsList.length} {group.subjectsList.length === 1 ? "дисциплина" : "дисциплин"}
-              </span>
+          <div className="space-y-3">
+            {/* Pedagogical Leadership Section */}
+            <div className="rounded-xl border bg-card p-3 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-semibold text-foreground">Педагогическое руководство группы</span>
+                </div>
+                {isAdminOrTeacher && (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="h-6 text-[11px] gap-1 px-2"
+                    render={<Link href={`/dashboard/groups/${group.id}/edit`} />}
+                  >
+                    <Edit className="h-3 w-3" /> Настроить педсостав
+                  </Button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                {/* Curator */}
+                <div className="p-2.5 rounded-lg border bg-muted/20 flex items-start gap-2.5">
+                  <Avatar className="h-8 w-8 rounded-lg shrink-0 border border-border">
+                    <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
+                      {group.curatorName ? group.curatorName.charAt(0) : "К"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-foreground truncate">
+                        {group.curatorName || "Не назначен"}
+                      </span>
+                      <Badge className="text-[9px] px-1 py-0 bg-primary/10 text-primary border-primary/20 font-medium shrink-0">
+                        Куратор
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Основное кураторство группы и ведомости
+                    </p>
+                  </div>
+                </div>
+
+                {/* Class Teacher */}
+                <div className="p-2.5 rounded-lg border bg-muted/20 flex items-start gap-2.5">
+                  <Avatar className="h-8 w-8 rounded-lg shrink-0 border border-border">
+                    <AvatarFallback className="text-xs bg-muted text-muted-foreground font-bold">
+                      {group.classTeacherName ? group.classTeacherName.charAt(0) : "К"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-foreground truncate">
+                        {group.classTeacherName || "Не назначен"}
+                      </span>
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 font-medium shrink-0">
+                        Классный рук.
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Воспитательная и организационная работа
+                    </p>
+                  </div>
+                </div>
+
+                {/* Additional Teachers */}
+                {group.additionalTeachers && group.additionalTeachers.length > 0 ? (
+                  group.additionalTeachers.map((at) => (
+                    <div key={at.id} className="p-2.5 rounded-lg border bg-muted/20 flex items-start gap-2.5">
+                      <Avatar className="h-8 w-8 rounded-lg shrink-0 border border-border">
+                        <AvatarFallback className="text-xs bg-muted text-foreground font-bold">
+                          {at.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-semibold text-foreground truncate">
+                            {at.name}
+                          </span>
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                            Доп. преп.
+                          </Badge>
+                        </div>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground truncate mt-0.5">
+                          <Mail className="h-2.5 w-2.5 shrink-0" /> {at.email}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-2.5 rounded-lg border border-dashed text-center flex flex-col items-center justify-center text-muted-foreground">
+                    <span className="text-[11px]">Доп. преподаватели не назначены</span>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Subjects Table */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-foreground">
+                  Учебные дисциплины ({group.subjectsList.length})
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {group.subjectsList.length} {group.subjectsList.length === 1 ? "дисциплина" : "дисциплин"}
+                </span>
+              </div>
 
             <div className="rounded-xl border overflow-hidden">
               {/* Table header */}
@@ -869,6 +980,7 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
               </div>
             </div>
           </div>
+        </div>
         )}
 
 

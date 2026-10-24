@@ -63,9 +63,11 @@ model User {
 
   // Group roles
   curatedGroups      Group[]        @relation("GroupCurator")
+  classTeacherGroups Group[]        @relation("GroupClassTeacher")
   monitoredGroups    Group[]        @relation("GroupMonitor")
   deputyGroups       Group[]        @relation("GroupDeputyMonitor")
   studentEnrollments GroupStudent[]
+  additionalGroups   GroupTeacher[] @relation("GroupAdditionalTeachers")
 
   // Teaching
   teacherGroupSubjects GroupSubject[] @relation("TeacherGroupSubjects")
@@ -122,25 +124,40 @@ model Group {
   specialtyId     String?
   academicYearId  String
   curatorId       String?
+  classTeacherId  String?
   monitorId       String?
   deputyMonitorId String?
   isDutyEnabled   Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  specialty     Specialty?   @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
-  academicYear  AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  curator       User?        @relation("GroupCurator", fields: [curatorId], references: [id], onDelete: SetNull)
-  monitor       User?        @relation("GroupMonitor", fields: [monitorId], references: [id], onDelete: SetNull)
-  deputyMonitor User?        @relation("GroupDeputyMonitor", fields: [deputyMonitorId], references: [id], onDelete: SetNull)
+  specialty          Specialty?     @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
+  academicYear       AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  curator            User?          @relation("GroupCurator", fields: [curatorId], references: [id], onDelete: SetNull)
+  classTeacher       User?          @relation("GroupClassTeacher", fields: [classTeacherId], references: [id], onDelete: SetNull)
+  monitor            User?          @relation("GroupMonitor", fields: [monitorId], references: [id], onDelete: SetNull)
+  deputyMonitor      User?          @relation("GroupDeputyMonitor", fields: [deputyMonitorId], references: [id], onDelete: SetNull)
 
   students           GroupStudent[]
+  additionalTeachers GroupTeacher[]
   groupSubjects      GroupSubject[]
   dutySchedules      DutySchedule[]
   announcements      Announcement[]
   scholarshipRecords ScholarshipRecord[]
 
   @@map("groups")
+}
+
+model GroupTeacher {
+  groupId    String
+  teacherId  String
+  assignedAt DateTime @default(now())
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher User  @relation("GroupAdditionalTeachers", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, teacherId])
+  @@map("group_teachers")
 }
 
 model GroupStudent {

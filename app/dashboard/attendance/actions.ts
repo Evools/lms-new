@@ -79,7 +79,7 @@ export async function getAttendanceDataAction(
       });
       groupWhereClause = { id: { in: enrollments.map((e) => e.groupId) } };
     } else if (role === "TEACHER" && currentUserId) {
-      // Teacher sees groups where they teach a subject OR where they are the curator (master)
+      // Teacher sees groups where they teach a subject OR where they are curator, class teacher, or additional teacher
       const taughtGroupSubjects = await prisma.groupSubject.findMany({
         where: { teacherId: currentUserId },
         select: { groupId: true },
@@ -90,13 +90,21 @@ export async function getAttendanceDataAction(
         OR: [
           { id: { in: taughtGroupIds } },
           { curatorId: currentUserId },
+          { classTeacherId: currentUserId },
+          { additionalTeachers: { some: { teacherId: currentUserId } } },
         ],
       };
     }
 
     const groups = await prisma.group.findMany({
       where: groupWhereClause,
-      select: { id: true, name: true, curatorId: true },
+      select: {
+        id: true,
+        name: true,
+        curatorId: true,
+        classTeacherId: true,
+        additionalTeachers: { select: { teacherId: true } },
+      },
       orderBy: { name: "asc" },
     });
 
@@ -117,10 +125,14 @@ export async function getAttendanceDataAction(
     }
 
     // 2. Fetch subjects and group students in parallel
-    const isCuratorOfSelectedGroup = selectedGroupObj?.curatorId === currentUserId;
+    const isLeaderOfSelectedGroup =
+      selectedGroupObj?.curatorId === currentUserId ||
+      selectedGroupObj?.classTeacherId === currentUserId ||
+      Boolean(selectedGroupObj?.additionalTeachers?.some((at) => at.teacherId === currentUserId));
+
     let subjectWhereClause: Record<string, unknown> = { groupId: selectedGroup };
 
-    if (role === "TEACHER" && currentUserId && !isCuratorOfSelectedGroup) {
+    if (role === "TEACHER" && currentUserId && !isLeaderOfSelectedGroup) {
       subjectWhereClause.teacherId = currentUserId;
     }
 
@@ -261,13 +273,26 @@ async function checkEditPermission(groupSubjectId: string) {
     where: { id: groupSubjectId },
     select: {
       teacherId: true,
-      group: { select: { curatorId: true, monitorId: true, deputyMonitorId: true } },
+      group: {
+        select: {
+          curatorId: true,
+          classTeacherId: true,
+          additionalTeachers: { select: { teacherId: true } },
+          monitorId: true,
+          deputyMonitorId: true,
+        },
+      },
     },
   });
   if (!gs) return false;
 
   if (session.user.role === "TEACHER") {
-    return gs.teacherId === session.user.id || gs.group.curatorId === session.user.id;
+    return (
+      gs.teacherId === session.user.id ||
+      gs.group.curatorId === session.user.id ||
+      gs.group.classTeacherId === session.user.id ||
+      gs.group.additionalTeachers.some((at) => at.teacherId === session.user.id)
+    );
   }
 
   // Check if current user is the monitor or deputy monitor of this group

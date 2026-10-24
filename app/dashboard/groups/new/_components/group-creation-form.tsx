@@ -44,6 +44,7 @@ import {
   FolderPlus,
   BookOpen,
   Plus,
+  X,
 } from "lucide-react";
 import { createGroupAction } from "../../actions";
 import { createSpecialtyAction } from "@/app/dashboard/specialties/actions";
@@ -91,6 +92,8 @@ export function GroupCreationForm({
     specialtiesList[0]?.id || "unassigned"
   );
   const [curatorId, setCuratorId] = useState<string>("unassigned");
+  const [classTeacherId, setClassTeacherId] = useState<string>("unassigned");
+  const [additionalTeacherIds, setAdditionalTeacherIds] = useState<string[]>([]);
   const [academicYear, setAcademicYear] = useState(defaultYear);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,6 +109,19 @@ export function GroupCreationForm({
   const [isQuickSaving, setIsQuickSaving] = useState(false);
 
   const selectedCurator = teachersList.find((t) => t.id === curatorId);
+  const selectedClassTeacher = teachersList.find((t) => t.id === classTeacherId);
+  const selectedAdditionalTeachers = teachersList.filter((t) => additionalTeacherIds.includes(t.id));
+
+  const handleAddAdditionalTeacher = (teacherId: string) => {
+    if (!teacherId || teacherId === "none" || teacherId === "unassigned") return;
+    if (!additionalTeacherIds.includes(teacherId)) {
+      setAdditionalTeacherIds((prev) => [...prev, teacherId]);
+    }
+  };
+
+  const handleRemoveAdditionalTeacher = (teacherId: string) => {
+    setAdditionalTeacherIds((prev) => prev.filter((id) => id !== teacherId));
+  };
   const selectedSpecialty = specialties.find((s) => s.id === specialtyId);
 
   const handleQuickAddSpecialty = async (e: React.FormEvent) => {
@@ -156,6 +172,8 @@ export function GroupCreationForm({
       name: groupName.trim(),
       course: parseInt(course, 10) || 1,
       curatorId: !curatorId || curatorId === "unassigned" || curatorId === "none" ? undefined : curatorId,
+      classTeacherId: !classTeacherId || classTeacherId === "unassigned" || classTeacherId === "none" ? undefined : classTeacherId,
+      additionalTeacherIds: additionalTeacherIds,
       specialtyId: !specialtyId || specialtyId === "unassigned" ? undefined : specialtyId,
       academicYearName: academicYear,
     });
@@ -345,34 +363,121 @@ export function GroupCreationForm({
               </CardContent>
             </Card>
 
-            {/* Section 2: Curator Assignment */}
+            {/* Section 2: Pedagogical Team */}
             <Card className="border shadow-none rounded-xl">
               <CardHeader className="p-3 border-b bg-muted/20">
                 <CardTitle className="text-xs font-semibold flex items-center gap-2">
-                  <UserCheck className="h-4 w-4 text-primary" /> Курирование группы
+                  <UserCheck className="h-4 w-4 text-primary" /> Педагогическое руководство
                 </CardTitle>
                 <CardDescription className="text-[11px]">
-                  Назначение классного руководителя / куратора из преподавательского состава
+                  Назначение куратора, классного руководителя и дополнительных преподавателей группы
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-foreground">Куратор группы</Label>
-                  <Select value={curatorId} onValueChange={setCuratorId}>
+              <CardContent className="p-3 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Curator */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-foreground">Куратор группы</Label>
+                    <Select value={curatorId} onValueChange={setCuratorId}>
+                      <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                        <SelectValue>
+                          {selectedCurator ? `${selectedCurator.name}` : "Не назначен"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned" className="text-xs">Не назначен</SelectItem>
+                        {teachersList.map((teacher) => (
+                          <SelectItem key={teacher.id} value={teacher.id} className="text-xs">
+                            {teacher.name} ({teacher.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Class Teacher */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-foreground">Классный руководитель</Label>
+                    <Select value={classTeacherId} onValueChange={setClassTeacherId}>
+                      <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                        <SelectValue>
+                          {selectedClassTeacher ? `${selectedClassTeacher.name}` : "Не назначен"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned" className="text-xs">Не назначен</SelectItem>
+                        {teachersList.map((teacher) => (
+                          <SelectItem key={teacher.id} value={teacher.id} className="text-xs">
+                            {teacher.name} ({teacher.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Additional Teachers */}
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs font-semibold text-foreground">
+                        Дополнительные преподаватели группы
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground">
+                        Ассистенты, сокураторы или педагоги общего состава группы
+                      </p>
+                    </div>
+                    {selectedAdditionalTeachers.length > 0 && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                        {selectedAdditionalTeachers.length} выбрано
+                      </Badge>
+                    )}
+                  </div>
+
+                  <Select value="placeholder" onValueChange={handleAddAdditionalTeacher}>
                     <SelectTrigger className="h-8 text-xs bg-background font-medium">
                       <SelectValue>
-                        {selectedCurator ? `${selectedCurator.name} (${selectedCurator.email})` : "Не назначен"}
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Plus className="h-3 w-3" /> Добавить преподавателя в группу...
+                        </span>
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="unassigned" className="text-xs">Не назначен</SelectItem>
-                      {teachersList.map((teacher) => (
-                        <SelectItem key={teacher.id} value={teacher.id} className="text-xs">
-                          {teacher.name} ({teacher.email})
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="placeholder" disabled className="text-xs">
+                        Выберите преподавателя для добавления
+                      </SelectItem>
+                      {teachersList
+                        .filter((t) => !additionalTeacherIds.includes(t.id))
+                        .map((teacher) => (
+                          <SelectItem key={teacher.id} value={teacher.id} className="text-xs">
+                            {teacher.name} ({teacher.email})
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
+
+                  {/* Selected Teachers Chips */}
+                  {selectedAdditionalTeachers.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {selectedAdditionalTeachers.map((teacher) => (
+                        <div
+                          key={teacher.id}
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/60 border text-[11px] text-foreground font-medium"
+                        >
+                          <GraduationCap className="h-3 w-3 text-primary shrink-0" />
+                          <span>{teacher.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAdditionalTeacher(teacher.id)}
+                            className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                            title="Удалить из группы"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -446,6 +551,28 @@ export function GroupCreationForm({
                     {selectedCurator ? selectedCurator.name : "Не назначен"}
                   </span>
                 </div>
+
+                {selectedClassTeacher && (
+                  <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <UserCheck className="h-3.5 w-3.5 text-primary" /> Классный рук.:
+                    </span>
+                    <span className="font-semibold text-foreground truncate max-w-[120px]">
+                      {selectedClassTeacher.name}
+                    </span>
+                  </div>
+                )}
+
+                {selectedAdditionalTeachers.length > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <GraduationCap className="h-3.5 w-3.5 text-primary" /> Доп. преп.:
+                    </span>
+                    <span className="font-medium text-foreground">
+                      {selectedAdditionalTeachers.length} чел.
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                   <span className="flex items-center gap-1.5">

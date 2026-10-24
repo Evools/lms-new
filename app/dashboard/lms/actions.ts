@@ -127,6 +127,8 @@ async function getAccessibleLmsGroups(
     groupWhere = {
       OR: [
         { curatorId: userId },
+        { classTeacherId: userId },
+        { additionalTeachers: { some: { teacherId: userId } } },
         { groupSubjects: { some: { teacherId: userId } } },
       ],
     };
@@ -154,10 +156,17 @@ async function getAccessibleLmsGroups(
   let groupSubjectWhere: Record<string, unknown> = { groupId: selectedGroupId };
 
   if (role === "TEACHER" && userId && selectedGroupId) {
-    const isCurator = await prisma.group.count({
-      where: { id: selectedGroupId, curatorId: userId },
+    const isLeader = await prisma.group.count({
+      where: {
+        id: selectedGroupId,
+        OR: [
+          { curatorId: userId },
+          { classTeacherId: userId },
+          { additionalTeachers: { some: { teacherId: userId } } },
+        ],
+      },
     });
-    if (!isCurator) {
+    if (!isLeader) {
       groupSubjectWhere.teacherId = userId;
     }
   }
@@ -2167,6 +2176,8 @@ export async function getAvailableGroupsForCopyAction(): Promise<{
       groupWhere = {
         OR: [
           { curatorId: userId },
+          { classTeacherId: userId },
+          { additionalTeachers: { some: { teacherId: userId } } },
           { groupSubjects: { some: { teacherId: userId } } },
         ],
       };

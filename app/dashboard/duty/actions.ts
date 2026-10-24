@@ -131,6 +131,8 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       groupWhere = {
         OR: [
           { curatorId: userId },
+          { classTeacherId: userId },
+          { additionalTeachers: { some: { teacherId: userId } } },
           { groupSubjects: { some: { teacherId: userId } } },
         ],
       };
