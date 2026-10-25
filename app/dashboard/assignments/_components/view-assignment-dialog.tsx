@@ -12,10 +12,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, ExternalLink, EyeOff, FileCheck, Paperclip, Pencil, Send } from "lucide-react";
+import { Clock, ExternalLink, EyeOff, FileCheck, Paperclip, Pencil, Send, Download } from "lucide-react";
 import { AssignmentDTO } from "../actions";
 import { renderMarkdown } from "@/lib/markdown";
 import { parseAttachmentLinks } from "./submission-utils";
+import { getResourceMeta } from "@/lib/resource-utils";
 
 interface ViewAssignmentDialogProps {
   assignment: AssignmentDTO | null;
@@ -99,18 +100,45 @@ export function ViewAssignmentDialog({
                   <Paperclip className="h-3.5 w-3.5 text-primary" /> Прикреплённые ресурсы:
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  {attachments.map((url, idx) => (
-                    <a
-                      key={idx}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-mono bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20 transition-colors truncate"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{url}</span>
-                    </a>
-                  ))}
+                  {attachments.map((url, idx) => {
+                    const meta = getResourceMeta(url);
+                    return (
+                      <a
+                        key={idx}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between gap-2 p-2 rounded-lg border bg-background hover:bg-muted/40 transition-colors text-xs group"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="p-1.5 rounded-md bg-muted text-primary shrink-0 group-hover:bg-primary/10 transition-colors">
+                            {meta.icon}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-semibold text-foreground text-xs truncate" title={meta.title}>
+                                {meta.title}
+                              </span>
+                              <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                                {meta.badge}
+                              </Badge>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground truncate" title={meta.subtitle}>
+                              {meta.subtitle}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-1 text-muted-foreground group-hover:text-primary transition-colors shrink-0">
+                          {meta.isDownloadable ? (
+                            <Download className="h-3.5 w-3.5" />
+                          ) : (
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          )}
+                        </div>
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             )}

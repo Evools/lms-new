@@ -53,6 +53,7 @@ import {
 import { parseAttachmentLinks } from "@/app/dashboard/assignments/_components/submission-utils";
 import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
+import { FileUploadZone } from "@/components/file-upload-zone";
 
 export interface GroupOptionDTO {
   id: string;
@@ -849,6 +850,16 @@ export function EditAssignmentView({
                 <PlusCircle className="h-3 w-3" /> Ссылка
               </Button>
             </div>
+
+            <FileUploadZone
+              folder="assignments"
+              onUploadSuccess={(meta) => {
+                setAttachmentUrls((prev) => [...prev.filter(Boolean), meta.url]);
+              }}
+              maxSizeMb={100}
+              label="Прикрепить файл к заданию"
+              description="Методичка PDF, Word, архив с заготовкой кода ZIP"
+            />
 
             <div className="space-y-2">
               {attachmentUrls.map((url, idx) => (

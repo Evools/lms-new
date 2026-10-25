@@ -28,9 +28,11 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from "lucide-react";
 import { AssignmentDTO, SubmissionDTO, reviewSubmissionAction } from "../actions";
 import { SubmissionContentDisplay } from "./submission-content-display";
+import { getResourceMeta } from "@/lib/resource-utils";
 
 interface TeacherReviewDialogProps {
   assignment: AssignmentDTO | null;
@@ -463,34 +465,60 @@ export function TeacherReviewDialog({
                         </Badge>
                       </div>
 
-                      {/* Submitted Link Box */}
-                      {activeSub.fileUrl && (
-                        <div className="p-2.5 rounded-xl border bg-muted/30 space-y-1.5">
-                          <div className="text-[10px] font-semibold text-muted-foreground flex items-center justify-between">
-                            <span>Прикрепленная ссылка студента:</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyUrl(activeSub.fileUrl || "")}
-                              className="text-primary hover:underline text-[10px] flex items-center gap-1 cursor-pointer"
-                            >
-                              <Copy className="h-3 w-3" />{" "}
-                              {copiedUrl ? "Скопировано!" : "Скопировать"}
-                            </button>
-                          </div>
+                      {/* Submitted Link / File Box */}
+                      {activeSub.fileUrl && (() => {
+                        const meta = getResourceMeta(activeSub.fileUrl);
+                        return (
+                          <div className="p-2.5 rounded-xl border bg-muted/30 space-y-1.5">
+                            <div className="text-[10px] font-semibold text-muted-foreground flex items-center justify-between">
+                              <span>Прикрепленное решение студента:</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyUrl(activeSub.fileUrl || "")}
+                                className="text-primary hover:underline text-[10px] flex items-center gap-1 cursor-pointer"
+                              >
+                                <Copy className="h-3 w-3" />{" "}
+                                {copiedUrl ? "Скопировано!" : "Скопировать"}
+                              </button>
+                            </div>
 
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={activeSub.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-xs text-primary font-mono bg-background hover:bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/30 font-bold transition-all truncate flex-1 shadow-xs"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="truncate">{activeSub.fileUrl}</span>
-                            </a>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={activeSub.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-between gap-2 text-xs bg-background hover:bg-muted/40 p-2 rounded-lg border border-border transition-all flex-1 min-w-0"
+                              >
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <div className="p-1 rounded-md bg-muted text-primary shrink-0">
+                                    {meta.icon}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="font-semibold text-foreground text-xs truncate" title={meta.title}>
+                                        {meta.title}
+                                      </span>
+                                      <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                                        {meta.badge}
+                                      </Badge>
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground truncate" title={meta.subtitle}>
+                                      {meta.subtitle}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="p-1 text-primary shrink-0">
+                                  {meta.isDownloadable ? (
+                                    <Download className="h-4 w-4" />
+                                  ) : (
+                                    <ExternalLink className="h-4 w-4" />
+                                  )}
+                                </div>
+                              </a>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Multi-File Code / Solution Display */}
                       <SubmissionContentDisplay submission={activeSub} />
@@ -737,22 +765,46 @@ export function TeacherReviewDialog({
 
                 {/* Submitted Link & Code Solution */}
                 <div className="space-y-2 text-xs">
-                  {sub.fileUrl && (
-                    <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/20 border">
-                      <span className="text-[10px] text-muted-foreground font-medium">
-                        Ссылка на решение:
-                      </span>
-                      <a
-                        href={sub.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px] truncate max-w-[320px]"
-                      >
-                        <ExternalLink className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{sub.fileUrl}</span>
-                      </a>
-                    </div>
-                  )}
+                  {sub.fileUrl && (() => {
+                    const meta = getResourceMeta(sub.fileUrl);
+                    return (
+                      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/20 border">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="p-1 rounded-md bg-muted text-primary shrink-0">
+                            {meta.icon}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-semibold text-foreground text-xs truncate" title={meta.title}>
+                                {meta.title}
+                              </span>
+                              <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                                {meta.badge}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <a
+                          href={sub.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-primary hover:underline text-xs shrink-0 font-medium"
+                        >
+                          {meta.isDownloadable ? (
+                            <>
+                              <Download className="h-3.5 w-3.5" />
+                              <span>Скачать</span>
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              <span>Открыть</span>
+                            </>
+                          )}
+                        </a>
+                      </div>
+                    );
+                  })()}
 
                   <SubmissionContentDisplay submission={sub} />
                 </div>

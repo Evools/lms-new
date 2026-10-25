@@ -69,8 +69,8 @@ import {
   Clock,
   GripVertical,
   ArrowUp,
-  ArrowDown,
   Share2,
+  Download,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -109,97 +109,8 @@ export interface UserMaterialProgress {
   updatedAt: number;
 }
 
-function getResourceMeta(rawUrl: string) {
-  const url = rawUrl.trim();
-  let domain = "";
-  let pathname = "";
-  try {
-    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
-    domain = parsed.hostname.replace(/^www\./, "");
-    pathname = decodeURIComponent(parsed.pathname);
-  } catch {
-    domain = url.split("/")[0] || url;
-  }
+import { getResourceMeta } from "@/lib/resource-utils";
 
-  const lowerUrl = url.toLowerCase();
-
-  if (lowerUrl.includes("github.com") || lowerUrl.includes("gitlab.com")) {
-    return {
-      type: "Репозиторий",
-      badge: "GitHub / Git",
-      icon: <Code2 className="h-4 w-4 text-primary" />,
-      title: pathname.length > 1 ? pathname.replace(/^\//, "") : domain,
-      subtitle: domain,
-      url,
-    };
-  }
-
-  if (lowerUrl.includes("figma.com")) {
-    return {
-      type: "Дизайн-макет",
-      badge: "Figma",
-      icon: <Layers className="h-4 w-4 text-primary" />,
-      title: pathname.length > 1 ? pathname.split("/").filter(Boolean).pop() || "Figma Проект" : "Figma Design",
-      subtitle: domain,
-      url,
-    };
-  }
-
-  if (lowerUrl.includes("drive.google.com") || lowerUrl.includes("docs.google.com")) {
-    return {
-      type: "Облачные документы",
-      badge: "Google Диск",
-      icon: <FileText className="h-4 w-4 text-primary" />,
-      title: "Google Документ / Диск",
-      subtitle: domain,
-      url,
-    };
-  }
-
-  if (lowerUrl.includes("t.me") || lowerUrl.includes("telegram.me")) {
-    return {
-      type: "Мессенджер",
-      badge: "Telegram",
-      icon: <Send className="h-4 w-4 text-primary" />,
-      title: pathname.length > 1 ? `@${pathname.replace(/^\//, "")}` : "Telegram",
-      subtitle: domain,
-      url,
-    };
-  }
-
-  if (lowerUrl.endsWith(".pdf")) {
-    const filename = pathname.split("/").pop() || "PDF Документ";
-    return {
-      type: "Документ",
-      badge: "PDF",
-      icon: <FileText className="h-4 w-4 text-primary" />,
-      title: filename,
-      subtitle: domain,
-      url,
-    };
-  }
-
-  if (lowerUrl.endsWith(".zip") || lowerUrl.endsWith(".rar") || lowerUrl.endsWith(".tar") || lowerUrl.endsWith(".7z")) {
-    const filename = pathname.split("/").pop() || "Архив файлов";
-    return {
-      type: "Архив",
-      badge: "ZIP / Архив",
-      icon: <FolderArchive className="h-4 w-4 text-primary" />,
-      title: filename,
-      subtitle: domain,
-      url,
-    };
-  }
-
-  return {
-    type: "Веб-ресурс",
-    badge: domain,
-    icon: <Globe className="h-4 w-4 text-primary" />,
-    title: pathname.length > 1 && pathname !== "/" ? pathname.replace(/^\//, "") : domain,
-    subtitle: domain,
-    url,
-  };
-}
 
 const getGroupStorageKey = (userId: string, groupId: string) => `lms_materials_last_pos_${userId}_${groupId}`;
 const getSubjectStorageKey = (userId: string, subjectId: string) => `lms_materials_subj_pos_${userId}_${subjectId}`;
@@ -1864,15 +1775,18 @@ export function MaterialsView({
                               {meta.icon}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-foreground text-xs truncate max-w-[170px] sm:max-w-[130px] md:max-w-[150px] lg:max-w-[190px]">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span
+                                  className="font-semibold text-foreground text-xs truncate flex-1 min-w-0"
+                                  title={meta.title}
+                                >
                                   {meta.title}
                                 </span>
-                                <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                                <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal shrink-0">
                                   {meta.badge}
                                 </Badge>
                               </div>
-                              <div className="text-[10px] text-muted-foreground truncate font-mono">
+                              <div className="text-[10px] text-muted-foreground truncate" title={meta.subtitle}>
                                 {meta.subtitle}
                               </div>
                             </div>
@@ -1888,6 +1802,7 @@ export function MaterialsView({
                               onClick={() => {
                                 navigator.clipboard.writeText(url);
                                 setCopiedResourceUrl(url);
+                                toast.add({ title: "Ссылка скопирована", type: "success" });
                                 setTimeout(() => setCopiedResourceUrl(null), 2000);
                               }}
                             >
@@ -1898,9 +1813,13 @@ export function MaterialsView({
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center justify-center h-6 w-6 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                              title="Открыть в новой вкладке"
+                              title={meta.isDownloadable ? "Скачать / Открыть файл" : "Открыть в новой вкладке"}
                             >
-                              <ExternalLink className="h-3.5 w-3.5" />
+                              {meta.isDownloadable ? (
+                                <Download className="h-3.5 w-3.5" />
+                              ) : (
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              )}
                             </a>
                           </div>
                         </div>

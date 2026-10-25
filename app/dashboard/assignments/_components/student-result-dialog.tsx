@@ -12,9 +12,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Check, ExternalLink, RotateCcw, Send, Star, Timer } from "lucide-react";
+import { Check, ExternalLink, RotateCcw, Send, Star, Timer, Download } from "lucide-react";
 import { AssignmentDTO } from "../actions";
 import { SubmissionContentDisplay } from "./submission-content-display";
+import { getResourceMeta } from "@/lib/resource-utils";
 
 interface StudentResultDialogProps {
   assignment: AssignmentDTO | null;
@@ -100,22 +101,46 @@ export function StudentResultDialog({
 
               {/* Student submission details */}
               <div className="border-t pt-2 space-y-2">
-                {mySub.fileUrl && (
-                  <div className="p-2 rounded-lg bg-muted/20 border flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      Ссылка на проект:
-                    </span>
-                    <a
-                      href={mySub.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-mono truncate max-w-[320px]"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{mySub.fileUrl}</span>
-                    </a>
-                  </div>
-                )}
+                {mySub.fileUrl && (() => {
+                  const meta = getResourceMeta(mySub.fileUrl);
+                  return (
+                    <div className="p-2 rounded-lg bg-muted/20 border flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="p-1 rounded-md bg-muted text-primary shrink-0">
+                          {meta.icon}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-semibold text-foreground text-xs truncate" title={meta.title}>
+                              {meta.title}
+                            </span>
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                              {meta.badge}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <a
+                        href={mySub.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline text-xs shrink-0 font-medium"
+                      >
+                        {meta.isDownloadable ? (
+                          <>
+                            <Download className="h-3.5 w-3.5" />
+                            <span>Скачать</span>
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            <span>Открыть</span>
+                          </>
+                        )}
+                      </a>
+                    </div>
+                  );
+                })()}
                 <SubmissionContentDisplay submission={mySub} />
               </div>
             </div>

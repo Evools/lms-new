@@ -20,9 +20,11 @@ import {
   Clock,
   Send,
   RotateCcw,
+  UploadCloud,
 } from "lucide-react";
 import { AssignmentDTO, submitAssignmentAction } from "../actions";
 import { parseSubmissionContent } from "./submission-utils";
+import { FileUploadZone } from "@/components/file-upload-zone";
 
 interface StudentSubmitDialogProps {
   assignment: AssignmentDTO | null;
@@ -133,19 +135,41 @@ export function StudentSubmitDialog({
 
         {/* Submission Form */}
         <div className="space-y-3 py-1 flex-1 min-h-0 overflow-y-auto pr-1">
+          {/* Direct File Attachment Zone */}
+          <div className="space-y-1.5">
+            <label className="font-semibold text-foreground text-xs flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <UploadCloud className="h-3.5 w-3.5 text-primary" /> Прикрепить файл с решением
+              </span>
+              <span className="text-[10px] text-muted-foreground font-normal">до 25 МБ</span>
+            </label>
+            <FileUploadZone
+              folder="submissions"
+              value={submitFileUrl.startsWith("http") && !submitFileUrl.includes("github.com") && !submitFileUrl.includes("figma.com") ? submitFileUrl : submitFileUrl.startsWith("/uploads/") ? submitFileUrl : ""}
+              onUploadSuccess={(meta) => setSubmitFileUrl(meta.url)}
+              onRemove={() => setSubmitFileUrl("")}
+              maxSizeMb={25}
+              label="Выберите файл работы"
+              description="PDF, ZIP-архив с кодом, Word или изображение"
+            />
+          </div>
+
+          <div className="relative flex py-0.5 items-center">
+            <div className="flex-grow border-t border-border"></div>
+            <span className="flex-shrink mx-2 text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">или ссылка на проект</span>
+            <div className="flex-grow border-t border-border"></div>
+          </div>
+
           <div className="space-y-1.5">
             <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-              <Link2 className="h-3.5 w-3.5 text-primary" /> Ссылка на выполненную работу (URL)
+              <Link2 className="h-3.5 w-3.5 text-primary" /> Внешняя ссылка (GitHub / Figma / Диск)
             </label>
             <Input
-              placeholder="https://github.com/username/repo или ссылка на Figma / Google Drive"
+              placeholder="https://github.com/username/repo или ссылка на Figma"
               value={submitFileUrl}
               onChange={(e) => setSubmitFileUrl(e.target.value)}
               className="h-8 text-xs bg-background font-mono"
             />
-            <p className="text-[10px] text-muted-foreground">
-              Вставьте ссылку на репозиторий GitHub, макет Figma или файл на диске
-            </p>
           </div>
 
           <div className="space-y-1.5">

@@ -36,6 +36,7 @@ import { GroupItemDTO, createMaterialAction } from "../../../actions";
 import { cn } from "@/lib/utils";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
 import { toast } from "@/components/ui/toast";
+import { FileUploadZone } from "@/components/file-upload-zone";
 
 interface CreateMaterialViewProps {
   groups: GroupItemDTO[];
@@ -372,9 +373,20 @@ export function CreateMaterialView({
                   onClick={handleAddResourceUrl}
                   className="h-7 text-[11px] gap-1 text-primary hover:text-primary"
                 >
-                  <Plus className="h-3 w-3" /> Добавить ссылку / файл
+                  <Plus className="h-3 w-3" /> Вставить URL вручную
                 </Button>
               </div>
+
+              {/* Direct R2 File Upload for Teachers */}
+              <FileUploadZone
+                folder="materials"
+                onUploadSuccess={(meta) => {
+                  setResourceUrls((prev) => [...prev, meta.url]);
+                }}
+                maxSizeMb={100}
+                label="Загрузить файл к занятию"
+                description="Презентация PPTX, конспект PDF, Word, Excel или ZIP с кодом"
+              />
 
               {resourceUrls.length > 0 ? (
                 <div className="space-y-2">
