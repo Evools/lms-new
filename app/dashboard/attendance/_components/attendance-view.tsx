@@ -42,6 +42,10 @@ import {
   Layers,
   Zap,
   Accessibility,
+  Wifi,
+  WifiOff,
+  HardDrive,
+  CloudUpload,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -69,6 +73,19 @@ interface StudentInfo {
   isMonitor: boolean;
   isDeputyMonitor?: boolean;
   isDutyExempt?: boolean;
+  email?: string;
+  rollNumber?: string | null;
+}
+
+interface OfflineQueueItem {
+  id: string;
+  groupId: string;
+  groupName: string;
+  subjectId: string;
+  subjectName: string;
+  dateStr: string;
+  batchList: { studentId: string; status: AttendanceStatus; comment: string }[];
+  savedAt: string;
 }
 
 interface AttendanceViewProps {
@@ -106,6 +123,7 @@ export function AttendanceView({
   const [currentDateStr, setCurrentDateStr] = useState<string>(dateStr);
 
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [statusFilterTab, setStatusFilterTab] = useState<FilterStatusTab>("ALL");
   const [mainViewTab, setMainViewTab] = useState<"daily" | "stats">("daily");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
@@ -115,6 +133,68 @@ export function AttendanceView({
   const [focusedStudentIndex, setFocusedStudentIndex] = useState<number | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Auto-scroll student into view on arrow/keyboard navigation
+  const studentRowRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+
+  // Auto-scroll student into view on arrow/keyboard navigation
+  useEffect(() => {
+    if (focusedStudentIndex !== null && studentRowRefs.current[focusedStudentIndex]) {
+      studentRowRefs.current[focusedStudentIndex]?.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
+  }, [focusedStudentIndex]);
+
+  // Reset focus and row refs when filters change
+  useEffect(() => {
+    setFocusedStudentIndex(null);
+    studentRowRefs.current = [];
+  }, [searchQuery, statusFilterTab, currentGroupId, currentSubjectId, currentDateStr]);
+
+  // Network connection and offline persistence state
+  const [isOnline, setIsOnline] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return navigator.onLine;
+    }
+    return true;
+  });
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
+  const [isSyncingOffline, setIsSyncingOffline] = useState<boolean>(false);
+
+  // Load offline queue and attach online/offline event listeners
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("lms_att_offline_queue");
+      if (raw) {
+        setOfflineQueue(JSON.parse(raw));
+      }
+    } catch (err) {
+      console.error("Failed to read offline queue from localStorage:", err);
+    }
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.add({ title: "Подключение к сети восстановлено", type: "info" });
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.add({
+        title: "Связь потеряна. Включен офлайн-режим (сохранение в локалку)",
+        type: "warning",
+      });
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   // Sync state when props change
   useEffect(() => {
@@ -142,6 +222,50 @@ export function AttendanceView({
     });
     return initial;
   });
+
+  // Check and restore local draft if available for this group+subject+date
+  useEffect(() => {
+    if (!currentGroupId || !currentSubjectId) return;
+    const draftKey = `lms_att_draft_${currentGroupId}_${currentSubjectId}_${currentDateStr}`;
+    try {
+      const rawDraft = localStorage.getItem(draftKey);
+      if (rawDraft) {
+        const draftObj = JSON.parse(rawDraft);
+        if (draftObj && typeof draftObj === "object" && Object.keys(draftObj).length > 0) {
+          let hasDiff = false;
+          for (const st of students) {
+            const dRec = draftObj[st.studentId];
+            const curRec = attendanceMap[st.studentId];
+            if (
+              dRec &&
+              (dRec.status !== (curRec?.status || AttendanceStatus.PRESENT) ||
+                dRec.comment !== (curRec?.comment || ""))
+            ) {
+              hasDiff = true;
+              break;
+            }
+          }
+          if (hasDiff) {
+            setRecords((prev) => ({ ...prev, ...draftObj }));
+            setHasUnsavedChanges(true);
+            toast.add({
+              title: "Восстановлен локальный черновик (несохранённые данные с устройства)",
+              type: "info",
+            });
+          }
+        }
+      }
+    } catch {}
+  }, [currentGroupId, currentSubjectId, currentDateStr, students, attendanceMap]);
+
+  // Auto-save local draft whenever records change and hasUnsavedChanges is true
+  useEffect(() => {
+    if (!currentSubjectId || !currentGroupId || !hasUnsavedChanges) return;
+    const draftKey = `lms_att_draft_${currentGroupId}_${currentSubjectId}_${currentDateStr}`;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(records));
+    } catch {}
+  }, [records, hasUnsavedChanges, currentGroupId, currentSubjectId, currentDateStr]);
 
   // Track current selected filter keys to avoid overwriting dirty/unsaved records on background re-renders
   const currentKey = `${selectedGroupId}_${selectedGroupSubjectId}_${dateStr}`;
@@ -363,6 +487,70 @@ export function AttendanceView({
     setHasUnsavedChanges(true);
   };
 
+  // Synchronization function for offline-stored attendance records
+  const syncOfflineQueue = useCallback(async () => {
+    if (isSyncingOffline) return;
+    const raw = localStorage.getItem("lms_att_offline_queue");
+    if (!raw) return;
+
+    let queue: OfflineQueueItem[] = [];
+    try {
+      queue = JSON.parse(raw);
+    } catch {
+      return;
+    }
+
+    if (queue.length === 0) return;
+
+    setIsSyncingOffline(true);
+    const remaining: OfflineQueueItem[] = [];
+    let syncedCount = 0;
+
+    for (const item of queue) {
+      try {
+        const res = await saveBatchAttendanceAction(item.subjectId, item.dateStr, item.batchList);
+        if (res.success) {
+          syncedCount++;
+          try {
+            localStorage.removeItem(`lms_att_draft_${item.groupId}_${item.subjectId}_${item.dateStr}`);
+          } catch {}
+        } else {
+          remaining.push(item);
+        }
+      } catch {
+        remaining.push(item);
+      }
+    }
+
+    try {
+      localStorage.setItem("lms_att_offline_queue", JSON.stringify(remaining));
+    } catch {}
+    setOfflineQueue(remaining);
+    setIsSyncingOffline(false);
+
+    if (syncedCount > 0) {
+      toast.add({
+        title: `Синхронизировано в БД: ${syncedCount} ${syncedCount === 1 ? "журнал" : "журналов"}!`,
+        type: "success",
+      });
+      router.refresh();
+    }
+
+    if (remaining.length > 0) {
+      toast.add({
+        title: `Не удалось синхронизировать ${remaining.length} записей. Повторим при стабильной связи.`,
+        type: "error",
+      });
+    }
+  }, [isSyncingOffline, router]);
+
+  // Auto-sync offline queue when back online
+  useEffect(() => {
+    if (isOnline && offlineQueue.length > 0 && !isSyncingOffline) {
+      syncOfflineQueue();
+    }
+  }, [isOnline, offlineQueue.length, isSyncingOffline, syncOfflineQueue]);
+
   // Reset in-memory changes back to server state
   const handleResetChanges = () => {
     const resetMap: Record<string, { status: AttendanceStatus; comment: string }> = {};
@@ -374,6 +562,9 @@ export function AttendanceView({
     });
     setRecords(resetMap);
     setHasUnsavedChanges(false);
+    try {
+      localStorage.removeItem(`lms_att_draft_${currentGroupId}_${currentSubjectId}_${currentDateStr}`);
+    } catch {}
     toast.add({ title: "Несохранённые изменения сброшены", type: "info" });
   };
 
@@ -388,7 +579,7 @@ export function AttendanceView({
     setHasUnsavedChanges(true);
   };
 
-  // Single Batch Save to DB (1 single network request)
+  // Single Batch Save to DB or Offline Storage
   const handleSaveAll = useCallback(() => {
     if (!currentSubjectId || students.length === 0) return;
 
@@ -398,16 +589,86 @@ export function AttendanceView({
       comment: records[st.studentId]?.comment || "",
     }));
 
+    // If offline (navigator.onLine === false or isOnline is false)
+    if (!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      const newItem: OfflineQueueItem = {
+        id: `${currentGroupId}_${currentSubjectId}_${currentDateStr}_${Date.now()}`,
+        groupId: currentGroupId,
+        groupName: currentGroupObj?.name || "Группа",
+        subjectId: currentSubjectId,
+        subjectName: currentSubjectObj?.subjectName || "Предмет",
+        dateStr: currentDateStr,
+        batchList,
+        savedAt: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+      };
+
+      try {
+        const raw = localStorage.getItem("lms_att_offline_queue");
+        const existing: OfflineQueueItem[] = raw ? JSON.parse(raw) : [];
+        const filtered = existing.filter(
+          (it) => !(it.groupId === currentGroupId && it.subjectId === currentSubjectId && it.dateStr === currentDateStr)
+        );
+        filtered.push(newItem);
+        localStorage.setItem("lms_att_offline_queue", JSON.stringify(filtered));
+        setOfflineQueue(filtered);
+      } catch (err) {
+        console.error("Failed to save to offline queue", err);
+      }
+
+      setHasUnsavedChanges(false);
+      toast.add({
+        title: "Сохранено в локалку! Отправится в БД сразу при появлении интернета.",
+        type: "success",
+      });
+      return;
+    }
+
+    // If online, save to server with offline fallback
     startTransition(async () => {
-      const res = await saveBatchAttendanceAction(currentSubjectId, currentDateStr, batchList);
-      if (res.success) {
+      try {
+        const res = await saveBatchAttendanceAction(currentSubjectId, currentDateStr, batchList);
+        if (res.success) {
+          setHasUnsavedChanges(false);
+          try {
+            localStorage.removeItem(`lms_att_draft_${currentGroupId}_${currentSubjectId}_${currentDateStr}`);
+          } catch {}
+          toast.add({ title: "Журнал успешно сохранен в базу данных!", type: "success" });
+        } else {
+          toast.add({ title: res.error || "Ошибка при сохранении журнала", type: "error" });
+        }
+      } catch {
+        // Network threw an exception (offline / unreachable)
+        const newItem: OfflineQueueItem = {
+          id: `${currentGroupId}_${currentSubjectId}_${currentDateStr}_${Date.now()}`,
+          groupId: currentGroupId,
+          groupName: currentGroupObj?.name || "Группа",
+          subjectId: currentSubjectId,
+          subjectName: currentSubjectObj?.subjectName || "Предмет",
+          dateStr: currentDateStr,
+          batchList,
+          savedAt: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+        };
+
+        try {
+          const raw = localStorage.getItem("lms_att_offline_queue");
+          const existing: OfflineQueueItem[] = raw ? JSON.parse(raw) : [];
+          const filtered = existing.filter(
+            (it) => !(it.groupId === currentGroupId && it.subjectId === currentSubjectId && it.dateStr === currentDateStr)
+          );
+          filtered.push(newItem);
+          localStorage.setItem("lms_att_offline_queue", JSON.stringify(filtered));
+          setOfflineQueue(filtered);
+        } catch {}
+
         setHasUnsavedChanges(false);
-        toast.add({ title: "Журнал успешно сохранен в базу данных!", type: "success" });
-      } else {
-        toast.add({ title: res.error || "Ошибка при сохранении журнала", type: "error" });
+        setIsOnline(false);
+        toast.add({
+          title: "Сбой сети! Данные сохранены в локалку и уйдут в БД при появлении связи.",
+          type: "warning",
+        });
       }
     });
-  }, [currentSubjectId, currentDateStr, students, records]);
+  }, [currentSubjectId, currentGroupId, currentGroupObj, currentSubjectObj, currentDateStr, students, records, isOnline]);
 
   // Clear / Annul attendance for this day
   const handleClearAttendance = useCallback(() => {
@@ -423,12 +684,15 @@ export function AttendanceView({
         setRecords(resetMap);
         setHasUnsavedChanges(false);
         setIsClearDialogOpen(false);
+        try {
+          localStorage.removeItem(`lms_att_draft_${currentGroupId}_${currentSubjectId}_${currentDateStr}`);
+        } catch {}
         toast.add({ title: "Посещаемость за этот день успешно аннулирована", type: "success" });
       } else {
         toast.add({ title: res.error || "Ошибка аннулирования посещаемости", type: "error" });
       }
     });
-  }, [currentSubjectId, currentDateStr, students]);
+  }, [currentSubjectId, currentDateStr, currentGroupId, students]);
 
   const handlePrint = () => window.print();
 
@@ -446,11 +710,22 @@ export function AttendanceView({
     else if (stStatus === AttendanceStatus.EXCUSED) excusedCount++;
   });
 
-  // Filtered Students by Search and Status Tab
+  // Filtered Students by Fast Search (Multi-token: name, rollNumber, email) and Status Tab
   const filteredStudents = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+
     return students.filter((st) => {
-      const matchesSearch = st.studentName.toLowerCase().includes(searchQuery.toLowerCase());
-      if (!matchesSearch) return false;
+      if (tokens.length > 0) {
+        const name = (st.studentName || "").toLowerCase();
+        const roll = (st.rollNumber || "").toLowerCase();
+        const email = (st.email || "").toLowerCase();
+
+        const matchesAllTokens = tokens.every(
+          (tok) => name.includes(tok) || roll.includes(tok) || email.includes(tok)
+        );
+        if (!matchesAllTokens) return false;
+      }
 
       const stStatus = records[st.studentId]?.status || AttendanceStatus.PRESENT;
       if (statusFilterTab === "ALL") return true;
@@ -458,7 +733,7 @@ export function AttendanceView({
     });
   }, [students, searchQuery, statusFilterTab, records]);
 
-  // Keyboard shortcuts: Ctrl+S and Roll Call mode (1, 2, 3, 4, Arrows)
+  // Keyboard shortcuts: Ctrl+S, Fast Search (/ or Ctrl+F/K), and Roll Call mode (1, 2, 3, 4, Arrows)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 1. Save shortcut Ctrl+S / Cmd+S
@@ -470,15 +745,27 @@ export function AttendanceView({
         return;
       }
 
-      // Ignore other single key shortcuts if user is typing inside an input/textarea/select
       const activeTag = document.activeElement?.tagName?.toLowerCase();
+
+      // 2. Fast Search shortcut: / or Ctrl+F / Cmd+F or Ctrl+K
+      if (
+        (e.key === "/" && activeTag !== "input" && activeTag !== "textarea") ||
+        ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "f" || e.key.toLowerCase() === "k"))
+      ) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      // Ignore other single key shortcuts if user is typing inside an input/textarea/select
       if (activeTag === "input" || activeTag === "textarea" || activeTag === "select") {
         return;
       }
 
-      if (!isAdminOrTeacher || filteredStudents.length === 0) return;
+      if (filteredStudents.length === 0) return;
 
-      // 2. Navigation: ArrowDown, ArrowUp, J, K
+      // 3. Navigation: ArrowDown, ArrowUp, J, K
       if (e.key === "ArrowDown" || e.key.toLowerCase() === "j") {
         e.preventDefault();
         setFocusedStudentIndex((prev) => {
@@ -493,8 +780,8 @@ export function AttendanceView({
         });
       }
 
-      // 3. Status hotkeys on focused student
-      if (focusedStudentIndex !== null && filteredStudents[focusedStudentIndex]) {
+      // 4. Status hotkeys on focused student (editors only)
+      if (isAdminOrTeacher && focusedStudentIndex !== null && filteredStudents[focusedStudentIndex]) {
         const targetStudent = filteredStudents[focusedStudentIndex];
         if (e.key === "1") {
           e.preventDefault();
@@ -543,7 +830,11 @@ export function AttendanceView({
   }, [students, localDutyMap, records]);
 
   return (
-    <div className="space-y-4 pb-24 text-xs font-sans">
+    <div
+      className={`flex flex-col gap-2.5 text-xs font-sans md:h-[calc(100dvh-6.5rem)] md:max-h-[calc(100dvh-6.5rem)] md:overflow-hidden ${
+        hasUnsavedChanges ? "pb-12 md:pb-0" : "pb-1 md:pb-0"
+      }`}
+    >
       {/* Printable Sheet for Daily Mode (Hidden on screen, Visible on print only in daily mode) */}
       {mainViewTab === "daily" && (
         <>
@@ -688,60 +979,194 @@ export function AttendanceView({
         </>
       )}
 
-      {/* Screen Header & Main View Mode Switcher */}
-      <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard"
-              className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Link>
-            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              <UserCheck className="h-4 w-4" />
-            </div>
-            <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
-              Электронный журнал посещаемости
-            </h1>
+      {/* 1. Sleek Top Bar (Title, Connection/Save Status, View Switcher & Action Buttons) */}
+      <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-card p-2 sm:px-3 rounded-xl border shadow-2xs shrink-0">
+        {/* Left: Navigation, Title & Status */}
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <Link
+            href="/dashboard"
+            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
+            title="Назад"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
+          <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <UserCheck className="h-3.5 w-3.5" />
+          </div>
+          <span className="text-xs sm:text-sm font-bold text-foreground">
+            Журнал посещаемости
+          </span>
+
+          {currentGroupObj && (
             <Badge
               variant="outline"
-              className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold px-2 py-0"
+              className="text-[10px] border-primary/30 text-primary bg-primary/5 font-semibold px-1.5 py-0"
             >
-              {currentGroupObj?.name || "Все группы"}
+              {currentGroupObj.name}
             </Badge>
-          </div>
-          <p className="text-[11px] text-muted-foreground pl-6 leading-tight">
-            Оперативная фиксация присутствия, интеграция с дежурствами и сводная статистика за любые периоды
-          </p>
+          )}
+
+
+          {/* Network Pill Badge (As on screenshot) */}
+          {!isOnline ? (
+            <Badge
+              variant="outline"
+              className="rounded-full bg-destructive/10 text-destructive border-destructive/30 text-xs font-normal gap-1.5 px-2.5 py-0.5 flex items-center shrink-0"
+              title="Офлайн-режим: изменения сохраняются на устройстве"
+            >
+              <WifiOff className="h-3 w-3" />
+              <span>Офлайн</span>
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="rounded-full bg-primary/10 text-primary border-primary/20 text-xs font-normal gap-1.5 px-2.5 py-0.5 flex items-center shrink-0"
+              title="Интернет-соединение активно"
+            >
+              <Wifi className="h-3 w-3 text-primary" />
+              <span>В сети</span>
+            </Badge>
+          )}
+
+          {/* Unsaved Changes Indicator (Shown only when there are modifications) */}
+          {hasUnsavedChanges && (
+            <Badge
+              variant="outline"
+              className="rounded-full bg-primary/10 text-primary border-primary/30 text-xs font-normal px-2.5 py-0.5 flex items-center shrink-0 animate-in fade-in duration-150"
+            >
+              Не сохранено
+            </Badge>
+          )}
         </div>
 
-        {/* View Switcher: Day Roll Call vs Period Stats */}
-        <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border text-xs shrink-0 self-start md:self-auto">
-          <button
-            type="button"
-            onClick={() => setMainViewTab("daily")}
-            className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
-              mainViewTab === "daily"
-                ? "bg-background text-primary border border-border shadow-xs"
-                : "border border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <CalendarIcon className="h-3.5 w-3.5" />
-            <span>Журнал на день</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMainViewTab("stats")}
-            className={`px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
-              mainViewTab === "stats"
-                ? "bg-background text-primary border border-border shadow-xs"
-                : "border border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Layers className="h-3.5 w-3.5" />
-            <span>Сводная статистика</span>
-          </button>
+        {/* Right: Quick Actions & View Switcher (Anchored to the Right) */}
+        <div className="flex items-center gap-1.5 flex-wrap self-end md:self-auto">
+          {mainViewTab === "daily" && (
+            <>
+              {offlineQueue.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={syncOfflineQueue}
+                  disabled={isSyncingOffline || !isOnline}
+                  className="h-7 text-xs gap-1 font-medium border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
+                  title="Отправить локальные записи в БД"
+                >
+                  {isSyncingOffline ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <CloudUpload className="h-3 w-3" />
+                  )}
+                  <span>Локалка ({offlineQueue.length})</span>
+                </Button>
+              )}
+
+              {isAdminOrTeacher && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={handleMarkAllPresent}
+                    disabled={isPending || students.length === 0}
+                    className="h-7 text-xs gap-1 font-medium cursor-pointer"
+                    title="Отметить всех присутствующими"
+                  >
+                    <CheckCheck className="h-3 w-3 text-primary" />
+                    <span>Все были</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="xs"
+                    onClick={handleSaveAll}
+                    disabled={isPending || !hasUnsavedChanges || students.length === 0}
+                    className={`h-7 text-xs gap-1 font-medium transition-all px-2.5 ${
+                      hasUnsavedChanges
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xs cursor-pointer border border-primary"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80 cursor-not-allowed opacity-70 border border-transparent"
+                    }`}
+                    title={
+                      !isOnline
+                        ? "Сохранить в локальное хранилище устройства"
+                        : "Сохранить изменения в базу данных (Ctrl+S)"
+                    }
+                  >
+                    {isPending ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Сохранение...</span>
+                      </>
+                    ) : !isOnline ? (
+                      <>
+                        <HardDrive className="h-3 w-3" />
+                        <span>В локалку</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-3 w-3" />
+                        <span>Сохранить</span>
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setIsClearDialogOpen(true)}
+                    disabled={isPending || students.length === 0}
+                    className="h-7 text-xs gap-1 font-medium text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20 cursor-pointer"
+                    title="Аннулировать отметки за этот день"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span className="hidden sm:inline">Сброс</span>
+                  </Button>
+                </>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={handlePrint}
+                className="h-7 text-xs gap-1 font-medium cursor-pointer"
+                title="Печать журнала"
+              >
+                <Printer className="h-3 w-3" />
+                <span className="hidden sm:inline">Печать</span>
+              </Button>
+            </>
+          )}
+
+          {/* View Mode Switcher (Always on the far right) */}
+          <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border text-xs shrink-0">
+            <button
+              type="button"
+              onClick={() => setMainViewTab("daily")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1 cursor-pointer text-xs ${
+                mainViewTab === "daily"
+                  ? "bg-background text-primary border border-border shadow-2xs"
+                  : "border border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CalendarIcon className="h-3 w-3" />
+              <span>День</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainViewTab("stats")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1 cursor-pointer text-xs ${
+                mainViewTab === "stats"
+                  ? "bg-background text-primary border border-border shadow-2xs"
+                  : "border border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Layers className="h-3 w-3" />
+              <span>Статистика</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -754,117 +1179,64 @@ export function AttendanceView({
         />
       ) : (
         <>
-          {/* Action Buttons Toolbar for Daily Mode */}
-          <div
-            className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-3 bg-card p-2.5 sm:p-3 rounded-xl border shadow-xs"
-            data-tour="attendance-actions"
-          >
-            <div className="flex items-center gap-2.5 flex-wrap min-w-0">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium pl-0.5">
-                <CalendarIcon className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span>Отметка присутствия:</span>
-                <span className="text-foreground font-semibold">
-                  {formatDisplayDate(currentDateStr)}
-                </span>
-              </div>
-              {hasUnsavedChanges ? (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] text-primary bg-primary/10 border-primary/30 font-medium px-2 py-0.5"
-                >
-                  Есть несохранённые изменения
-                </Badge>
+        {/* Offline Persistent Cache Alert Banner */}
+        {(!isOnline || offlineQueue.length > 0) && (
+          <div className="print:hidden p-2.5 rounded-xl border border-primary/20 bg-primary/5 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {!isOnline ? (
+                <div className="h-6 w-6 rounded-md bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
+                  <WifiOff className="h-3.5 w-3.5" />
+                </div>
               ) : (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] text-muted-foreground bg-muted/50 border-border font-medium px-2 py-0.5"
-                >
-                  Сохранено
-                </Badge>
+                <div className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <HardDrive className="h-3.5 w-3.5" />
+                </div>
               )}
+              <div className="leading-tight space-y-0.5 min-w-0">
+                <div className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
+                  {!isOnline ? "Офлайн-режим активен (сохранение в локалку)" : "Есть неотправленные локальные журналы"}
+                  {offlineQueue.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/30">
+                      {offlineQueue.length}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {!isOnline
+                    ? "Интернет временно недоступен. Отмечайте присутствие как обычно — кнопка «В локалку» сохранит журнал, а при появлении сети данные уйдут в БД."
+                    : "На этом устройстве есть сохранённые журналы. Нажмите «Синхронизировать», чтобы отправить их в БД."}
+                </p>
+              </div>
             </div>
-
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {isAdminOrTeacher && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    onClick={handleMarkAllPresent}
-                    disabled={isPending || students.length === 0}
-                    className="h-8 text-xs gap-1.5 font-medium cursor-pointer"
-                    title="Отметить всех присутствующими"
-                  >
-                    <CheckCheck className="h-3.5 w-3.5 text-primary" />
-                    <span>Все были</span>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    size="xs"
-                    onClick={handleSaveAll}
-                    disabled={isPending || !hasUnsavedChanges || students.length === 0}
-                    className={`h-8 text-xs gap-1.5 font-medium transition-all px-3 ${
-                      hasUnsavedChanges
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs cursor-pointer ring-2 ring-primary/20"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80 cursor-not-allowed opacity-70"
-                    }`}
-                    title="Сохранить изменения в базу данных (Ctrl+S)"
-                  >
-                    {isPending ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Сохранение...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-3.5 w-3.5" />
-                        <span>Сохранить</span>
-                        <kbd className="hidden sm:inline-block ml-0.5 px-1 py-0.2 text-[9px] font-sans font-medium rounded bg-primary-foreground/20 text-primary-foreground">
-                          Ctrl+S
-                        </kbd>
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setIsClearDialogOpen(true)}
-                    disabled={isPending || students.length === 0}
-                    className="h-8 text-xs gap-1.5 font-medium text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20 cursor-pointer"
-                    title="Аннулировать отметки за этот день"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Аннулировать</span>
-                  </Button>
-                </>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              {offlineQueue.length > 0 && isOnline && (
+                <Button
+                  type="button"
+                  size="xs"
+                  onClick={syncOfflineQueue}
+                  disabled={isSyncingOffline}
+                  className="h-6 text-xs px-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium gap-1.5 cursor-pointer shadow-2xs border border-primary"
+                >
+                  {isSyncingOffline ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <CloudUpload className="h-3 w-3" />
+                  )}
+                  <span>Синхронизировать</span>
+                </Button>
               )}
-
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={handlePrint}
-                className="h-8 text-xs gap-1.5 font-medium cursor-pointer"
-                title="Распечатать журнал"
-              >
-                <Printer className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Печать</span>
-              </Button>
             </div>
           </div>
+        )}
 
         {/* Absent Duty Alerts Banner in Attendance */}
       {absentDutyInAttendance.length > 0 && (
-        <div className="print:hidden p-3.5 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="print:hidden p-2.5 sm:p-3 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
             <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
             <span className="leading-snug">
               <strong>Внимание:</strong> {absentDutyInAttendance.length === 1 ? "Студент" : "Студенты"}{" "}
-              <strong>{absentDutyInAttendance.map((s) => s.studentName).join(", ")}</strong> назначен(ы) дежурным(и) на эту дату, но отмечен(ы) как отсутствующие.
+              <strong>{absentDutyInAttendance.map((s) => s.studentName).join(", ")}</strong> назначен(ы) дежурным(и), но отсутствует(ют).
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -881,17 +1253,17 @@ export function AttendanceView({
                     handleAutoReplaceAllDuty();
                   }
                 }}
-                className="h-7 text-xs px-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium gap-1.5 shadow-2xs cursor-pointer"
+                className="h-6 text-xs px-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium gap-1 shadow-2xs cursor-pointer border border-primary"
                 title="Автоматически заменить на первого присутствующего студента в группе"
               >
                 <Zap className="h-3 w-3" />
-                {absentDutyInAttendance.length === 1 ? "Автозамена в 1 клик" : `Автозамена всех (${absentDutyInAttendance.length})`}
+                {absentDutyInAttendance.length === 1 ? "Автозамена" : `Заменить всех (${absentDutyInAttendance.length})`}
               </Button>
             )}
             {currentGroupId && (
               <Link
                 href={`/dashboard/duty?group=${currentGroupId}`}
-                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline px-2 py-1"
+                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline px-1.5 py-0.5"
               >
                 В график ↗
               </Link>
@@ -900,15 +1272,15 @@ export function AttendanceView({
         </div>
       )}
 
-      {/* Screen Filters Bar */}
-      <div className="print:hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center" data-tour="attendance-filters">
+      {/* 2. Unified Controls Bar: Group + Subject + Date Navigator + Fast Search in ONE ROW */}
+      <div className="print:hidden bg-card p-2 rounded-xl border flex flex-col md:flex-row items-stretch md:items-center gap-2 shadow-2xs shrink-0" data-tour="attendance-filters">
         {/* Group Selector */}
-        <div className="sm:col-span-1 lg:col-span-3">
+        <div className="w-full md:w-44 shrink-0">
           <Select value={currentGroupId} onValueChange={handleGroupChange} disabled={isPending}>
             <SelectTrigger className="h-8 text-xs font-medium bg-background w-full">
               <div className="flex items-center gap-1.5 truncate">
                 <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                <SelectValue>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
+                <SelectValue>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Группа"}</SelectValue>
               </div>
               {isPending && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto shrink-0" />}
             </SelectTrigger>
@@ -920,8 +1292,54 @@ export function AttendanceView({
           </Select>
         </div>
 
+        {/* Fast Search Student Box (In the Center) */}
+        <div className="w-full md:flex-1 min-w-[200px] relative flex items-center">
+          <Search className="h-3.5 w-3.5 absolute left-2.5 text-muted-foreground pointer-events-none" />
+          <Input
+            ref={searchInputRef}
+            placeholder="Поиск (ФИО, №, email)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setSearchQuery("");
+                (e.target as HTMLElement).blur();
+              }
+            }}
+            className="h-8 text-xs pl-8 pr-12 bg-background border-border w-full"
+          />
+          <div className="absolute right-1.5 flex items-center gap-1">
+            {searchQuery ? (
+              <>
+                <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  {filteredStudents.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-muted cursor-pointer"
+                  title="Очистить (Esc)"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </>
+            ) : (
+              <kbd
+                className="hidden sm:inline-flex items-center text-[9px] font-mono text-muted-foreground bg-muted/70 px-1 py-0.5 rounded border border-border cursor-pointer"
+                title="Быстрый поиск (/ или Ctrl+F)"
+                onClick={() => searchInputRef.current?.focus()}
+              >
+                /
+              </kbd>
+            )}
+          </div>
+        </div>
+
         {/* Subject Selector */}
-        <div className="sm:col-span-1 lg:col-span-4">
+        <div className="w-full md:w-56 lg:w-64 shrink-0">
           <Select value={currentSubjectId} onValueChange={handleSubjectChange} disabled={isPending}>
             <SelectTrigger className="h-8 text-xs font-medium bg-background w-full">
               <div className="flex items-center gap-1.5 truncate">
@@ -941,62 +1359,57 @@ export function AttendanceView({
         </div>
 
         {/* Date Selector with Next/Prev Day */}
-        <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-1">
-          <Button type="button" variant="outline" size="xs" onClick={() => shiftDate(-1)} disabled={isPending} className="h-8 w-8 p-0 shrink-0 cursor-pointer" title="Предыдущий день">
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => shiftDate(-1)}
+            disabled={isPending}
+            className="h-8 w-7 p-0 shrink-0 cursor-pointer"
+            title="Предыдущий день"
+          >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <Input type="date" value={currentDateStr} onChange={(e) => handleDateChange(e.target.value)} disabled={isPending} className="h-8 text-xs bg-background font-medium flex-1 min-w-0 text-center" />
-          <Button type="button" variant="outline" size="xs" onClick={() => shiftDate(1)} disabled={isPending} className="h-8 w-8 p-0 shrink-0 cursor-pointer" title="Следующий день">
+          <Input
+            type="date"
+            value={currentDateStr}
+            onChange={(e) => handleDateChange(e.target.value)}
+            disabled={isPending}
+            className="h-8 text-xs bg-background font-medium w-32 min-w-[120px] text-center px-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => shiftDate(1)}
+            disabled={isPending}
+            className="h-8 w-7 p-0 shrink-0 cursor-pointer"
+            title="Следующий день"
+          >
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
-          <Button type="button" variant="ghost" size="xs" onClick={setDateToToday} disabled={isPending} className="h-8 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={setDateToToday}
+            disabled={isPending}
+            className="h-8 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
+          >
             Сегодня
           </Button>
         </div>
-
-        {/* Search Student Box */}
-        <div className="sm:col-span-2 lg:col-span-2 relative">
-          <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
-          <Input placeholder="Поиск учащегося..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-xs pl-8 pr-7 bg-background" />
-          {searchQuery && <button type="button" onClick={() => setSearchQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"><X className="h-3.5 w-3.5" /></button>}
-        </div>
       </div>
 
-      {/* Hotkeys Toolbar */}
-      {isAdminOrTeacher && (
-        <div className="print:hidden flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-muted/40 border text-[11px] text-muted-foreground flex-wrap">
-          <div className="flex items-center gap-1.5 font-medium text-foreground">
-            <Keyboard className="h-3.5 w-3.5 text-primary" />
-            <span>Горячие клавиши (Roll Call):</span>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap text-[10px]">
-            <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">↑/↓</kbd> выбор
-            </span>
-            <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">1</kbd> Был
-            </span>
-            <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">2</kbd> НБ
-            </span>
-            <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">3</kbd> Опоздал
-            </span>
-            <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">4</kbd> Уваж.
-            </span>
-            <span>
-              <kbd className="px-1.5 py-0.5 rounded bg-background border font-mono font-bold">Ctrl+S</kbd> Сохранить
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Attendance Table with Status Tabs Header */}
-      <Card className="relative print:hidden p-0 border overflow-hidden" data-tour="attendance-table">
+      {/* Attendance Table with Status Tabs */}
+      <Card
+        className="relative print:hidden p-0 border overflow-hidden gap-0 [--card-spacing:0] md:flex-1 md:min-h-0 flex flex-col"
+        data-tour="attendance-table"
+      >
         {/* Loading Overlay */}
         {isPending && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-[1px] transition-all">
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/50 backdrop-blur-[1px] transition-all">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
               <span>Загрузка данных...</span>
@@ -1004,75 +1417,108 @@ export function AttendanceView({
           </div>
         )}
 
-        {/* Status Filter Tabs in Card Header */}
-        <div className="p-2.5 border-b bg-muted/20 flex items-center gap-1 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setStatusFilterTab("ALL")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-              statusFilterTab === "ALL"
-                ? "bg-primary text-primary-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            Все ({totalStudents})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilterTab(AttendanceStatus.PRESENT)}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-              statusFilterTab === AttendanceStatus.PRESENT
-                ? "bg-primary text-primary-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            Присутствуют ({presentCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilterTab(AttendanceStatus.ABSENT)}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-              statusFilterTab === AttendanceStatus.ABSENT
-                ? "bg-destructive text-white shadow-2xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            Отсутствуют ({absentCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilterTab(AttendanceStatus.LATE)}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-              statusFilterTab === AttendanceStatus.LATE
-                ? "bg-amber-500 text-white shadow-2xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            Опоздали ({lateCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilterTab(AttendanceStatus.EXCUSED)}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-              statusFilterTab === AttendanceStatus.EXCUSED
-                ? "bg-sky-500 text-white shadow-2xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            Уважительные ({excusedCount})
-          </button>
+        {/* Status Filter Tabs & Hotkeys in Table Header */}
+        <div className="p-2 border-b bg-card flex items-center justify-between gap-2 overflow-x-auto shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => setStatusFilterTab("ALL")}
+              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                statusFilterTab === "ALL"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Все ({totalStudents})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilterTab(AttendanceStatus.PRESENT)}
+              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                statusFilterTab === AttendanceStatus.PRESENT
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Присутствуют ({presentCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilterTab(AttendanceStatus.ABSENT)}
+              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                statusFilterTab === AttendanceStatus.ABSENT
+                  ? "bg-destructive text-white shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Отсутствуют ({absentCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilterTab(AttendanceStatus.LATE)}
+              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                statusFilterTab === AttendanceStatus.LATE
+                  ? "bg-amber-500 text-white shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Опоздали ({lateCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilterTab(AttendanceStatus.EXCUSED)}
+              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                statusFilterTab === AttendanceStatus.EXCUSED
+                  ? "bg-sky-500 text-white shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Уважительные ({excusedCount})
+            </button>
+          </div>
+
+          {/* Clean hotkey helper on the right */}
+          {isAdminOrTeacher && (
+            <div className="hidden xl:flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0 pr-1 select-none">
+              <Keyboard className="h-3 w-3 text-primary/70" />
+              <span>
+                <kbd className="px-1 py-0.2 rounded bg-background border font-mono">↑/↓</kbd> выбор
+              </span>
+              <span>•</span>
+              <span>
+                <kbd className="px-1 py-0.2 rounded bg-background border font-mono">1</kbd> Был
+              </span>
+              <span>•</span>
+              <span>
+                <kbd className="px-1 py-0.2 rounded bg-background border font-mono">2</kbd> НБ
+              </span>
+              <span>•</span>
+              <span>
+                <kbd className="px-1 py-0.2 rounded bg-background border font-mono">3</kbd> Опоздал
+              </span>
+              <span>•</span>
+              <span>
+                <kbd className="px-1 py-0.2 rounded bg-background border font-mono">4</kbd> Уваж.
+              </span>
+              <span>•</span>
+              <span>
+                <kbd className="px-1 py-0.2 rounded bg-background border font-mono">Ctrl+S</kbd> Сохранить
+              </span>
+            </div>
+          )}
         </div>
 
-        <CardContent className="p-0">
-          <div className="divide-y text-xs">
-            {/* Desktop Table Header */}
-            <div className="hidden md:grid md:grid-cols-[36px_1fr_auto_240px] lg:grid-cols-[40px_1fr_auto_280px] items-center gap-3 px-3.5 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              <span className="text-center">№</span>
-              <span>Студент</span>
-              <span className="text-center">Статус</span>
-              <span>Примечание</span>
-            </div>
+        {/* Desktop Table Header */}
+        <div className="hidden md:grid md:grid-cols-[36px_1fr_auto_240px] lg:grid-cols-[40px_1fr_auto_280px] items-center gap-3 px-3.5 py-2 bg-muted/50 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+          <span className="text-center">№</span>
+          <span>Студент</span>
+          <span className="text-center">Статус</span>
+          <span>Примечание</span>
+        </div>
 
+        {/* Students Container */}
+        <CardContent className="p-0 md:flex-1 md:min-h-0 md:overflow-y-auto overscroll-contain">
+          <div className={`divide-y text-xs ${hasUnsavedChanges ? "pb-14 md:pb-16" : ""}`}>
             {filteredStudents.map((st, idx) => {
               const rec = records[st.studentId] || { status: AttendanceStatus.PRESENT, comment: "" };
               const dutyInfo = localDutyMap[st.studentId];
@@ -1084,21 +1530,24 @@ export function AttendanceView({
 
               const borderAccentColor =
                 rec.status === AttendanceStatus.ABSENT
-                  ? "border-l-4 border-l-destructive bg-destructive/5"
+                  ? "border-l border-l-destructive bg-destructive/5"
                   : rec.status === AttendanceStatus.LATE
-                  ? "border-l-4 border-l-amber-500 bg-amber-500/5"
+                  ? "border-l border-l-amber-500 bg-amber-500/5"
                   : rec.status === AttendanceStatus.EXCUSED
-                  ? "border-l-4 border-l-sky-500 bg-sky-500/5"
-                  : "border-l-4 border-l-primary/40 hover:bg-muted/20";
+                  ? "border-l border-l-sky-500 bg-sky-500/5"
+                  : "border-l border-l-border hover:bg-muted/20";
 
               const isFocused = focusedStudentIndex === idx;
 
               return (
                 <div
                   key={st.studentId}
+                  ref={(el) => {
+                    studentRowRefs.current[idx] = el;
+                  }}
                   onClick={() => setFocusedStudentIndex(idx)}
                   className={`transition-all outline-none ${borderAccentColor} ${
-                    isFocused ? "ring-2 ring-primary/80 ring-inset bg-primary/5 shadow-2xs" : ""
+                    isFocused ? "bg-primary/10 border-l-primary" : ""
                   }`}
                 >
                   {/* DESKTOP ROW (md and up) */}
@@ -1111,6 +1560,15 @@ export function AttendanceView({
                         </AvatarFallback>
                       </Avatar>
                       <span className="truncate text-foreground text-xs">{st.studentName}</span>
+                      {st.rollNumber && (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] py-0 px-1.5 h-3.5 font-mono text-muted-foreground border-border shrink-0"
+                          title={`Номер в журнале: ${st.rollNumber}`}
+                        >
+                          №{st.rollNumber}
+                        </Badge>
+                      )}
                       {st.isMonitor && (
                         <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
                           <Crown className="h-2.5 w-2.5" /> Староста
@@ -1301,6 +1759,14 @@ export function AttendanceView({
                             <span className="font-semibold text-foreground text-xs leading-snug break-words">
                               {st.studentName}
                             </span>
+                            {st.rollNumber && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] py-0 px-1.5 h-3.5 font-mono text-muted-foreground border-border shrink-0"
+                              >
+                                №{st.rollNumber}
+                              </Badge>
+                            )}
                             {st.isMonitor && (
                               <Badge variant="outline" className="text-[9px] py-0 px-1 h-3.5 gap-0.5 border-primary/30 text-primary font-medium shrink-0">
                                 <Crown className="h-2.5 w-2.5" /> Староста
@@ -1481,8 +1947,33 @@ export function AttendanceView({
             })}
 
             {filteredStudents.length === 0 && (
-              <div className="py-8 text-center text-muted-foreground text-xs">
-                Учащиеся не найдены
+              <div className="py-12 flex flex-col items-center justify-center text-center space-y-2.5 px-4">
+                <div className="h-9 w-9 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground border">
+                  <Search className="h-4 w-4" />
+                </div>
+                <div className="text-xs font-semibold text-foreground">
+                  {searchQuery ? `По запросу «${searchQuery}» никто не найден` : "Учащиеся не найдены"}
+                </div>
+                <p className="text-[11px] text-muted-foreground max-w-xs leading-relaxed">
+                  {searchQuery
+                    ? "Проверьте правильность написания ФИО, номера студента или email. Также проверьте выбранный фильтр статуса."
+                    : "В выбранной группе отсутствуют студенты на эту дату."}
+                </p>
+                {searchQuery && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => {
+                      setSearchQuery("");
+                      searchInputRef.current?.focus();
+                    }}
+                    className="h-7 text-xs px-2.5 mt-1 border-border font-medium cursor-pointer"
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Сбросить поиск
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -1526,13 +2017,18 @@ export function AttendanceView({
               size="xs"
               onClick={handleSaveAll}
               disabled={isPending}
-              className="h-6 sm:h-7 px-2.5 sm:px-3 text-[11px] sm:text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-full shadow-xs gap-1 sm:gap-1.5 cursor-pointer ring-2 ring-primary/20 shrink-0 whitespace-nowrap"
-              title="Сохранить в базу данных (Ctrl+S)"
+              className="h-6 sm:h-7 px-2.5 sm:px-3 text-[11px] sm:text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-full shadow-2xs gap-1 sm:gap-1.5 cursor-pointer border border-primary shrink-0 whitespace-nowrap"
+              title={!isOnline ? "Сохранить в локалку" : "Сохранить в базу данных (Ctrl+S)"}
             >
               {isPending ? (
                 <>
                   <Loader2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin" />
                   <span>Сохранение...</span>
+                </>
+              ) : !isOnline ? (
+                <>
+                  <HardDrive className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span>В локалку</span>
                 </>
               ) : (
                 <>

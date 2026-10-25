@@ -152,7 +152,7 @@ export async function getAttendanceDataAction(
           deputyMonitor: { select: { id: true } },
           students: {
             include: {
-              student: { select: { id: true, name: true, isDutyExempt: true } },
+              student: { select: { id: true, name: true, email: true, rollNumber: true, isDutyExempt: true } },
             },
             orderBy: { student: { name: "asc" } },
           },
@@ -178,6 +178,8 @@ export async function getAttendanceDataAction(
     const students = (group?.students || []).map((gs) => ({
       studentId: gs.student.id,
       studentName: gs.student.name,
+      email: gs.student.email,
+      rollNumber: gs.student.rollNumber || null,
       isMonitor: group?.monitor?.id === gs.student.id,
       isDeputyMonitor: group?.deputyMonitor?.id === gs.student.id,
       isDutyExempt: gs.student.isDutyExempt,
