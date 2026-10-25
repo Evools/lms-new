@@ -90,10 +90,16 @@ export function validateUploadFile(
   return { valid: true, safeName };
 }
 
+let cachedR2: { client: S3Client; bucket: string; publicUrl: string } | null = null;
+
 /**
- * Initialize Cloudflare R2 S3 Client
+ * Initialize and cache Cloudflare R2 S3 Client
  */
 export function getR2Client(): { client: S3Client; bucket: string; publicUrl: string } | null {
+  if (cachedR2) {
+    return cachedR2;
+  }
+
   const accountId = process.env.R2_ACCOUNT_ID;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
@@ -113,7 +119,8 @@ export function getR2Client(): { client: S3Client; bucket: string; publicUrl: st
     },
   });
 
-  return { client, bucket, publicUrl };
+  cachedR2 = { client, bucket, publicUrl };
+  return cachedR2;
 }
 
 /**
