@@ -165,6 +165,7 @@ export function CreateMaterialView({
 
   // Interactive Project Embed URL (GitHub Pages, Vercel, CodePen, etc.)
   const [embedUrl, setEmbedUrl] = useState<string>("");
+  const [isEmbedEnabled, setIsEmbedEnabled] = useState<boolean>(false);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -238,7 +239,7 @@ export function CreateMaterialView({
 
     const cleanVideos = videoUrls.map((v) => v.trim()).filter(Boolean);
     const cleanResources = resourceUrls.map((r) => r.trim()).filter(Boolean);
-    const cleanEmbed = embedUrl.trim();
+    const cleanEmbed = isEmbedEnabled ? embedUrl.trim() : "";
 
     startTransition(async () => {
       const linkUrlData = (cleanVideos.length > 0 || cleanEmbed)
@@ -435,33 +436,87 @@ export function CreateMaterialView({
               )}
             </div>
 
-            {/* Interactive Project Embed (GitHub Pages, Vercel, CodePen, Figma) */}
-            <div className="p-3.5 border rounded-xl bg-card space-y-2 text-xs shadow-xs">
+            {/* Interactive Project Embed (Explicit opt-in) */}
+            <div className="p-3.5 border rounded-xl bg-card space-y-2.5 text-xs shadow-xs">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-bold text-foreground">
-                  <Globe className="h-3.5 w-3.5 text-primary" />
-                  <span>Интерактивный проект / Демо (iframe)</span>
+                <div className="flex items-center gap-2">
+                  <div className="p-1 rounded-md bg-primary/10 text-primary">
+                    <Globe className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-foreground text-xs block">
+                      Интерактивный проект / Демо (iframe)
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Показать работающий сайт или песочницу прямо в уроке
+                    </span>
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-[10px] bg-muted/30">Опционально</Badge>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    {isEmbedEnabled ? "Включено" : "Отключено"}
+                  </span>
+                  <Switch
+                    checked={isEmbedEnabled}
+                    onCheckedChange={(checked) => {
+                      setIsEmbedEnabled(checked);
+                      if (!checked) setEmbedUrl("");
+                    }}
+                  />
+                </div>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                Вставьте ссылку на работающий сайт (GitHub Pages, Vercel, Netlify) или песочницу (CodePen, Figma Prototype). Студент сможет взаимодействовать с проектом прямо на странице урока.
-              </p>
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="https://username.github.io/project или https://codepen.io/..."
-                  value={embedUrl}
-                  onChange={(e) => setEmbedUrl(e.target.value)}
-                  className="h-8 text-xs bg-background font-mono flex-1"
-                />
-                {embedUrl.trim() && (
-                  <a href={embedUrl.trim()} target="_blank" rel="noreferrer" className="shrink-0">
-                    <Button type="button" size="xs" variant="ghost" className="h-8 text-[11px] gap-1">
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </a>
-                )}
-              </div>
+
+              {isEmbedEnabled && (
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    Укажите точную ссылку, которая будет отображаться в интерактивном окне (GitHub Pages, Vercel, CodePen, Figma):
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="https://username.github.io/project или https://codepen.io/..."
+                      value={embedUrl}
+                      onChange={(e) => setEmbedUrl(e.target.value)}
+                      className="h-8 text-xs bg-background font-mono flex-1"
+                    />
+                    {embedUrl.trim() && (
+                      <a href={embedUrl.trim()} target="_blank" rel="noreferrer" className="shrink-0">
+                        <Button type="button" size="xs" variant="ghost" className="h-8 text-[11px] gap-1" title="Открыть ссылку">
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Quick Pick from attached resource links */}
+                  {resourceUrls.filter((r) => r.trim().startsWith("http")).length > 0 && (
+                    <div className="pt-1 space-y-1">
+                      <span className="text-[10px] text-muted-foreground font-medium block">
+                        Или выберите ссылку из добавленных полезных ссылок выше:
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {resourceUrls
+                          .map((r) => r.trim())
+                          .filter((r) => r.startsWith("http"))
+                          .map((link, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setEmbedUrl(link)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-colors truncate max-w-[260px] cursor-pointer ${
+                                embedUrl === link
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-muted/50 hover:bg-muted text-foreground border-border"
+                              }`}
+                              title={`Выбрать: ${link}`}
+                            >
+                              {link}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Rich Editor */}

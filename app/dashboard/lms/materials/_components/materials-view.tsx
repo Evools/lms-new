@@ -755,35 +755,16 @@ export function MaterialsView({
     return [];
   };
 
-  // Helper to parse interactive embed URL (e.g. GitHub Pages, Vercel, CodePen, StackBlitz, Figma)
-  const parseEmbedUrl = (
-    linkUrlStr?: string | null,
-    resources?: string[]
-  ): string | null => {
-    if (linkUrlStr) {
-      try {
-        const parsed = JSON.parse(linkUrlStr);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.embedUrl) {
-          return String(parsed.embedUrl).trim();
-        }
-      } catch {}
-    }
-
-    if (resources && resources.length > 0) {
-      const interactive = resources.find((r) => {
-        const lower = r.toLowerCase();
-        return (
-          lower.includes(".github.io") ||
-          lower.includes(".vercel.app") ||
-          lower.includes(".netlify.app") ||
-          lower.includes("codepen.io") ||
-          lower.includes("codesandbox.io") ||
-          lower.includes("stackblitz.com")
-        );
-      });
-      if (interactive) return interactive.trim();
-    }
-
+  // Helper to parse interactive embed URL ONLY if explicitly configured by the author
+  const parseEmbedUrl = (linkUrlStr?: string | null): string | null => {
+    if (!linkUrlStr) return null;
+    try {
+      const parsed = JSON.parse(linkUrlStr);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.embedUrl) {
+        const val = String(parsed.embedUrl).trim();
+        return val.length > 0 ? val : null;
+      }
+    } catch {}
     return null;
   };
 
@@ -807,9 +788,12 @@ export function MaterialsView({
       }
     }
 
-    if (linkUrlStr && !linkUrlStr.startsWith("[")) {
-      if (!linkUrlStr.includes("youtube.com") && !linkUrlStr.includes("youtu.be")) {
-        list.push(linkUrlStr);
+    // Only add linkUrlStr if it was an old legacy plain URL (not JSON object or array)
+    if (linkUrlStr) {
+      const trimmed = linkUrlStr.trim();
+      const isJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+      if (!isJson && !trimmed.includes("youtube.com") && !trimmed.includes("youtu.be")) {
+        list.push(trimmed);
       }
     }
 
@@ -827,8 +811,19 @@ export function MaterialsView({
     return activeMaterial || materials[0] || null;
   }, [currentSubjectObj, activeMaterial, displayMaterials, materials]);
   const parsedVideos = parseVideoUrls(currentMat?.linkUrl);
-  const parsedResources = parseResourceLinks(currentMat?.fileUrl, currentMat?.linkUrl);
-  const parsedEmbed = parseEmbedUrl(currentMat?.linkUrl, parsedResources);
+  const rawResources = parseResourceLinks(currentMat?.fileUrl, currentMat?.linkUrl);
+  const parsedEmbed = parseEmbedUrl(currentMat?.linkUrl);
+
+  // If a link is designated as the interactive embed demo, exclude it from the generic resources cards
+  // to prevent redundant clutter on the page
+  const parsedResources = React.useMemo(() => {
+    if (!parsedEmbed) return rawResources;
+    const cleanEmbed = parsedEmbed.trim().replace(/\/$/, "").toLowerCase();
+    return rawResources.filter((r) => {
+      const cleanR = r.trim().replace(/\/$/, "").toLowerCase();
+      return cleanR !== cleanEmbed;
+    });
+  }, [rawResources, parsedEmbed]);
 
   // Ordered list of materials for previous / next navigation across chapters
   const orderedMaterials = React.useMemo(() => {
