@@ -87,6 +87,7 @@ import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
 import { CopyMaterialDialog } from "./copy-material-dialog";
 import { CopyTopicDialog } from "./copy-topic-dialog";
+import { InteractivePreviewFrame } from "@/components/interactive-preview-frame";
 
 export interface TopicWithMaterialsDTO {
   id: string;
@@ -456,7 +457,7 @@ export function MaterialsView({
   const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
   const [copiedResourceUrl, setCopiedResourceUrl] = useState<string | null>(null);
   const [isShareCopied, setIsShareCopied] = useState(false);
-  const [activeContentTab, setActiveContentTab] = useState<"all" | "video" | "resources" | "text">("all");
+  const [activeContentTab, setActiveContentTab] = useState<"all" | "video" | "resources" | "text" | "demo">("all");
   const contentTopRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -744,11 +745,46 @@ export function MaterialsView({
     try {
       const parsed = JSON.parse(linkUrlStr);
       if (Array.isArray(parsed)) return parsed.filter(Boolean);
+      if (parsed && typeof parsed === "object" && Array.isArray(parsed.videos)) {
+        return parsed.videos.filter(Boolean);
+      }
     } catch {}
     if (linkUrlStr.includes("youtube.com") || linkUrlStr.includes("youtu.be")) {
       return [linkUrlStr];
     }
     return [];
+  };
+
+  // Helper to parse interactive embed URL (e.g. GitHub Pages, Vercel, CodePen, StackBlitz, Figma)
+  const parseEmbedUrl = (
+    linkUrlStr?: string | null,
+    resources?: string[]
+  ): string | null => {
+    if (linkUrlStr) {
+      try {
+        const parsed = JSON.parse(linkUrlStr);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.embedUrl) {
+          return String(parsed.embedUrl).trim();
+        }
+      } catch {}
+    }
+
+    if (resources && resources.length > 0) {
+      const interactive = resources.find((r) => {
+        const lower = r.toLowerCase();
+        return (
+          lower.includes(".github.io") ||
+          lower.includes(".vercel.app") ||
+          lower.includes(".netlify.app") ||
+          lower.includes("codepen.io") ||
+          lower.includes("codesandbox.io") ||
+          lower.includes("stackblitz.com")
+        );
+      });
+      if (interactive) return interactive.trim();
+    }
+
+    return null;
   };
 
   // Helper to parse multiple resource links from fileUrl
@@ -792,6 +828,7 @@ export function MaterialsView({
   }, [currentSubjectObj, activeMaterial, displayMaterials, materials]);
   const parsedVideos = parseVideoUrls(currentMat?.linkUrl);
   const parsedResources = parseResourceLinks(currentMat?.fileUrl, currentMat?.linkUrl);
+  const parsedEmbed = parseEmbedUrl(currentMat?.linkUrl, parsedResources);
 
   // Ordered list of materials for previous / next navigation across chapters
   const orderedMaterials = React.useMemo(() => {
@@ -1679,6 +1716,21 @@ export function MaterialsView({
                       <span>Конспект урока</span>
                     </button>
                   )}
+
+                  {parsedEmbed && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveContentTab("demo")}
+                      className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
+                        activeContentTab === "demo"
+                          ? "bg-background text-foreground shadow-xs border border-border/80"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Globe className="h-3.5 w-3.5 text-primary" />
+                      <span>Интерактивное демо</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1833,6 +1885,16 @@ export function MaterialsView({
               {(activeContentTab === "all" || activeContentTab === "text") && currentMat.content && (
                 <div className="p-4 rounded-xl border bg-background text-xs leading-relaxed text-foreground space-y-2">
                   {renderMarkdown(currentMat.content)}
+                </div>
+              )}
+
+              {/* Interactive Live Project Preview (iframe) */}
+              {(activeContentTab === "all" || activeContentTab === "demo") && parsedEmbed && (
+                <div className="space-y-2 pt-1">
+                  <InteractivePreviewFrame
+                    url={parsedEmbed}
+                    title="Интерактивный результат к уроку"
+                  />
                 </div>
               )}
 

@@ -31,7 +31,9 @@ import {
   FlaskConical,
   Eye,
   EyeOff,
+  Globe,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { GroupItemDTO, updateMaterialAction } from "@/app/dashboard/lms/actions";
 import { RichWysiwygEditor, WysiwygTemplate } from "@/components/rich-wysiwyg-editor";
@@ -163,10 +165,26 @@ export function EditMaterialView({
     if (!initialMaterial.linkUrl) return [];
     try {
       const parsed = JSON.parse(initialMaterial.linkUrl);
-      return Array.isArray(parsed) ? parsed : [initialMaterial.linkUrl];
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === "object" && Array.isArray(parsed.videos)) {
+        return parsed.videos;
+      }
+      return [initialMaterial.linkUrl];
     } catch {
       return [initialMaterial.linkUrl];
     }
+  });
+
+  // Interactive Project Embed URL (GitHub Pages, Vercel, CodePen, etc.)
+  const [embedUrl, setEmbedUrl] = useState<string>(() => {
+    if (!initialMaterial.linkUrl) return "";
+    try {
+      const parsed = JSON.parse(initialMaterial.linkUrl);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.embedUrl) {
+        return String(parsed.embedUrl);
+      }
+    } catch {}
+    return "";
   });
 
   // Multiple File & Resource URLs parsed from fileUrl JSON or fallback
@@ -239,9 +257,15 @@ export function EditMaterialView({
 
     const cleanVideos = videoUrls.map((v) => v.trim()).filter(Boolean);
     const cleanResources = resourceUrls.map((r) => r.trim()).filter(Boolean);
+    const cleanEmbed = embedUrl.trim();
 
     startTransition(async () => {
-      const linkUrlData = cleanVideos.length > 0 ? JSON.stringify(cleanVideos) : null;
+      const linkUrlData = (cleanVideos.length > 0 || cleanEmbed)
+        ? JSON.stringify({
+            videos: cleanVideos,
+            embedUrl: cleanEmbed || undefined,
+          })
+        : null;
       const fileUrlData = cleanResources.length > 0 ? JSON.stringify(cleanResources) : null;
 
       const res = await updateMaterialAction(initialMaterial.id, {
@@ -423,6 +447,35 @@ export function EditMaterialView({
                   Ссылки и файлы не прикреплены (опционально)
                 </div>
               )}
+            </div>
+
+            {/* Interactive Project Embed (GitHub Pages, Vercel, CodePen, Figma) */}
+            <div className="p-3.5 border rounded-xl bg-card space-y-2 text-xs shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold text-foreground">
+                  <Globe className="h-3.5 w-3.5 text-primary" />
+                  <span>Интерактивный проект / Демо (iframe)</span>
+                </div>
+                <Badge variant="outline" className="text-[10px] bg-muted/30">Опционально</Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Вставьте ссылку на работающий сайт (GitHub Pages, Vercel, Netlify) или песочницу (CodePen, Figma Prototype). Студент сможет взаимодействовать с проектом прямо на странице урока.
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="https://username.github.io/project или https://codepen.io/..."
+                  value={embedUrl}
+                  onChange={(e) => setEmbedUrl(e.target.value)}
+                  className="h-8 text-xs bg-background font-mono flex-1"
+                />
+                {embedUrl.trim() && (
+                  <a href={embedUrl.trim()} target="_blank" rel="noreferrer" className="shrink-0">
+                    <Button type="button" size="xs" variant="ghost" className="h-8 text-[11px] gap-1">
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* Rich Editor */}
