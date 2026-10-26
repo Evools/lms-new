@@ -77,6 +77,7 @@ export type QuestionType =
 export type QuestionOption = string | { left: string; right: string };
 
 export interface QuestionDraft {
+  id?: string;
   type: QuestionType;
   questionText: string;
   codeSnippet?: string;
@@ -383,6 +384,7 @@ export function EditTestView({
       const target = copy[idx];
       copy.splice(idx + 1, 0, {
         ...target,
+        id: undefined,
         options: [...target.options],
       });
       return copy;

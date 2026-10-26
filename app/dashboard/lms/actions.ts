@@ -109,7 +109,7 @@ export interface TestDTO {
   submissions: TestSubmissionDTO[];
 }
 
-export function parseTestDescription(rawDescription?: string | null): {
+function parseTestDescription(rawDescription?: string | null): {
   description: string | null;
   customSubject: string | null;
 } {
@@ -124,7 +124,7 @@ export function parseTestDescription(rawDescription?: string | null): {
   return { description: rawDescription, customSubject: null };
 }
 
-export function buildTestDescription(description?: string | null, customSubject?: string | null): string | null {
+function buildTestDescription(description?: string | null, customSubject?: string | null): string | null {
   const cleanDesc = description?.trim() || "";
   const cleanSubj = customSubject?.trim();
   if (!cleanSubj) return cleanDesc || null;
@@ -1506,7 +1506,16 @@ export async function getTestForTakeAction(testId: string) {
     let savedAnswers: Record<string, string> = {};
     if (existingSubmission?.answers) {
       try {
-        savedAnswers = JSON.parse(existingSubmission.answers);
+        const rawAnswers = JSON.parse(existingSubmission.answers);
+        const nonMetaKeys = Object.keys(rawAnswers).filter((k) => !k.startsWith('_')).sort();
+        test.questions.forEach((q, idx) => {
+          if (rawAnswers[q.id] !== undefined) {
+            savedAnswers[q.id] = rawAnswers[q.id];
+          } else if (nonMetaKeys[idx] && rawAnswers[nonMetaKeys[idx]] !== undefined) {
+            savedAnswers[q.id] = rawAnswers[nonMetaKeys[idx]];
+          }
+        });
+        Object.assign(savedAnswers, rawAnswers);
       } catch {}
     }
 
@@ -1578,6 +1587,7 @@ export async function updateTestAction(
     shuffleOptions?: boolean;
     isPublished?: boolean;
     questions: Array<{
+      id?: string;
       type?: string;
       questionText: string;
       options: QuestionOptionItem[];
@@ -1641,23 +1651,57 @@ export async function updateTestAction(
       },
     });
 
-    await prisma.testQuestion.deleteMany({
+    const existingQuestions = await prisma.testQuestion.findMany({
       where: { testId },
+      orderBy: { order: "asc" },
     });
+    const existingMap = new Map(existingQuestions.map((q) => [q.id, q]));
+    const keptIds = new Set<string>();
 
-    await prisma.testQuestion.createMany({
-      data: data.questions.map((q, idx) => ({
-        testId,
-        type: q.type || "SINGLE",
-        questionText: q.questionText.trim(),
-        options: JSON.stringify(
-          q.options.filter((o) => (typeof o === "string" ? o.trim().length > 0 : !!o))
-        ),
-        correctAnswer: q.correctAnswer.trim(),
-        points: q.points ? Number(q.points) : 1,
-        order: idx,
-      })),
-    });
+    for (let idx = 0; idx < data.questions.length; idx++) {
+      const q = data.questions[idx];
+      const serializedOptions = JSON.stringify(
+        q.options.filter((o) => (typeof o === "string" ? o.trim().length > 0 : !!o))
+      );
+
+      if (q.id && existingMap.has(q.id)) {
+        keptIds.add(q.id);
+        await prisma.testQuestion.update({
+          where: { id: q.id },
+          data: {
+            type: q.type || "SINGLE",
+            questionText: q.questionText.trim(),
+            options: serializedOptions,
+            correctAnswer: q.correctAnswer.trim(),
+            points: q.points ? Number(q.points) : 1,
+            order: idx,
+          },
+        });
+      } else {
+        const newQ = await prisma.testQuestion.create({
+          data: {
+            testId,
+            type: q.type || "SINGLE",
+            questionText: q.questionText.trim(),
+            options: serializedOptions,
+            correctAnswer: q.correctAnswer.trim(),
+            points: q.points ? Number(q.points) : 1,
+            order: idx,
+          },
+        });
+        keptIds.add(newQ.id);
+      }
+    }
+
+    const toDeleteIds = existingQuestions
+      .filter((q) => !keptIds.has(q.id))
+      .map((q) => q.id);
+
+    if (toDeleteIds.length > 0) {
+      await prisma.testQuestion.deleteMany({
+        where: { id: { in: toDeleteIds } },
+      });
+    }
 
     revalidatePath("/dashboard/lms/tests");
     revalidatePath("/dashboard/lms");
@@ -1976,9 +2020,17 @@ export async function getTestResultsAction(testId: string) {
       const tabSwitches = Number(parsedUserAnswers._tabSwitches || 0);
 
       const answersMap: Record<string, { answer: string; isCorrect: boolean; isPartial?: boolean; pointsAwarded: number }> = {};
+      const nonMetaKeys = Object.keys(parsedUserAnswers).filter((k) => !k.startsWith('_')).sort();
 
-      test.questions.forEach((q: { id: string; type: string; correctAnswer: string; points: number }) => {
-        const userAns = parsedUserAnswers[q.id] !== undefined ? parsedUserAnswers[q.id] : "";
+      test.questions.forEach((q: { id: string; type: string; correctAnswer: string; points: number }, qIdx: number) => {
+        let userAns = parsedUserAnswers[q.id];
+        if (userAns === undefined) {
+          if (nonMetaKeys[qIdx] && parsedUserAnswers[nonMetaKeys[qIdx]] !== undefined) {
+            userAns = parsedUserAnswers[nonMetaKeys[qIdx]];
+          } else {
+            userAns = "";
+          }
+        }
         const qPoints = q.points || 1;
         const qType = (q.type || "SINGLE").toUpperCase();
         let isCorrect = false;
