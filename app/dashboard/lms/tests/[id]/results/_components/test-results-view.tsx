@@ -25,10 +25,19 @@ import {
   ShieldAlert,
   Printer,
   ArrowRight,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -203,7 +212,7 @@ function AnswerDisplay({
       if (Array.isArray(c)) {
         correctArr = c.map((s) => String(s).trim().toLowerCase());
       }
-    } catch {}
+    } catch { }
   }
 
   // 1. Array of values (MULTIPLE, ORDERING, BLANKS, or any array)
@@ -238,13 +247,12 @@ function AnswerDisplay({
           return (
             <span
               key={idx}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border shadow-2xs ${
-                !isStudent
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border shadow-2xs ${!isStudent
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : isItemCorrect
                   ? "bg-primary/10 border-primary/30 text-primary"
-                  : isItemCorrect
-                    ? "bg-primary/10 border-primary/30 text-primary"
-                    : "bg-destructive/10 border-destructive/30 text-destructive"
-              }`}
+                  : "bg-destructive/10 border-destructive/30 text-destructive"
+                }`}
             >
               {!isStudent ? (
                 <Check className="h-2.5 w-2.5 shrink-0 stroke-[2.5]" />
@@ -287,13 +295,12 @@ function AnswerDisplay({
   const cleanStr = trimmed.replace(/^"|"$/g, "");
   return (
     <span
-      className={`text-[11px] font-medium break-words leading-relaxed ${
-        !isStudent
+      className={`text-[11px] font-medium break-words leading-relaxed ${!isStudent
+        ? "text-primary"
+        : isCorrect
           ? "text-primary"
-          : isCorrect
-            ? "text-primary"
-            : "text-destructive"
-      }`}
+          : "text-destructive"
+        }`}
     >
       {cleanStr}
     </span>
@@ -311,6 +318,8 @@ export function TestResultsView({
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<"matrix" | "analytics">("matrix");
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "submitted" | "not_submitted" | "debt">("all");
 
   const [resetTarget, setResetTarget] = useState<{
     submissionId: string;
@@ -485,14 +494,57 @@ export function TestResultsView({
   };
 
   const submittedCount = studentsResults.filter((s) => s.hasSubmitted).length;
+  const notSubmittedCount = studentsResults.length - submittedCount;
+  const debtCount = studentsResults.filter((s) => s.hasSubmitted && s.percent < 60).length;
+
+  const filteredStudents = studentsResults.filter((s) => {
+    const matchesSearch = s.studentName.toLowerCase().includes(searchQuery.toLowerCase().trim());
+    if (!matchesSearch) return false;
+    if (statusFilter === "submitted") return s.hasSubmitted;
+    if (statusFilter === "not_submitted") return !s.hasSubmitted;
+    if (statusFilter === "debt") return s.hasSubmitted && s.percent < 60;
+    return true;
+  });
+
+  const questionAccuracyMap = React.useMemo(() => {
+    const map: Record<string, { percent: number; correct: number; partial: number; wrong: number }> = {};
+    questions.forEach((q) => {
+      const fromStat = questionStats.find((qs) => qs.questionId === q.id);
+      if (fromStat) {
+        map[q.id] = {
+          percent: fromStat.accuracyPercent,
+          correct: fromStat.fullCorrectCount,
+          partial: fromStat.partialCount,
+          wrong: fromStat.wrongCount,
+        };
+        return;
+      }
+      const submitted = studentsResults.filter((s) => s.hasSubmitted);
+      let correct = 0;
+      let partial = 0;
+      let wrong = 0;
+      submitted.forEach((s) => {
+        const a = s.answersMap[q.id];
+        if (a?.isCorrect) correct++;
+        else if (a?.isPartial) partial++;
+        else wrong++;
+      });
+      const percent = submitted.length > 0
+        ? Math.round(((correct + partial * 0.5) / submitted.length) * 100)
+        : 0;
+      map[q.id] = { percent, correct, partial, wrong };
+    });
+    return map;
+  }, [questions, questionStats, studentsResults]);
+
   const avgPercent =
     analytics?.avgPercent ??
     (submittedCount > 0
       ? Math.round(
-          studentsResults
-            .filter((s) => s.hasSubmitted)
-            .reduce((acc, s) => acc + s.percent, 0) / submittedCount
-        )
+        studentsResults
+          .filter((s) => s.hasSubmitted)
+          .reduce((acc, s) => acc + s.percent, 0) / submittedCount
+      )
       : 0);
 
   const scorePalette = ["var(--chart-5)", "var(--chart-3)", "var(--chart-2)", "var(--chart-1)"];
@@ -525,8 +577,8 @@ export function TestResultsView({
                   <ArrowLeft className="h-3.5 w-3.5" /> Назад к тестам
                 </Button>
               </Link>
-              <span className="text-muted-foreground">•</span>
-              <Badge variant="outline" className="text-[10px] gap-1 font-medium border-primary/30 text-primary">
+              <span className="text-muted-foreground/40">•</span>
+              <Badge variant="outline" className="text-[10px] gap-1 font-medium border-primary/30 text-primary bg-primary/5">
                 <Building2 className="h-3 w-3" /> {test.groupName}
               </Badge>
               <Badge variant="secondary" className="text-[10px] font-normal">
@@ -534,101 +586,94 @@ export function TestResultsView({
               </Badge>
             </div>
 
-            <h1 className="text-base font-bold text-foreground tracking-tight flex items-center gap-2">
+            <h1 className="text-base font-bold text-foreground tracking-tight">
               Результаты теста: {test.title}
             </h1>
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+              {test.teacherName && (
+                <>
+                  <span className="flex items-center gap-1">
+                    <User className="h-3 w-3 text-muted-foreground shrink-0" /> {test.teacherName}
+                  </span>
+                  <span>•</span>
+                </>
+              )}
               <span className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5 text-primary" /> Сдали:{" "}
-                <strong className="text-foreground">{submittedCount}</strong> из{" "}
-                {studentsResults.length} студентов
+                Макс. балл: <strong className="text-foreground">{test.totalMaxPoints} б.</strong>
               </span>
               <span>•</span>
               <span className="flex items-center gap-1">
-                Средний результат:{" "}
-                <strong className="text-primary">{avgPercent}%</strong>
+                <Clock className="h-3 w-3 text-muted-foreground shrink-0" />{" "}
+                {test.timeLimit ? `${test.timeLimit} мин.` : "Без ограничения времени"}
               </span>
-              {test.timeLimit && (
-                <>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5 text-primary" /> Лимит:{" "}
-                    <strong className="text-foreground">{test.timeLimit} мин.</strong>
-                  </span>
-                </>
-              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-center flex-wrap">
-            <div className="flex items-center bg-muted p-0.5 rounded-lg border text-xs">
+            <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border text-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab("matrix")}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                  activeTab === "matrix"
-                    ? "bg-card text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${activeTab === "matrix"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 Матрица
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("analytics")}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1 ${
-                  activeTab === "analytics"
-                    ? "bg-card text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 ${activeTab === "analytics"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 <BarChart3 className="h-3 w-3 text-primary" />
                 Аналитика
               </button>
             </div>
 
-            <Button
-              size="xs"
-              variant="default"
-              onClick={() => setReportDialogOpen(true)}
-              className="h-8 text-xs gap-1.5 font-medium bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
-              title="Открыть ведомость результатов тестирования для печати или сохранения в PDF"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Ведомость PDF
-            </Button>
-
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={handleExportDocx}
-              className="h-8 text-xs gap-1.5 font-medium hover:bg-muted"
-              title="Скачать официальную ведомость сдачи зачетов в формате Word (.docx)"
-            >
-              <FileText className="h-3.5 w-3.5 text-primary" />
-              Ведомость Word
-            </Button>
-
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={handleExportExcel}
-              className="h-8 text-xs gap-1.5 font-medium hover:bg-muted"
-              title="Экспорт ведомости и ключей ответов в Excel (.xlsx)"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Экспорт Excel
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    size="xs"
+                    variant="default"
+                    className="h-8 text-xs gap-1.5 font-medium bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
+                  />
+                }
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Экспорт ведомости</span>
+                <ChevronDown className="h-3 w-3 opacity-70" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="text-xs p-1 min-w-[210px]">
+                <DropdownMenuItem onClick={() => setReportDialogOpen(true)} className="cursor-pointer">
+                  <Printer className="h-3.5 w-3.5 mr-2 text-primary" />
+                  <span>Ведомость PDF (печать)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportDocx} className="cursor-pointer">
+                  <FileText className="h-3.5 w-3.5 mr-2 text-primary" />
+                  <span>Ведомость Word (.docx)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
+                  <Download className="h-3.5 w-3.5 mr-2 text-primary" />
+                  <span>Таблица Excel (.xlsx)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Button
               size="xs"
               variant="outline"
               onClick={handleRefresh}
               disabled={isPending}
-              className="h-8 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/5"
+              className="h-8 text-xs gap-1.5 font-medium text-muted-foreground hover:text-foreground"
+              title="Обновить результаты"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isPending ? "animate-spin" : ""}`} />
-              Обновить
+              <span className="hidden sm:inline">Обновить</span>
             </Button>
           </div>
         </div>
@@ -667,42 +712,57 @@ export function TestResultsView({
             </div>
           </Card>
 
-          <Card className="p-3 bg-card border shadow-xs space-y-1">
+          <Card className="p-3 bg-card border shadow-xs space-y-1.5">
             <div className="flex items-center justify-between text-muted-foreground text-[11px]">
               <span>Самый сложный вопрос</span>
               <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
             </div>
-            <div className="text-sm font-bold text-destructive truncate">
-              {analytics?.hardestQuestion ? (
-                <>Вопрос #{analytics.hardestQuestion.questionNumber} ({analytics.hardestQuestion.accuracyPercent}%)</>
-              ) : (
-                "Нет данных"
-              )}
-            </div>
-            <div className="text-[10px] text-muted-foreground truncate">
-              {analytics?.hardestQuestion?.questionText || "Ошибок не обнаружено"}
-            </div>
+            {analytics?.hardestQuestion ? (
+              <div className="space-y-1">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-semibold text-destructive border-destructive/30 bg-destructive/5 px-1.5 py-0 inline-flex items-center gap-1"
+                >
+                  Вопрос #{analytics.hardestQuestion.questionNumber} • {analytics.hardestQuestion.accuracyPercent}% верно
+                </Badge>
+                <div
+                  className="text-[10px] text-muted-foreground line-clamp-1 cursor-help"
+                  title={analytics.hardestQuestion.questionText}
+                >
+                  {analytics.hardestQuestion.questionText}
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">Ошибок не обнаружено</div>
+            )}
           </Card>
-
-          <Card className="p-3 bg-card border shadow-xs space-y-1">
+          <Card className="p-3 bg-card border shadow-xs space-y-1.5">
             <div className="flex items-center justify-between text-muted-foreground text-[11px]">
               <span>Самый легкий вопрос</span>
               <Award className="h-3.5 w-3.5 text-primary" />
             </div>
-            <div className="text-sm font-bold text-primary truncate">
-              {analytics?.easiestQuestion ? (
-                <>Вопрос #{analytics.easiestQuestion.questionNumber} ({analytics.easiestQuestion.accuracyPercent}%)</>
-              ) : (
-                "Нет данных"
-              )}
-            </div>
-            <div className="text-[10px] text-muted-foreground truncate">
-              {analytics?.easiestQuestion?.questionText || "Все вопросы сбалансированы"}
-            </div>
+            {analytics?.easiestQuestion ? (
+              <div className="space-y-1">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-semibold text-primary border-primary/30 bg-primary/5 px-1.5 py-0 inline-flex items-center gap-1"
+                >
+                  Вопрос #{analytics.easiestQuestion.questionNumber} • {analytics.easiestQuestion.accuracyPercent}% верно
+                </Badge>
+                <div
+                  className="text-[10px] text-muted-foreground line-clamp-1 cursor-help"
+                  title={analytics.easiestQuestion.questionText}
+                >
+                  {analytics.easiestQuestion.questionText}
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">Все вопросы сбалансированы</div>
+            )}
           </Card>
         </div>
 
-        {/* Analytics Charts View */}
+        {/* TAB 1: Analytics Charts & Questions Breakdown View */}
         {activeTab === "analytics" && (
           <div className="grid grid-cols-1 gap-4">
             {/* Score Distribution Chart */}
@@ -749,300 +809,472 @@ export function TestResultsView({
                 </ResponsiveContainer>
               </div>
             </Card>
+
+            {/* Questions Breakdown Table */}
+            <Card className="p-4 bg-card border shadow-xs space-y-3">
+              <div>
+                <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Award className="h-4 w-4 text-primary" /> Анализ решаемости и качества вопросов
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Статистика верных ответов и ошибок по каждому вопросу теста
+                </p>
+              </div>
+
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-[11px] font-semibold text-muted-foreground">
+                      <th className="py-2 px-3 w-12 text-center">№</th>
+                      <th className="py-2 px-3">Текст вопроса</th>
+                      <th className="py-2 px-3 w-28">Тип</th>
+                      <th className="py-2 px-3 w-16 text-center">Балл</th>
+                      <th className="py-2 px-3 w-20 text-center">Верно</th>
+                      <th className="py-2 px-3 w-20 text-center">Ошибок</th>
+                      <th className="py-2 px-3 w-28 text-center">Точность</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {questions.map((q, idx) => {
+                      const acc = questionAccuracyMap[q.id] || { percent: 0, correct: 0, partial: 0, wrong: 0 };
+                      const qType = QUESTION_TYPE_LABELS[q.type || "SINGLE"] || q.type || "Одиночный";
+                      const badgeClass =
+                        acc.percent >= 75
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : acc.percent >= 50
+                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                            : "bg-destructive/10 text-destructive border-destructive/20";
+
+                      return (
+                        <tr key={q.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-2 px-3 text-center font-bold text-muted-foreground">
+                            #{idx + 1}
+                          </td>
+                          <td className="py-2 px-3 max-w-md">
+                            <p className="font-medium text-foreground line-clamp-1">{q.questionText}</p>
+                          </td>
+                          <td className="py-2 px-3 text-muted-foreground text-[11px]">
+                            {qType}
+                          </td>
+                          <td className="py-2 px-3 text-center font-mono">
+                            {q.points} б.
+                          </td>
+                          <td className="py-2 px-3 text-center text-primary font-semibold">
+                            {acc.correct}
+                          </td>
+                          <td className="py-2 px-3 text-center text-destructive font-semibold">
+                            {acc.wrong}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}`}>
+                              {acc.percent}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           </div>
         )}
 
-        {/* Matrix Results Table */}
-        <div className="border rounded-xl bg-card shadow-xs overflow-hidden w-full max-w-full min-w-0">
-          <div className="p-3 border-b bg-muted/30 flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" /> Сводная матрица результатов
-            </h2>
-            <div className="flex items-center gap-2 text-[11px] flex-wrap">
-              <Badge variant="outline" className="text-[11px] font-medium gap-1 text-primary border-primary/30 bg-primary/10">
-                <CheckCircle2 className="h-3 w-3" />
-                Верно
-              </Badge>
-              <Badge variant="outline" className="text-[11px] font-medium gap-1 text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
-                <span className="font-bold font-mono text-[10px]">½</span>
-                Частично
-              </Badge>
-              <Badge variant="outline" className="text-[11px] font-medium gap-1 text-destructive border-destructive/30 bg-destructive/10">
-                <XCircle className="h-3 w-3" />
-                Ошибка
-              </Badge>
-              <span className="text-muted-foreground ml-1 flex items-center gap-1 text-[11px]">
-                <RotateCcw className="h-3 w-3" /> Сбросить попытку
-              </span>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto w-full max-w-full relative">
-            <table className="w-full text-xs text-left border-separate border-spacing-0 min-w-max">
-              <thead>
-                <tr className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                  <th className="py-2.5 px-3 sticky left-0 z-20 bg-muted/95 border-b border-r border-border shadow-[2px_0_4px_rgba(0,0,0,0.05)] min-w-[260px] sm:min-w-[300px] max-w-[320px]">
-                    № / ФИО / % / Баллы
-                  </th>
-
-                  {questions.map((q, qIdx) => {
-                    const headerAlign = qIdx <= 1 ? "start" : qIdx >= questions.length - 2 ? "end" : "center";
-                    return (
-                      <th
-                        key={q.id}
-                        className="py-2.5 px-2 text-center border-b border-r border-border/60 min-w-[46px] max-w-[56px]"
-                      >
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <div className="inline-flex items-center gap-0.5 cursor-help hover:text-primary transition-colors">
-                              <FileText className="h-3.5 w-3.5 shrink-0" />
-                              <span>{qIdx + 1}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" align={headerAlign} showArrow={false} className="max-w-xs text-xs p-2.5 bg-popover text-popover-foreground border border-border shadow-md">
-                            <p className="font-bold text-primary mb-1">
-                              Вопрос #{qIdx + 1} ({q.points} б.)
-                            </p>
-                            <p className="text-muted-foreground line-clamp-3">
-                              {q.questionText}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {studentsResults.map((student, sIdx) => {
-                  const percentBadgeStyle =
-                    !student.hasSubmitted
-                      ? "bg-muted text-muted-foreground border-border"
-                      : student.percent >= 80
-                        ? "bg-primary/15 text-primary border-primary/30 font-bold"
-                        : student.percent >= 60
-                          ? "bg-secondary text-secondary-foreground border-border font-bold"
-                          : "bg-destructive/15 text-destructive border-destructive/30 font-bold";
-
-                  const leftBorderStyle =
-                    !student.hasSubmitted
-                      ? "border-l-border"
-                      : student.percent >= 80
-                        ? "border-l-primary"
-                        : student.percent >= 60
-                          ? "border-l-secondary-foreground/40"
-                          : "border-l-destructive";
-
-                  return (
-                    <tr
-                      key={student.studentId}
-                      className="hover:bg-muted/30 transition-colors"
+        {/* TAB 2: Matrix Results Table */}
+        {activeTab === "matrix" && (
+          <div className="border rounded-xl bg-card shadow-xs overflow-hidden w-full max-w-full min-w-0">
+            {/* Filter and Search Bar */}
+            <div className="p-3 border-b bg-muted/20 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1 max-w-xl flex-wrap sm:flex-nowrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Поиск по ФИО студента..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 pl-8 text-xs bg-background"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground text-xs"
                     >
-                      {/* Fixed Left Column */}
-                      <td
-                        className={`py-2 px-3 sticky left-0 z-10 bg-card border-b border-r border-border border-l-4 ${leftBorderStyle} shadow-[2px_0_4px_rgba(0,0,0,0.05)] min-w-[260px] sm:min-w-[300px] max-w-[320px]`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <span className="font-mono text-[11px] text-muted-foreground w-4 shrink-0 text-left">
-                              {sIdx + 1}.
-                            </span>
-                            <div className="space-y-0.5 truncate min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="font-semibold text-foreground text-xs block truncate">
-                                  {student.studentName}
-                                </span>
-                                {student.tabSwitches && student.tabSwitches > 0 ? (
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <Badge variant="destructive" className="h-4 px-1 text-[9px] gap-0.5 font-mono shrink-0">
-                                        <ShieldAlert className="h-2.5 w-2.5" /> {student.tabSwitches}
-                                      </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" showArrow={false} className="text-xs">
-                                      Студент переключал вкладку {student.tabSwitches} раз(а)
-                                    </TooltipContent>
-                                  </Tooltip>
-                                ) : null}
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border text-xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("all")}
+                    className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${statusFilter === "all" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    Все ({studentsResults.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("submitted")}
+                    className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${statusFilter === "submitted" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    Сдали ({submittedCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("not_submitted")}
+                    className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${statusFilter === "not_submitted" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    Не сдали ({notSubmittedCount})
+                  </button>
+                  {debtCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter("debt")}
+                      className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${statusFilter === "debt" ? "bg-background text-destructive shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                    >
+                      Долги ({debtCount})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-2 text-[11px] flex-wrap shrink-0">
+                <Badge variant="outline" className="text-[11px] font-medium gap-1 text-primary border-primary/30 bg-primary/10">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Верно
+                </Badge>
+                <Badge variant="outline" className="text-[11px] font-medium gap-1 text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
+                  <span className="font-bold font-mono text-[10px]">½</span>
+                  Частично
+                </Badge>
+                <Badge variant="outline" className="text-[11px] font-medium gap-1 text-destructive border-destructive/30 bg-destructive/10">
+                  <XCircle className="h-3 w-3" />
+                  Ошибка
+                </Badge>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto w-full max-w-full relative">
+              <table className="w-full text-xs text-left border-separate border-spacing-0 min-w-max">
+                <thead>
+                  <tr className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <th className="py-2.5 px-3 sticky left-0 z-20 bg-muted/95 border-b border-r border-border shadow-[2px_0_4px_rgba(0,0,0,0.05)] min-w-[260px] sm:min-w-[300px] max-w-[320px]">
+                      № / ФИО / % / Баллы
+                    </th>
+
+                    {questions.map((q, qIdx) => {
+                      const headerAlign = qIdx <= 1 ? "start" : qIdx >= questions.length - 2 ? "end" : "center";
+                      return (
+                        <th
+                          key={q.id}
+                          className="py-2.5 px-2 text-center border-b border-r border-border/60 min-w-[46px] max-w-[56px]"
+                        >
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <div className="inline-flex items-center gap-0.5 cursor-help hover:text-primary transition-colors">
+                                <FileText className="h-3.5 w-3.5 shrink-0" />
+                                <span>{qIdx + 1}</span>
                               </div>
-                              {!student.hasSubmitted && (
-                                <span className="text-[10px] text-muted-foreground italic block">
-                                  Не проходил тест
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align={headerAlign} showArrow={false} className="max-w-xs text-xs p-2.5 bg-popover text-popover-foreground border border-border shadow-md">
+                              <p className="font-bold text-primary mb-1">
+                                Вопрос #{qIdx + 1} ({q.points} б.)
+                              </p>
+                              <p className="text-muted-foreground line-clamp-3">
+                                {q.questionText}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map((student, sIdx) => {
+                    const percentBadgeStyle =
+                      !student.hasSubmitted
+                        ? "bg-muted text-muted-foreground border-border"
+                        : student.percent >= 80
+                          ? "bg-primary/15 text-primary border-primary/30 font-bold"
+                          : student.percent >= 60
+                            ? "bg-secondary text-secondary-foreground border-border font-bold"
+                            : "bg-destructive/15 text-destructive border-destructive/30 font-bold";
+
+                    const leftBorderStyle =
+                      !student.hasSubmitted
+                        ? "border-l-border"
+                        : student.percent >= 80
+                          ? "border-l-primary"
+                          : student.percent >= 60
+                            ? "border-l-secondary-foreground/40"
+                            : "border-l-destructive";
+
+                    return (
+                      <tr
+                        key={student.studentId}
+                        className="hover:bg-muted/30 transition-colors"
+                      >
+                        {/* Fixed Left Column */}
+                        <td
+                          className={`py-2 px-3 sticky left-0 z-10 bg-card border-b border-r border-border border-l-4 ${leftBorderStyle} shadow-[2px_0_4px_rgba(0,0,0,0.05)] min-w-[260px] sm:min-w-[300px] max-w-[320px]`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="font-mono text-[11px] text-muted-foreground w-4 shrink-0 text-left">
+                                {sIdx + 1}.
+                              </span>
+                              <div className="space-y-0.5 truncate min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-semibold text-foreground text-xs block truncate">
+                                    {student.studentName}
+                                  </span>
+                                  {student.tabSwitches && student.tabSwitches > 0 ? (
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <Badge variant="destructive" className="h-4 px-1 text-[9px] gap-0.5 font-mono shrink-0">
+                                          <ShieldAlert className="h-2.5 w-2.5" /> {student.tabSwitches}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" showArrow={false} className="text-xs">
+                                        Студент переключал вкладку {student.tabSwitches} раз(а)
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : null}
+                                </div>
+                                {!student.hasSubmitted && (
+                                  <span className="text-[10px] text-muted-foreground italic block">
+                                    Не проходил тест
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {student.hasSubmitted && (
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full border ${percentBadgeStyle}`}
+                                >
+                                  {student.percent}%
                                 </span>
-                              )}
-                            </div>
+
+                                <span className="font-mono font-bold text-xs text-foreground min-w-[40px] text-right">
+                                  {student.score.toFixed(1)} б.
+                                </span>
+
+                                <Button
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    setResetTarget({
+                                      submissionId: student.submissionId!,
+                                      studentName: student.studentName,
+                                    })
+                                  }
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md"
+                                  title="Дать пересдать (Сбросить попытку)"
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
+                        </td>
 
-                          {student.hasSubmitted && (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span
-                                className={`text-[10px] px-2 py-0.5 rounded-full border ${percentBadgeStyle}`}
+                        {/* Question Columns (#1..#N) */}
+                        {questions.map((q, qIdx) => {
+                          const ansData = student.answersMap[q.id];
+
+                          if (!student.hasSubmitted || !ansData) {
+                            return (
+                              <td
+                                key={q.id}
+                                className="py-2 px-1 text-center border-b border-r border-border/60 text-muted-foreground/40 font-mono text-[11px]"
                               >
-                                {student.percent}%
-                              </span>
+                                -
+                              </td>
+                            );
+                          }
 
-                              <span className="font-mono font-bold text-xs text-foreground min-w-[40px] text-right">
-                                {student.score.toFixed(1)} б.
-                              </span>
+                          const isCorrect = ansData.isCorrect;
+                          const isPartial = ansData.isPartial;
 
-                              <Button
-                                size="xs"
-                                variant="ghost"
-                                onClick={() =>
-                                  setResetTarget({
-                                    submissionId: student.submissionId!,
-                                    studentName: student.studentName,
-                                  })
-                                }
-                                className="h-6 w-6 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md"
-                                title="Дать пересдать (Сбросить попытку)"
-                              >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
+                          const tooltipAlign = qIdx <= 1 ? "start" : qIdx >= questions.length - 2 ? "end" : "center";
 
-                      {/* Question Columns (#1..#N) */}
-                      {questions.map((q, qIdx) => {
-                        const ansData = student.answersMap[q.id];
-
-                        if (!student.hasSubmitted || !ansData) {
                           return (
                             <td
                               key={q.id}
-                              className="py-2 px-1 text-center border-b border-r border-border/60 text-muted-foreground/40 font-mono text-[11px]"
-                            >
-                              -
-                            </td>
-                          );
-                        }
-
-                        const isCorrect = ansData.isCorrect;
-                        const isPartial = ansData.isPartial;
-
-                        const tooltipAlign = qIdx <= 1 ? "start" : qIdx >= questions.length - 2 ? "end" : "center";
-
-                        return (
-                          <td
-                            key={q.id}
-                            className={`py-1.5 px-1 text-center border-b border-r border-border/60 transition-colors ${
-                              isCorrect
+                              className={`py-1.5 px-1 text-center border-b border-r border-border/60 transition-colors ${isCorrect
                                 ? "bg-primary/5 hover:bg-primary/10"
                                 : isPartial
                                   ? "bg-amber-500/5 hover:bg-amber-500/10"
                                   : "bg-destructive/5 hover:bg-destructive/10"
-                            }`}
-                          >
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <div className="w-full h-7 flex items-center justify-center cursor-help">
-                                  {isCorrect ? (
-                                    <div className="w-5 h-5 rounded-full bg-primary/15 text-primary flex items-center justify-center border border-primary/30 shadow-2xs">
-                                      <Check className="h-3 w-3 stroke-[2.5]" />
-                                    </div>
-                                  ) : isPartial ? (
-                                    <div className="w-5 h-5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30 shadow-2xs text-[10px] font-bold">
-                                      ½
-                                    </div>
-                                  ) : (
-                                    <div className="w-5 h-5 rounded-full bg-destructive/15 text-destructive flex items-center justify-center border border-destructive/30 shadow-2xs">
-                                      <X className="h-3 w-3 stroke-[2.5]" />
-                                    </div>
-                                  )}
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side="top"
-                                align={tooltipAlign}
-                                showArrow={false}
-                                className="max-w-none w-80 sm:w-96 p-3 space-y-2 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl text-xs z-50 block"
-                              >
-                                <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="font-bold text-foreground text-xs shrink-0">
-                                      Вопрос #{qIdx + 1}
-                                    </span>
-                                    <span className="text-[10px] font-mono text-muted-foreground shrink-0">
-                                      ({q.points} б.)
-                                    </span>
-                                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60 truncate">
-                                      {QUESTION_TYPE_LABELS[q.type || "SINGLE"] || q.type}
-                                    </span>
+                                }`}
+                            >
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <div className="w-full h-7 flex items-center justify-center cursor-help">
+                                    {isCorrect ? (
+                                      <div className="w-5 h-5 rounded-full bg-primary/15 text-primary flex items-center justify-center border border-primary/30 shadow-2xs">
+                                        <Check className="h-3 w-3 stroke-[2.5]" />
+                                      </div>
+                                    ) : isPartial ? (
+                                      <div className="w-5 h-5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30 shadow-2xs text-[10px] font-bold">
+                                        ½
+                                      </div>
+                                    ) : (
+                                      <div className="w-5 h-5 rounded-full bg-destructive/15 text-destructive flex items-center justify-center border border-destructive/30 shadow-2xs">
+                                        <X className="h-3 w-3 stroke-[2.5]" />
+                                      </div>
+                                    )}
                                   </div>
-                                  <span
-                                    className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md border shrink-0 ${
-                                      isCorrect
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="top"
+                                  align={tooltipAlign}
+                                  showArrow={false}
+                                  className="max-w-none w-80 sm:w-96 p-3 space-y-2 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl text-xs z-50 block"
+                                >
+                                  <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="font-bold text-foreground text-xs shrink-0">
+                                        Вопрос #{qIdx + 1}
+                                      </span>
+                                      <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                                        ({q.points} б.)
+                                      </span>
+                                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60 truncate">
+                                        {QUESTION_TYPE_LABELS[q.type || "SINGLE"] || q.type}
+                                      </span>
+                                    </div>
+                                    <span
+                                      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md border shrink-0 ${isCorrect
                                         ? "bg-primary/10 text-primary border-primary/30"
                                         : isPartial
                                           ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
                                           : "bg-destructive/10 text-destructive border-destructive/30"
-                                    }`}
-                                  >
-                                    {isCorrect ? (
-                                      <>
-                                        <Check className="h-3 w-3 stroke-[2.5]" /> Верно (+{ansData.pointsAwarded} б.)
-                                      </>
-                                    ) : isPartial ? (
-                                      <>
-                                        <Sparkles className="h-3 w-3" /> Частично (+{ansData.pointsAwarded} б.)
-                                      </>
-                                    ) : (
-                                      <>
-                                        <X className="h-3 w-3 stroke-[2.5]" /> Ошибка (0 б.)
-                                      </>
-                                    )}
-                                  </span>
-                                </div>
-
-                                <div className="text-[11px] text-foreground leading-snug font-medium py-0.5 max-h-24 overflow-y-auto">
-                                  {q.questionText}
-                                </div>
-
-                                <div className="space-y-2 pt-2 border-t border-border/70 text-[11px]">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-                                      <User className="h-3 w-3 shrink-0" /> Ответ студента:
-                                    </div>
-                                    <div className="p-1.5 rounded-md border border-border/70 bg-muted/30">
-                                      <AnswerDisplay
-                                        rawAnswer={ansData.answer}
-                                        correctAnswer={q.correctAnswer}
-                                        type={q.type}
-                                        isCorrect={isCorrect}
-                                        isStudent={true}
-                                      />
-                                    </div>
+                                        }`}
+                                    >
+                                      {isCorrect ? (
+                                        <>
+                                          <Check className="h-3 w-3 stroke-[2.5]" /> Верно (+{ansData.pointsAwarded} б.)
+                                        </>
+                                      ) : isPartial ? (
+                                        <>
+                                          <Sparkles className="h-3 w-3" /> Частично (+{ansData.pointsAwarded} б.)
+                                        </>
+                                      ) : (
+                                        <>
+                                          <X className="h-3 w-3 stroke-[2.5]" /> Ошибка (0 б.)
+                                        </>
+                                      )}
+                                    </span>
                                   </div>
 
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-                                      <CheckCircle2 className="h-3 w-3 text-primary shrink-0" /> Верный ответ:
+                                  <div className="text-[11px] text-foreground leading-snug font-medium py-0.5 max-h-24 overflow-y-auto">
+                                    {q.questionText}
+                                  </div>
+
+                                  <div className="space-y-2 pt-2 border-t border-border/70 text-[11px]">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                                        <User className="h-3 w-3 shrink-0" /> Ответ студента:
+                                      </div>
+                                      <div className="p-1.5 rounded-md border border-border/70 bg-muted/30">
+                                        <AnswerDisplay
+                                          rawAnswer={ansData.answer}
+                                          correctAnswer={q.correctAnswer}
+                                          type={q.type}
+                                          isCorrect={isCorrect}
+                                          isStudent={true}
+                                        />
+                                      </div>
                                     </div>
-                                    <div className="p-1.5 rounded-md border border-primary/20 bg-primary/5">
-                                      <AnswerDisplay
-                                        rawAnswer={q.correctAnswer}
-                                        correctAnswer={q.correctAnswer}
-                                        type={q.type}
-                                        isCorrect={true}
-                                        isStudent={false}
-                                      />
+
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                                        <CheckCircle2 className="h-3 w-3 text-primary shrink-0" /> Верный ответ:
+                                      </div>
+                                      <div className="p-1.5 rounded-md border border-primary/20 bg-primary/5">
+                                        <AnswerDisplay
+                                          rawAnswer={q.correctAnswer}
+                                          correctAnswer={q.correctAnswer}
+                                          type={q.type}
+                                          isCorrect={true}
+                                          isStudent={false}
+                                        />
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </td>
-                        );
-                      })}
+                                </TooltipContent>
+                              </Tooltip>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                  {filteredStudents.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={questions.length + 1}
+                        className="py-12 px-4 text-center text-xs text-muted-foreground"
+                      >
+                        Студенты не найдены по заданным критериям поиска
+                      </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+                <tfoot className="bg-muted/40 border-t border-border">
+                  <tr>
+                    <td className="sticky left-0 bg-background/95 backdrop-blur z-20 px-3 py-2 border-r border-border shadow-[2px_0_4px_rgba(0,0,0,0.05)] text-xs font-semibold text-muted-foreground">
+                      Верно ответили (%):
+                    </td>
+                    {questions.map((q, idx) => {
+                      const rate = questionAccuracyMap[q.id]?.percent ?? 0;
+                      return (
+                        <td
+                          key={q.id}
+                          className="py-1.5 px-1 text-center border-r border-border/60 text-[10px]"
+                        >
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <span
+                                className={`inline-block font-mono font-semibold px-1 py-0.5 rounded cursor-help ${
+                                  rate >= 70
+                                    ? "text-primary bg-primary/10"
+                                    : rate >= 40
+                                      ? "text-muted-foreground bg-muted"
+                                      : "text-destructive bg-destructive/10"
+                                }`}
+                              >
+                                {rate}%
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" showArrow={false} className="text-xs p-2">
+                              <p className="font-semibold">Вопрос #{idx + 1}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                Правильно ответили: {rate}%
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Modal Confirmation */}
         <AlertDialog
@@ -1061,12 +1293,13 @@ export function TestResultsView({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 w-full">
-              <AlertDialogCancel className="h-6 px-2.5 text-xs">
+              <AlertDialogCancel size="xs" disabled={isPending}>
                 Отмена
               </AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleConfirmReset}
-                className="h-6 px-2.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                size="xs"
+                disabled={isPending}
               >
                 Разрешить
               </AlertDialogAction>
