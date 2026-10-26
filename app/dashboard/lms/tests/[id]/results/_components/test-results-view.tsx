@@ -23,11 +23,15 @@ import {
   AlertTriangle,
   Award,
   ShieldAlert,
+  ShieldCheck,
+  AlertCircle,
+  GraduationCap,
   Printer,
   ArrowRight,
   ChevronDown,
   Search,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -62,16 +66,6 @@ import {
   formatCorrectAnswerText,
   getGradeLabel,
 } from "./test-report-dialog";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  Cell,
-} from "recharts";
 import { resetTestSubmissionAction } from "@/app/dashboard/lms/actions";
 
 interface QuestionDTO {
@@ -537,29 +531,121 @@ export function TestResultsView({
     return map;
   }, [questions, questionStats, studentsResults]);
 
-  const avgPercent =
-    analytics?.avgPercent ??
-    (submittedCount > 0
-      ? Math.round(
-        studentsResults
-          .filter((s) => s.hasSubmitted)
-          .reduce((acc, s) => acc + s.percent, 0) / submittedCount
-      )
-      : 0);
+  const academicAnalytics = React.useMemo(() => {
+    const submitted = studentsResults.filter((s) => s.hasSubmitted);
+    const total = submitted.length;
+    if (total === 0) {
+      return {
+        grades: [
+          { grade: 5, label: "5 (Отлично)", count: 0, percent: 0, range: "85–100%", fill: "var(--chart-1)" },
+          { grade: 4, label: "4 (Хорошо)", count: 0, percent: 0, range: "70–84%", fill: "var(--chart-2)" },
+          { grade: 3, label: "3 (Удовл.)", count: 0, percent: 0, range: "50–69%", fill: "var(--chart-3)" },
+          { grade: 2, label: "2 (Неуд.)", count: 0, percent: 0, range: "< 50%", fill: "var(--chart-5)" },
+        ],
+        qualityPercent: 0,
+        passPercent: 0,
+        honestCount: 0,
+        honestPercent: 100,
+        suspiciousStudents: [] as StudentResultDTO[],
+        riskStudents: [] as StudentResultDTO[],
+        anomalies: [] as Array<{
+          questionNumber: number;
+          questionText: string;
+          accuracyPercent: number;
+          type: "critical" | "easy";
+          title: string;
+          message: string;
+        }>,
+      };
+    }
 
-  const scorePalette = ["var(--chart-5)", "var(--chart-3)", "var(--chart-2)", "var(--chart-1)"];
+    let g5 = 0, g4 = 0, g3 = 0, g2 = 0;
+    let honest = 0;
+    const suspicious: StudentResultDTO[] = [];
+    const risk: StudentResultDTO[] = [];
 
-  const distributionData = (
-    analytics?.scoreDistribution || [
-      { range: "0–39%", label: "Неуд (0–39%)", count: studentsResults.filter((s) => s.hasSubmitted && s.percent < 40).length },
-      { range: "40–59%", label: "Удовл (40–59%)", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 40 && s.percent < 60).length },
-      { range: "60–79%", label: "Хор (60–79%)", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 60 && s.percent < 80).length },
-      { range: "80–100%", label: "Отл (80–100%)", count: studentsResults.filter((s) => s.hasSubmitted && s.percent >= 80).length },
-    ]
-  ).map((item, idx) => ({
-    ...item,
-    fill: scorePalette[idx] || "var(--chart-1)",
-  }));
+    submitted.forEach((s) => {
+      const g = getGradeLabel(s.percent).grade;
+      if (g === 5) g5++;
+      else if (g === 4) g4++;
+      else if (g === 3) g3++;
+      else g2++;
+
+      if (!s.tabSwitches || s.tabSwitches === 0) {
+        honest++;
+      } else if (s.tabSwitches >= 2) {
+        suspicious.push(s);
+      }
+
+      if (s.percent < 60) {
+        risk.push(s);
+      }
+    });
+
+    suspicious.sort((a, b) => (b.tabSwitches || 0) - (a.tabSwitches || 0));
+    risk.sort((a, b) => a.percent - b.percent);
+
+    const qualityPercent = Math.round(((g5 + g4) / total) * 100);
+    const passPercent = Math.round(((total - g2) / total) * 100);
+    const honestPercent = Math.round((honest / total) * 100);
+
+    const grades = [
+      { grade: 5, label: "5 (Отлично)", count: g5, percent: Math.round((g5 / total) * 100), range: "85–100%", fill: "var(--chart-1)" },
+      { grade: 4, label: "4 (Хорошо)", count: g4, percent: Math.round((g4 / total) * 100), range: "70–84%", fill: "var(--chart-2)" },
+      { grade: 3, label: "3 (Удовл.)", count: g3, percent: Math.round((g3 / total) * 100), range: "50–69%", fill: "var(--chart-3)" },
+      { grade: 2, label: "2 (Неуд.)", count: g2, percent: Math.round((g2 / total) * 100), range: "< 50%", fill: "var(--chart-5)" },
+    ];
+
+    const anomalies: Array<{
+      questionNumber: number;
+      questionText: string;
+      accuracyPercent: number;
+      type: "critical" | "easy";
+      title: string;
+      message: string;
+    }> = [];
+
+    questions.forEach((q, idx) => {
+      const acc = questionAccuracyMap[q.id]?.percent ?? 0;
+      if (acc < 30 && total >= 3) {
+        anomalies.push({
+          questionNumber: idx + 1,
+          questionText: q.questionText,
+          accuracyPercent: acc,
+          type: "critical",
+          title: "Критически низкая решаемость (<30%)",
+          message: "Большинство группы ошиблось. Возможно, вопрос содержит двусмысленную формулировку или неверный ключ ответа.",
+        });
+      } else if (acc === 100 && total >= 3) {
+        anomalies.push({
+          questionNumber: idx + 1,
+          questionText: q.questionText,
+          accuracyPercent: acc,
+          type: "easy",
+          title: "100% верных ответов (Базовый вопрос)",
+          message: "Все студенты ответили верно. Вопрос подтверждает базовое понимание, но не дифференцирует уровень знаний.",
+        });
+      }
+    });
+
+    // Sort: critical issues at top, then question number
+    anomalies.sort((a, b) => {
+      if (a.type === "critical" && b.type !== "critical") return -1;
+      if (a.type !== "critical" && b.type === "critical") return 1;
+      return a.questionNumber - b.questionNumber;
+    });
+
+    return {
+      grades,
+      qualityPercent,
+      passPercent,
+      honestCount: honest,
+      honestPercent,
+      suspiciousStudents: suspicious,
+      riskStudents: risk,
+      anomalies,
+    };
+  }, [studentsResults, questions, questionAccuracyMap]);
 
   return (
     <TooltipProvider>
@@ -678,205 +764,254 @@ export function TestResultsView({
           </div>
         </div>
 
-        {/* Insight KPI Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Card className="p-3 bg-card border shadow-xs space-y-1">
-            <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-              <span>Сдано работ</span>
-              <Users className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <div className="text-lg font-bold text-foreground">
-              {submittedCount}{" "}
-              <span className="text-xs font-normal text-muted-foreground">
-                / {studentsResults.length}
-              </span>
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              {Math.round((submittedCount / (studentsResults.length || 1)) * 100)}% явка на тест
-            </div>
-          </Card>
-
-          <Card className="p-3 bg-card border shadow-xs space-y-1">
-            <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-              <span>Средний результат</span>
-              <TrendingUp className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <div className="text-lg font-bold text-foreground flex items-center gap-1.5">
-              {avgPercent}%
-              <span className="text-xs font-normal text-muted-foreground">
-                (медиана {analytics?.medianPercent ?? avgPercent}%)
-              </span>
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              Макс: {analytics?.highestPercent ?? 0}% • Мин: {analytics?.lowestPercent ?? 0}%
-            </div>
-          </Card>
-
-          <Card className="p-3 bg-card border shadow-xs space-y-1.5">
-            <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-              <span>Самый сложный вопрос</span>
-              <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-            </div>
-            {analytics?.hardestQuestion ? (
-              <div className="space-y-1">
-                <Badge
-                  variant="outline"
-                  className="text-[10px] font-semibold text-destructive border-destructive/30 bg-destructive/5 px-1.5 py-0 inline-flex items-center gap-1"
-                >
-                  Вопрос #{analytics.hardestQuestion.questionNumber} • {analytics.hardestQuestion.accuracyPercent}% верно
-                </Badge>
-                <div
-                  className="text-[10px] text-muted-foreground line-clamp-1 cursor-help"
-                  title={analytics.hardestQuestion.questionText}
-                >
-                  {analytics.hardestQuestion.questionText}
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground italic">Ошибок не обнаружено</div>
-            )}
-          </Card>
-          <Card className="p-3 bg-card border shadow-xs space-y-1.5">
-            <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-              <span>Самый легкий вопрос</span>
-              <Award className="h-3.5 w-3.5 text-primary" />
-            </div>
-            {analytics?.easiestQuestion ? (
-              <div className="space-y-1">
-                <Badge
-                  variant="outline"
-                  className="text-[10px] font-semibold text-primary border-primary/30 bg-primary/5 px-1.5 py-0 inline-flex items-center gap-1"
-                >
-                  Вопрос #{analytics.easiestQuestion.questionNumber} • {analytics.easiestQuestion.accuracyPercent}% верно
-                </Badge>
-                <div
-                  className="text-[10px] text-muted-foreground line-clamp-1 cursor-help"
-                  title={analytics.easiestQuestion.questionText}
-                >
-                  {analytics.easiestQuestion.questionText}
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground italic">Все вопросы сбалансированы</div>
-            )}
-          </Card>
-        </div>
-
         {/* TAB 1: Analytics Charts & Questions Breakdown View */}
         {activeTab === "analytics" && (
-          <div className="grid grid-cols-1 gap-4">
-            {/* Score Distribution Chart */}
-            <Card className="p-4 bg-card border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <BarChart3 className="h-4 w-4 text-primary" /> Распределение баллов в группе
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    Количество студентов по диапазонам оценок (0–39%, 40–59%, 60–79%, 80–100%)
-                  </p>
+          <div className="space-y-4">
+            {/* Top Row: Academic Grades & Integrity Monitoring */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Card 1: Academic Grades 5/4/3/2 */}
+              <Card className="p-4 bg-card border shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <GraduationCap className="h-4 w-4 text-primary" /> Академическая успеваемость (Оценки)
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Распределение по 5-балльной академической шкале
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">
+                      Качество: {academicAnalytics.qualityPercent}%
+                    </Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      Успеваемость: {academicAnalytics.passPercent}%
+                    </Badge>
+                  </div>
                 </div>
-              </div>
 
-              <div className="h-56 w-full min-w-0 min-h-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                  <BarChart data={distributionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                    <XAxis dataKey="range" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <RechartsTooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div className="bg-popover text-popover-foreground text-xs p-2 rounded-lg border shadow-md space-y-0.5">
-                              <p className="font-bold">{data.label}</p>
-                              <p className="text-muted-foreground">
-                                Студентов: <strong className="text-foreground">{data.count}</strong>
-                              </p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                      {distributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+                {/* 4 Grade Segment Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                  {academicAnalytics.grades.map((g) => (
+                    <div key={g.grade} className="p-2.5 rounded-lg border bg-muted/20 space-y-1 text-center">
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span className="font-semibold text-foreground">{g.label}</span>
+                        <span>{g.range}</span>
+                      </div>
+                      <div className="text-base font-bold text-foreground font-mono">
+                        {g.count} <span className="text-[10px] font-normal text-muted-foreground">({g.percent}%)</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${g.percent}%`, backgroundColor: g.fill }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-            {/* Questions Breakdown Table */}
-            <Card className="p-4 bg-card border shadow-xs space-y-3">
-              <div>
-                <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Award className="h-4 w-4 text-primary" /> Анализ решаемости и качества вопросов
-                </h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Статистика верных ответов и ошибок по каждому вопросу теста
-                </p>
-              </div>
+                <div className="p-2 rounded-lg bg-muted/30 border border-border/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span>Качество знаний («4» и «5»): <strong className="text-foreground">{academicAnalytics.qualityPercent}%</strong></span>
+                  <span>Абсолютная успеваемость: <strong className="text-foreground">{academicAnalytics.passPercent}%</strong></span>
+                </div>
+              </Card>
 
-              <div className="overflow-x-auto border rounded-lg">
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b bg-muted/40 text-[11px] font-semibold text-muted-foreground">
-                      <th className="py-2 px-3 w-12 text-center">№</th>
-                      <th className="py-2 px-3">Текст вопроса</th>
-                      <th className="py-2 px-3 w-28">Тип</th>
-                      <th className="py-2 px-3 w-16 text-center">Балл</th>
-                      <th className="py-2 px-3 w-20 text-center">Верно</th>
-                      <th className="py-2 px-3 w-20 text-center">Ошибок</th>
-                      <th className="py-2 px-3 w-28 text-center">Точность</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {questions.map((q, idx) => {
-                      const acc = questionAccuracyMap[q.id] || { percent: 0, correct: 0, partial: 0, wrong: 0 };
-                      const qType = QUESTION_TYPE_LABELS[q.type || "SINGLE"] || q.type || "Одиночный";
-                      const badgeClass =
-                        acc.percent >= 75
-                          ? "bg-primary/10 text-primary border-primary/20"
-                          : acc.percent >= 50
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                            : "bg-destructive/10 text-destructive border-destructive/20";
+              {/* Card 2: Integrity & Proctoring (Tab Switches) */}
+              <Card className="p-4 bg-card border shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4 text-primary" /> Академическая честность (Прокторинг)
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Мониторинг переключений вкладок и окон браузера
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] gap-1",
+                      academicAnalytics.honestPercent >= 80
+                        ? "bg-primary/5 text-primary border-primary/20"
+                        : "bg-destructive/10 text-destructive border-destructive/20"
+                    )}
+                  >
+                    Честность: {academicAnalytics.honestPercent}%
+                  </Badge>
+                </div>
 
-                      return (
-                        <tr key={q.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-2 px-3 text-center font-bold text-muted-foreground">
-                            #{idx + 1}
-                          </td>
-                          <td className="py-2 px-3 max-w-md">
-                            <p className="font-medium text-foreground line-clamp-1">{q.questionText}</p>
-                          </td>
-                          <td className="py-2 px-3 text-muted-foreground text-[11px]">
-                            {qType}
-                          </td>
-                          <td className="py-2 px-3 text-center font-mono">
-                            {q.points} б.
-                          </td>
-                          <td className="py-2 px-3 text-center text-primary font-semibold">
-                            {acc.correct}
-                          </td>
-                          <td className="py-2 px-3 text-center text-destructive font-semibold">
-                            {acc.wrong}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}`}>
-                              {acc.percent}%
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2.5 rounded-lg border bg-muted/20 text-center space-y-0.5">
+                    <span className="text-[10px] text-muted-foreground">Сдали без переключений</span>
+                    <div className="text-base font-bold font-mono text-primary">
+                      {academicAnalytics.honestCount} <span className="text-[10px] font-normal text-muted-foreground">из {submittedCount}</span>
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-muted/20 text-center space-y-0.5">
+                    <span className="text-[10px] text-muted-foreground">С переключениями (≥2)</span>
+                    <div className="text-base font-bold font-mono text-destructive">
+                      {academicAnalytics.suspiciousStudents.length} <span className="text-[10px] font-normal text-muted-foreground">студ.</span>
+                    </div>
+                  </div>
+                </div>
+
+                {academicAnalytics.suspiciousStudents.length > 0 ? (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground block">
+                      Студенты с частым уходом со страницы теста:
+                    </span>
+                    <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                      {academicAnalytics.suspiciousStudents.map((s) => (
+                        <div
+                          key={s.studentId}
+                          className="flex items-center justify-between p-1.5 rounded-md bg-muted/30 border text-[11px]"
+                        >
+                          <span className="font-medium text-foreground truncate max-w-[180px]">
+                            {s.studentName}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Badge variant="destructive" className="h-4 px-1.5 text-[9px] gap-0.5 font-mono">
+                              <ShieldAlert className="h-2.5 w-2.5" /> {s.tabSwitches} перекл.
+                            </Badge>
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              {s.percent}%
                             </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-center text-xs text-primary flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4" /> Нарушений не зафиксировано: все студенты не покидали тест
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            {/* Middle Row: Question Audit & Risk Zone */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+              {/* Question Anomalies & Recommendations */}
+              <Card className="p-4 bg-card border shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <AlertCircle className="h-4 w-4 text-primary" /> Рекомендации составителю теста
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Автоматический анализ вопросов на возможные ошибки или дисбаланс
+                    </p>
+                  </div>
+                  {academicAnalytics.anomalies.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] text-primary border-primary/20 bg-primary/5 font-medium">
+                      {academicAnalytics.anomalies.length} замеч.
+                    </Badge>
+                  )}
+                </div>
+
+                {academicAnalytics.anomalies.length > 0 ? (
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1.5">
+                    {academicAnalytics.anomalies.map((anom, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "p-2.5 rounded-lg border text-xs space-y-1",
+                          anom.type === "critical"
+                            ? "bg-destructive/5 border-destructive/20 text-foreground"
+                            : "bg-muted/30 border-border/80 text-foreground"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 font-semibold text-xs">
+                            {anom.type === "critical" ? (
+                              <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                            )}
+                            <span className={anom.type === "critical" ? "text-destructive" : "text-foreground"}>
+                              {anom.title}
+                            </span>
+                          </div>
+                          <Badge
+                            variant={anom.type === "critical" ? "destructive" : "secondary"}
+                            className="text-[9px] font-mono h-4 px-1"
+                          >
+                            Вопрос #{anom.questionNumber} ({anom.accuracyPercent}%)
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground italic">
+                          «{anom.questionText}»
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {anom.message}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-lg border bg-muted/20 text-center text-xs text-muted-foreground">
+                    Вопросы теста хорошо сбалансированы. Аномалий сложности не обнаружено.
+                  </div>
+                )}
+              </Card>
+
+              {/* Risk Zone & Debtors */}
+              <Card className="p-4 bg-card border shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <AlertTriangle className="h-4 w-4 text-destructive" /> Зона риска и должники (&lt;60%)
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Студенты, не набравшие проходной порог
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] text-destructive border-destructive/20 bg-destructive/5 font-medium">
+                    {academicAnalytics.riskStudents.length} студ.
+                  </Badge>
+                </div>
+
+                {academicAnalytics.riskStudents.length > 0 ? (
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                    {academicAnalytics.riskStudents.map((s) => (
+                      <div
+                        key={s.studentId}
+                        className="flex items-center justify-between p-2 rounded-lg border bg-muted/20 text-xs"
+                      >
+                        <div className="space-y-0.5 truncate mr-2">
+                          <span className="font-semibold text-foreground block truncate">
+                            {s.studentName}
+                          </span>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span>Оценка: <strong className="text-destructive font-mono">{s.percent}%</strong></span>
+                            <span>•</span>
+                            <span>Балл: <strong className="font-mono text-foreground">{s.score.toFixed(1)} б.</strong></span>
+                          </div>
+                        </div>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() =>
+                            setResetTarget({
+                              submissionId: s.submissionId!,
+                              studentName: s.studentName,
+                            })
+                          }
+                          className="h-6 px-2 text-[10px] gap-1 shrink-0 hover:border-primary hover:text-primary"
+                        >
+                          <RotateCcw className="h-3 w-3" /> Пересдача
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-lg border bg-primary/5 text-center text-xs text-primary flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4" /> Все сдавшие студенты успешно преодолели проходной порог!
+                  </div>
+                )}
+              </Card>
+            </div>
           </div>
         )}
 
