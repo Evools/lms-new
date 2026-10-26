@@ -62,6 +62,7 @@ import {
   Hash,
   Sparkles,
   EyeOff,
+  BookOpen,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, createTestAction } from "../../../actions";
 import { toast } from "@/components/ui/toast";
@@ -661,6 +662,8 @@ export function CreateTestView({
 
   const [groupId, setGroupId] = useState(selectedGroupId || groups[0]?.id || "");
   const [groupSubjectId, setGroupSubjectId] = useState(subjects[0]?.id || "");
+  const [isNewSubject, setIsNewSubject] = useState(subjects.length === 0);
+  const [newSubjectName, setNewSubjectName] = useState("");
   const [topicId, setTopicId] = useState(selectedTopicId || "");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -706,6 +709,8 @@ export function CreateTestView({
   React.useEffect(() => {
     if (subjects.length > 0 && (!groupSubjectId || !subjects.some((s) => s.id === groupSubjectId))) {
       setGroupSubjectId(subjects[0].id);
+    } else if (subjects.length === 0) {
+      setIsNewSubject(true);
     }
   }, [subjects, groupSubjectId]);
 
@@ -975,7 +980,7 @@ export function CreateTestView({
         let currentObj = { value: 0, tolerance: 0 };
         try {
           currentObj = JSON.parse(q.correctAnswer || "{}");
-        } catch {}
+        } catch { }
         const numVal = parseFloat(val) || 0;
         const updatedObj = { ...currentObj, [field]: numVal };
         return { ...q, correctAnswer: JSON.stringify(updatedObj) };
@@ -1144,8 +1149,20 @@ export function CreateTestView({
   };
 
   const handleSubmit = () => {
-    if (!groupSubjectId || !title.trim()) {
-      toast.add({ title: "Укажите дисциплину и название теста", type: "error" });
+    if (isNewSubject) {
+      if (!newSubjectName.trim()) {
+        toast.add({ title: "Укажите название новой дисциплины", type: "error" });
+        return;
+      }
+    } else {
+      if (!groupSubjectId) {
+        toast.add({ title: "Выберите дисциплину", type: "error" });
+        return;
+      }
+    }
+
+    if (!title.trim()) {
+      toast.add({ title: "Укажите название теста", type: "error" });
       return;
     }
 
@@ -1172,8 +1189,10 @@ export function CreateTestView({
 
     startTransition(async () => {
       const res = await createTestAction({
-        groupSubjectId,
-        topicId: topicId || undefined,
+        groupId,
+        groupSubjectId: isNewSubject ? undefined : groupSubjectId,
+        newSubjectName: isNewSubject ? newSubjectName.trim() : undefined,
+        topicId: isNewSubject ? undefined : (topicId === "none" ? undefined : topicId || undefined),
         title,
         description,
         timeLimit: timeLimit ? Number(timeLimit) : undefined,
@@ -1269,9 +1288,8 @@ export function CreateTestView({
           <div className="flex-1 flex flex-col p-4 gap-3 min-h-0 overflow-y-auto">
             {/* Textarea — blurs when formats open */}
             <div
-              className={`flex-1 flex flex-col gap-1.5 min-h-0 transition-all duration-200 ${
-                isFormatsOpen ? "blur-sm opacity-50 pointer-events-none select-none" : ""
-              }`}
+              className={`flex-1 flex flex-col gap-1.5 min-h-0 transition-all duration-200 ${isFormatsOpen ? "blur-sm opacity-50 pointer-events-none select-none" : ""
+                }`}
             >
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-foreground">Текст для импорта</p>
@@ -1564,7 +1582,7 @@ export function CreateTestView({
                             let numObj = { value: 0, tolerance: 0 };
                             try {
                               numObj = JSON.parse(q.correctAnswer || "{}");
-                            } catch {}
+                            } catch { }
                             return (
                               <div className="p-2.5 rounded-lg border bg-card flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground">Эталонное значение:</span>
@@ -1589,21 +1607,19 @@ export function CreateTestView({
                               <div
                                 key={optIdx}
                                 onClick={() => handlePreviewSelect(qIdx, optText, q.type)}
-                                className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
-                                  isSelected
+                                className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${isSelected
                                     ? "border-primary bg-primary/10 font-semibold text-primary shadow-xs"
                                     : isCorrect
                                       ? "border-primary/40 bg-primary/5 text-foreground"
                                       : "border-border bg-background text-foreground hover:bg-muted/40"
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center gap-2">
                                   <div
-                                    className={`h-4 w-4 rounded-${q.type === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center ${
-                                      isSelected
+                                    className={`h-4 w-4 rounded-${q.type === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center ${isSelected
                                         ? "border-primary bg-primary text-primary-foreground"
                                         : "border-muted-foreground/40"
-                                    }`}
+                                      }`}
                                   >
                                     {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                                   </div>
@@ -1683,9 +1699,8 @@ export function CreateTestView({
                           setDraggedQuestionIdx(null);
                           setDragOverQuestionIdx(null);
                         }}
-                        className={`p-3.5 border rounded-xl bg-card space-y-3 relative transition-all ${
-                          isDraggingQ ? "opacity-40 scale-[0.99] border-dashed border-primary" : ""
-                        } ${isOverQ && !isDraggingQ ? "border-2 border-primary bg-primary/5 shadow-sm" : ""}`}
+                        className={`p-3.5 border rounded-xl bg-card space-y-3 relative transition-all ${isDraggingQ ? "opacity-40 scale-[0.99] border-dashed border-primary" : ""
+                          } ${isOverQ && !isDraggingQ ? "border-2 border-primary bg-primary/5 shadow-sm" : ""}`}
                       >
                         {/* Question Header: Drag Handle, Order, Type Selector, Points, Copy, Move, Remove */}
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
@@ -1734,11 +1749,10 @@ export function CreateTestView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "SINGLE")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "SINGLE"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "SINGLE"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Один верный ответ (Radio)"
                               >
                                 <CircleDot className="h-3 w-3" /> Один выбор
@@ -1747,11 +1761,10 @@ export function CreateTestView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "MULTIPLE")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "MULTIPLE"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "MULTIPLE"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Множественный выбор (Checkboxes)"
                               >
                                 <CheckSquare className="h-3 w-3" /> Несколько
@@ -1760,11 +1773,10 @@ export function CreateTestView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "TEXT")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "TEXT"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "TEXT"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Ввод текста с клавиатуры"
                               >
                                 <Type className="h-3 w-3" /> Текст
@@ -1773,24 +1785,22 @@ export function CreateTestView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "TRUE_FALSE")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "TRUE_FALSE"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "TRUE_FALSE"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Да / Нет (Верно / Неверно)"
                               >
                                 <ToggleLeft className="h-3 w-3" /> Да/Нет
                               </button>
-                              
+
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "ORDERING")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "ORDERING"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "ORDERING"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Расстановка элементов в правильном порядке"
                               >
                                 <ListOrdered className="h-3 w-3" /> Последовательность
@@ -1799,11 +1809,10 @@ export function CreateTestView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "BLANKS")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "BLANKS"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "BLANKS"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Заполнение пропущенных слов [слово]"
                               >
                                 <FormInput className="h-3 w-3" /> Пропуски
@@ -1812,11 +1821,10 @@ export function CreateTestView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "CODE")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "CODE"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "CODE"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Фрагмент кода и вопрос по нему"
                               >
                                 <Code className="h-3 w-3" /> Код / Сниппет
@@ -1825,11 +1833,10 @@ export function CreateTestView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "MATCHING")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "MATCHING"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "MATCHING"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Сопоставление пар элементов (термин <-> определение)"
                               >
                                 <Layers className="h-3 w-3" /> Сопоставление
@@ -1838,11 +1845,10 @@ export function CreateTestView({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateQuestionType(qIdx, "NUMERICAL")}
-                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                  q.type === "NUMERICAL"
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "NUMERICAL"
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                  }`}
                                 title="Числовой ответ с допустимой погрешностью"
                               >
                                 <Hash className="h-3 w-3" /> Число
@@ -1950,7 +1956,7 @@ export function CreateTestView({
                                 <FormInput className="h-4 w-4 text-primary" /> Инструкция по созданию пропусков в тексте:
                               </div>
                               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                Пишите формулировку вопроса и выделяйте нужные правильные пропущенные слова <strong>в квадратных скобках `[слово]`</strong>. 
+                                Пишите формулировку вопроса и выделяйте нужные правильные пропущенные слова <strong>в квадратных скобках `[слово]`</strong>.
                                 Система автоматически сделает их скрытыми полями ввода для студентов.
                               </p>
 
@@ -1970,7 +1976,7 @@ export function CreateTestView({
                                       Автоматически обнаружено верных пропусков ({blanks.length} шт.):
                                     </div>
                                     <div className="flex flex-wrap gap-1.5">
-                                    {blanks.map((b, bIdx) => (
+                                      {blanks.map((b, bIdx) => (
                                         <Badge key={bIdx} variant="outline" className="text-[10px] bg-background border-primary text-primary font-mono font-bold">
                                           Пропуск #{bIdx + 1}: «{b}»
                                         </Badge>
@@ -2047,7 +2053,7 @@ export function CreateTestView({
                               let numObj = { value: 10, tolerance: 0.1 };
                               try {
                                 numObj = JSON.parse(q.correctAnswer || "{}");
-                              } catch {}
+                              } catch { }
                               return (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border bg-muted/20">
                                   <div className="space-y-1">
@@ -2210,9 +2216,8 @@ export function CreateTestView({
                                       setDraggedOption(null);
                                       setDragOverOption(null);
                                     }}
-                                    className={`flex items-center gap-2 p-1 rounded-lg border transition-all ${
-                                      isDraggingOpt ? "opacity-40 border-dashed border-primary" : "border-transparent"
-                                    } ${isOverOpt && !isDraggingOpt ? "bg-primary/10 border-primary" : ""}`}
+                                    className={`flex items-center gap-2 p-1 rounded-lg border transition-all ${isDraggingOpt ? "opacity-40 border-dashed border-primary" : "border-transparent"
+                                      } ${isOverOpt && !isDraggingOpt ? "bg-primary/10 border-primary" : ""}`}
                                   >
                                     {q.type !== "TRUE_FALSE" && (
                                       <div
@@ -2226,11 +2231,10 @@ export function CreateTestView({
                                     <button
                                       type="button"
                                       onClick={() => handleToggleOptionCorrect(qIdx, opt)}
-                                      className={`w-7 h-7 shrink-0 rounded-md border flex items-center justify-center transition-colors ${
-                                        isCorrect
+                                      className={`w-7 h-7 shrink-0 rounded-md border flex items-center justify-center transition-colors ${isCorrect
                                           ? "bg-primary border-primary text-primary-foreground"
                                           : "bg-background border-border text-muted-foreground hover:border-primary/50"
-                                      }`}
+                                        }`}
                                       title={isCorrect ? "Верный ответ" : "Отметить как верный"}
                                     >
                                       <Check className={`h-3.5 w-3.5 stroke-[3] ${isCorrect ? "opacity-100" : "opacity-0"}`} />
@@ -2240,9 +2244,8 @@ export function CreateTestView({
                                       disabled={q.type === "TRUE_FALSE"}
                                       value={opt}
                                       onChange={(e) => handleUpdateOptionText(qIdx, optIdx, e.target.value)}
-                                      className={`h-7 text-xs bg-background flex-1 ${
-                                        isCorrect ? "border-primary/60 font-semibold text-primary" : ""
-                                      }`}
+                                      className={`h-7 text-xs bg-background flex-1 ${isCorrect ? "border-primary/60 font-semibold text-primary" : ""
+                                        }`}
                                     />
 
                                     {q.type !== "TRUE_FALSE" && q.options.length > 2 && (
@@ -2265,30 +2268,30 @@ export function CreateTestView({
                         )}
                       </div>
 
-                    {/* Quick Insert Divider Between Questions */}
-                    <div className="flex items-center justify-center py-0.5 group">
-                      <button
-                        type="button"
-                        onClick={() => handleAddQuestionAt(qIdx + 1)}
-                        className="h-6 px-3 text-[10px] rounded-full border border-dashed border-primary/30 bg-background text-primary opacity-50 group-hover:opacity-100 hover:border-primary hover:bg-primary/10 transition-all font-semibold flex items-center gap-1 shadow-2xs cursor-pointer"
-                        title={`Вставить новый вопрос между #${qIdx + 1} и #${qIdx + 2}`}
-                      >
-                        <PlusCircle className="h-3 w-3" /> Вставить вопрос после #{qIdx + 1}
-                      </button>
-                    </div>
-                  </React.Fragment>
-                );
-              })}
+                      {/* Quick Insert Divider Between Questions */}
+                      <div className="flex items-center justify-center py-0.5 group">
+                        <button
+                          type="button"
+                          onClick={() => handleAddQuestionAt(qIdx + 1)}
+                          className="h-6 px-3 text-[10px] rounded-full border border-dashed border-primary/30 bg-background text-primary opacity-50 group-hover:opacity-100 hover:border-primary hover:bg-primary/10 transition-all font-semibold flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title={`Вставить новый вопрос между #${qIdx + 1} и #${qIdx + 2}`}
+                        >
+                          <PlusCircle className="h-3 w-3" /> Вставить вопрос после #{qIdx + 1}
+                        </button>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
 
-              <Button
-                type="button"
-                size="xs"
-                variant="outline"
-                onClick={() => handleAddQuestionAt()}
-                className="w-full h-8 text-xs gap-1.5 text-primary border-dashed border-primary/40 hover:bg-primary/5 font-medium"
-              >
-                <PlusCircle className="h-3.5 w-3.5" /> Добавить еще один вопрос в конец
-              </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleAddQuestionAt()}
+                  className="w-full h-8 text-xs gap-1.5 text-primary border-dashed border-primary/40 hover:bg-primary/5 font-medium"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" /> Добавить еще один вопрос в конец
+                </Button>
               </div>
             </div>
           )}
@@ -2324,39 +2327,104 @@ export function CreateTestView({
             </div>
 
             <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Дисциплина *</label>
-              <Select value={groupSubjectId} onValueChange={setGroupSubjectId}>
-                <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                  <SelectValue>{subjects.find((s) => s.id === groupSubjectId)?.subjectName || "Выберите предмет"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id} className="text-xs">
-                      {s.subjectName} ({s.teacherName})
+              <div className="flex items-center justify-between">
+                <label className="font-medium text-foreground text-xs">Дисциплина *</label>
+                <button
+                  type="button"
+                  onClick={() => setIsNewSubject((prev) => !prev)}
+                  className="text-[11px] text-primary hover:underline font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  {isNewSubject ? (
+                    <>
+                      <BookOpen className="h-3 w-3" /> Выбрать из списка
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-3 w-3" /> Новая дисциплина
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {isNewSubject ? (
+                <div className="space-y-1">
+                  <Input
+                    type="text"
+                    placeholder="Введите название новой дисциплины"
+                    value={newSubjectName}
+                    onChange={(e) => setNewSubjectName(e.target.value)}
+                    className="h-8 text-xs bg-background font-medium"
+                    autoFocus
+                  />
+                  <p className="text-[10px] text-muted-foreground flex items-center justify-between">
+                    <span>Будет создана отдельная дисциплина</span>
+                    {subjects.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsNewSubject(false);
+                          setNewSubjectName("");
+                        }}
+                        className="text-primary hover:underline font-medium cursor-pointer"
+                      >
+                        Выбрать существующую
+                      </button>
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <Select
+                  value={groupSubjectId}
+                  onValueChange={(val) => {
+                    if (val === "__new__") {
+                      setIsNewSubject(true);
+                    } else {
+                      setGroupSubjectId(val);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                    <SelectValue>{subjects.find((s) => s.id === groupSubjectId)?.subjectName || "Выберите предмет"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">
+                        {s.subjectName} ({s.teacherName})
+                      </SelectItem>
+                    ))}
+                    <SelectItem
+                      value="__new__"
+                      className="text-xs text-primary font-medium border-t mt-1 pt-1.5 cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1 text-primary">
+                        <Plus className="h-3 w-3 text-primary" />Ввести новую дисциплину...
+                      </span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Учебная тема (опционально)</label>
-              <Select value={topicId} onValueChange={setTopicId}>
-                <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                  <SelectValue>{topics.find((t) => t.id === topicId)?.title || "Не привязано"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" className="text-xs">
-                    Не привязано к теме
-                  </SelectItem>
-                  {topics.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="text-xs">
-                      {t.title}
+            {!isNewSubject && (
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Учебная тема (опционально)</label>
+                <Select value={topicId} onValueChange={setTopicId}>
+                  <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                    <SelectValue>{topics.find((t) => t.id === topicId)?.title || "Не привязано"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none" className="text-xs">
+                      Не привязано к теме
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                    {topics.map((t) => (
+                      <SelectItem key={t.id} value={t.id} className="text-xs">
+                        {t.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs flex items-center gap-1">
@@ -2380,9 +2448,8 @@ export function CreateTestView({
 
               <div
                 onClick={() => setShuffleQuestions(!shuffleQuestions)}
-                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
-                  shuffleQuestions ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"
-                }`}
+                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${shuffleQuestions ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"
+                  }`}
               >
                 <div className="space-y-0.5">
                   <span className="font-medium text-xs block">Порядок вопросов</span>
@@ -2395,9 +2462,8 @@ export function CreateTestView({
 
               <div
                 onClick={() => setShuffleOptions(!shuffleOptions)}
-                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
-                  shuffleOptions ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"
-                }`}
+                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${shuffleOptions ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"
+                  }`}
               >
                 <div className="space-y-0.5">
                   <span className="font-medium text-xs block">Варианты ответов</span>

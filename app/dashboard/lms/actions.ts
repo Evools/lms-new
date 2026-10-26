@@ -1171,7 +1171,9 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
 }
 
 export async function createTestAction(data: {
-  groupSubjectId: string;
+  groupId?: string;
+  groupSubjectId?: string;
+  newSubjectName?: string;
   topicId?: string;
   title: string;
   description?: string;
@@ -1193,7 +1195,60 @@ export async function createTestAction(data: {
       return { success: false, error: "Недостаточно прав для создания теста" };
     }
 
-    if (!data.groupSubjectId || !data.title.trim() || !data.questions || data.questions.length === 0) {
+    let finalGroupSubjectId = data.groupSubjectId;
+
+    if (data.newSubjectName && data.newSubjectName.trim()) {
+      const subjectName = data.newSubjectName.trim();
+
+      // Find or create Subject
+      let subject = await prisma.subject.findFirst({
+        where: { name: { equals: subjectName, mode: "insensitive" } },
+      });
+
+      if (!subject) {
+        subject = await prisma.subject.create({
+          data: {
+            name: subjectName,
+          },
+        });
+      }
+
+      // Resolve target groupId
+      let targetGroupId = data.groupId;
+      if (!targetGroupId && data.groupSubjectId) {
+        const existingGs = await prisma.groupSubject.findUnique({
+          where: { id: data.groupSubjectId },
+          select: { groupId: true },
+        });
+        if (existingGs) targetGroupId = existingGs.groupId;
+      }
+
+      if (!targetGroupId) {
+        return { success: false, error: "Укажите учебную группу для новой дисциплины" };
+      }
+
+      // Find or create GroupSubject
+      let groupSubject = await prisma.groupSubject.findFirst({
+        where: {
+          groupId: targetGroupId,
+          subjectId: subject.id,
+        },
+      });
+
+      if (!groupSubject) {
+        groupSubject = await prisma.groupSubject.create({
+          data: {
+            groupId: targetGroupId,
+            subjectId: subject.id,
+            teacherId: session.user.id,
+          },
+        });
+      }
+
+      finalGroupSubjectId = groupSubject.id;
+    }
+
+    if (!finalGroupSubjectId || !data.title.trim() || !data.questions || data.questions.length === 0) {
       return { success: false, error: "Укажите дисциплину, название и добавьте хотя бы 1 вопрос" };
     }
 
@@ -1213,7 +1268,7 @@ export async function createTestAction(data: {
     const test = await prisma.test.create({
       data: {
         // Create new test with shuffle options and multi-type questions
-        groupSubjectId: data.groupSubjectId,
+        groupSubjectId: finalGroupSubjectId,
         topicId: finalTopicId,
         authorId: session.user.id,
         title: data.title.trim(),
@@ -1241,7 +1296,7 @@ export async function createTestAction(data: {
     if (isPublished) {
       try {
         const gs = await prisma.groupSubject.findUnique({
-          where: { id: data.groupSubjectId },
+          where: { id: finalGroupSubjectId },
           include: {
             subject: { select: { name: true } },
             group: {
@@ -1507,7 +1562,9 @@ export async function getTestForTakeAction(testId: string) {
 export async function updateTestAction(
   testId: string,
   data: {
-    groupSubjectId: string;
+    groupId?: string;
+    groupSubjectId?: string;
+    newSubjectName?: string;
     topicId?: string;
     title: string;
     description?: string;
@@ -1530,7 +1587,65 @@ export async function updateTestAction(
       return { success: false, error: "Не авторизован" };
     }
 
-    if (!data.groupSubjectId || !data.title.trim() || !data.questions || data.questions.length === 0) {
+    let finalGroupSubjectId = data.groupSubjectId;
+
+    if (data.newSubjectName && data.newSubjectName.trim()) {
+      const subjectName = data.newSubjectName.trim();
+
+      let subject = await prisma.subject.findFirst({
+        where: { name: { equals: subjectName, mode: "insensitive" } },
+      });
+
+      if (!subject) {
+        subject = await prisma.subject.create({
+          data: {
+            name: subjectName,
+          },
+        });
+      }
+
+      let targetGroupId = data.groupId;
+      if (!targetGroupId && data.groupSubjectId) {
+        const existingGs = await prisma.groupSubject.findUnique({
+          where: { id: data.groupSubjectId },
+          select: { groupId: true },
+        });
+        if (existingGs) targetGroupId = existingGs.groupId;
+      }
+
+      if (!targetGroupId) {
+        const currentTest = await prisma.test.findUnique({
+          where: { id: testId },
+          include: { groupSubject: true },
+        });
+        targetGroupId = currentTest?.groupSubject.groupId;
+      }
+
+      if (!targetGroupId) {
+        return { success: false, error: "Укажите учебную группу для новой дисциплины" };
+      }
+
+      let groupSubject = await prisma.groupSubject.findFirst({
+        where: {
+          groupId: targetGroupId,
+          subjectId: subject.id,
+        },
+      });
+
+      if (!groupSubject) {
+        groupSubject = await prisma.groupSubject.create({
+          data: {
+            groupId: targetGroupId,
+            subjectId: subject.id,
+            teacherId: session.user.id,
+          },
+        });
+      }
+
+      finalGroupSubjectId = groupSubject.id;
+    }
+
+    if (!finalGroupSubjectId || !data.title.trim() || !data.questions || data.questions.length === 0) {
       return { success: false, error: "Укажите дисциплину, название и добавьте хотя бы 1 вопрос" };
     }
 
@@ -1548,7 +1663,7 @@ export async function updateTestAction(
     await prisma.test.update({
       where: { id: testId },
       data: {
-        groupSubjectId: data.groupSubjectId,
+        groupSubjectId: finalGroupSubjectId,
         topicId: finalTopicId,
         title: data.title.trim(),
         description: data.description?.trim() || null,

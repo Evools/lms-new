@@ -56,6 +56,8 @@ import {
   Hash,
   Sparkles,
   EyeOff,
+  BookOpen,
+  Plus,
 } from "lucide-react";
 import { GroupItemDTO, GroupSubjectDTO, updateTestAction } from "@/app/dashboard/lms/actions";
 import { toast } from "@/components/ui/toast";
@@ -234,6 +236,8 @@ export function EditTestView({
 
   const [groupId, setGroupId] = useState(initialTest.groupId || groups[0]?.id || "");
   const [groupSubjectId, setGroupSubjectId] = useState(initialTest.groupSubjectId || subjects[0]?.id || "");
+  const [isNewSubject, setIsNewSubject] = useState(false);
+  const [newSubjectName, setNewSubjectName] = useState("");
   const [topicId, setTopicId] = useState(initialTest.topicId || "none");
   const [title, setTitle] = useState(initialTest.title);
   const [description, setDescription] = useState(initialTest.description);
@@ -538,7 +542,7 @@ export function EditTestView({
         let currentObj = { value: 0, tolerance: 0 };
         try {
           currentObj = JSON.parse(q.correctAnswer || "{}");
-        } catch {}
+        } catch { }
         const numVal = parseFloat(val) || 0;
         const updatedObj = { ...currentObj, [field]: numVal };
         return { ...q, correctAnswer: JSON.stringify(updatedObj) };
@@ -689,9 +693,16 @@ export function EditTestView({
       toast.add({ title: "Укажите название теста", type: "error" });
       return;
     }
-    if (!groupSubjectId) {
-      toast.add({ title: "Укажите учебную дисциплину", type: "error" });
-      return;
+    if (isNewSubject) {
+      if (!newSubjectName.trim()) {
+        toast.add({ title: "Укажите название новой дисциплины", type: "error" });
+        return;
+      }
+    } else {
+      if (!groupSubjectId) {
+        toast.add({ title: "Укажите учебную дисциплину", type: "error" });
+        return;
+      }
     }
     if (questionDrafts.length === 0) {
       toast.add({ title: "Добавьте хотя бы один вопрос в тест", type: "error" });
@@ -746,8 +757,10 @@ export function EditTestView({
 
     startTransition(async () => {
       const res = await updateTestAction(initialTest.id, {
-        groupSubjectId,
-        topicId: topicId === "none" ? undefined : topicId,
+        groupId,
+        groupSubjectId: isNewSubject ? undefined : groupSubjectId,
+        newSubjectName: isNewSubject ? newSubjectName.trim() : undefined,
+        topicId: isNewSubject ? undefined : (topicId === "none" ? undefined : topicId),
         title,
         description,
         timeLimit: timeLimit ? Number(timeLimit) : undefined,
@@ -1017,7 +1030,7 @@ export function EditTestView({
                             let numObj = { value: 0, tolerance: 0 };
                             try {
                               numObj = JSON.parse(q.correctAnswer || "{}");
-                            } catch {}
+                            } catch { }
                             return (
                               <div className="p-2 rounded-lg border bg-card flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground">Эталонное значение:</span>
@@ -1042,21 +1055,19 @@ export function EditTestView({
                               <div
                                 key={optIdx}
                                 onClick={() => handlePreviewSelect(qIdx, optText, q.type)}
-                                className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${
-                                  isSelected
-                                    ? "border-primary bg-primary/10 font-semibold text-primary shadow-xs"
-                                    : isCorrect
-                                      ? "border-primary/40 bg-primary/5 text-foreground"
-                                      : "border-border bg-background text-foreground hover:bg-muted/40"
-                                }`}
+                                className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer transition-all ${isSelected
+                                  ? "border-primary bg-primary/10 font-semibold text-primary shadow-xs"
+                                  : isCorrect
+                                    ? "border-primary/40 bg-primary/5 text-foreground"
+                                    : "border-border bg-background text-foreground hover:bg-muted/40"
+                                  }`}
                               >
                                 <div className="flex items-center gap-2">
                                   <div
-                                    className={`h-4 w-4 rounded-${q.type === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center ${
-                                      isSelected
-                                        ? "border-primary bg-primary text-primary-foreground"
-                                        : "border-muted-foreground/40"
-                                    }`}
+                                    className={`h-4 w-4 rounded-${q.type === "MULTIPLE" ? "md" : "full"} border flex items-center justify-center ${isSelected
+                                      ? "border-primary bg-primary text-primary-foreground"
+                                      : "border-muted-foreground/40"
+                                      }`}
                                   >
                                     {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                                   </div>
@@ -1116,229 +1127,219 @@ export function EditTestView({
                       <div
                         id={`question-card-${qIdx}`}
                         draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/plain", qIdx.toString());
-                        setDraggedQuestionIdx(qIdx);
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                      }}
-                      onDragEnter={() => setDragOverQuestionIdx(qIdx)}
-                      onDragEnd={() => {
-                        setDraggedQuestionIdx(null);
-                        setDragOverQuestionIdx(null);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (draggedQuestionIdx !== null && draggedQuestionIdx !== qIdx) {
-                          handleMoveQuestion(draggedQuestionIdx, qIdx);
-                        }
-                        setDraggedQuestionIdx(null);
-                        setDragOverQuestionIdx(null);
-                      }}
-                      className={`p-3.5 border rounded-xl bg-card space-y-3 relative transition-all ${
-                        isDraggingQ ? "opacity-40 scale-[0.99] border-dashed border-primary" : ""
-                      } ${isOverQ && !isDraggingQ ? "border-2 border-primary bg-primary/5 shadow-sm" : ""}`}
-                    >
-                      {/* Question Header */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {/* Drag Handle */}
-                          <div
-                            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-                            title="Перетащите для изменения порядка вопросов"
-                          >
-                            <GripVertical className="h-4 w-4" />
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", qIdx.toString());
+                          setDraggedQuestionIdx(qIdx);
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                        }}
+                        onDragEnter={() => setDragOverQuestionIdx(qIdx)}
+                        onDragEnd={() => {
+                          setDraggedQuestionIdx(null);
+                          setDragOverQuestionIdx(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedQuestionIdx !== null && draggedQuestionIdx !== qIdx) {
+                            handleMoveQuestion(draggedQuestionIdx, qIdx);
+                          }
+                          setDraggedQuestionIdx(null);
+                          setDragOverQuestionIdx(null);
+                        }}
+                        className={`p-3.5 border rounded-xl bg-card space-y-3 relative transition-all ${isDraggingQ ? "opacity-40 scale-[0.99] border-dashed border-primary" : ""
+                          } ${isOverQ && !isDraggingQ ? "border-2 border-primary bg-primary/5 shadow-sm" : ""}`}
+                      >
+                        {/* Question Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {/* Drag Handle */}
+                            <div
+                              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+                              title="Перетащите для изменения порядка вопросов"
+                            >
+                              <GripVertical className="h-4 w-4" />
+                            </div>
+
+                            <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                              {qIdx + 1}
+                            </span>
+                            <span className="font-bold text-xs text-foreground">Вопрос #{qIdx + 1}</span>
+
+                            {/* Quick Up/Down Move Buttons */}
+                            <div className="flex items-center gap-0.5">
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="ghost"
+                                disabled={qIdx === 0}
+                                onClick={() => handleMoveQuestion(qIdx, qIdx - 1)}
+                                className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                                title="Переместить вверх"
+                              >
+                                <ChevronUp className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="ghost"
+                                disabled={qIdx === questionDrafts.length - 1}
+                                onClick={() => handleMoveQuestion(qIdx, qIdx + 1)}
+                                className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                                title="Переместить вниз"
+                              >
+                                <ChevronDown className="h-3 w-3" />
+                              </Button>
+                            </div>
+
+                            {/* Question Type Selector Pills */}
+                            <div className="flex flex-wrap gap-1 p-0.5 bg-muted/60 rounded-lg border text-[11px] font-medium ml-1">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "SINGLE")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "SINGLE"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Один верный ответ (Radio)"
+                              >
+                                <CircleDot className="h-3 w-3" /> Один выбор
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "MULTIPLE")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "MULTIPLE"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Множественный выбор (Checkboxes)"
+                              >
+                                <CheckSquare className="h-3 w-3" /> Несколько
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "TEXT")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "TEXT"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Ввод текста с клавиатуры"
+                              >
+                                <Type className="h-3 w-3" /> Текст
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "TRUE_FALSE")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "TRUE_FALSE"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Да / Нет (Верно / Неверно)"
+                              >
+                                <ToggleLeft className="h-3 w-3" /> Да/Нет
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "ORDERING")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "ORDERING"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Расстановка элементов в правильном порядке"
+                              >
+                                <ListOrdered className="h-3 w-3" /> Последовательность
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "BLANKS")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "BLANKS"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Заполнение пропущенных слов [слово]"
+                              >
+                                <FormInput className="h-3 w-3" /> Пропуски
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "CODE")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "CODE"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Анализ и ввод фрагмента кода"
+                              >
+                                <Code className="h-3 w-3" /> Код / Сниппет
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "MATCHING")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "MATCHING"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Сопоставление пар элементов (термин <-> определение)"
+                              >
+                                <Layers className="h-3 w-3" /> Сопоставление
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuestionType(qIdx, "NUMERICAL")}
+                                className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${q.type === "NUMERICAL"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                title="Числовой ответ с допустимой погрешностью"
+                              >
+                                <Hash className="h-3 w-3" /> Число
+                              </button>
+                            </div>
                           </div>
 
-                          <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
-                            {qIdx + 1}
-                          </span>
-                          <span className="font-bold text-xs text-foreground">Вопрос #{qIdx + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <label className="text-[10px] text-muted-foreground font-medium">Баллы:</label>
+                              <Input
+                                type="number"
+                                value={q.points}
+                                onChange={(e) => handleUpdateQuestionPoints(qIdx, Number(e.target.value))}
+                                className="h-6 w-12 text-[11px] bg-background text-center font-bold"
+                              />
+                            </div>
 
-                          {/* Quick Up/Down Move Buttons */}
-                          <div className="flex items-center gap-0.5">
                             <Button
                               type="button"
                               size="xs"
                               variant="ghost"
-                              disabled={qIdx === 0}
-                              onClick={() => handleMoveQuestion(qIdx, qIdx - 1)}
-                              className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                              title="Переместить вверх"
+                              onClick={() => handleDuplicateQuestion(qIdx)}
+                              className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                              title="Дублировать вопрос"
                             >
-                              <ChevronUp className="h-3 w-3" />
+                              <Copy className="h-3 w-3" />
                             </Button>
-                            <Button
-                              type="button"
-                              size="xs"
-                              variant="ghost"
-                              disabled={qIdx === questionDrafts.length - 1}
-                              onClick={() => handleMoveQuestion(qIdx, qIdx + 1)}
-                              className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                              title="Переместить вниз"
-                            >
-                              <ChevronDown className="h-3 w-3" />
-                            </Button>
-                          </div>
 
-                          {/* Question Type Selector Pills */}
-                          <div className="flex flex-wrap gap-1 p-0.5 bg-muted/60 rounded-lg border text-[11px] font-medium ml-1">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "SINGLE")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "SINGLE"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Один верный ответ (Radio)"
-                            >
-                              <CircleDot className="h-3 w-3" /> Один выбор
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "MULTIPLE")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "MULTIPLE"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Множественный выбор (Checkboxes)"
-                            >
-                              <CheckSquare className="h-3 w-3" /> Несколько
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "TEXT")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "TEXT"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Ввод текста с клавиатуры"
-                            >
-                              <Type className="h-3 w-3" /> Текст
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "TRUE_FALSE")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "TRUE_FALSE"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Да / Нет (Верно / Неверно)"
-                            >
-                              <ToggleLeft className="h-3 w-3" /> Да/Нет
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "ORDERING")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "ORDERING"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Расстановка элементов в правильном порядке"
-                            >
-                              <ListOrdered className="h-3 w-3" /> Последовательность
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "BLANKS")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "BLANKS"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Заполнение пропущенных слов [слово]"
-                            >
-                              <FormInput className="h-3 w-3" /> Пропуски
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "CODE")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "CODE"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Анализ и ввод фрагмента кода"
-                            >
-                              <Code className="h-3 w-3" /> Код / Сниппет
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "MATCHING")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "MATCHING"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Сопоставление пар элементов (термин <-> определение)"
-                            >
-                              <Layers className="h-3 w-3" /> Сопоставление
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestionType(qIdx, "NUMERICAL")}
-                              className={`px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
-                                q.type === "NUMERICAL"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
-                              title="Числовой ответ с допустимой погрешностью"
-                            >
-                              <Hash className="h-3 w-3" /> Число
-                            </button>
+                            {questionDrafts.length > 1 && (
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleRemoveQuestion(qIdx)}
+                                className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                                title="Удалить вопрос"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            <label className="text-[10px] text-muted-foreground font-medium">Баллы:</label>
-                            <Input
-                              type="number"
-                              value={q.points}
-                              onChange={(e) => handleUpdateQuestionPoints(qIdx, Number(e.target.value))}
-                              className="h-6 w-12 text-[11px] bg-background text-center font-bold"
-                            />
-                          </div>
-
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => handleDuplicateQuestion(qIdx)}
-                            className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-                            title="Дублировать вопрос"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-
-                          {questionDrafts.length > 1 && (
-                            <Button
-                              type="button"
-                              size="xs"
-                              variant="ghost"
-                              onClick={() => handleRemoveQuestion(qIdx)}
-                              className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
-                              title="Удалить вопрос"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
 
                         <div className="space-y-1">
                           <label className="text-[11px] font-medium text-muted-foreground">Формулировка вопроса</label>
@@ -1377,372 +1378,369 @@ export function EditTestView({
                           </div>
                         )}
 
-                      {/* Options Grid / Answer Config depending on Type */}
-                      {q.type === "TEXT" ? (
-                        <div className="space-y-1.5 pt-2 border-t">
-                          <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
-                            <Type className="h-3.5 w-3.5" /> Эталонный верный текстовый ответ (регистр не учитывается)
-                          </label>
-                          <Input
-                            placeholder="Введите точный ответ (например: HTTP, 42, REST)"
-                            value={q.correctAnswer}
-                            onChange={(e) =>
-                              setQuestionDrafts((prev) => {
-                                const copy = [...prev];
-                                copy[qIdx].correctAnswer = e.target.value;
-                                return copy;
-                              })
-                            }
-                            className="h-8 text-xs bg-background font-mono border-primary/50"
-                          />
-                        </div>
-                      ) : q.type === "BLANKS" ? (
-                        <div className="space-y-2 pt-2 border-t">
-                          <div className="p-3 rounded-lg border bg-primary/5 space-y-2">
-                            <div className="text-[11px] font-semibold text-primary flex items-center gap-1.5">
-                              <FormInput className="h-4 w-4 text-primary" /> Инструкция по созданию пропусков в тексте:
-                            </div>
-                            <p className="text-[11px] text-muted-foreground leading-relaxed">
-                              Пишите формулировку вопроса и выделяйте нужные правильные пропущенные слова <strong>в квадратных скобках `[слово]`</strong>. 
-                              Система автоматически сделает их скрытыми полями ввода для студентов.
-                            </p>
+                        {/* Options Grid / Answer Config depending on Type */}
+                        {q.type === "TEXT" ? (
+                          <div className="space-y-1.5 pt-2 border-t">
+                            <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
+                              <Type className="h-3.5 w-3.5" /> Эталонный верный текстовый ответ (регистр не учитывается)
+                            </label>
+                            <Input
+                              placeholder="Введите точный ответ (например: HTTP, 42, REST)"
+                              value={q.correctAnswer}
+                              onChange={(e) =>
+                                setQuestionDrafts((prev) => {
+                                  const copy = [...prev];
+                                  copy[qIdx].correctAnswer = e.target.value;
+                                  return copy;
+                                })
+                              }
+                              className="h-8 text-xs bg-background font-mono border-primary/50"
+                            />
+                          </div>
+                        ) : q.type === "BLANKS" ? (
+                          <div className="space-y-2 pt-2 border-t">
+                            <div className="p-3 rounded-lg border bg-primary/5 space-y-2">
+                              <div className="text-[11px] font-semibold text-primary flex items-center gap-1.5">
+                                <FormInput className="h-4 w-4 text-primary" /> Инструкция по созданию пропусков в тексте:
+                              </div>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                Пишите формулировку вопроса и выделяйте нужные правильные пропущенные слова <strong>в квадратных скобках `[слово]`</strong>.
+                                Система автоматически сделает их скрытыми полями ввода для студентов.
+                              </p>
 
-                            {(() => {
-                              const { blanks } = extractBlanksFromText(q.questionText);
-                              if (blanks.length === 0) {
+                              {(() => {
+                                const { blanks } = extractBlanksFromText(q.questionText);
+                                if (blanks.length === 0) {
+                                  return (
+                                    <div className="text-[11px] text-primary/80 font-medium bg-primary/10 p-2 rounded border border-primary/20">
+                                      ⚠️ Вы ещё не выделили ни одного пропуска. Добавьте в текст скобки `[слово]`, например: <i>«Столица Франции — [Париж]»</i>.
+                                    </div>
+                                  );
+                                }
+
                                 return (
-                                  <div className="text-[11px] text-primary/80 font-medium bg-primary/10 p-2 rounded border border-primary/20">
-                                    ⚠️ Вы ещё не выделили ни одного пропуска. Добавьте в текст скобки `[слово]`, например: <i>«Столица Франции — [Париж]»</i>.
+                                  <div className="space-y-1 pt-1 border-t border-primary/20">
+                                    <div className="text-[11px] font-semibold text-foreground">
+                                      Автоматически обнаружено верных пропусков ({blanks.length} шт.):
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {blanks.map((b, bIdx) => (
+                                        <Badge key={bIdx} variant="outline" className="text-[10px] bg-background border-primary text-primary font-mono font-bold">
+                                          Пропуск #{bIdx + 1}: «{b}»
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   </div>
                                 );
-                              }
-
-                              return (
-                                <div className="space-y-1 pt-1 border-t border-primary/20">
-                                  <div className="text-[11px] font-semibold text-foreground">
-                                    Автоматически обнаружено верных пропусков ({blanks.length} шт.):
-                                  </div>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {blanks.map((b, bIdx) => (
-                                      <Badge key={bIdx} variant="outline" className="text-[10px] bg-background border-primary text-primary font-mono font-bold">
-                                        Пропуск #{bIdx + 1}: «{b}»
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })()}
+                              })()}
+                            </div>
                           </div>
-                        </div>
-                      ) : q.type === "ORDERING" ? (
-                        <div className="space-y-2 pt-2 border-t">
-                          <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
-                            <span className="flex items-center gap-1 text-primary">
-                              <ListOrdered className="h-3.5 w-3.5" /> Элементы в верном эталонном порядке (перетащите в нужный порядок):
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleAddOption(qIdx)}
-                              className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1"
-                            >
-                              <PlusCircle className="h-3 w-3" /> Элемент
-                            </button>
-                          </div>
-
-                          <div className="space-y-2">
-                            {q.options.map((opt, optIdx) => (
-                              <div key={optIdx} className="flex items-center gap-2">
-                                <span className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                                  {optIdx + 1}
-                                </span>
-
-                                <Input
-                                  value={typeof opt === "string" ? opt : (typeof opt === "object" && opt !== null && "left" in opt ? opt.left : "")}
-                                  onChange={(e) => handleUpdateOptionText(qIdx, optIdx, e.target.value)}
-                                  className="h-7 text-xs bg-background flex-1 font-medium"
-                                />
-
-                                <div className="flex items-center gap-0.5 shrink-0">
-                                  <Button
-                                    type="button"
-                                    size="xs"
-                                    variant="ghost"
-                                    disabled={optIdx === 0}
-                                    onClick={() => handleMoveOption(qIdx, optIdx, optIdx - 1)}
-                                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                                    title="Поднять выше"
-                                  >
-                                    <ChevronUp className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="xs"
-                                    variant="ghost"
-                                    disabled={optIdx === q.options.length - 1}
-                                    onClick={() => handleMoveOption(qIdx, optIdx, optIdx + 1)}
-                                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                                    title="Опустить ниже"
-                                  >
-                                    <ChevronDown className="h-3.5 w-3.5" />
-                                  </Button>
-
-                                  {q.options.length > 2 && (
-                                    <Button
-                                      type="button"
-                                      size="xs"
-                                      variant="ghost"
-                                      onClick={() => handleRemoveOption(qIdx, optIdx)}
-                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                                      title="Удалить элемент"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : q.type === "MATCHING" ? (
-                        <div className="space-y-2 pt-2 border-t">
-                          <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
-                            <span className="flex items-center gap-1 text-primary">
-                              <Layers className="h-3.5 w-3.5" /> Пары для сопоставления (Слева термин — Справа определение):
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleAddMatchingPair(qIdx)}
-                              className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1"
-                            >
-                              <PlusCircle className="h-3 w-3" /> Добавить пару
-                            </button>
-                          </div>
-
-                          <div className="space-y-2">
-                            {(Array.isArray(q.options) ? q.options : []).map((pair: unknown, pIdx: number) => {
-                              const leftVal = typeof pair === "object" && pair !== null && "left" in pair ? String((pair as { left: unknown }).left || "") : String(pair || "");
-                              const rightVal = typeof pair === "object" && pair !== null && "right" in pair ? String((pair as { right: unknown }).right || "") : "";
-                              return (
-                                <div key={pIdx} className="flex items-center gap-2">
-                                  <span className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                                    {pIdx + 1}
-                                  </span>
-
-                                  <Input
-                                    placeholder="Термин / Элемент слева..."
-                                    value={leftVal}
-                                    onChange={(e) => handleUpdateMatchingPair(qIdx, pIdx, "left", e.target.value)}
-                                    className="h-7 text-xs bg-background flex-1 font-medium"
-                                  />
-
-                                  <span className="text-muted-foreground font-bold">➔</span>
-
-                                  <Input
-                                    placeholder="Определение / Пара справа..."
-                                    value={rightVal}
-                                    onChange={(e) => handleUpdateMatchingPair(qIdx, pIdx, "right", e.target.value)}
-                                    className="h-7 text-xs bg-background flex-1 font-medium"
-                                  />
-
-                                  {Array.isArray(q.options) && q.options.length > 1 && (
-                                    <Button
-                                      type="button"
-                                      size="xs"
-                                      variant="ghost"
-                                      onClick={() => handleRemoveMatchingPair(qIdx, pIdx)}
-                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : q.type === "NUMERICAL" ? (
-                        <div className="space-y-2 pt-2 border-t">
-                          <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
-                            <Hash className="h-3.5 w-3.5" /> Числовой эталонный ответ и допустимая погрешность
-                          </label>
-                          {(() => {
-                            let numObj = { value: 10, tolerance: 0.1 };
-                            try {
-                              numObj = JSON.parse(q.correctAnswer || "{}");
-                            } catch {}
-                            return (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border bg-muted/20">
-                                <div className="space-y-1">
-                                  <label className="text-[10px] text-muted-foreground font-medium">
-                                    Точное числовое значение:
-                                  </label>
-                                  <Input
-                                    type="number"
-                                    step="any"
-                                    placeholder="Например: 9.8"
-                                    value={numObj.value ?? 0}
-                                    onChange={(e) => handleUpdateNumerical(qIdx, "value", e.target.value)}
-                                    className="h-8 text-xs font-mono bg-background"
-                                  />
-                                </div>
-
-                                <div className="space-y-1">
-                                  <label className="text-[10px] text-muted-foreground font-medium">
-                                    Допустимая погрешность (± Δ):
-                                  </label>
-                                  <Input
-                                    type="number"
-                                    step="any"
-                                    placeholder="Например: 0.05"
-                                    value={numObj.tolerance ?? 0}
-                                    onChange={(e) => handleUpdateNumerical(qIdx, "tolerance", e.target.value)}
-                                    className="h-8 text-xs font-mono bg-background"
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      ) : (
-                        <div className="space-y-2 pt-2 border-t">
-                          <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
-                            <span className="flex items-center gap-1">
-                              Варианты ответов (нажмите на галочку для выбора{" "}
-                              {q.type === "MULTIPLE" ? "верных вариантов" : "верного варианта"}):
-                            </span>
-
-                            {q.type !== "TRUE_FALSE" && (
+                        ) : q.type === "ORDERING" ? (
+                          <div className="space-y-2 pt-2 border-t">
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
+                              <span className="flex items-center gap-1 text-primary">
+                                <ListOrdered className="h-3.5 w-3.5" /> Элементы в верном эталонном порядке (перетащите в нужный порядок):
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => handleAddOption(qIdx)}
                                 className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1"
                               >
-                                <PlusCircle className="h-3 w-3" /> Вариант
+                                <PlusCircle className="h-3 w-3" /> Элемент
                               </button>
-                            )}
-                          </div>
+                            </div>
 
-                          {/* Options List with DnD */}
-                          <div className="space-y-2">
-                            {q.options.map((rawOpt, optIdx) => {
-                              const opt = typeof rawOpt === "string" ? rawOpt : (typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt ? rawOpt.left : "");
-                              const isCorrect = isOptionCorrect(q, opt);
-                              const isDraggingOpt = draggedOption?.qIdx === qIdx && draggedOption?.optIdx === optIdx;
-                              const isOverOpt = dragOverOption?.qIdx === qIdx && dragOverOption?.optIdx === optIdx;
-
-                              return (
-                                <div
-                                  key={optIdx}
-                                  draggable={q.type !== "TRUE_FALSE"}
-                                  onDragStart={(e) => {
-                                    e.stopPropagation();
-                                    setDraggedOption({ qIdx, optIdx });
-                                  }}
-                                  onDragOver={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                  }}
-                                  onDragEnter={(e) => {
-                                    e.stopPropagation();
-                                    setDragOverOption({ qIdx, optIdx });
-                                  }}
-                                  onDragEnd={(e) => {
-                                    e.stopPropagation();
-                                    setDraggedOption(null);
-                                    setDragOverOption(null);
-                                  }}
-                                  onDrop={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (
-                                      draggedOption &&
-                                      draggedOption.qIdx === qIdx &&
-                                      draggedOption.optIdx !== optIdx
-                                    ) {
-                                      handleMoveOption(qIdx, draggedOption.optIdx, optIdx);
-                                    }
-                                    setDraggedOption(null);
-                                    setDragOverOption(null);
-                                  }}
-                                  className={`flex items-center gap-2 p-1 rounded-lg border transition-all ${
-                                    isDraggingOpt ? "opacity-40 border-dashed border-primary" : "border-transparent"
-                                  } ${isOverOpt && !isDraggingOpt ? "bg-primary/10 border-primary" : ""}`}
-                                >
-                                  {q.type !== "TRUE_FALSE" && (
-                                    <div
-                                      className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground shrink-0"
-                                      title="Перетащите для изменения порядка вариантов"
-                                    >
-                                      <GripVertical className="h-3.5 w-3.5" />
-                                    </div>
-                                  )}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleOptionCorrect(qIdx, opt)}
-                                    className={`w-7 h-7 shrink-0 rounded-md border flex items-center justify-center transition-colors ${
-                                      isCorrect
-                                        ? "bg-primary border-primary text-primary-foreground"
-                                        : "bg-background border-border text-muted-foreground hover:border-primary/50"
-                                    }`}
-                                    title={isCorrect ? "Верный ответ" : "Отметить как верный"}
-                                  >
-                                    <Check className={`h-3.5 w-3.5 stroke-[3] ${isCorrect ? "opacity-100" : "opacity-0"}`} />
-                                  </button>
+                            <div className="space-y-2">
+                              {q.options.map((opt, optIdx) => (
+                                <div key={optIdx} className="flex items-center gap-2">
+                                  <span className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                                    {optIdx + 1}
+                                  </span>
 
                                   <Input
-                                    disabled={q.type === "TRUE_FALSE"}
-                                    value={opt}
+                                    value={typeof opt === "string" ? opt : (typeof opt === "object" && opt !== null && "left" in opt ? opt.left : "")}
                                     onChange={(e) => handleUpdateOptionText(qIdx, optIdx, e.target.value)}
-                                    className={`h-7 text-xs bg-background flex-1 ${
-                                      isCorrect ? "border-primary/60 font-semibold text-primary" : ""
-                                    }`}
+                                    className="h-7 text-xs bg-background flex-1 font-medium"
                                   />
 
-                                  {q.type !== "TRUE_FALSE" && q.options.length > 2 && (
+                                  <div className="flex items-center gap-0.5 shrink-0">
                                     <Button
                                       type="button"
                                       size="xs"
                                       variant="ghost"
-                                      onClick={() => handleRemoveOption(qIdx, optIdx)}
-                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                                      title="Удалить вариант"
+                                      disabled={optIdx === 0}
+                                      onClick={() => handleMoveOption(qIdx, optIdx, optIdx - 1)}
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                      title="Поднять выше"
                                     >
-                                      <Trash2 className="h-3 w-3" />
+                                      <ChevronUp className="h-3.5 w-3.5" />
                                     </Button>
-                                  )}
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      variant="ghost"
+                                      disabled={optIdx === q.options.length - 1}
+                                      onClick={() => handleMoveOption(qIdx, optIdx, optIdx + 1)}
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                      title="Опустить ниже"
+                                    >
+                                      <ChevronDown className="h-3.5 w-3.5" />
+                                    </Button>
+
+                                    {q.options.length > 2 && (
+                                      <Button
+                                        type="button"
+                                        size="xs"
+                                        variant="ghost"
+                                        onClick={() => handleRemoveOption(qIdx, optIdx)}
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                                        title="Удалить элемент"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : q.type === "MATCHING" ? (
+                          <div className="space-y-2 pt-2 border-t">
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
+                              <span className="flex items-center gap-1 text-primary">
+                                <Layers className="h-3.5 w-3.5" /> Пары для сопоставления (Слева термин — Справа определение):
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleAddMatchingPair(qIdx)}
+                                className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1"
+                              >
+                                <PlusCircle className="h-3 w-3" /> Добавить пару
+                              </button>
+                            </div>
+
+                            <div className="space-y-2">
+                              {(Array.isArray(q.options) ? q.options : []).map((pair: unknown, pIdx: number) => {
+                                const leftVal = typeof pair === "object" && pair !== null && "left" in pair ? String((pair as { left: unknown }).left || "") : String(pair || "");
+                                const rightVal = typeof pair === "object" && pair !== null && "right" in pair ? String((pair as { right: unknown }).right || "") : "";
+                                return (
+                                  <div key={pIdx} className="flex items-center gap-2">
+                                    <span className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                                      {pIdx + 1}
+                                    </span>
+
+                                    <Input
+                                      placeholder="Термин / Элемент слева..."
+                                      value={leftVal}
+                                      onChange={(e) => handleUpdateMatchingPair(qIdx, pIdx, "left", e.target.value)}
+                                      className="h-7 text-xs bg-background flex-1 font-medium"
+                                    />
+
+                                    <span className="text-muted-foreground font-bold">➔</span>
+
+                                    <Input
+                                      placeholder="Определение / Пара справа..."
+                                      value={rightVal}
+                                      onChange={(e) => handleUpdateMatchingPair(qIdx, pIdx, "right", e.target.value)}
+                                      className="h-7 text-xs bg-background flex-1 font-medium"
+                                    />
+
+                                    {Array.isArray(q.options) && q.options.length > 1 && (
+                                      <Button
+                                        type="button"
+                                        size="xs"
+                                        variant="ghost"
+                                        onClick={() => handleRemoveMatchingPair(qIdx, pIdx)}
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : q.type === "NUMERICAL" ? (
+                          <div className="space-y-2 pt-2 border-t">
+                            <label className="text-[11px] font-semibold text-primary flex items-center gap-1">
+                              <Hash className="h-3.5 w-3.5" /> Числовой эталонный ответ и допустимая погрешность
+                            </label>
+                            {(() => {
+                              let numObj = { value: 10, tolerance: 0.1 };
+                              try {
+                                numObj = JSON.parse(q.correctAnswer || "{}");
+                              } catch { }
+                              return (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border bg-muted/20">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] text-muted-foreground font-medium">
+                                      Точное числовое значение:
+                                    </label>
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      placeholder="Например: 9.8"
+                                      value={numObj.value ?? 0}
+                                      onChange={(e) => handleUpdateNumerical(qIdx, "value", e.target.value)}
+                                      className="h-8 text-xs font-mono bg-background"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] text-muted-foreground font-medium">
+                                      Допустимая погрешность (± Δ):
+                                    </label>
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      placeholder="Например: 0.05"
+                                      value={numObj.tolerance ?? 0}
+                                      onChange={(e) => handleUpdateNumerical(qIdx, "tolerance", e.target.value)}
+                                      className="h-8 text-xs font-mono bg-background"
+                                    />
+                                  </div>
                                 </div>
                               );
-                            })}
+                            })()}
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        ) : (
+                          <div className="space-y-2 pt-2 border-t">
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
+                              <span className="flex items-center gap-1">
+                                Варианты ответов (нажмите на галочку для выбора{" "}
+                                {q.type === "MULTIPLE" ? "верных вариантов" : "верного варианта"}):
+                              </span>
 
-                    {/* Quick Insert Divider Between Questions */}
-                    <div className="flex items-center justify-center py-0.5 group">
-                      <button
-                        type="button"
-                        onClick={() => handleAddQuestionAt(qIdx + 1)}
-                        className="h-6 px-3 text-[10px] rounded-full border border-dashed border-primary/30 bg-background text-primary opacity-50 group-hover:opacity-100 hover:border-primary hover:bg-primary/10 transition-all font-semibold flex items-center gap-1 shadow-2xs cursor-pointer"
-                        title={`Вставить новый вопрос между #${qIdx + 1} и #${qIdx + 2}`}
-                      >
-                        <PlusCircle className="h-3 w-3" /> Вставить вопрос после #{qIdx + 1}
-                      </button>
-                    </div>
-                  </React.Fragment>
-                );
-              })}
+                              {q.type !== "TRUE_FALSE" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddOption(qIdx)}
+                                  className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1"
+                                >
+                                  <PlusCircle className="h-3 w-3" /> Вариант
+                                </button>
+                              )}
+                            </div>
 
-              <Button
-                type="button"
-                size="xs"
-                variant="outline"
-                onClick={() => handleAddQuestionAt()}
-                className="w-full h-8 text-xs gap-1.5 text-primary border-dashed border-primary/40 hover:bg-primary/5 font-medium"
-              >
-                <PlusCircle className="h-3.5 w-3.5" /> Добавить еще один вопрос в конец
-              </Button>
+                            {/* Options List with DnD */}
+                            <div className="space-y-2">
+                              {q.options.map((rawOpt, optIdx) => {
+                                const opt = typeof rawOpt === "string" ? rawOpt : (typeof rawOpt === "object" && rawOpt !== null && "left" in rawOpt ? rawOpt.left : "");
+                                const isCorrect = isOptionCorrect(q, opt);
+                                const isDraggingOpt = draggedOption?.qIdx === qIdx && draggedOption?.optIdx === optIdx;
+                                const isOverOpt = dragOverOption?.qIdx === qIdx && dragOverOption?.optIdx === optIdx;
+
+                                return (
+                                  <div
+                                    key={optIdx}
+                                    draggable={q.type !== "TRUE_FALSE"}
+                                    onDragStart={(e) => {
+                                      e.stopPropagation();
+                                      setDraggedOption({ qIdx, optIdx });
+                                    }}
+                                    onDragOver={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
+                                    onDragEnter={(e) => {
+                                      e.stopPropagation();
+                                      setDragOverOption({ qIdx, optIdx });
+                                    }}
+                                    onDragEnd={(e) => {
+                                      e.stopPropagation();
+                                      setDraggedOption(null);
+                                      setDragOverOption(null);
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (
+                                        draggedOption &&
+                                        draggedOption.qIdx === qIdx &&
+                                        draggedOption.optIdx !== optIdx
+                                      ) {
+                                        handleMoveOption(qIdx, draggedOption.optIdx, optIdx);
+                                      }
+                                      setDraggedOption(null);
+                                      setDragOverOption(null);
+                                    }}
+                                    className={`flex items-center gap-2 p-1 rounded-lg border transition-all ${isDraggingOpt ? "opacity-40 border-dashed border-primary" : "border-transparent"
+                                      } ${isOverOpt && !isDraggingOpt ? "bg-primary/10 border-primary" : ""}`}
+                                  >
+                                    {q.type !== "TRUE_FALSE" && (
+                                      <div
+                                        className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground shrink-0"
+                                        title="Перетащите для изменения порядка вариантов"
+                                      >
+                                        <GripVertical className="h-3.5 w-3.5" />
+                                      </div>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleOptionCorrect(qIdx, opt)}
+                                      className={`w-7 h-7 shrink-0 rounded-md border flex items-center justify-center transition-colors ${isCorrect
+                                        ? "bg-primary border-primary text-primary-foreground"
+                                        : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                                        }`}
+                                      title={isCorrect ? "Верный ответ" : "Отметить как верный"}
+                                    >
+                                      <Check className={`h-3.5 w-3.5 stroke-[3] ${isCorrect ? "opacity-100" : "opacity-0"}`} />
+                                    </button>
+
+                                    <Input
+                                      disabled={q.type === "TRUE_FALSE"}
+                                      value={opt}
+                                      onChange={(e) => handleUpdateOptionText(qIdx, optIdx, e.target.value)}
+                                      className={`h-7 text-xs bg-background flex-1 ${isCorrect ? "border-primary/60 font-semibold text-primary" : ""
+                                        }`}
+                                    />
+
+                                    {q.type !== "TRUE_FALSE" && q.options.length > 2 && (
+                                      <Button
+                                        type="button"
+                                        size="xs"
+                                        variant="ghost"
+                                        onClick={() => handleRemoveOption(qIdx, optIdx)}
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                                        title="Удалить вариант"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quick Insert Divider Between Questions */}
+                      <div className="flex items-center justify-center py-0.5 group">
+                        <button
+                          type="button"
+                          onClick={() => handleAddQuestionAt(qIdx + 1)}
+                          className="h-6 px-3 text-[10px] rounded-full border border-dashed border-primary/30 bg-background text-primary opacity-50 group-hover:opacity-100 hover:border-primary hover:bg-primary/10 transition-all font-semibold flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title={`Вставить новый вопрос между #${qIdx + 1} и #${qIdx + 2}`}
+                        >
+                          <PlusCircle className="h-3 w-3" /> Вставить вопрос после #{qIdx + 1}
+                        </button>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleAddQuestionAt()}
+                  className="w-full h-8 text-xs gap-1.5 text-primary border-dashed border-primary/40 hover:bg-primary/5 font-medium"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" /> Добавить еще один вопрос в конец
+                </Button>
               </div>
             </div>
           )}
@@ -1778,39 +1776,104 @@ export function EditTestView({
             </div>
 
             <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Дисциплина *</label>
-              <Select value={groupSubjectId} onValueChange={setGroupSubjectId}>
-                <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                  <SelectValue>{subjects.find((s) => s.id === groupSubjectId)?.subjectName || "Выберите предмет"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id} className="text-xs">
-                      {s.subjectName} ({s.teacherName})
+              <div className="flex items-center justify-between">
+                <label className="font-medium text-foreground text-xs">Дисциплина *</label>
+                <button
+                  type="button"
+                  onClick={() => setIsNewSubject((prev) => !prev)}
+                  className="text-[11px] text-primary hover:underline font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  {isNewSubject ? (
+                    <>
+                      <BookOpen className="h-3 w-3" /> Выбрать из списка
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-3 w-3" /> Новая дисциплина
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {isNewSubject ? (
+                <div className="space-y-1">
+                  <Input
+                    type="text"
+                    placeholder="Введите название новой дисциплины"
+                    value={newSubjectName}
+                    onChange={(e) => setNewSubjectName(e.target.value)}
+                    className="h-8 text-xs bg-background font-medium"
+                    autoFocus
+                  />
+                  <p className="text-[10px] text-muted-foreground flex items-center justify-between">
+                    <span>Будет создана отдельная дисциплина</span>
+                    {subjects.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsNewSubject(false);
+                          setNewSubjectName("");
+                        }}
+                        className="text-primary hover:underline font-medium cursor-pointer"
+                      >
+                        Выбрать существующую
+                      </button>
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <Select
+                  value={groupSubjectId}
+                  onValueChange={(val) => {
+                    if (val === "__new__") {
+                      setIsNewSubject(true);
+                    } else {
+                      setGroupSubjectId(val);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                    <SelectValue>{subjects.find((s) => s.id === groupSubjectId)?.subjectName || "Выберите предмет"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((s) => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">
+                        {s.subjectName} ({s.teacherName})
+                      </SelectItem>
+                    ))}
+                    <SelectItem
+                      value="__new__"
+                      className="text-xs text-primary font-medium border-t mt-1 pt-1.5 cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1 text-primary">
+                        <Plus className="h-3 w-3 text-primary" />Ввести новую дисциплину...
+                      </span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Учебная тема (опционально)</label>
-              <Select value={topicId} onValueChange={setTopicId}>
-                <SelectTrigger className="h-8 text-xs bg-background font-medium">
-                  <SelectValue>{topics.find((t) => t.id === topicId)?.title || "Не привязано"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" className="text-xs">
-                    Не привязано к теме
-                  </SelectItem>
-                  {topics.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="text-xs">
-                      {t.title}
+            {!isNewSubject && (
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Учебная тема (опционально)</label>
+                <Select value={topicId} onValueChange={setTopicId}>
+                  <SelectTrigger className="h-8 text-xs bg-background font-medium">
+                    <SelectValue>{topics.find((t) => t.id === topicId)?.title || "Не привязано"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none" className="text-xs">
+                      Не привязано к теме
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                    {topics.map((t) => (
+                      <SelectItem key={t.id} value={t.id} className="text-xs">
+                        {t.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1">
               <label className="font-medium text-foreground text-xs flex items-center gap-1">
@@ -1834,9 +1897,8 @@ export function EditTestView({
 
               <div
                 onClick={() => setShuffleQuestions(!shuffleQuestions)}
-                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
-                  shuffleQuestions ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"
-                }`}
+                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${shuffleQuestions ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"
+                  }`}
               >
                 <div className="space-y-0.5">
                   <span className="font-medium text-xs block">Порядок вопросов</span>
@@ -1849,9 +1911,8 @@ export function EditTestView({
 
               <div
                 onClick={() => setShuffleOptions(!shuffleOptions)}
-                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
-                  shuffleOptions ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"
-                }`}
+                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${shuffleOptions ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"
+                  }`}
               >
                 <div className="space-y-0.5">
                   <span className="font-medium text-xs block">Варианты ответов</span>
