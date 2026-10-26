@@ -89,6 +89,7 @@ export interface TestDTO {
   id: string;
   groupSubjectId: string;
   subjectName: string;
+  customSubject?: string | null;
   topicId?: string | null;
   topicTitle?: string | null;
   teacherName: string;
@@ -106,6 +107,28 @@ export interface TestDTO {
   userSubmission?: TestSubmissionDTO | null;
   submissionsCount: number;
   submissions: TestSubmissionDTO[];
+}
+
+export function parseTestDescription(rawDescription?: string | null): {
+  description: string | null;
+  customSubject: string | null;
+} {
+  if (!rawDescription) return { description: null, customSubject: null };
+  const match = rawDescription.match(/^<!--custom_subject:(.*?)-->\n?/);
+  if (match) {
+    return {
+      customSubject: match[1].trim(),
+      description: rawDescription.replace(/^<!--custom_subject:.*?-->\n?/, "").trim() || null,
+    };
+  }
+  return { description: rawDescription, customSubject: null };
+}
+
+export function buildTestDescription(description?: string | null, customSubject?: string | null): string | null {
+  const cleanDesc = description?.trim() || "";
+  const cleanSubj = customSubject?.trim();
+  if (!cleanSubj) return cleanDesc || null;
+  return cleanDesc ? `<!--custom_subject:${cleanSubj}-->\n${cleanDesc}` : `<!--custom_subject:${cleanSubj}-->`;
 }
 
 /** Helper to retrieve accessible groups and groupSubjects based on user role */
@@ -1115,16 +1138,19 @@ export async function getTestsDataAction(groupId?: string, topicId?: string) {
         submittedAt: s.submittedAt.toISOString(),
       }));
 
+      const { description: cleanDesc, customSubject } = parseTestDescription(t.description);
+
       return {
         id: t.id,
         groupSubjectId: t.groupSubjectId,
-        subjectName: t.groupSubject.subject.name,
+        subjectName: customSubject || t.groupSubject.subject.name,
+        customSubject,
         topicId: t.topicId,
         topicTitle: t.topic?.title || null,
         teacherName: t.groupSubject.teacher.name,
         authorName: t.author.name,
         title: t.title,
-        description: t.description,
+        description: cleanDesc,
         timeLimit: t.timeLimit,
         shuffleQuestions: t.shuffleQuestions ?? false,
         shuffleOptions: t.shuffleOptions ?? false,
@@ -1197,59 +1223,27 @@ export async function createTestAction(data: {
 
     let finalGroupSubjectId = data.groupSubjectId;
 
-    if (data.newSubjectName && data.newSubjectName.trim()) {
-      const subjectName = data.newSubjectName.trim();
-
-      // Find or create Subject
-      let subject = await prisma.subject.findFirst({
-        where: { name: { equals: subjectName, mode: "insensitive" } },
+    // Custom subject name is isolated to the test itself (stored in description marker),
+    // so we link to any existing GroupSubject of the group without adding a new Subject entity.
+    if (!finalGroupSubjectId && data.groupId) {
+      const existingGs = await prisma.groupSubject.findFirst({
+        where: { groupId: data.groupId },
+        select: { id: true },
       });
-
-      if (!subject) {
-        subject = await prisma.subject.create({
-          data: {
-            name: subjectName,
-          },
-        });
+      if (existingGs) {
+        finalGroupSubjectId = existingGs.id;
       }
+    }
 
-      // Resolve target groupId
-      let targetGroupId = data.groupId;
-      if (!targetGroupId && data.groupSubjectId) {
-        const existingGs = await prisma.groupSubject.findUnique({
-          where: { id: data.groupSubjectId },
-          select: { groupId: true },
-        });
-        if (existingGs) targetGroupId = existingGs.groupId;
-      }
-
-      if (!targetGroupId) {
-        return { success: false, error: "Укажите учебную группу для новой дисциплины" };
-      }
-
-      // Find or create GroupSubject
-      let groupSubject = await prisma.groupSubject.findFirst({
-        where: {
-          groupId: targetGroupId,
-          subjectId: subject.id,
-        },
+    if (!finalGroupSubjectId) {
+      const anyGs = await prisma.groupSubject.findFirst({
+        select: { id: true },
       });
-
-      if (!groupSubject) {
-        groupSubject = await prisma.groupSubject.create({
-          data: {
-            groupId: targetGroupId,
-            subjectId: subject.id,
-            teacherId: session.user.id,
-          },
-        });
-      }
-
-      finalGroupSubjectId = groupSubject.id;
+      if (anyGs) finalGroupSubjectId = anyGs.id;
     }
 
     if (!finalGroupSubjectId || !data.title.trim() || !data.questions || data.questions.length === 0) {
-      return { success: false, error: "Укажите дисциплину, название и добавьте хотя бы 1 вопрос" };
+      return { success: false, error: "Укажите дисциплину или название предмета, название теста и добавьте хотя бы 1 вопрос" };
     }
 
     let finalTopicId: string | null = null;
@@ -1264,6 +1258,7 @@ export async function createTestAction(data: {
     }
 
     const isPublished = data.isPublished !== undefined ? data.isPublished : true;
+    const finalDescription = buildTestDescription(data.description, data.newSubjectName);
 
     const test = await prisma.test.create({
       data: {
@@ -1272,7 +1267,7 @@ export async function createTestAction(data: {
         topicId: finalTopicId,
         authorId: session.user.id,
         title: data.title.trim(),
-        description: data.description?.trim() || null,
+        description: finalDescription,
         timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
         shuffleQuestions: !!data.shuffleQuestions,
         shuffleOptions: !!data.shuffleOptions,
@@ -1307,12 +1302,14 @@ export async function createTestAction(data: {
           },
         });
 
+        const displaySubject = data.newSubjectName?.trim() || gs?.subject.name || "Предмет";
+
         if (gs && gs.group.students.length > 0) {
           await prisma.notification.createMany({
             data: gs.group.students.map((s) => ({
               userId: s.studentId,
               title: `Назначен тест: ${test.title}`,
-              message: `Доступен тест по дисциплине "${gs.subject.name}".`,
+              message: `Доступен тест по предмету "${displaySubject}".`,
               type: "TEST",
               link: "/dashboard/lms/tests",
             })),
@@ -1370,11 +1367,14 @@ export async function toggleTestPublishAction(testId: string) {
     // Notify students if newly published
     if (newStatus && test.groupSubject?.group?.students?.length) {
       try {
+        const { customSubject } = parseTestDescription(test.description);
+        const displaySubject = customSubject || test.groupSubject.subject.name;
+
         await prisma.notification.createMany({
           data: test.groupSubject.group.students.map((s) => ({
             userId: s.studentId,
             title: `Назначен тест: ${test.title}`,
-            message: `Доступен тест по дисциплине "${test.groupSubject.subject.name}".`,
+            message: `Доступен тест по предмету "${displaySubject}".`,
             type: "TEST",
             link: "/dashboard/lms/tests",
           })),
@@ -1436,12 +1436,15 @@ export async function getTestForEditAction(testId: string) {
       };
     });
 
+    const { description: cleanDesc, customSubject } = parseTestDescription(test.description);
+
     return {
       success: true,
       test: {
         id: test.id,
         title: test.title,
-        description: test.description || "",
+        description: cleanDesc || "",
+        customSubject: customSubject || null,
         timeLimit: test.timeLimit,
         shuffleQuestions: test.shuffleQuestions,
         shuffleOptions: test.shuffleOptions,
@@ -1528,14 +1531,16 @@ export async function getTestForTakeAction(testId: string) {
       questionsToUse = questionsToUse.sort(() => Math.random() - 0.5);
     }
 
+    const { description: cleanDesc, customSubject } = parseTestDescription(test.description);
+
     return {
       success: true,
       test: {
         id: test.id,
         title: test.title,
-        description: test.description || "",
+        description: cleanDesc || "",
         timeLimit: test.timeLimit,
-        subjectName: test.groupSubject.subject.name,
+        subjectName: customSubject || test.groupSubject.subject.name,
         teacherName: test.groupSubject.teacher.name,
         userRole,
         questions: questionsToUse,
@@ -1589,64 +1594,24 @@ export async function updateTestAction(
 
     let finalGroupSubjectId = data.groupSubjectId;
 
-    if (data.newSubjectName && data.newSubjectName.trim()) {
-      const subjectName = data.newSubjectName.trim();
-
-      let subject = await prisma.subject.findFirst({
-        where: { name: { equals: subjectName, mode: "insensitive" } },
+    if (!finalGroupSubjectId && data.groupId) {
+      const existingGs = await prisma.groupSubject.findFirst({
+        where: { groupId: data.groupId },
+        select: { id: true },
       });
+      if (existingGs) finalGroupSubjectId = existingGs.id;
+    }
 
-      if (!subject) {
-        subject = await prisma.subject.create({
-          data: {
-            name: subjectName,
-          },
-        });
-      }
-
-      let targetGroupId = data.groupId;
-      if (!targetGroupId && data.groupSubjectId) {
-        const existingGs = await prisma.groupSubject.findUnique({
-          where: { id: data.groupSubjectId },
-          select: { groupId: true },
-        });
-        if (existingGs) targetGroupId = existingGs.groupId;
-      }
-
-      if (!targetGroupId) {
-        const currentTest = await prisma.test.findUnique({
-          where: { id: testId },
-          include: { groupSubject: true },
-        });
-        targetGroupId = currentTest?.groupSubject.groupId;
-      }
-
-      if (!targetGroupId) {
-        return { success: false, error: "Укажите учебную группу для новой дисциплины" };
-      }
-
-      let groupSubject = await prisma.groupSubject.findFirst({
-        where: {
-          groupId: targetGroupId,
-          subjectId: subject.id,
-        },
+    if (!finalGroupSubjectId) {
+      const currentTest = await prisma.test.findUnique({
+        where: { id: testId },
+        select: { groupSubjectId: true },
       });
-
-      if (!groupSubject) {
-        groupSubject = await prisma.groupSubject.create({
-          data: {
-            groupId: targetGroupId,
-            subjectId: subject.id,
-            teacherId: session.user.id,
-          },
-        });
-      }
-
-      finalGroupSubjectId = groupSubject.id;
+      if (currentTest) finalGroupSubjectId = currentTest.groupSubjectId;
     }
 
     if (!finalGroupSubjectId || !data.title.trim() || !data.questions || data.questions.length === 0) {
-      return { success: false, error: "Укажите дисциплину, название и добавьте хотя бы 1 вопрос" };
+      return { success: false, error: "Укажите дисциплину или название предмета, название и добавьте хотя бы 1 вопрос" };
     }
 
     let finalTopicId: string | null = null;
@@ -1660,13 +1625,15 @@ export async function updateTestAction(
       }
     }
 
+    const finalDescription = buildTestDescription(data.description, data.newSubjectName);
+
     await prisma.test.update({
       where: { id: testId },
       data: {
         groupSubjectId: finalGroupSubjectId,
         topicId: finalTopicId,
         title: data.title.trim(),
-        description: data.description?.trim() || null,
+        description: finalDescription,
         timeLimit: data.timeLimit ? Number(data.timeLimit) : null,
         shuffleQuestions: !!data.shuffleQuestions,
         shuffleOptions: !!data.shuffleOptions,
@@ -2181,14 +2148,16 @@ export async function getTestResultsAction(testId: string) {
       { range: "80–100%", label: "Отл (80–100%)", count: submittedResults.filter((s) => s.percent >= 80).length, fill: "var(--chart-1)" },
     ];
 
+    const { description: cleanDesc, customSubject } = parseTestDescription(test.description);
+
     return {
       success: true,
       test: {
         id: test.id,
         title: test.title,
-        description: test.description || "",
+        description: cleanDesc || "",
         groupName: test.groupSubject.group.name,
-        subjectName: test.groupSubject.subject.name,
+        subjectName: customSubject || test.groupSubject.subject.name,
         teacherName: test.groupSubject.teacher?.name || "Преподаватель",
         specialtyName: test.groupSubject.group.specialty?.name || "",
         academicYear: test.groupSubject.group.academicYear?.name || "2026-2027",

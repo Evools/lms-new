@@ -89,6 +89,7 @@ export interface TestEditData {
   id: string;
   title: string;
   description: string;
+  customSubject?: string | null;
   timeLimit: number | null;
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
@@ -236,8 +237,8 @@ export function EditTestView({
 
   const [groupId, setGroupId] = useState(initialTest.groupId || groups[0]?.id || "");
   const [groupSubjectId, setGroupSubjectId] = useState(initialTest.groupSubjectId || subjects[0]?.id || "");
-  const [isNewSubject, setIsNewSubject] = useState(false);
-  const [newSubjectName, setNewSubjectName] = useState("");
+  const [isNewSubject, setIsNewSubject] = useState(!!initialTest.customSubject);
+  const [newSubjectName, setNewSubjectName] = useState(initialTest.customSubject || "");
   const [topicId, setTopicId] = useState(initialTest.topicId || "none");
   const [title, setTitle] = useState(initialTest.title);
   const [description, setDescription] = useState(initialTest.description);
@@ -1789,7 +1790,7 @@ export function EditTestView({
                     </>
                   ) : (
                     <>
-                      <Plus className="h-3 w-3" /> Новая дисциплина
+                      <Plus className="h-3 w-3" /> Своё название
                     </>
                   )}
                 </button>
@@ -1799,14 +1800,14 @@ export function EditTestView({
                 <div className="space-y-1">
                   <Input
                     type="text"
-                    placeholder="Введите название новой дисциплины"
+                    placeholder="Название предмета для этого теста"
                     value={newSubjectName}
                     onChange={(e) => setNewSubjectName(e.target.value)}
                     className="h-8 text-xs bg-background font-medium"
                     autoFocus
                   />
                   <p className="text-[10px] text-muted-foreground flex items-center justify-between">
-                    <span>Будет создана отдельная дисциплина</span>
+                    <span>Только для этого теста (без создания предмета в базе)</span>
                     {subjects.length > 0 && (
                       <button
                         type="button"
@@ -1846,7 +1847,7 @@ export function EditTestView({
                       className="text-xs text-primary font-medium border-t mt-1 pt-1.5 cursor-pointer"
                     >
                       <span className="flex items-center gap-1 text-primary">
-                        <Plus className="h-3 w-3 text-primary" />Ввести новую дисциплину...
+                        <Plus className="h-3 w-3 text-primary" /> + Своё название (без добавления в справочник)...
                       </span>
                     </SelectItem>
                   </SelectContent>
