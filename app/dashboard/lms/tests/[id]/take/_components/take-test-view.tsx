@@ -224,14 +224,28 @@ export function TakeTestView({ test }: TakeTestViewProps) {
     };
 
     const handleSelectStart = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          Boolean(target.closest?.('[draggable="true"]')) ||
+          Boolean(target.closest?.("[data-ordering-index]")))
+      ) {
         return;
       }
       e.preventDefault();
     };
 
     const handleDragStart = (e: DragEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (Boolean(target.closest?.('[draggable="true"]')) ||
+          Boolean(target.closest?.("[data-ordering-index]")))
+      ) {
+        return;
+      }
       e.preventDefault();
     };
 
@@ -1207,6 +1221,39 @@ function OrderingDndList({ items, disabled, onMove }: OrderingDndListProps) {
     setDraggedIdx(null);
   };
 
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetIndex: number) => {
+    if (disabled) return;
+    e.preventDefault();
+    if (draggedIdx !== null && draggedIdx !== targetIndex) {
+      onMove(draggedIdx, targetIndex);
+    }
+    setDraggedIdx(null);
+  };
+
+  const handleTouchStart = (index: number) => {
+    if (disabled) return;
+    setDraggedIdx(index);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (disabled || draggedIdx === null) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetCard = elem?.closest("[data-ordering-index]");
+    if (targetCard) {
+      const targetIndex = Number(targetCard.getAttribute("data-ordering-index"));
+      if (!isNaN(targetIndex) && targetIndex !== draggedIdx && targetIndex >= 0 && targetIndex < items.length) {
+        onMove(draggedIdx, targetIndex);
+        setDraggedIdx(targetIndex);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setDraggedIdx(null);
+  };
+
   return (
     <div className="space-y-2">
       <div className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
@@ -1215,7 +1262,7 @@ function OrderingDndList({ items, disabled, onMove }: OrderingDndListProps) {
         </span>
         {!disabled && (
           <span className="text-[10px] text-muted-foreground hidden sm:inline-block">
-            (Перетаскивайте блоки мышкой или используйте стрелки)
+            (Перетаскивайте мышкой, пальцем или используйте стрелки)
           </span>
         )}
       </div>
@@ -1227,16 +1274,21 @@ function OrderingDndList({ items, disabled, onMove }: OrderingDndListProps) {
           return (
             <div
               key={itemIdx}
+              data-ordering-index={itemIdx}
               draggable={!disabled}
               onDragStart={(e) => handleDragStart(e, itemIdx)}
               onDragOver={handleDragOver}
               onDragEnter={() => handleDragEnter(itemIdx)}
               onDragEnd={handleDragEnd}
+              onDrop={(e) => handleDrop(e, itemIdx)}
+              onTouchStart={() => handleTouchStart(itemIdx)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
               className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs font-medium select-none transition-colors ${
                 disabled ? "cursor-default" : "cursor-grab active:cursor-grabbing"
               } ${
                 isCurrentActive
-                  ? "border-primary bg-primary/10 shadow-xs ring-1 ring-primary/40 text-foreground font-semibold"
+                  ? "border-primary bg-primary/10 text-foreground"
                   : "bg-card hover:bg-muted/40 border-border hover:border-primary/40 text-foreground"
               }`}
             >
