@@ -24,6 +24,7 @@ import {
   Award,
   ShieldAlert,
   Printer,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -145,6 +146,158 @@ interface TestResultsViewProps {
   studentsResults: StudentResultDTO[];
   analytics?: AnalyticsDTO;
   questionStats?: QuestionStatDTO[];
+}
+
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  SINGLE: "Один ответ",
+  MULTIPLE: "Несколько ответов",
+  TEXT: "Текстовый",
+  TRUE_FALSE: "Да / Нет",
+  ORDERING: "Упорядочивание",
+  BLANKS: "Пропуски",
+  CODE: "Код",
+  MATCHING: "Сопоставление",
+  NUMERICAL: "Числовой",
+};
+
+interface AnswerDisplayProps {
+  rawAnswer?: string | null;
+  correctAnswer?: string | null;
+  type?: string;
+  isStudent?: boolean;
+  isCorrect?: boolean;
+}
+
+function AnswerDisplay({
+  rawAnswer,
+  correctAnswer,
+  type,
+  isStudent = false,
+  isCorrect = false,
+}: AnswerDisplayProps) {
+  if (!rawAnswer || !rawAnswer.trim()) {
+    return <span className="text-muted-foreground/70 italic text-[11px]">Нет ответа</span>;
+  }
+
+  const qType = (type || "SINGLE").toUpperCase();
+  const trimmed = rawAnswer.trim();
+
+  // Try parsing JSON if it looks like array or object
+  let parsed: unknown = null;
+  if (
+    (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+    (trimmed.startsWith("{") && trimmed.endsWith("}"))
+  ) {
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      parsed = null;
+    }
+  }
+
+  // Parse correct array for comparison if available
+  let correctArr: string[] = [];
+  if (correctAnswer) {
+    try {
+      const c = JSON.parse(correctAnswer);
+      if (Array.isArray(c)) {
+        correctArr = c.map((s) => String(s).trim().toLowerCase());
+      }
+    } catch {}
+  }
+
+  // 1. Array of values (MULTIPLE, ORDERING, BLANKS, or any array)
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) {
+      return <span className="text-muted-foreground/70 italic text-[11px]">Пустой ответ</span>;
+    }
+
+    if (qType === "ORDERING") {
+      return (
+        <div className="flex flex-wrap gap-1">
+          {parsed.map((item, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-background border border-border text-foreground shadow-2xs"
+            >
+              <span className="font-mono font-bold text-primary text-[9px]">{idx + 1}.</span>
+              <span className="break-words">{String(item)}</span>
+            </span>
+          ))}
+        </div>
+      );
+    }
+
+    // MULTIPLE / BLANKS / other array
+    return (
+      <div className="flex flex-wrap gap-1">
+        {parsed.map((item, idx) => {
+          const str = String(item).trim();
+          const isItemCorrect = correctArr.length > 0 && correctArr.includes(str.toLowerCase());
+
+          return (
+            <span
+              key={idx}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border shadow-2xs ${
+                !isStudent
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : isItemCorrect
+                    ? "bg-primary/10 border-primary/30 text-primary"
+                    : "bg-destructive/10 border-destructive/30 text-destructive"
+              }`}
+            >
+              {!isStudent ? (
+                <Check className="h-2.5 w-2.5 shrink-0 stroke-[2.5]" />
+              ) : isItemCorrect ? (
+                <Check className="h-2.5 w-2.5 shrink-0 stroke-[2.5]" />
+              ) : (
+                <X className="h-2.5 w-2.5 shrink-0 stroke-[2.5]" />
+              )}
+              <span className="break-words">{str}</span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // 2. Object of pairs (MATCHING)
+  if (parsed && typeof parsed === "object") {
+    const entries = Object.entries(parsed as Record<string, unknown>);
+    if (entries.length === 0) {
+      return <span className="text-muted-foreground/70 italic text-[11px]">Пусто</span>;
+    }
+    return (
+      <div className="space-y-1">
+        {entries.map(([left, right], idx) => (
+          <div
+            key={idx}
+            className="flex items-center justify-between gap-1.5 px-2 py-0.5 rounded text-[10px] bg-background border border-border/70"
+          >
+            <span className="font-medium text-foreground">{left}</span>
+            <span className="text-muted-foreground text-[9px] shrink-0">→</span>
+            <span className="font-semibold text-primary">{String(right)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // 3. Simple text / Single / Numerical
+  const cleanStr = trimmed.replace(/^"|"$/g, "");
+  return (
+    <span
+      className={`text-[11px] font-medium break-words leading-relaxed ${
+        !isStudent
+          ? "text-primary"
+          : isCorrect
+            ? "text-primary"
+            : "text-destructive"
+      }`}
+    >
+      {cleanStr}
+    </span>
+  );
 }
 
 export function TestResultsView({
@@ -804,68 +957,78 @@ export function TestResultsView({
                                 side="top"
                                 align={tooltipAlign}
                                 showArrow={false}
-                                className="w-72 p-3 space-y-2 bg-popover text-popover-foreground border border-border shadow-xl rounded-xl text-xs z-50 block"
+                                className="max-w-none w-80 sm:w-96 p-3 space-y-2 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl text-xs z-50 block"
                               >
-                                <div className="space-y-1 border-b pb-1.5">
-                                  <div className="font-bold text-foreground text-xs">
-                                    Вопрос #{qIdx + 1} ({q.points} б.)
-                                  </div>
-                                  <div>
-                                    <span
-                                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                                        isCorrect
-                                          ? "bg-primary/10 text-primary border-primary/30"
-                                          : isPartial
-                                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                                            : "bg-destructive/10 text-destructive border-destructive/30"
-                                      }`}
-                                    >
-                                      {isCorrect ? (
-                                        <>
-                                          <Check className="h-3 w-3 stroke-[3]" /> Верно (+{ansData.pointsAwarded} б.)
-                                        </>
-                                      ) : isPartial ? (
-                                        <>
-                                          <Sparkles className="h-3 w-3" /> Частично (+{ansData.pointsAwarded} б.)
-                                        </>
-                                      ) : (
-                                        <>
-                                          <X className="h-3 w-3 stroke-[3]" /> Ошибка (0 б.)
-                                        </>
-                                      )}
+                                <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="font-bold text-foreground text-xs shrink-0">
+                                      Вопрос #{qIdx + 1}
+                                    </span>
+                                    <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                                      ({q.points} б.)
+                                    </span>
+                                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/60 truncate">
+                                      {QUESTION_TYPE_LABELS[q.type || "SINGLE"] || q.type}
                                     </span>
                                   </div>
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md border shrink-0 ${
+                                      isCorrect
+                                        ? "bg-primary/10 text-primary border-primary/30"
+                                        : isPartial
+                                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                                          : "bg-destructive/10 text-destructive border-destructive/30"
+                                    }`}
+                                  >
+                                    {isCorrect ? (
+                                      <>
+                                        <Check className="h-3 w-3 stroke-[2.5]" /> Верно (+{ansData.pointsAwarded} б.)
+                                      </>
+                                    ) : isPartial ? (
+                                      <>
+                                        <Sparkles className="h-3 w-3" /> Частично (+{ansData.pointsAwarded} б.)
+                                      </>
+                                    ) : (
+                                      <>
+                                        <X className="h-3 w-3 stroke-[2.5]" /> Ошибка (0 б.)
+                                      </>
+                                    )}
+                                  </span>
                                 </div>
 
-                                <div className="text-[11px] text-muted-foreground leading-relaxed break-words font-medium py-1">
+                                <div className="text-[11px] text-foreground leading-snug font-medium py-0.5 max-h-24 overflow-y-auto">
                                   {q.questionText}
                                 </div>
 
-                                <div className="space-y-1 pt-1.5 border-t text-[11px]">
-                                  <div className="flex items-start gap-1">
-                                    <span className="text-muted-foreground font-semibold shrink-0 flex items-center gap-1">
-                                      <User className="h-3 w-3 text-muted-foreground shrink-0" /> Ответ студента:
-                                    </span>
-                                    <span
-                                      className={`font-bold break-words ${
-                                        isCorrect
-                                          ? "text-primary"
-                                          : isPartial
-                                            ? "text-amber-600 dark:text-amber-400"
-                                            : "text-destructive"
-                                      }`}
-                                    >
-                                      {ansData.answer || "Нет ответа"}
-                                    </span>
+                                <div className="space-y-2 pt-2 border-t border-border/70 text-[11px]">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                                      <User className="h-3 w-3 shrink-0" /> Ответ студента:
+                                    </div>
+                                    <div className="p-1.5 rounded-md border border-border/70 bg-muted/30">
+                                      <AnswerDisplay
+                                        rawAnswer={ansData.answer}
+                                        correctAnswer={q.correctAnswer}
+                                        type={q.type}
+                                        isCorrect={isCorrect}
+                                        isStudent={true}
+                                      />
+                                    </div>
                                   </div>
 
-                                  <div className="flex items-start gap-1">
-                                    <span className="text-muted-foreground font-semibold shrink-0 flex items-center gap-1">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
                                       <CheckCircle2 className="h-3 w-3 text-primary shrink-0" /> Верный ответ:
-                                    </span>
-                                    <span className="text-primary font-bold break-words">
-                                      {q.correctAnswer}
-                                    </span>
+                                    </div>
+                                    <div className="p-1.5 rounded-md border border-primary/20 bg-primary/5">
+                                      <AnswerDisplay
+                                        rawAnswer={q.correctAnswer}
+                                        correctAnswer={q.correctAnswer}
+                                        type={q.type}
+                                        isCorrect={true}
+                                        isStudent={false}
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               </TooltipContent>

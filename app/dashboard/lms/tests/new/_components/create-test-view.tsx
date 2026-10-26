@@ -416,7 +416,9 @@ export function parseBulkQuestions(rawText: string): QuestionDraft[] {
 
     // 7. Check for ORDERING
     const isOrderingTitle = /расставьте|порядок|последовательност|order/i.test(questionText);
+    const isMultipleTitle = /выберите|все правильные|множественн|отметьте|вариант(ы|ов)/i.test(questionText);
     const isAllMarkedWithStar =
+      !isMultipleTitle &&
       optionsList.length >= 2 &&
       parsedOptions.every((o) => o.isCorrect) &&
       remainingLines.every((l) => l.startsWith("*") || l.startsWith("+"));
