@@ -35,6 +35,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   FileCheck2,
   Plus,
   Search,
@@ -63,6 +70,7 @@ import {
   Percent,
   Copy,
   Play,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -566,8 +574,7 @@ export function TestsView({
                 <tr className="border-b bg-muted/40 text-[11px] text-muted-foreground font-semibold">
                   <th className="py-2.5 px-3">Название теста / Тема</th>
                   <th className="py-2.5 px-3">Дисциплина / Преподаватель</th>
-                  <th className="py-2.5 px-3 text-center">Вопросы & Баллы</th>
-                  <th className="py-2.5 px-3 text-center">Таймер</th>
+                  <th className="py-2.5 px-3 text-center">Параметры</th>
                   <th className="py-2.5 px-3 text-center">Результаты</th>
                   <th className="py-2.5 px-3 text-right">Действия</th>
                 </tr>
@@ -582,7 +589,7 @@ export function TestsView({
 
                   return (
                     <tr key={test.id} className="hover:bg-muted/30 transition-colors">
-                      {/* Title & Topic */}
+                      {/* Title, Topic & Status */}
                       <td className="py-2.5 px-3 max-w-[280px]">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Link
@@ -592,12 +599,19 @@ export function TestsView({
                             <FileCheck2 className="h-3.5 w-3.5 text-primary shrink-0" />
                             <span className="truncate">{test.title}</span>
                           </Link>
-                          {!test.isPublished && (
+                          {test.isPublished ? (
                             <Badge
                               variant="outline"
-                              className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 inline-flex items-center gap-0.5"
+                              className="text-[9px] border-primary/20 text-primary bg-primary/5 font-medium px-1.5 py-0 inline-flex items-center gap-1"
                             >
-                              <EyeOff className="h-2.5 w-2.5" /> Черновик
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Опубликован
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 inline-flex items-center gap-1"
+                            >
+                              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" /> Черновик
                             </Badge>
                           )}
                         </div>
@@ -619,38 +633,28 @@ export function TestsView({
                         </div>
                       </td>
 
-                      {/* Questions & Total Points */}
+                      {/* Parameters: Questions, Points & Timer */}
                       <td className="py-2.5 px-3 text-center">
                         <div className="font-medium text-foreground text-xs">
-                          {test.questionsCount} вопр.
+                          {test.questionsCount} вопр. • {test.totalPoints} б.
                         </div>
-                        <div className="text-[10px] text-muted-foreground font-semibold">
-                          {test.totalPoints} б.
+                        <div className="text-[10px] text-muted-foreground flex items-center justify-center gap-1 pt-0.5">
+                          <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span>{test.timeLimit ? `${test.timeLimit} мин.` : "Без лимита"}</span>
                         </div>
-                      </td>
-
-                      {/* Time Limit */}
-                      <td className="py-2.5 px-3 text-center">
-                        {test.timeLimit ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-foreground bg-muted/60 px-2 py-0.5 rounded-md border">
-                            <Clock className="h-3 w-3 text-primary shrink-0" /> {test.timeLimit} мин.
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground italic">Без лимита</span>
-                        )}
                       </td>
 
                       {/* Results / Submissions Badge */}
                       <td className="py-2.5 px-3 text-center">
                         {canCreate ? (
                           <Link href={`/dashboard/lms/tests/${test.id}/results`}>
-                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-bold text-[11px] hover:bg-primary/20 transition-colors">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-medium text-[11px] hover:bg-primary/20 transition-colors">
                               <FileText className="h-3.5 w-3.5" />
-                              <span>{test.submissionsCount} работ</span>
+                              <span>{test.submissionsCount} {test.submissionsCount === 1 ? "работа" : test.submissionsCount > 1 && test.submissionsCount < 5 ? "работы" : "работ"}</span>
                             </span>
                           </Link>
                         ) : userSub ? (
-                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary/10 text-primary font-bold text-[10px]">
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium text-[10px]">
                             <CheckCircle2 className="h-3 w-3 shrink-0" />
                             <span>{userSub.score}/{userSub.maxScore} б. ({userPercent}%)</span>
                           </div>
@@ -663,76 +667,87 @@ export function TestsView({
 
                       {/* Action buttons */}
                       <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1.5">
                           {canCreate ? (
                             <>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => handleTogglePublish(test.id, test.isPublished)}
-                                className={`h-7 w-7 p-0 ${
-                                  test.isPublished
-                                    ? "text-muted-foreground hover:text-primary"
-                                    : "text-muted-foreground hover:text-foreground bg-muted/40"
-                                }`}
-                                title={test.isPublished ? "Снять с публикации (в черновик)" : "Опубликовать тест"}
-                              >
-                                {test.isPublished ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                              </Button>
-
-                              <Link href={`/dashboard/lms/tests/${test.id}/results`}>
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
-                                  title="Сданные работы и матрица результатов"
-                                >
-                                  <FileText className="h-3.5 w-3.5" />
-                                  <span className="hidden md:inline">Работы</span>
-                                </Button>
-                              </Link>
-
-                              <Link href={`/dashboard/lms/tests/${test.id}/take`}>
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                                  title="Предпросмотр / Пройти тест"
-                                >
-                                  <Play className="h-3.5 w-3.5" />
-                                </Button>
-                              </Link>
-
                               <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
                                 <Button
                                   size="xs"
                                   variant="outline"
-                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                                  className="h-7 px-2 text-xs gap-1 font-medium text-foreground hover:text-primary hover:border-primary/40"
                                   title="Редактировать тест"
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
+                                  <span className="hidden sm:inline">Изменить</span>
                                 </Button>
                               </Link>
 
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => setCopyTargetTest(test)}
-                                className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                                title="Копировать тест в другую группу"
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  render={
+                                    <Button
+                                      size="xs"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                      title="Действия с тестом"
+                                    />
+                                  }
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Действия</span>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="text-xs p-1 min-w-[200px]">
+                                  <DropdownMenuItem
+                                    render={<Link href={`/dashboard/lms/tests/${test.id}/take`} className="cursor-pointer" />}
+                                  >
+                                    <Play className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                    <span>Предпросмотр (тестирование)</span>
+                                  </DropdownMenuItem>
 
-                              <Button
-                                size="xs"
-                                variant="ghost"
-                                onClick={() => setDeleteTargetTest(test)}
-                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                title="Удалить тест"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                                  <DropdownMenuItem
+                                    render={<Link href={`/dashboard/lms/tests/${test.id}/results`} className="cursor-pointer" />}
+                                  >
+                                    <FileText className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                    <span>Результаты и ответы</span>
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuItem
+                                    onClick={() => setCopyTargetTest(test)}
+                                    className="cursor-pointer"
+                                  >
+                                    <Copy className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                    <span>Копировать в другую группу</span>
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuItem
+                                    onClick={() => handleTogglePublish(test.id, test.isPublished)}
+                                    className="cursor-pointer"
+                                  >
+                                    {test.isPublished ? (
+                                      <>
+                                        <EyeOff className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                        <span>Снять с публикации</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                        <span>Опубликовать тест</span>
+                                      </>
+                                    )}
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuSeparator />
+
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => setDeleteTargetTest(test)}
+                                    className="cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                    <span>Удалить тест</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </>
                           ) : (
                             <Link href={`/dashboard/lms/tests/${test.id}/take`}>
@@ -757,7 +772,7 @@ export function TestsView({
 
                 {filteredTests.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-muted-foreground text-xs bg-muted/10 space-y-1">
+                    <td colSpan={5} className="py-10 text-center text-muted-foreground text-xs bg-muted/10 space-y-1">
                       <FileCheck2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
                       <p className="font-semibold text-foreground">Тесты не найдены</p>
                       <p className="text-[11px] text-muted-foreground">Измените критерии поиска или добавьте новый тест</p>
@@ -795,12 +810,19 @@ export function TestsView({
                     >
                       {test.subjectName}
                     </Badge>
-                    {!test.isPublished && (
+                    {test.isPublished ? (
                       <Badge
                         variant="outline"
-                        className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 inline-flex items-center gap-0.5 shrink-0"
+                        className="text-[9px] border-primary/20 text-primary bg-primary/5 font-medium px-1.5 py-0 inline-flex items-center gap-1 shrink-0"
                       >
-                        <EyeOff className="h-2.5 w-2.5" /> Черновик
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Опубликован
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 inline-flex items-center gap-1 shrink-0"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" /> Черновик
                       </Badge>
                     )}
                   </div>
@@ -853,54 +875,85 @@ export function TestsView({
                         </Button>
                       </Link>
 
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          onClick={() => handleTogglePublish(test.id, test.isPublished)}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-                          title={test.isPublished ? "Снять с публикации (в черновик)" : "Опубликовать"}
-                        >
-                          {test.isPublished ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                        </Button>
-                        <Link href={`/dashboard/lms/tests/${test.id}/take`}>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                            title="Предпросмотр / Пройти тест"
-                          >
-                            <Play className="h-3.5 w-3.5" />
-                          </Button>
-                        </Link>
+                      <div className="flex items-center gap-1.5">
                         <Link href={`/dashboard/lms/tests/${test.id}/edit`}>
                           <Button
                             size="xs"
                             variant="outline"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                            title="Редактировать"
+                            className="h-7 px-2 text-xs gap-1 font-medium text-foreground hover:text-primary hover:border-primary/40"
+                            title="Редактировать тест"
                           >
                             <Pencil className="h-3.5 w-3.5" />
+                            <span>Изменить</span>
                           </Button>
                         </Link>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => setCopyTargetTest(test)}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:border-primary/50"
-                          title="Копировать в другую группу"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          onClick={() => setDeleteTargetTest(test)}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          title="Удалить"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                title="Действия с тестом"
+                              />
+                            }
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Действия</span>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="text-xs p-1 min-w-[200px]">
+                            <DropdownMenuItem
+                              render={<Link href={`/dashboard/lms/tests/${test.id}/take`} className="cursor-pointer" />}
+                            >
+                              <Play className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              <span>Предпросмотр (тестирование)</span>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                              render={<Link href={`/dashboard/lms/tests/${test.id}/results`} className="cursor-pointer" />}
+                            >
+                              <FileText className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              <span>Результаты и ответы</span>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                              onClick={() => setCopyTargetTest(test)}
+                              className="cursor-pointer"
+                            >
+                              <Copy className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              <span>Копировать в другую группу</span>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                              onClick={() => handleTogglePublish(test.id, test.isPublished)}
+                              className="cursor-pointer"
+                            >
+                              {test.isPublished ? (
+                                <>
+                                  <EyeOff className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                  <span>Снять с публикации</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                  <span>Опубликовать тест</span>
+                                </>
+                              )}
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => setDeleteTargetTest(test)}
+                              className="cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              <span>Удалить тест</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   ) : (
@@ -1449,14 +1502,16 @@ export function TestsView({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 w-full">
-            <AlertDialogCancel className="h-6 px-2.5 text-xs">
+            <AlertDialogCancel size="xs">
               Отмена
             </AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
+              size="xs"
+              disabled={isPending}
               onClick={handleConfirmDeleteTest}
-              className="h-6 px-2.5 text-xs bg-destructive text-white hover:bg-destructive/90 font-medium"
             >
-              Удалить
+              {isPending ? "Удаление..." : "Удалить"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
