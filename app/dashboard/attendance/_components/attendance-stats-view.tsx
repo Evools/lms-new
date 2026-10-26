@@ -299,7 +299,7 @@ export function AttendanceStatsView({
       : null;
 
   return (
-    <div className="space-y-3 text-xs">
+    <div className="flex-1 min-h-0 flex flex-col text-xs">
       {/* Print Styles for Summary Attendance Sheet */}
       <style jsx global>{`
         @media screen {
@@ -529,9 +529,9 @@ export function AttendanceStatsView({
       </div>
 
       {/* Screen-only Interactive Content */}
-      <div className="screen-only-view print:hidden space-y-3">
+      <div className="screen-only-view print:hidden flex-1 min-h-0 flex flex-col gap-2.5">
         {/* Filters & Range Toolbar */}
-        <div className="bg-card p-3 rounded-xl border shadow-xs space-y-3">
+        <div className="bg-card p-2.5 sm:p-3 rounded-xl border shadow-2xs space-y-2 shrink-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 items-center">
           {/* Group Selector */}
           <div className="lg:col-span-4">
@@ -711,9 +711,9 @@ export function AttendanceStatsView({
 
       {/* KPI Stat Cards Summary */}
       {statsData && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 shrink-0">
           {/* Card 1: Lessons Recorded */}
-          <div className="p-3 rounded-xl border bg-card space-y-1 shadow-2xs">
+          <div className="p-2 sm:p-2.5 rounded-xl border bg-card space-y-0.5 shadow-2xs">
             <div className="text-[11px] text-muted-foreground flex items-center gap-1">
               <Layers className="h-3.5 w-3.5 text-primary" />
               <span>Всего занятий</span>
@@ -725,7 +725,7 @@ export function AttendanceStatsView({
           </div>
 
           {/* Card 2: Overall Attendance % */}
-          <div className="p-3 rounded-xl border bg-card space-y-1 shadow-2xs">
+          <div className="p-2 sm:p-2.5 rounded-xl border bg-card space-y-0.5 shadow-2xs">
             <div className="text-[11px] text-muted-foreground flex items-center gap-1">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span>Посещаемость</span>
@@ -747,7 +747,7 @@ export function AttendanceStatsView({
           </div>
 
           {/* Card 3: Present Count */}
-          <div className="p-3 rounded-xl border bg-card space-y-1 shadow-2xs">
+          <div className="p-2 sm:p-2.5 rounded-xl border bg-card space-y-0.5 shadow-2xs">
             <div className="text-[11px] text-muted-foreground flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
               <span>Присутствовали</span>
@@ -759,7 +759,7 @@ export function AttendanceStatsView({
           </div>
 
           {/* Card 4: Absent (НБ) */}
-          <div className="p-3 rounded-xl border bg-card space-y-1 shadow-2xs">
+          <div className="p-2 sm:p-2.5 rounded-xl border bg-card space-y-0.5 shadow-2xs">
             <div className="text-[11px] text-muted-foreground flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
               <span>Пропуски (Н/Б)</span>
@@ -771,7 +771,7 @@ export function AttendanceStatsView({
           </div>
 
           {/* Card 5: Late (Опоздали) */}
-          <div className="p-3 rounded-xl border bg-card space-y-1 shadow-2xs">
+          <div className="p-2 sm:p-2.5 rounded-xl border bg-card space-y-0.5 shadow-2xs">
             <div className="text-[11px] text-muted-foreground flex items-center gap-1">
               <Clock className="h-3.5 w-3.5 text-amber-600" />
               <span>Опоздания</span>
@@ -783,7 +783,7 @@ export function AttendanceStatsView({
           </div>
 
           {/* Card 6: Excused (Справки) */}
-          <div className="p-3 rounded-xl border bg-card space-y-1 shadow-2xs">
+          <div className="p-2 sm:p-2.5 rounded-xl border bg-card space-y-0.5 shadow-2xs">
             <div className="text-[11px] text-muted-foreground flex items-center gap-1">
               <UserCheck className="h-3.5 w-3.5 text-blue-600" />
               <span>Справки (У/П)</span>
@@ -797,9 +797,9 @@ export function AttendanceStatsView({
       )}
 
       {/* Main Aggregated Table */}
-      <div className="bg-card rounded-xl border shadow-xs overflow-hidden space-y-0">
+      <div className="bg-card rounded-xl border shadow-2xs overflow-hidden flex-1 min-h-0 flex flex-col">
         {/* Table Header Controls */}
-        <div className="p-2.5 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div className="p-2 sm:px-3 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2 flex-1 w-full sm:w-auto">
             <div className="relative flex-1 sm:max-w-xs">
               <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
@@ -845,7 +845,7 @@ export function AttendanceStatsView({
 
         {/* Loading Spinner */}
         {isPending && (
-          <div className="p-8 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center gap-2 text-xs text-muted-foreground p-8">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <span>Загрузка сводных данных за период...</span>
           </div>
@@ -853,7 +853,7 @@ export function AttendanceStatsView({
 
         {/* Table Content */}
         {!isPending && (
-          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[300px]">
+          <div className="overflow-x-auto overflow-y-auto flex-1 min-h-[250px] md:min-h-0 pb-2">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="sticky top-0 z-20 bg-muted/95 backdrop-blur-xs border-b shadow-2xs">
                 <tr className="border-b text-[11px] text-muted-foreground font-semibold">
