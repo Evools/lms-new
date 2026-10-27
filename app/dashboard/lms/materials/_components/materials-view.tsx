@@ -71,6 +71,7 @@ import {
   ArrowUp,
   Share2,
   Download,
+  Paperclip,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -268,7 +269,7 @@ export function MaterialsView({
 
     if (targetMat) {
       if (targetMat.topicId) {
-        setExpandedTopics((prev) => ({ ...prev, [targetMat.topicId]: true }));
+        setExpandedTopics({ [targetMat.topicId]: true });
       }
       if (subj) {
         saveUserProgress(targetMat, subjectId, subj.subjectName);
@@ -494,7 +495,7 @@ export function MaterialsView({
 
         setActiveMaterial(found);
         if (found.topicId) {
-          setExpandedTopics((prev) => ({ ...prev, [found.topicId]: true }));
+          setExpandedTopics({ [found.topicId]: true });
         }
         if (selectedSubjectId && currentSubjectObj) {
           saveUserProgress(found, selectedSubjectId, currentSubjectObj.subjectName);
@@ -532,7 +533,7 @@ export function MaterialsView({
           if (!activeMaterial || activeMaterial.id !== foundMat.id || activeMaterial.subjectName !== currentSubjectObj.subjectName) {
             setActiveMaterial(foundMat);
             if (foundMat.topicId) {
-              setExpandedTopics((prev) => ({ ...prev, [foundMat.topicId]: true }));
+              setExpandedTopics({ [foundMat.topicId]: true });
             }
             saveUserProgress(foundMat, selectedSubjectId, currentSubjectObj.subjectName);
           }
@@ -548,13 +549,10 @@ export function MaterialsView({
     }
   }, [selectedSubjectId, selectedMaterialIdProp, currentUserId, currentSubjectObj, materials, activeMaterial, saveUserProgress]);
 
-  // Auto-expand chapter when active material changes
+  // Auto-expand chapter when active material changes (accordion mode)
   useEffect(() => {
     if (activeMaterial?.topicId) {
-      setExpandedTopics((prev) => {
-        if (prev[activeMaterial.topicId]) return prev;
-        return { ...prev, [activeMaterial.topicId]: true };
-      });
+      setExpandedTopics({ [activeMaterial.topicId]: true });
     }
   }, [activeMaterial?.topicId]);
 
@@ -568,14 +566,47 @@ export function MaterialsView({
     }
   }, [activeMaterial?.id]);
 
-  // Expanded Chapter State
+  // Expanded Chapter State: only expand the topic with the active material by default (or the first topic if none)
+  // Expanded Chapter State: only active chapter open (Accordion mode)
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    topicsWithMaterials.forEach((t) => {
-      initial[t.id] = true;
-    });
-    return initial;
+    const activeTopicId = selectedTopicId || activeMaterial?.topicId;
+    if (activeTopicId) {
+      return { [activeTopicId]: true };
+    }
+    if (topicsWithMaterials.length > 0) {
+      return { [topicsWithMaterials[0].id]: true };
+    }
+    return {};
   });
+
+  // Type filter for materials sidebar
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("ALL");
+
+  const filteredTopics = React.useMemo(() => {
+    if (selectedTypeFilter === "ALL") return displayTopics;
+    return displayTopics
+      .map((t) => {
+        const mats = (t.materials || []).filter((m) => m.type === selectedTypeFilter);
+        return mats.length > 0 ? { ...t, materials: mats } : null;
+      })
+      .filter(Boolean) as TopicWithMaterialsDTO[];
+  }, [displayTopics, selectedTypeFilter]);
+
+  const areAllExpanded = React.useMemo(() => {
+    if (displayTopics.length <= 1) return true;
+    return displayTopics.every((t) => Boolean(expandedTopics[t.id]));
+  }, [displayTopics, expandedTopics]);
+
+  const toggleExpandAll = () => {
+    const nextState = !areAllExpanded;
+    setExpandedTopics(() => {
+      const updated: Record<string, boolean> = {};
+      displayTopics.forEach((t) => {
+        updated[t.id] = nextState;
+      });
+      return updated;
+    });
+  };
 
   // Desktop & Mobile Materials Sidebar Toggle State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -605,10 +636,13 @@ export function MaterialsView({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const toggleTopicExpand = (topicId: string) => {
-    setExpandedTopics((prev) => ({
-      ...prev,
-      [topicId]: !prev[topicId],
-    }));
+    setExpandedTopics((prev) => {
+      const isCurrentlyOpen = Boolean(prev[topicId]);
+      if (isCurrentlyOpen) {
+        return {};
+      }
+      return { [topicId]: true };
+    });
   };
 
   // Chapter Handlers
@@ -838,7 +872,7 @@ export function MaterialsView({
   const prevMaterial = currentIndex > 0 ? orderedMaterials[currentIndex - 1] : null;
   const nextMaterial = currentIndex >= 0 && currentIndex < orderedMaterials.length - 1 ? orderedMaterials[currentIndex + 1] : null;
 
-  const handleNavigateMaterial = (mat: MaterialDTO) => {
+  const handleNavigateMaterial = React.useCallback((mat: MaterialDTO) => {
     setActiveMaterial(mat);
     if (mat.topicId) {
       setExpandedTopics((prev) => ({
@@ -854,7 +888,33 @@ export function MaterialsView({
     } else if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  };
+  }, [selectedSubjectId, currentSubjectObj, saveUserProgress]);
+
+  // Keyboard navigation hotkeys (Alt + ArrowDown / Alt + ArrowRight for next, Alt + ArrowUp / Alt + ArrowLeft for prev)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.altKey && (e.key === "ArrowDown" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        if (nextMaterial) handleNavigateMaterial(nextMaterial);
+      } else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowLeft")) {
+        e.preventDefault();
+        if (prevMaterial) handleNavigateMaterial(prevMaterial);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [nextMaterial, prevMaterial, handleNavigateMaterial]);
 
   const handleShareMaterial = () => {
     if (!currentMat) return;
@@ -1110,16 +1170,29 @@ export function MaterialsView({
               >
                 {/* Fixed Top Header & Action Buttons */}
                 <div className="shrink-0 space-y-2 border-b pb-2">
-                  {/* Header with Counter Badge */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-xs font-bold text-foreground">Материалы</h2>
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-semibold text-muted-foreground">
+                  {/* Header with Counter Badge & Global Actions */}
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h2 className="text-xs font-bold text-foreground truncate">Материалы</h2>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-semibold text-muted-foreground shrink-0">
                         {displayMaterials.length}
                       </Badge>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
+                      {displayTopics.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={toggleExpandAll}
+                          title={areAllExpanded ? "Свернуть все главы" : "Развернуть все главы"}
+                          className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground font-medium"
+                        >
+                          {areAllExpanded ? "Свернуть" : "Развернуть"}
+                        </Button>
+                      )}
+
                       {/* Desktop Collapse Button */}
                       <Button
                         type="button"
@@ -1127,10 +1200,9 @@ export function MaterialsView({
                         size="xs"
                         onClick={() => setIsSidebarOpen(false)}
                         title="Свернуть блок материалов"
-                        className="hidden md:inline-flex h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1 font-medium"
+                        className="hidden md:inline-flex h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
                       >
                         <PanelLeftClose className="h-3.5 w-3.5" />
-                        <span>Свернуть</span>
                       </Button>
 
                       {/* Mobile Toggle Button */}
@@ -1139,7 +1211,7 @@ export function MaterialsView({
                         variant="ghost"
                         size="xs"
                         onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
-                        className="md:hidden h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1 font-medium"
+                        className="md:hidden h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground gap-1 font-medium"
                       >
                         <span>{isMobileSidebarOpen ? "Свернуть" : "Развернуть"}</span>
                         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", isMobileSidebarOpen && "rotate-180")} />
@@ -1170,6 +1242,37 @@ export function MaterialsView({
                       </Button>
                     </div>
                   )}
+
+                  {/* Filter Pills for Material Types */}
+                  {displayMaterials.length > 5 && (
+                    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                      {[
+                        { id: "ALL", label: "Все" },
+                        { id: MaterialType.LECTURE, label: "Лекции", icon: BookOpen },
+                        { id: MaterialType.PRACTICE, label: "Практика", icon: Laptop },
+                        { id: MaterialType.LAB, label: "Лабы", icon: FlaskConical },
+                      ].map((item) => {
+                        const Icon = item.icon;
+                        const isActive = selectedTypeFilter === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setSelectedTypeFilter(item.id)}
+                            className={cn(
+                              "h-6 px-2 rounded-md text-[10px] font-medium transition-colors flex items-center gap-1 shrink-0 border",
+                              isActive
+                                ? "bg-primary/10 text-primary border-primary"
+                                : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-transparent"
+                            )}
+                          >
+                            {Icon && <Icon className="h-2.5 w-2.5" />}
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Scrollable Chapters Accordion List */}
@@ -1179,114 +1282,309 @@ export function MaterialsView({
                     isMobileSidebarOpen ? "block" : "hidden md:block"
                   )}
                 >
-                      {displayTopics.map((topic, topicIdx) => {
-                        const isExpanded = expandedTopics[topic.id] ?? true;
-                        const topicMats = topic.materials || [];
+                  {filteredTopics.map((topic, topicIdx) => {
+                    const isExpanded = Boolean(expandedTopics[topic.id]);
+                    const topicMats = topic.materials || [];
+                    const isCurrentTopic = currentMat?.topicId === topic.id;
 
-                        return (
-                          <div key={topic.id} className="space-y-0.5">
-                            {/* Chapter Header Item */}
-                            {(() => {
-                              const isCurrentTopic = currentMat?.topicId === topic.id;
+                    return (
+                      <div key={topic.id} className="space-y-0.5">
+                        {/* Chapter Header Item */}
+                        <div
+                          className={cn(
+                            "p-1.5 rounded-lg transition-colors flex items-center justify-between group select-none gap-1.5 border",
+                            isCurrentTopic
+                              ? "bg-primary/5 border-primary/20 text-primary"
+                              : "hover:bg-muted/50 border-transparent text-foreground"
+                          )}
+                        >
+                          <div
+                            onClick={() => toggleTopicExpand(topic.id)}
+                            className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0"
+                          >
+                            {isExpanded ? (
+                              <FolderOpen
+                                className={cn(
+                                  "h-3.5 w-3.5 shrink-0 transition-colors",
+                                  isCurrentTopic ? "text-primary" : "text-primary/70"
+                                )}
+                              />
+                            ) : (
+                              <Folder
+                                className={cn(
+                                  "h-3.5 w-3.5 shrink-0 transition-colors",
+                                  isCurrentTopic ? "text-primary" : "text-muted-foreground"
+                                )}
+                              />
+                            )}
+                            <span
+                              className="text-xs font-medium truncate"
+                              title={topic.title}
+                            >
+                              {topicIdx + 1}. {topic.title}
+                            </span>
+                            <span
+                              className={cn(
+                                "text-[10px] font-medium px-1.5 py-0.2 rounded-full leading-none shrink-0",
+                                isCurrentTopic
+                                  ? "bg-primary/15 text-primary"
+                                  : "bg-muted text-muted-foreground"
+                              )}
+                              title={`Материалов в главе: ${topicMats.length}`}
+                            >
+                              {topicMats.length}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {canCreate && (
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                                <Link
+                                  href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}&topic=${topic.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
+                                  title="Добавить материал в эту главу"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCopyTopicTarget(topic);
+                                  }}
+                                  className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                  title="Копировать главу в другие группы"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEditChapter(topic);
+                                  }}
+                                  className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                  title="Редактировать главу"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteChapterTarget(topic);
+                                  }}
+                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                  title="Удалить главу"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => toggleTopicExpand(topic.id)}
+                              className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+                              title={isExpanded ? "Свернуть главу" : "Развернуть главу"}
+                            >
+                              <ChevronDown
+                                className={cn(
+                                  "h-3.5 w-3.5 transition-transform duration-200",
+                                  isExpanded ? "rotate-0" : "-rotate-90"
+                                )}
+                              />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Nested Materials Items under this Chapter */}
+                        <div
+                          className={cn(
+                            "grid transition-all duration-200 ease-in-out",
+                            isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                          )}
+                        >
+                          <div
+                            onDragOver={(e) => {
+                              if (draggedMatInfo) {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = "move";
+                              }
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              if (draggedMatInfo) {
+                                handleMoveMaterial(
+                                  draggedMatInfo.topicId,
+                                  draggedMatInfo.materialId,
+                                  topic.id,
+                                  topicMats.length
+                                );
+                                setDraggedMatInfo(null);
+                                setDragOverMatId(null);
+                                setDragOverTopicId(null);
+                              }
+                            }}
+                            className="overflow-hidden pl-2 space-y-0.5 border-l border-border/60 ml-2.5"
+                          >
+                            {topicMats.map((mat, matIdx) => {
+                              const isSelected = currentMat?.id === mat.id;
+                              const isDragging = draggedMatInfo?.materialId === mat.id;
+                              const isDragOver = dragOverMatId === mat.id && !isDragging;
+
                               return (
                                 <div
+                                  key={mat.id}
+                                  ref={isSelected ? activeMatSidebarRef : undefined}
+                                  draggable={canCreate}
+                                  onDragStart={(e) => {
+                                    if (!canCreate) return;
+                                    e.dataTransfer.effectAllowed = "move";
+                                    e.dataTransfer.setData("text/plain", mat.id);
+                                    setDraggedMatInfo({ topicId: topic.id, materialId: mat.id });
+                                  }}
+                                  onDragOver={(e) => {
+                                    if (!draggedMatInfo) return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.dataTransfer.dropEffect = "move";
+                                  }}
+                                  onDragEnter={(e) => {
+                                    e.stopPropagation();
+                                    if (draggedMatInfo && draggedMatInfo.materialId !== mat.id) {
+                                      setDragOverMatId(mat.id);
+                                      setDragOverTopicId(topic.id);
+                                    }
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggedMatInfo(null);
+                                    setDragOverMatId(null);
+                                    setDragOverTopicId(null);
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (!draggedMatInfo) return;
+                                    handleMoveMaterial(
+                                      draggedMatInfo.topicId,
+                                      draggedMatInfo.materialId,
+                                      topic.id,
+                                      matIdx
+                                    );
+                                    setDraggedMatInfo(null);
+                                    setDragOverMatId(null);
+                                    setDragOverTopicId(null);
+                                  }}
+                                  onClick={() => {
+                                    handleNavigateMaterial(mat);
+                                    setIsMobileSidebarOpen(false);
+                                  }}
                                   className={cn(
-                                    "p-1.5 rounded-lg transition-colors flex items-center justify-between group select-none gap-2",
-                                    isCurrentTopic
-                                      ? "bg-primary/5 border border-primary/20"
-                                      : "hover:bg-muted/50 border border-transparent"
+                                    "py-1.5 px-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-colors group/mat select-none border gap-1.5 min-w-0 font-medium",
+                                    isSelected
+                                      ? "bg-primary/10 text-primary border-primary"
+                                      : "text-foreground hover:bg-muted/40 border-transparent",
+                                    isDragging && "opacity-40 border-dashed border-primary/50 bg-primary/5",
+                                    isDragOver && "border-primary bg-primary/10"
                                   )}
                                 >
-                                  <div
-                                    onClick={() => toggleTopicExpand(topic.id)}
-                                    className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0"
-                                  >
-                                    {isCurrentTopic ? (
-                                      <FolderOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-                                    ) : (
-                                      <Folder className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                                  <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
+                                    {canCreate && (
+                                      <span
+                                        className="text-muted-foreground/40 hover:text-foreground cursor-grab active:cursor-grabbing p-0.5 shrink-0 transition-opacity opacity-0 group-hover/mat:opacity-100"
+                                        title="Перетащите для изменения порядка"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <GripVertical className="h-3 w-3" />
+                                      </span>
                                     )}
+
+                                    {/* Material Type Icon placed on the LEFT */}
                                     <span
                                       className={cn(
-                                        "text-xs font-medium truncate",
-                                        isCurrentTopic ? "text-primary" : "text-foreground"
+                                        "shrink-0 inline-flex items-center justify-center transition-colors",
+                                        isSelected ? "text-primary" : "text-muted-foreground/80 group-hover/mat:text-foreground"
                                       )}
-                                      title={topic.title}
+                                      title={getMaterialTypeLabel(mat.type)}
                                     >
-                                      {topicIdx + 1}. {topic.title}
+                                      {getMaterialTypeIcon(mat.type)}
                                     </span>
-                                    <span
-                                      className={cn(
-                                        "text-[10px] font-medium px-1.5 py-0.5 rounded-md leading-none shrink-0",
-                                        isCurrentTopic
-                                          ? "bg-primary/10 text-primary"
-                                          : "bg-muted/60 text-muted-foreground/80"
-                                      )}
-                                      title={`Материалов в главе: ${topicMats.length}`}
-                                    >
-                                      {topicMats.length}
+
+                                    <span className="text-xs truncate flex-1" title={mat.title}>
+                                      {matIdx + 1}. {mat.title}
                                     </span>
+
+
+                                    {/* Attached Resource Indicators */}
+                                    {mat.fileUrl && (
+                                      <span className="text-muted-foreground/60 shrink-0 inline-flex items-center" title="Прикреплен файл">
+                                        <Paperclip className="h-2.5 w-2.5" />
+                                      </span>
+                                    )}
+                                    {mat.linkUrl && (
+                                      <span className="text-muted-foreground/60 shrink-0 inline-flex items-center" title="Прикреплена ссылка или медиа">
+                                        <Link2 className="h-2.5 w-2.5" />
+                                      </span>
+                                    )}
+
+                                    {!mat.isPublished && (
+                                      <span
+                                        className="text-muted-foreground/70 shrink-0 inline-flex items-center"
+                                        title="Черновик (не опубликован)"
+                                      >
+                                        <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                      </span>
+                                    )}
                                   </div>
 
                                   <div className="flex items-center gap-1 shrink-0">
                                     {canCreate && (
-                                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                                      <div className="opacity-0 group-hover/mat:opacity-100 transition-opacity flex items-center gap-0.5">
                                         <button
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setCopyTopicTarget(topic);
+                                            setCopyMaterialTarget(mat);
                                           }}
-                                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                          title="Копировать главу в другие группы"
+                                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
+                                          title="Копировать материал в другую группу"
                                         >
                                           <Copy className="h-3 w-3" />
                                         </button>
 
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleOpenEditChapter(topic);
-                                          }}
-                                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                          title="Редактировать главу"
+                                        <Link
+                                          href={`/dashboard/lms/materials/${mat.id}/edit?group=${selectedGroupId}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
+                                          title="Редактировать материал"
                                         >
                                           <Pencil className="h-3 w-3" />
-                                        </button>
+                                        </Link>
 
                                         <button
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setDeleteChapterTarget(topic);
+                                            setDeleteMaterialTarget(mat);
                                           }}
-                                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                          title="Удалить главу"
+                                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors inline-flex items-center justify-center"
+                                          title="Удалить материал"
                                         >
                                           <Trash2 className="h-3 w-3" />
                                         </button>
                                       </div>
                                     )}
-
-                                    <ChevronDown
-                                      onClick={() => toggleTopicExpand(topic.id)}
-                                      className={`h-3.5 w-3.5 text-muted-foreground cursor-pointer transition-transform duration-200 ${
-                                        isExpanded ? "rotate-0" : "-rotate-90"
-                                      }`}
-                                    />
                                   </div>
                                 </div>
                               );
-                            })()}
+                            })}
 
-                            {/* Nested Materials Items under this Chapter */}
-                            <div
-                              className={cn(
-                                "grid transition-all duration-200 ease-in-out",
-                                isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                              )}
-                            >
+                            {topicMats.length === 0 && (
                               <div
                                 onDragOver={(e) => {
                                   if (draggedMatInfo) {
@@ -1301,204 +1599,61 @@ export function MaterialsView({
                                       draggedMatInfo.topicId,
                                       draggedMatInfo.materialId,
                                       topic.id,
-                                      topicMats.length
+                                      0
                                     );
                                     setDraggedMatInfo(null);
                                     setDragOverMatId(null);
                                     setDragOverTopicId(null);
                                   }
                                 }}
-                                className="overflow-hidden pl-2 space-y-0.5 border-l border-border/60 ml-2"
-                              >
-                                {topicMats.map((mat, matIdx) => {
-                                  const isSelected = currentMat?.id === mat.id;
-                                  const isDragging = draggedMatInfo?.materialId === mat.id;
-                                  const isDragOver = dragOverMatId === mat.id && !isDragging;
-
-                                  return (
-                                    <div
-                                      key={mat.id}
-                                      ref={isSelected ? activeMatSidebarRef : undefined}
-                                      draggable={canCreate}
-                                      onDragStart={(e) => {
-                                        if (!canCreate) return;
-                                        e.dataTransfer.effectAllowed = "move";
-                                        e.dataTransfer.setData("text/plain", mat.id);
-                                        setDraggedMatInfo({ topicId: topic.id, materialId: mat.id });
-                                      }}
-                                      onDragOver={(e) => {
-                                        if (!draggedMatInfo) return;
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        e.dataTransfer.dropEffect = "move";
-                                      }}
-                                      onDragEnter={(e) => {
-                                        e.stopPropagation();
-                                        if (draggedMatInfo && draggedMatInfo.materialId !== mat.id) {
-                                          setDragOverMatId(mat.id);
-                                          setDragOverTopicId(topic.id);
-                                        }
-                                      }}
-                                      onDragEnd={() => {
-                                        setDraggedMatInfo(null);
-                                        setDragOverMatId(null);
-                                        setDragOverTopicId(null);
-                                      }}
-                                      onDrop={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        if (!draggedMatInfo) return;
-                                        handleMoveMaterial(
-                                          draggedMatInfo.topicId,
-                                          draggedMatInfo.materialId,
-                                          topic.id,
-                                          matIdx
-                                        );
-                                        setDraggedMatInfo(null);
-                                        setDragOverMatId(null);
-                                        setDragOverTopicId(null);
-                                      }}
-                                      onClick={() => {
-                                        handleNavigateMaterial(mat);
-                                        setIsMobileSidebarOpen(false);
-                                      }}
-                                      className={cn(
-                                        "p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all group/mat select-none border gap-2 min-w-0 font-medium",
-                                        isSelected
-                                          ? "bg-primary/10 text-primary border-primary"
-                                          : "text-foreground hover:bg-muted/40 border-transparent",
-                                        isDragging && "opacity-40 border-dashed border-primary/50 bg-primary/5",
-                                        isDragOver && "border-primary bg-primary/10"
-                                      )}
-                                    >
-                                      <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
-                                        {canCreate && (
-                                          <span
-                                            className="text-muted-foreground/40 hover:text-foreground cursor-grab active:cursor-grabbing p-0.5 shrink-0 transition-colors"
-                                            title="Перетащите для изменения порядка"
-                                            onClick={(e) => e.stopPropagation()}
-                                          >
-                                            <GripVertical className="h-3.5 w-3.5" />
-                                          </span>
-                                        )}
-                                        <span className="text-[11px] truncate flex-1" title={mat.title}>
-                                          {matIdx + 1}. {mat.title}
-                                        </span>
-                                        {!mat.isPublished && (
-                                          <span
-                                            className="text-muted-foreground/70 shrink-0 inline-flex items-center"
-                                            title="Черновик (не опубликован)"
-                                          >
-                                            <EyeOff className="h-3 w-3 text-muted-foreground" />
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        {canCreate && (
-                                          <div className="opacity-0 group-hover/mat:opacity-100 transition-opacity flex items-center gap-0.5">
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setCopyMaterialTarget(mat);
-                                              }}
-                                              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
-                                              title="Копировать материал в другую группу"
-                                            >
-                                              <Copy className="h-3 w-3" />
-                                            </button>
-
-                                            <Link
-                                              href={`/dashboard/lms/materials/${mat.id}/edit?group=${selectedGroupId}`}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center"
-                                              title="Редактировать материал"
-                                            >
-                                              <Pencil className="h-3 w-3" />
-                                            </Link>
-
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setDeleteMaterialTarget(mat);
-                                              }}
-                                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors inline-flex items-center justify-center"
-                                              title="Удалить материал"
-                                            >
-                                              <Trash2 className="h-3 w-3" />
-                                            </button>
-                                          </div>
-                                        )}
-
-                                        <span
-                                          className="p-1 rounded text-muted-foreground shrink-0 inline-flex items-center justify-center"
-                                          title={getMaterialTypeLabel(mat.type)}
-                                        >
-                                          {getMaterialTypeIcon(mat.type)}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-
-                                {topicMats.length === 0 && (
-                                  <div
-                                    onDragOver={(e) => {
-                                      if (draggedMatInfo) {
-                                        e.preventDefault();
-                                        e.dataTransfer.dropEffect = "move";
-                                      }
-                                    }}
-                                    onDrop={(e) => {
-                                      e.preventDefault();
-                                      if (draggedMatInfo) {
-                                        handleMoveMaterial(
-                                          draggedMatInfo.topicId,
-                                          draggedMatInfo.materialId,
-                                          topic.id,
-                                          0
-                                        );
-                                        setDraggedMatInfo(null);
-                                        setDragOverMatId(null);
-                                        setDragOverTopicId(null);
-                                      }
-                                    }}
-                                    className={cn(
-                                      "py-2.5 px-2 text-[10px] text-muted-foreground italic rounded-lg transition-colors border border-transparent",
-                                      draggedMatInfo && "border-dashed border-primary/40 bg-primary/5"
-                                    )}
-                                  >
-                                    {draggedMatInfo ? "Перетащите сюда" : "Нет материалов в этой главе"}
-                                  </div>
+                                className={cn(
+                                  "py-2 px-2 text-[10px] text-muted-foreground italic rounded-lg transition-colors border border-transparent",
+                                  draggedMatInfo && "border-dashed border-primary/40 bg-primary/5"
                                 )}
+                              >
+                                {draggedMatInfo ? "Перетащите сюда" : "Нет материалов в этой главе"}
                               </div>
-                            </div>
+                            )}
                           </div>
-                        );
-                      })}
-
-                      {displayTopics.length === 0 && (
-                        <div className="py-8 text-center space-y-2 text-muted-foreground px-2">
-                          <p className="text-xs font-semibold">Главы не найдены</p>
-                          <p className="text-[11px] leading-tight">Создайте первую главу для группировки материалов</p>
-                          {canCreate && (
-                            <Button
-                              type="button"
-                              size="xs"
-                              variant="outline"
-                              onClick={handleOpenCreateChapter}
-                              className="h-7 text-xs px-2.5 mx-auto font-medium mt-1"
-                            >
-                              <Plus className="h-3 w-3 mr-1 text-primary" /> Создать главу
-                            </Button>
-                          )}
                         </div>
-                      )}
+                      </div>
+                    );
+                  })}
+
+                  {filteredTopics.length === 0 && (
+                    <div className="py-8 text-center space-y-1.5 text-muted-foreground px-2">
+                      <p className="text-xs font-semibold">Главы не найдены</p>
+                      <p className="text-[11px] leading-tight">
+                        {selectedTypeFilter !== "ALL"
+                          ? "Нет материалов выбранного типа в этой дисциплине"
+                          : "Создайте первую главу для группировки материалов"}
+                      </p>
+                      {selectedTypeFilter !== "ALL" ? (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => setSelectedTypeFilter("ALL")}
+                          className="h-6 text-xs px-2 text-primary hover:bg-primary/10 mt-1 font-medium"
+                        >
+                          Сбросить фильтр
+                        </Button>
+                      ) : canCreate ? (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          onClick={handleOpenCreateChapter}
+                          className="h-7 text-xs px-2.5 mx-auto font-medium mt-1"
+                        >
+                          <Plus className="h-3 w-3 mr-1 text-primary" /> Создать главу
+                        </Button>
+                      ) : null}
                     </div>
-                  </div>
+                  )}
                 </div>
+              </div>
+            </div>
 
             {/* RIGHT MAIN AREA: SELECTED MATERIAL CONTENT VIEWER */}
             <div
