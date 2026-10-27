@@ -32,6 +32,13 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
   FileText,
   Plus,
@@ -72,6 +79,7 @@ import {
   Share2,
   Download,
   Paperclip,
+  Ellipsis,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -782,7 +790,7 @@ export function MaterialsView({
       if (parsed && typeof parsed === "object" && Array.isArray(parsed.videos)) {
         return parsed.videos.filter(Boolean);
       }
-    } catch {}
+    } catch { }
     if (linkUrlStr.includes("youtube.com") || linkUrlStr.includes("youtu.be")) {
       return [linkUrlStr];
     }
@@ -798,7 +806,7 @@ export function MaterialsView({
         const val = String(parsed.embedUrl).trim();
         return val.length > 0 ? val : null;
       }
-    } catch {}
+    } catch { }
     return null;
   };
 
@@ -1660,479 +1668,466 @@ export function MaterialsView({
               ref={contentTopRef}
               className="flex-1 min-w-0 w-full bg-card rounded-xl border p-3 sm:p-4 space-y-4 shadow-xs transition-all duration-300 ease-in-out scroll-mt-20"
             >
-          {currentMat ? (
-            <div className="space-y-4">
-              {/* Active Material Header */}
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b pb-3">
-                <div className="space-y-1.5 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-base font-bold text-foreground leading-tight break-words">{currentMat.title}</h2>
-                    {!currentMat.isPublished && (
-                      <Badge variant="outline" className="text-[10px] bg-muted/60 text-muted-foreground border-dashed gap-1 font-medium">
-                        <EyeOff className="h-3 w-3" /> Черновик
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium flex items-center gap-1">
-                      {getMaterialTypeIcon(currentMat.type)}
-                      <span>{getMaterialTypeLabel(currentMat.type)}</span>
-                    </Badge>
+              {currentMat ? (
+                <div className="space-y-4">
+                  {/* Active Material Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b pb-3">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-base font-bold text-foreground leading-tight break-words">{currentMat.title}</h2>
+                        {!currentMat.isPublished && (
+                          <Badge variant="outline" className="text-[10px] bg-muted/60 text-muted-foreground border-dashed gap-1 font-medium">
+                            <EyeOff className="h-3 w-3" /> Черновик
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                        <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium flex items-center gap-1">
+                          {getMaterialTypeIcon(currentMat.type)}
+                          <span>{getMaterialTypeLabel(currentMat.type)}</span>
+                        </Badge>
 
-                    {currentMat.subjectName && (
-                      <Badge variant="secondary" className="text-[10px] font-semibold text-foreground flex items-center gap-1">
-                        <BookMarked className="h-3 w-3 text-primary" />
-                        <span>{currentMat.subjectName}</span>
-                      </Badge>
-                    )}
+                        {currentMat.subjectName && (
+                          <Badge variant="secondary" className="text-[10px] font-semibold text-foreground flex items-center gap-1">
+                            <BookMarked className="h-3 w-3 text-primary" />
+                            <span>{currentMat.subjectName}</span>
+                          </Badge>
+                        )}
 
-                    <span>Глава: {currentMat.topicTitle}</span>
-                    <span>• Преподаватель: {currentMat.teacherName || currentMat.authorName}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-2 text-xs text-muted-foreground pt-2 sm:pt-0 border-t sm:border-t-0 shrink-0 flex-wrap">
-                  {/* Prev / Next Quick Arrows in Header */}
-                  {orderedMaterials.length > 1 && (
-                    <div className="flex items-center gap-1 border-r pr-2 mr-1">
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        disabled={!prevMaterial}
-                        onClick={() => prevMaterial && handleNavigateMaterial(prevMaterial)}
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        title={prevMaterial ? `Предыдущий: ${prevMaterial.title}` : "Это первый материал"}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="text-[11px] text-muted-foreground select-none font-medium px-0.5 whitespace-nowrap">
-                        {currentIndex >= 0 ? `${currentIndex + 1}/${orderedMaterials.length}` : ""}
-                      </span>
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        disabled={!nextMaterial}
-                        onClick={() => nextMaterial && handleNavigateMaterial(nextMaterial)}
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        title={nextMaterial ? `Следующий: ${nextMaterial.title}` : "Это последний материал"}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
+                        <span>Глава: {currentMat.topicTitle}</span>
+                        <span>• Преподаватель: {currentMat.teacherName || currentMat.authorName}</span>
+                        <span>
+                          • {new Date(currentMat.createdAt).toLocaleDateString("ru-RU", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
                     </div>
-                  )}
 
-                  <span className="text-[11px]">
-                    {new Date(currentMat.createdAt).toLocaleDateString("ru-RU", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
-                  </span>
+                    {/* Unified Right Toolbar: Actions Group */}
+                    <div className="flex items-center gap-2 shrink-0 self-start flex-wrap">
+                      {/* Actions Dropdown / Share */}
+                      {canCreate ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                className="h-7 text-xs px-2.5 gap-1.5 font-medium border-border shadow-2xs hover:bg-accent rounded-md"
+                              />
+                            }
+                          >
+                            <span>Действия</span>
+                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="text-xs p-1 min-w-[200px]">
+                            <DropdownMenuItem
+                              render={
+                                <Link
+                                  href={`/dashboard/lms/materials/${currentMat.id}/edit?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
+                                  className="cursor-pointer"
+                                />
+                              }
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              <span>Редактировать</span>
+                            </DropdownMenuItem>
 
-                  {/* Share Lesson Link Button */}
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={handleShareMaterial}
-                    className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-foreground font-medium"
-                    title="Скопировать прямую ссылку на этот урок"
-                  >
-                    {isShareCopied ? (
-                      <>
-                        <Check className="h-3.5 w-3.5 text-emerald-600" />
-                        <span className="text-xs text-emerald-600 font-medium">Скопировано</span>
-                      </>
-                    ) : (
-                      <>
-                        <Share2 className="h-3.5 w-3.5" />
-                        <span className="text-xs">Поделиться</span>
-                      </>
-                    )}
-                  </Button>
+                            <DropdownMenuItem onClick={handleShareMaterial} className="cursor-pointer">
+                              <Share2 className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              <span>Поделиться ссылкой</span>
+                            </DropdownMenuItem>
 
-                  {canCreate && (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() => setCopyMaterialTarget(currentMat)}
-                        className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-primary"
-                        title="Копировать материал в другую группу"
-                      >
-                        <Copy className="h-3.5 w-3.5" /> <span className="text-xs">Копировать</span>
-                      </Button>
+                            <DropdownMenuItem
+                              onClick={() => setCopyMaterialTarget(currentMat)}
+                              className="cursor-pointer"
+                            >
+                              <Copy className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              <span>Копировать в группу</span>
+                            </DropdownMenuItem>
 
-                      <Link href={`/dashboard/lms/materials/${currentMat.id}/edit?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}>
+                            <DropdownMenuSeparator />
+
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => setDeleteMaterialTarget(currentMat)}
+                              className="cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2 text-destructive" />
+                              <span>Удалить материал</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
                         <Button
                           size="xs"
                           variant="outline"
-                          className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-primary"
-                          title="Редактировать материал"
+                          onClick={handleShareMaterial}
+                          className={cn(
+                            "h-7 text-xs px-2.5 gap-1.5 font-medium border-border shadow-2xs transition-colors",
+                            isShareCopied ? "text-primary bg-primary/10 border-primary/40" : "text-muted-foreground hover:text-foreground"
+                          )}
+                          title="Скопировать ссылку на урок"
                         >
-                          <Pencil className="h-3.5 w-3.5" /> <span className="text-xs">Редактировать</span>
+                          {isShareCopied ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-primary" />
+                              <span>Скопировано</span>
+                            </>
+                          ) : (
+                            <>
+                              <Share2 className="h-3.5 w-3.5" />
+                              <span>Поделиться</span>
+                            </>
+                          )}
                         </Button>
-                      </Link>
-
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => setDeleteMaterialTarget(currentMat)}
-                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                        title="Удалить материал"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {!currentMat.isPublished && (
-                <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-dashed text-xs">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <EyeOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span>Материал находится в черновике (скрыт от студентов)</span>
-                  </div>
-                  {canCreate && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => handleTogglePublish(currentMat.id)}
-                      className="h-6 text-xs px-2.5 font-medium gap-1 text-primary border-primary/30 hover:bg-primary/10"
-                    >
-                      <Eye className="h-3 w-3" /> Опубликовать
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {/* Quick Section View Tabs */}
-              {(parsedVideos.length > 0 || parsedResources.length > 0) && currentMat.content && (
-                <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-lg border text-xs overflow-x-auto scrollbar-none">
-                  <button
-                    type="button"
-                    onClick={() => setActiveContentTab("all")}
-                    className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
-                      activeContentTab === "all"
-                        ? "bg-background text-foreground shadow-xs border border-border/80"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <BookOpen className="h-3.5 w-3.5 text-primary" />
-                    <span>Все материалы</span>
-                  </button>
-
-                  {parsedVideos.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveContentTab("video")}
-                      className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
-                        activeContentTab === "video"
-                          ? "bg-background text-foreground shadow-xs border border-border/80"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Video className="h-3.5 w-3.5 text-primary" />
-                      <span>Видео ({parsedVideos.length})</span>
-                    </button>
-                  )}
-
-                  {parsedResources.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveContentTab("resources")}
-                      className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
-                        activeContentTab === "resources"
-                          ? "bg-background text-foreground shadow-xs border border-border/80"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Link2 className="h-3.5 w-3.5 text-primary" />
-                      <span>Файлы и ссылки ({parsedResources.length})</span>
-                    </button>
-                  )}
-
-                  {currentMat.content && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveContentTab("text")}
-                      className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
-                        activeContentTab === "text"
-                          ? "bg-background text-foreground shadow-xs border border-border/80"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <FileText className="h-3.5 w-3.5 text-primary" />
-                      <span>Конспект урока</span>
-                    </button>
-                  )}
-
-                  {parsedEmbed && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveContentTab("demo")}
-                      className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${
-                        activeContentTab === "demo"
-                          ? "bg-background text-foreground shadow-xs border border-border/80"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Globe className="h-3.5 w-3.5 text-primary" />
-                      <span>Интерактивное демо</span>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Video Player Section with Multi-part selector */}
-              {(activeContentTab === "all" || activeContentTab === "video") && parsedVideos.length > 0 && (
-                <div className="space-y-3 rounded-xl border bg-card p-3.5 shadow-2xs">
-                  <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                        <Video className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-foreground text-xs">Видеоматериалы к уроку</h3>
-                        <p className="text-[10px] text-muted-foreground">
-                          {parsedVideos.length === 1
-                            ? "1 видеозапись к уроку"
-                            : `${parsedVideos.length} видеозаписи (выберите часть для просмотра)`}
-                        </p>
-                      </div>
-                    </div>
-
-                    {parsedVideos.length > 1 && (
-                      <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs">
-                        {parsedVideos.map((_, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setSelectedVideoIndex(idx)}
-                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all flex items-center gap-1 ${
-                              selectedVideoIndex === idx
-                                ? "bg-background text-foreground shadow-xs border border-border/80 text-primary"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            <Play className="h-2.5 w-2.5" />
-                            <span>Часть {idx + 1}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
-                  {/* Active Video Player */}
-                  {(() => {
-                    const activeVidUrl = parsedVideos[selectedVideoIndex] || parsedVideos[0];
-                    const embedUrl = getYouTubeEmbedUrl(activeVidUrl);
-                    if (!embedUrl) return null;
-                    return (
-                      <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-xs border border-border">
-                        <iframe
-                          src={embedUrl}
-                          title={`${currentMat.title} - Видео ${selectedVideoIndex + 1}`}
-                          className="w-full h-full border-0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
+                  {!currentMat.isPublished && (
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-dashed text-xs">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <EyeOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span>Материал находится в черновике (скрыт от студентов)</span>
                       </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Smart 2-Column Resources & Attached Files */}
-              {(activeContentTab === "all" || activeContentTab === "resources") && parsedResources.length > 0 && (
-                <div className="space-y-3 rounded-xl border bg-card p-3.5 shadow-2xs">
-                  <div className="flex items-center justify-between gap-2 pb-2 border-b">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                        <Link2 className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-foreground text-xs">Прикреплённые ресурсы и файлы</h3>
-                        <p className="text-[10px] text-muted-foreground">
-                          {parsedResources.length} полезных ссылок, макетов и файлов
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="text-[10px] font-medium bg-muted/40">
-                      {parsedResources.length} шт.
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                    {parsedResources.map((url, idx) => {
-                      const meta = getResourceMeta(url);
-                      const isCopied = copiedResourceUrl === url;
-                      return (
-                        <div
-                          key={idx}
-                          className="p-2.5 rounded-lg border bg-background hover:bg-muted/30 hover:border-primary/40 transition-all flex items-center justify-between gap-2 text-xs group"
+                      {canCreate && (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => handleTogglePublish(currentMat.id)}
+                          className="h-6 text-xs px-2.5 font-medium gap-1 text-primary border-primary/30 hover:bg-primary/10"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div className="p-1.5 rounded-md bg-muted/70 text-primary shrink-0 group-hover:bg-primary/10 transition-colors">
-                              {meta.icon}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span
-                                  className="font-semibold text-foreground text-xs truncate flex-1 min-w-0"
-                                  title={meta.title}
-                                >
-                                  {meta.title}
-                                </span>
-                                <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal shrink-0">
-                                  {meta.badge}
-                                </Badge>
-                              </div>
-                              <div className="text-[10px] text-muted-foreground truncate" title={meta.subtitle}>
-                                {meta.subtitle}
-                              </div>
-                            </div>
-                          </div>
+                          <Eye className="h-3 w-3" /> Опубликовать
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-xs"
-                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                              title="Скопировать ссылку"
-                              onClick={() => {
-                                navigator.clipboard.writeText(url);
-                                setCopiedResourceUrl(url);
-                                toast.add({ title: "Ссылка скопирована", type: "success" });
-                                setTimeout(() => setCopiedResourceUrl(null), 2000);
-                              }}
-                            >
-                              {isCopied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-                            </Button>
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center justify-center h-6 w-6 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                              title={meta.isDownloadable ? "Скачать / Открыть файл" : "Открыть в новой вкладке"}
-                            >
-                              {meta.isDownloadable ? (
-                                <Download className="h-3.5 w-3.5" />
-                              ) : (
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              )}
-                            </a>
+                  {/* Quick Section View Tabs */}
+                  {(parsedVideos.length > 0 || parsedResources.length > 0) && currentMat.content && (
+                    <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-lg border text-xs overflow-x-auto scrollbar-none">
+                      <button
+                        type="button"
+                        onClick={() => setActiveContentTab("all")}
+                        className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${activeContentTab === "all"
+                          ? "bg-background text-foreground shadow-xs border border-border/80"
+                          : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        <BookOpen className="h-3.5 w-3.5 text-primary" />
+                        <span>Все материалы</span>
+                      </button>
+
+                      {parsedVideos.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveContentTab("video")}
+                          className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${activeContentTab === "video"
+                            ? "bg-background text-foreground shadow-xs border border-border/80"
+                            : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                          <Video className="h-3.5 w-3.5 text-primary" />
+                          <span>Видео ({parsedVideos.length})</span>
+                        </button>
+                      )}
+
+                      {parsedResources.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveContentTab("resources")}
+                          className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${activeContentTab === "resources"
+                            ? "bg-background text-foreground shadow-xs border border-border/80"
+                            : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                          <Link2 className="h-3.5 w-3.5 text-primary" />
+                          <span>Файлы и ссылки ({parsedResources.length})</span>
+                        </button>
+                      )}
+
+                      {currentMat.content && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveContentTab("text")}
+                          className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${activeContentTab === "text"
+                            ? "bg-background text-foreground shadow-xs border border-border/80"
+                            : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                          <FileText className="h-3.5 w-3.5 text-primary" />
+                          <span>Конспект урока</span>
+                        </button>
+                      )}
+
+                      {parsedEmbed && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveContentTab("demo")}
+                          className={`px-3 py-1 rounded-md font-medium transition-all shrink-0 flex items-center gap-1.5 ${activeContentTab === "demo"
+                            ? "bg-background text-foreground shadow-xs border border-border/80"
+                            : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                          <Globe className="h-3.5 w-3.5 text-primary" />
+                          <span>Интерактивное демо</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Video Player Section with Multi-part selector */}
+                  {(activeContentTab === "all" || activeContentTab === "video") && parsedVideos.length > 0 && (
+                    <div className="space-y-3 rounded-xl border bg-card p-3.5 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                            <Video className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-foreground text-xs">Видеоматериалы к уроку</h3>
+                            <p className="text-[10px] text-muted-foreground">
+                              {parsedVideos.length === 1
+                                ? "1 видеозапись к уроку"
+                                : `${parsedVideos.length} видеозаписи (выберите часть для просмотра)`}
+                            </p>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
-              {/* RENDER WYSIWYG MARKDOWN CONTENT */}
-              {(activeContentTab === "all" || activeContentTab === "text") && currentMat.content && (
-                <div className="p-4 rounded-xl border bg-background text-xs leading-relaxed text-foreground space-y-2">
-                  {renderMarkdown(currentMat.content)}
-                </div>
-              )}
-
-              {/* Interactive Live Project Preview (iframe) */}
-              {(activeContentTab === "all" || activeContentTab === "demo") && parsedEmbed && (
-                <div className="space-y-2 pt-1">
-                  <InteractivePreviewFrame
-                    url={parsedEmbed}
-                    title="Интерактивный результат к уроку"
-                  />
-                </div>
-              )}
-
-              {/* Bottom Navigation Bar: Previous & Next Lesson */}
-              {orderedMaterials.length > 1 && (
-                <div className="pt-4 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
-                  {prevMaterial ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => handleNavigateMaterial(prevMaterial)}
-                      className="h-auto py-2 px-3 gap-2 text-foreground hover:text-primary hover:border-primary/40 font-medium justify-start text-left group w-full sm:w-auto"
-                    >
-                      <ChevronLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                      <div className="min-w-0 max-w-[200px] sm:max-w-[240px]">
-                        <span className="text-[10px] text-muted-foreground block leading-tight">Предыдущий материал</span>
-                        <span className="truncate block text-xs font-semibold leading-tight">{prevMaterial.title}</span>
+                        {parsedVideos.length > 1 && (
+                          <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs">
+                            {parsedVideos.map((_, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setSelectedVideoIndex(idx)}
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all flex items-center gap-1 ${selectedVideoIndex === idx
+                                  ? "bg-background text-foreground shadow-xs border border-border/80 text-primary"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                              >
+                                <Play className="h-2.5 w-2.5" />
+                                <span>Часть {idx + 1}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </Button>
-                  ) : (
-                    <div className="hidden sm:block" />
-                  )}
 
-                  {currentIndex >= 0 && (
-                    <div className="text-[11px] text-muted-foreground font-medium text-center">
-                      Материал {currentIndex + 1} из {orderedMaterials.length}
+                      {/* Active Video Player */}
+                      {(() => {
+                        const activeVidUrl = parsedVideos[selectedVideoIndex] || parsedVideos[0];
+                        const embedUrl = getYouTubeEmbedUrl(activeVidUrl);
+                        if (!embedUrl) return null;
+                        return (
+                          <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-xs border border-border">
+                            <iframe
+                              src={embedUrl}
+                              title={`${currentMat.title} - Видео ${selectedVideoIndex + 1}`}
+                              className="w-full h-full border-0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 
-                  {nextMaterial ? (
-                    <Button
-                      type="button"
-                      size="xs"
-                      onClick={() => handleNavigateMaterial(nextMaterial)}
-                      className="h-auto py-2 px-3 gap-2 font-medium justify-end text-right group w-full sm:w-auto ml-auto"
-                    >
-                      <div className="min-w-0 max-w-[200px] sm:max-w-[240px]">
-                        <span className="text-[10px] text-primary-foreground/75 block leading-tight">Следующий материал</span>
-                        <span className="truncate block text-xs font-semibold leading-tight">{nextMaterial.title}</span>
+                  {/* Smart 2-Column Resources & Attached Files */}
+                  {(activeContentTab === "all" || activeContentTab === "resources") && parsedResources.length > 0 && (
+                    <div className="space-y-3 rounded-xl border bg-card p-3.5 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2 pb-2 border-b">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                            <Link2 className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-foreground text-xs">Прикреплённые ресурсы и файлы</h3>
+                            <p className="text-[10px] text-muted-foreground">
+                              {parsedResources.length} полезных ссылок, макетов и файлов
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-medium bg-muted/40">
+                          {parsedResources.length} шт.
+                        </Badge>
                       </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                    </Button>
-                  ) : (
-                    <div className="hidden sm:block" />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        {parsedResources.map((url, idx) => {
+                          const meta = getResourceMeta(url);
+                          const isCopied = copiedResourceUrl === url;
+                          return (
+                            <div
+                              key={idx}
+                              className="p-2.5 rounded-lg border bg-background hover:bg-muted/30 hover:border-primary/40 transition-all flex items-center justify-between gap-2 text-xs group"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div className="p-1.5 rounded-md bg-muted/70 text-primary shrink-0 group-hover:bg-primary/10 transition-colors">
+                                  {meta.icon}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span
+                                      className="font-semibold text-foreground text-xs truncate flex-1 min-w-0"
+                                      title={meta.title}
+                                    >
+                                      {meta.title}
+                                    </span>
+                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal shrink-0">
+                                      {meta.badge}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground truncate" title={meta.subtitle}>
+                                    {meta.subtitle}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                  title="Скопировать ссылку"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(url);
+                                    setCopiedResourceUrl(url);
+                                    toast.add({ title: "Ссылка скопирована", type: "success" });
+                                    setTimeout(() => setCopiedResourceUrl(null), 2000);
+                                  }}
+                                >
+                                  {isCopied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                                </Button>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center h-6 w-6 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                                  title={meta.isDownloadable ? "Скачать / Открыть файл" : "Открыть в новой вкладке"}
+                                >
+                                  {meta.isDownloadable ? (
+                                    <Download className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  )}
+                                </a>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* RENDER WYSIWYG MARKDOWN CONTENT */}
+                  {(activeContentTab === "all" || activeContentTab === "text") && currentMat.content && (
+                    <div className="p-4 rounded-xl border bg-background text-xs leading-relaxed text-foreground space-y-2">
+                      {renderMarkdown(currentMat.content)}
+                    </div>
+                  )}
+
+                  {/* Interactive Live Project Preview (iframe) */}
+                  {(activeContentTab === "all" || activeContentTab === "demo") && parsedEmbed && (
+                    <div className="space-y-2 pt-1">
+                      <InteractivePreviewFrame
+                        url={parsedEmbed}
+                        title="Интерактивный результат к уроку"
+                      />
+                    </div>
+                  )}
+
+                  {/* Bottom Navigation Bar: Previous & Next Lesson */}
+                  {orderedMaterials.length > 1 && (
+                    <div className="pt-4 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+                      {prevMaterial ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          onClick={() => handleNavigateMaterial(prevMaterial)}
+                          className="h-auto py-2 px-3 gap-2 text-foreground hover:text-primary hover:border-primary/40 font-medium justify-start text-left group w-full sm:w-auto"
+                        >
+                          <ChevronLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                          <div className="min-w-0 max-w-[200px] sm:max-w-[240px]">
+                            <span className="text-[10px] text-muted-foreground block leading-tight">Предыдущий материал</span>
+                            <span className="truncate block text-xs font-semibold leading-tight">{prevMaterial.title}</span>
+                          </div>
+                        </Button>
+                      ) : (
+                        <div className="hidden sm:block" />
+                      )}
+
+                      {currentIndex >= 0 && (
+                        <div className="text-[11px] text-muted-foreground font-medium text-center">
+                          Материал {currentIndex + 1} из {orderedMaterials.length}
+                        </div>
+                      )}
+
+                      {nextMaterial ? (
+                        <Button
+                          type="button"
+                          size="xs"
+                          onClick={() => handleNavigateMaterial(nextMaterial)}
+                          className="h-auto py-2 px-3 gap-2 font-medium justify-end text-right group w-full sm:w-auto ml-auto"
+                        >
+                          <div className="min-w-0 max-w-[200px] sm:max-w-[240px]">
+                            <span className="text-[10px] text-primary-foreground/75 block leading-tight">Следующий материал</span>
+                            <span className="truncate block text-xs font-semibold leading-tight">{nextMaterial.title}</span>
+                          </div>
+                          <ChevronRight className="h-4 w-4 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                        </Button>
+                      ) : (
+                        <div className="hidden sm:block" />
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-16 text-center text-muted-foreground text-xs space-y-3 max-w-sm mx-auto">
+                  <BookOpen className="h-10 w-10 text-muted-foreground/30 mx-auto" />
+                  <div className="space-y-1">
+                    <div className="font-semibold text-foreground text-sm">
+                      {currentSubjectObj ? `В дисциплине «${currentSubjectObj.subjectName}» пока нет материалов` : "Материал не выбран"}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-normal">
+                      {currentSubjectObj
+                        ? "Создайте первую главу курса или добавьте учебный материал (видео, конспект, презентацию)."
+                        : "Выберите материал из списка слева для чтения и изучения."}
+                    </p>
+                  </div>
+                  {canCreate && currentSubjectObj && (
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        onClick={handleOpenCreateChapter}
+                        className="h-8 text-xs px-3 font-medium"
+                      >
+                        <Folder className="h-3.5 w-3.5 mr-1.5 text-primary" /> Создать главу
+                      </Button>
+                      <Link
+                        href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
+                      >
+                        <Button size="xs" className="h-8 text-xs px-3 font-medium">
+                          <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить материал
+                        </Button>
+                      </Link>
+                    </div>
                   )}
                 </div>
               )}
             </div>
-          ) : (
-            <div className="py-16 text-center text-muted-foreground text-xs space-y-3 max-w-sm mx-auto">
-              <BookOpen className="h-10 w-10 text-muted-foreground/30 mx-auto" />
-              <div className="space-y-1">
-                <div className="font-semibold text-foreground text-sm">
-                  {currentSubjectObj ? `В дисциплине «${currentSubjectObj.subjectName}» пока нет материалов` : "Материал не выбран"}
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-normal">
-                  {currentSubjectObj
-                    ? "Создайте первую главу курса или добавьте учебный материал (видео, конспект, презентацию)."
-                    : "Выберите материал из списка слева для чтения и изучения."}
-                </p>
-              </div>
-              {canCreate && currentSubjectObj && (
-                <div className="flex items-center justify-center gap-2 pt-2">
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="outline"
-                    onClick={handleOpenCreateChapter}
-                    className="h-8 text-xs px-3 font-medium"
-                  >
-                    <Folder className="h-3.5 w-3.5 mr-1.5 text-primary" /> Создать главу
-                  </Button>
-                  <Link
-                    href={`/dashboard/lms/materials/new?group=${selectedGroupId}${selectedSubjectId ? `&subject=${selectedSubjectId}` : ""}`}
-                  >
-                    <Button size="xs" className="h-8 text-xs px-3 font-medium">
-                      <Plus className="h-3.5 w-3.5 mr-1.5" /> Добавить материал
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
+          </div>
         </div>
-      </div>
-    </div>
-  )}
+      )}
 
       {/* Modal 1: Quick Create Chapter (Topic) */}
       <Dialog
