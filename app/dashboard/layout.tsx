@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppHeaderBreadcrumbs } from "@/components/app-header-breadcrumbs";
 import { NotificationsPopover } from "@/components/notifications-popover";
 import { TourTriggerButton } from "@/components/tour-trigger-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { OnboardingTour } from "@/components/onboarding-tour";
 import { TourHubModal } from "@/components/tour-hub-modal";
 import { prisma } from "@/lib/prisma";
@@ -23,20 +24,46 @@ export default async function DashboardLayout({
 
   const { id: userId, name, email, role, avatar } = session.user;
 
-  let studentGroupName: string | null = null;
-  if (role === "STUDENT") {
-    const enrollment = await prisma.groupStudent.findFirst({
-      where: { studentId: userId },
-      include: { group: { select: { name: true } } },
-    });
-    studentGroupName = enrollment?.group?.name ?? null;
-  }
+  const [enrollment, unreadNotificationsCount, rawNotifications] = await Promise.all([
+    role === "STUDENT" && userId
+      ? prisma.groupStudent.findFirst({
+          where: { studentId: userId },
+          include: { group: { select: { name: true } } },
+        })
+      : Promise.resolve(null),
+    userId
+      ? prisma.notification.count({
+          where: { userId, isRead: false },
+        })
+      : Promise.resolve(0),
+    userId
+      ? prisma.notification.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            title: true,
+            message: true,
+            link: true,
+            type: true,
+            isRead: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
 
-  const unreadNotificationsCount = userId
-    ? await prisma.notification.count({
-        where: { userId, isRead: false },
-      })
-    : 0;
+  const studentGroupName = enrollment?.group?.name ?? null;
+  const initialNotifications = rawNotifications.map((n) => ({
+    id: n.id,
+    title: n.title,
+    message: n.message,
+    link: n.link || undefined,
+    type: n.type,
+    isRead: n.isRead,
+    createdAt: n.createdAt.toISOString(),
+  }));
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -59,14 +86,18 @@ export default async function DashboardLayout({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {studentGroupName && (
-              <span className="text-xs font-mono text-muted-foreground border px-2 py-0.5 rounded-md bg-muted/40 font-medium">
+              <span className="text-xs font-mono text-muted-foreground border border-border px-2 py-0.5 rounded-md bg-muted/40 font-medium">
                 {studentGroupName}
               </span>
             )}
+            <ThemeToggle />
             <div data-tour="header-notifications">
-              <NotificationsPopover initialUnreadCount={unreadNotificationsCount} />
+              <NotificationsPopover
+                initialUnreadCount={unreadNotificationsCount}
+                initialNotifications={initialNotifications}
+              />
             </div>
             <TourTriggerButton />
           </div>

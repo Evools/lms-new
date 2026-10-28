@@ -17,10 +17,10 @@ export function TourTriggerButton({
   return (
     <Button
       variant={variant}
-      size={showText ? "xs" : "icon"}
+      size={showText ? "sm" : "icon-sm"}
       onClick={openTourHubModal}
-      className={`text-xs h-8 text-muted-foreground hover:text-foreground cursor-pointer ${
-        showText ? "px-2.5 gap-1.5 font-medium" : "w-8"
+      className={`rounded-md text-xs text-muted-foreground hover:text-foreground cursor-pointer ${
+        showText ? "h-8 px-2.5 gap-1.5 font-medium" : "size-8"
       } ${className}`}
       title="Путеводитель по системе"
     >
