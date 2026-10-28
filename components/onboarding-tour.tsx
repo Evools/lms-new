@@ -416,6 +416,34 @@ const TOUR_SCENARIOS: Record<string, TourStep[]> = {
 };
 
 const STORAGE_KEY = "lms_onboarding_tour_completed_v2";
+const COMPLETED_TOURS_KEY = "lms_completed_tours_v1";
+
+export function getCompletedTourIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(COMPLETED_TOURS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markTourScenarioCompleted(scenarioId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getCompletedTourIds();
+    if (!current.includes(scenarioId)) {
+      const updated = [...current, scenarioId];
+      localStorage.setItem(COMPLETED_TOURS_KEY, JSON.stringify(updated));
+    }
+    localStorage.setItem(STORAGE_KEY, "true");
+    window.dispatchEvent(new CustomEvent("lms-tour-completed", { detail: { scenarioId } }));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export function startOnboardingTour(scenario: string = "general") {
   if (typeof window !== "undefined") {
@@ -501,11 +529,16 @@ export function OnboardingTour() {
     localStorage.setItem(STORAGE_KEY, "true");
   };
 
+  const finishTour = () => {
+    setIsOpen(false);
+    markTourScenarioCompleted(currentScenario);
+  };
+
   const nextStep = () => {
     if (currentStepIndex < steps.length - 1) {
       setCurrentStepIndex((prev) => prev + 1);
     } else {
-      closeTour();
+      finishTour();
     }
   };
 
@@ -606,10 +639,10 @@ export function OnboardingTour() {
         />
       </svg>
 
-      {/* Spotlight Pulsing Border Glow */}
+      {/* Spotlight Border */}
       {targetRect && (
         <div
-          className="fixed rounded-xl border-2 border-primary ring-4 ring-primary/20 pointer-events-none transition-all duration-300 ease-out animate-pulse"
+          className="fixed rounded-xl border border-primary bg-primary/5 pointer-events-none transition-all duration-300 ease-out"
           style={{
             top: `${spotlightTop}px`,
             left: `${spotlightLeft}px`,
@@ -622,7 +655,7 @@ export function OnboardingTour() {
       {/* Tour Popover Card */}
       <div
         style={getPopoverStyle()}
-        className="w-[360px] max-w-[calc(100vw-32px)] bg-card text-card-foreground border border-border/80 shadow-2xl rounded-2xl p-4.5 space-y-3.5 animate-in fade-in zoom-in-95 duration-200 z-50"
+        className="w-[360px] max-w-[calc(100vw-32px)] bg-card text-card-foreground border border-border rounded-xl p-4 space-y-3 animate-in fade-in zoom-in-95 duration-200 z-50"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-2 border-b pb-2.5">
