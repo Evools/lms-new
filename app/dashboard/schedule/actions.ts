@@ -194,7 +194,8 @@ export async function getSchedulePageDataAction() {
     dbTeacherNames,
     defaultGroupId:
       studentEnrollment?.groupId || mergedSchedules[0]?.groupId || "",
-    canEdit: role === "ADMIN" || role === "TEACHER",
+    canEdit:
+      role === "ADMIN" || role === "TEACHER" || role === "ADMINISTRATION",
   };
 }
 
@@ -202,7 +203,9 @@ export async function saveScheduleDataAction(schedules: GroupScheduleData[]) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")
+    (session.user.role !== "ADMIN" &&
+      session.user.role !== "TEACHER" &&
+      session.user.role !== "ADMINISTRATION")
   ) {
     return { success: false, error: "Недостаточно прав для сохранения расписания" };
   }
@@ -224,4 +227,3 @@ export async function saveScheduleDataAction(schedules: GroupScheduleData[]) {
     return { success: false, error: "Ошибка сохранения расписания в БД" };
   }
 }
-

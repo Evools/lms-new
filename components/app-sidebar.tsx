@@ -191,7 +191,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           ],
         },
         {
-          groupLabel: "Мониторинг (просмотр)",
+          groupLabel: "Учебный процесс и контроль",
           items: [
             {
               title: "Аналитика & Отчёты",
