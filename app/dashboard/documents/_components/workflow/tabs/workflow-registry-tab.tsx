@@ -46,6 +46,15 @@ export function WorkflowRegistryTab({
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [groupFilter, setGroupFilter] = useState<string>("ALL");
 
+  const statusFilterLabels: Record<string, string> = {
+    ALL: "Все статусы",
+    DRAFT: "Черновик",
+    PENDING_APPROVAL: "На рассмотрении",
+    APPROVED: "Утверждён",
+    REJECTED: "Отклонён",
+    ARCHIVED: "В архиве",
+  };
+
   const filteredDocs = useMemo(() => {
     return workflowDocs.filter((doc) => {
       // Tab-specific filters
@@ -103,23 +112,33 @@ export function WorkflowRegistryTab({
             />
           </div>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 text-xs w-[130px]">
-              <SelectValue placeholder="Статус" />
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => setStatusFilter(val || "ALL")}
+          >
+            <SelectTrigger className="h-8 text-xs w-[160px]">
+              <SelectValue placeholder="Все статусы">
+                {statusFilterLabels[statusFilter] || "Все статусы"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent className="text-xs">
               <SelectItem value="ALL">Все статусы</SelectItem>
               <SelectItem value="DRAFT">Черновик</SelectItem>
-              <SelectItem value="PENDING_APPROVAL">Передан администрации</SelectItem>
+              <SelectItem value="PENDING_APPROVAL">На рассмотрении</SelectItem>
               <SelectItem value="APPROVED">Утверждён</SelectItem>
               <SelectItem value="REJECTED">Отклонён</SelectItem>
               <SelectItem value="ARCHIVED">В архиве</SelectItem>
             </SelectContent>
           </Select>
 
-          <Select value={groupFilter} onValueChange={setGroupFilter}>
-            <SelectTrigger className="h-8 text-xs w-[120px]">
-              <SelectValue placeholder="Группа" />
+          <Select
+            value={groupFilter}
+            onValueChange={(val) => setGroupFilter(val || "ALL")}
+          >
+            <SelectTrigger className="h-8 text-xs w-[135px]">
+              <SelectValue placeholder="Все группы">
+                {groupFilter === "ALL" ? "Все группы" : groupFilter}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent className="text-xs">
               <SelectItem value="ALL">Все группы</SelectItem>
@@ -130,6 +149,21 @@ export function WorkflowRegistryTab({
               ))}
             </SelectContent>
           </Select>
+
+          {(statusFilter !== "ALL" || groupFilter !== "ALL" || searchQuery.trim()) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setStatusFilter("ALL");
+                setGroupFilter("ALL");
+                setSearchQuery("");
+              }}
+              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              Сбросить
+            </Button>
+          )}
         </div>
 
         <div className="text-muted-foreground text-[11px] whitespace-nowrap">

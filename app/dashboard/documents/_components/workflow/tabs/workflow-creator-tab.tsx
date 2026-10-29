@@ -288,12 +288,14 @@ export function WorkflowCreatorTab({
               <Select
                 value={creatorGroup}
                 onValueChange={(val) => {
-                  setCreatorGroup(val);
+                  setCreatorGroup(val || "");
                   setCreatorSelectedStudentIds([]);
                 }}
               >
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Выберите группу" />
+                  <SelectValue placeholder="Выберите группу">
+                    {creatorGroup || "Выберите группу"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="text-xs">
                   {groups.length === 0 ? (

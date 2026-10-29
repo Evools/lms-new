@@ -797,7 +797,15 @@ export function DocumentsWorkflowView({
           <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border bg-muted/30 text-[11px] text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-primary" />
             <span>
-              Доступ: <strong className="text-foreground font-medium">Администрация лицея</strong> (директорат, завучи, кураторы)
+              Роль:{" "}
+              <strong className="text-foreground font-medium">
+                {currentUser?.role === "TEACHER"
+                  ? "Мастер / Куратор группы"
+                  : currentUser?.role === "ADMINISTRATION"
+                    ? "Администрация лицея"
+                    : "Администратор системы"}
+              </strong>
+              {currentUser?.name ? ` (${currentUser.name})` : ""}
             </span>
           </div>
 

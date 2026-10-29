@@ -60,12 +60,14 @@ export function WorkflowArchiveTab({
             />
           </div>
 
-          <Select value={regCategory} onValueChange={setRegCategory}>
-            <SelectTrigger className="h-7 text-xs w-32">
-              <SelectValue placeholder="Категория" />
+          <Select value={regCategory} onValueChange={(val) => setRegCategory(val || "ALL")}>
+            <SelectTrigger className="h-7 text-xs w-36">
+              <SelectValue placeholder="Категория">
+                {regCategory === "ALL" ? "Все категории" : regCategory}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent className="text-xs">
-              <SelectItem value="ALL">Все файлы</SelectItem>
+              <SelectItem value="ALL">Все категории</SelectItem>
               {ALLOWED_CATEGORIES.map((cat) => (
                 <SelectItem key={cat} value={cat}>
                   {cat}

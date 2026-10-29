@@ -82,9 +82,14 @@ export function RegulatoryUploadDialog({
             <label className="font-medium text-foreground text-xs">
               Категория документа *
             </label>
-            <Select value={newRegCategory} onValueChange={setNewRegCategory}>
+            <Select
+              value={newRegCategory}
+              onValueChange={(val) => setNewRegCategory(val || "Методички")}
+            >
               <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Выберите категорию" />
+                <SelectValue placeholder="Выберите категорию">
+                  {newRegCategory || "Выберите категорию"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {ALLOWED_CATEGORIES.map((cat) => (
