@@ -26,15 +26,14 @@ import {
   GraduationCap,
   FileCheck2,
   BookMarked,
-  FolderOpen,
   CalendarDays,
-  Briefcase,
   Building2,
   Award,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: {
+    id?: string;
     name: string;
     email: string;
     role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
@@ -84,19 +83,19 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           groupLabel: "Учебный процесс",
           items: [
             {
-              title: "Группы и студенты",
+              title: "Учебные группы",
               url: "/dashboard/groups",
               icon: <Users className="h-4 w-4" />,
-              items: [
-                {
-                  title: "Учебные группы",
-                  url: "/dashboard/groups",
-                },
-                {
-                  title: "База студентов",
-                  url: "/dashboard/students",
-                },
-              ],
+            },
+            {
+              title: "База студентов",
+              url: "/dashboard/students",
+              icon: <GraduationCap className="h-4 w-4" />,
+            },
+            {
+              title: "Расписание занятий",
+              url: "/dashboard/schedule",
+              icon: <CalendarDays className="h-4 w-4" />,
             },
             {
               title: "Посещаемость",
@@ -168,7 +167,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       ];
     }
 
-    // 2. ADMINISTRATION ROLE (Директорат и руководство лицея: Документы, решения педсовета, мониторинг)
+    // 2. ADMINISTRATION ROLE
     if (role === "ADMINISTRATION") {
       return [
         {
@@ -198,6 +197,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Аналитика & Отчёты",
               url: "/dashboard/reports",
               icon: <BarChart3 className="h-4 w-4" />,
+            },
+            {
+              title: "Расписание занятий",
+              url: "/dashboard/schedule",
+              icon: <CalendarDays className="h-4 w-4" />,
             },
             {
               title: "Посещаемость пар",
@@ -249,6 +253,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Учебные группы",
               url: "/dashboard/groups",
               icon: <Users className="h-4 w-4" />,
+            },
+            {
+              title: "Расписание занятий",
+              url: "/dashboard/schedule",
+              icon: <CalendarDays className="h-4 w-4" />,
             },
             {
               title: "Посещаемость пар",
@@ -315,7 +324,8 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       ];
     }
 
-    // 3. STUDENT ROLE
+    // 4. STUDENT ROLE
+    const studentPortfolioUrl = user.id ? `/dashboard/students/${user.id}` : "/dashboard/profile";
     return [
       {
         groupLabel: "Обзор",
@@ -351,6 +361,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             icon: <FileCheck2 className="h-4 w-4" />,
           },
           {
+            title: "Зачётка и портфолио",
+            url: studentPortfolioUrl,
+            icon: <Award className="h-4 w-4" />,
+          },
+          {
             title: "Памятка по практике",
             url: "/dashboard/practice",
             icon: <FileText className="h-4 w-4" />,
@@ -364,6 +379,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             title: "Моя группа",
             url: "/dashboard/groups",
             icon: <Users className="h-4 w-4" />,
+          },
+          {
+            title: "Расписание занятий",
+            url: "/dashboard/schedule",
+            icon: <CalendarDays className="h-4 w-4" />,
           },
           {
             title: "Посещаемость",
@@ -385,10 +405,16 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       <SidebarHeader className="h-14 border-b px-2 flex items-center justify-center">
         <TeamSwitcher teams={teams} />
       </SidebarHeader>
-      <SidebarContent className="gap-0 py-2 px-2 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:py-2" data-tour="sidebar-nav">
+      <SidebarContent
+        className="gap-0 py-2 px-2 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:py-2"
+        data-tour="sidebar-nav"
+      >
         <NavMain sections={getNavSections()} />
       </SidebarContent>
-      <SidebarFooter className="border-t p-2 group-data-[collapsible=icon]:p-2 flex justify-center" data-tour="sidebar-user">
+      <SidebarFooter
+        className="border-t p-2 group-data-[collapsible=icon]:p-2 flex justify-center"
+        data-tour="sidebar-user"
+      >
         <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />

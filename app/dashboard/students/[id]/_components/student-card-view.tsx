@@ -234,42 +234,50 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
             <BreadcrumbLink href="/dashboard">Панель</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
-          {student.groupId ? (
+          {!isAdminOrTeacher ? (
+            <BreadcrumbItem>
+              <BreadcrumbPage>Зачётка и портфолио ({student.name})</BreadcrumbPage>
+            </BreadcrumbItem>
+          ) : (
             <>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard/groups">Группы</BreadcrumbLink>
-              </BreadcrumbItem>
+              {student.groupId ? (
+                <>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href="/dashboard/groups">Группы</BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href={`/dashboard/groups/${student.groupId}`}>
+                      {student.groupName}
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                </>
+              ) : (
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/dashboard/students">Студенты</BreadcrumbLink>
+                </BreadcrumbItem>
+              )}
               <BreadcrumbSeparator />
               <BreadcrumbItem>
-                <BreadcrumbLink href={`/dashboard/groups/${student.groupId}`}>
-                  {student.groupName}
-                </BreadcrumbLink>
+                <BreadcrumbPage>{student.name}</BreadcrumbPage>
               </BreadcrumbItem>
             </>
-          ) : (
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard/students">Студенты</BreadcrumbLink>
-            </BreadcrumbItem>
           )}
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{student.name}</BreadcrumbPage>
-          </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
       {/* Top Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button
-          variant="outline"
-          size="xs"
-          className="h-8 text-xs gap-1.5"
-          onClick={() => (student.groupId ? router.push(backUrl) : router.back())}
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Назад
-        </Button>
+      {isAdminOrTeacher && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button
+            variant="outline"
+            size="xs"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => (student.groupId ? router.push(backUrl) : router.back())}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Назад
+          </Button>
 
-        {isAdminOrTeacher && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -298,8 +306,8 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
               <Edit className="h-3.5 w-3.5" /> Редактировать профиль
             </Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Hero Student Profile Card */}
       <div className="p-4 rounded-xl border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -550,14 +558,16 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
                 </div>
               </div>
 
-              <Button
-                variant="outline"
-                size="xs"
-                className="h-6 text-[10px] px-2 shrink-0 gap-1"
-                render={<Link href="/dashboard/scholarship" />}
-              >
-                Ведомость стипендий
-              </Button>
+              {isAdminOrTeacher && (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  className="h-6 text-[10px] px-2 shrink-0 gap-1"
+                  render={<Link href="/dashboard/scholarship" />}
+                >
+                  Ведомость стипендий
+                </Button>
+              )}
             </div>
           )}
 

@@ -69,6 +69,7 @@ export default async function DashboardLayout({
     <SidebarProvider defaultOpen={true}>
       <AppSidebar
         user={{
+          id: userId,
           name: name ?? "Пользователь",
           email: email ?? "",
           role: role ?? "STUDENT",

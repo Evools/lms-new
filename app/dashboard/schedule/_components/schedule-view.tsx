@@ -38,7 +38,12 @@ import {
   Clock,
   User,
   Sparkles,
+  GripVertical,
+  Copy,
+  ArrowRightLeft,
 } from "lucide-react";
+import { saveScheduleDataAction } from "../actions";
+import { toast } from "@/components/ui/toast";
 
 export interface LessonSlot {
   id: string;
@@ -363,40 +368,39 @@ const INITIAL_SCHEDULE_DATA: GroupScheduleData[] = [
   },
 ];
 
-const SCHEDULE_STORAGE_KEY = "lms_schedule_data_v1";
+export interface ScheduleViewProps {
+  canEdit?: boolean;
+  initialSchedules?: GroupScheduleData[];
+  initialGroupId?: string;
+  dbSubjectNames?: string[];
+  dbTeacherNames?: string[];
+}
 
-export function ScheduleView() {
-  const [scheduleData, setScheduleData] = useState<GroupScheduleData[]>(INITIAL_SCHEDULE_DATA);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("vr-1-26");
+export function ScheduleView({
+  canEdit = false,
+  initialSchedules = [],
+  initialGroupId = "",
+  dbSubjectNames = [],
+  dbTeacherNames = [],
+}: ScheduleViewProps) {
+  const starterData =
+    initialSchedules.length > 0 ? initialSchedules : INITIAL_SCHEDULE_DATA;
+  const [scheduleData, setScheduleData] = useState<GroupScheduleData[]>(starterData);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(
+    initialGroupId || starterData[0]?.groupId || "vr-1-26"
+  );
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [isLoadedFromStorage, setIsLoadedFromStorage] = useState<boolean>(false);
 
-  // 1. Initial Load from LocalStorage (persists across page reloads/browser sessions)
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SCHEDULE_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setScheduleData(parsed);
+  const persistSchedule = (updated: GroupScheduleData[]) => {
+    setScheduleData(updated);
+    if (canEdit) {
+      saveScheduleDataAction(updated).then((res) => {
+        if (!res.success && res.error) {
+          toast.add({ title: res.error, type: "error" });
         }
-      }
-    } catch (err) {
-      console.error("Failed to load schedule from localStorage", err);
-    } finally {
-      setIsLoadedFromStorage(true);
+      });
     }
-  }, []);
-
-  // 2. Auto-save to LocalStorage on every modification
-  useEffect(() => {
-    if (!isLoadedFromStorage) return;
-    try {
-      localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(scheduleData));
-    } catch (err) {
-      console.error("Failed to save schedule to localStorage", err);
-    }
-  }, [scheduleData, isLoadedFromStorage]);
+  };
 
   // Dialog States
   const [isLessonDialogOpen, setIsLessonDialogOpen] = useState<boolean>(false);
@@ -425,7 +429,12 @@ export function ScheduleView() {
   }, [formStartTime]);
 
   // Mobile View Active Day
-  const [activeMobileDayIndex, setActiveMobileDayIndex] = useState<number>(0);
+  const todayDow = typeof window !== "undefined" ? new Date().getDay() : 1; // 0=Sun, 1=Mon..6=Sat
+  const todayDayIndex = todayDow >= 1 && todayDow <= 6 ? todayDow - 1 : -1;
+  const [activeMobileDayIndex, setActiveMobileDayIndex] = useState<number>(
+    todayDayIndex >= 0 ? todayDayIndex : 0
+  );
+  const [hideEmptyPairs, setHideEmptyPairs] = useState<boolean>(false);
 
   // Day Holiday/Event Note State
   const [isDayNoteDialogOpen, setIsDayNoteDialogOpen] = useState<boolean>(false);
@@ -452,18 +461,17 @@ export function ScheduleView() {
   const handleSaveDayNote = (customNote?: string) => {
     if (!dayNoteEditing) return;
     const noteToSave = customNote !== undefined ? customNote : dayNoteEditing.note;
-    
-    setScheduleData((prev) =>
-      prev.map((g) => {
-        if (g.groupId !== selectedGroupId) return g;
-        const updatedDays = [...g.days];
-        updatedDays[dayNoteEditing.dayIndex] = {
-          ...updatedDays[dayNoteEditing.dayIndex],
-          holidayNote: noteToSave.trim() || undefined,
-        };
-        return { ...g, days: updatedDays };
-      })
-    );
+
+    const updated = scheduleData.map((g) => {
+      if (g.groupId !== selectedGroupId) return g;
+      const updatedDays = [...g.days];
+      updatedDays[dayNoteEditing.dayIndex] = {
+        ...updatedDays[dayNoteEditing.dayIndex],
+        holidayNote: noteToSave.trim() || undefined,
+      };
+      return { ...g, days: updatedDays };
+    });
+    persistSchedule(updated);
     setIsDayNoteDialogOpen(false);
   };
 
@@ -471,19 +479,20 @@ export function ScheduleView() {
   const handleChangeGroupShift = (newShift: ShiftType, customStartTime?: string) => {
     const startTime = customStartTime || SHIFT_DEFAULT_START[newShift];
     const shiftLabel = `${newShift} (${startTime})`;
-    setScheduleData((prev) =>
-      prev.map((g) => (g.groupId === selectedGroupId ? { ...g, shift: shiftLabel } : g))
+    const updated = scheduleData.map((g) =>
+      g.groupId === selectedGroupId ? { ...g, shift: shiftLabel } : g
     );
+    persistSchedule(updated);
   };
 
-  // Extract unique suggestions across all schedules
+  // Extract unique suggestions across all schedules + DB subjects and teachers
   const suggestions = useMemo(() => {
-    const subjects = new Set<string>();
+    const subjects = new Set<string>(dbSubjectNames);
     const rooms = new Set<string>();
-    const teachers = new Set<string>();
+    const teachers = new Set<string>(dbTeacherNames);
 
     scheduleData.forEach((grp) => {
-      if (grp.curator) teachers.add(grp.curator);
+      if (grp.curator && grp.curator !== "Не назначен") teachers.add(grp.curator);
       grp.days.forEach((d) => {
         d.lessons.forEach((l) => {
           if (l.subject) subjects.add(l.subject);
@@ -498,13 +507,21 @@ export function ScheduleView() {
       rooms: Array.from(rooms),
       teachers: Array.from(teachers),
     };
-  }, [scheduleData]);
+  }, [scheduleData, dbSubjectNames, dbTeacherNames]);
 
-  // Open Edit/Add Modal
+  // Open Edit/Add Modal (automatically picks the first free pair 1..6 if pairNum is not specified)
   const handleOpenAddLesson = (dayIndex: number, pairNum?: number) => {
     const groupShift = normalizeShiftType(currentGroup.shift);
     const groupStartTime = extractShiftStartTime(currentGroup.shift);
-    const pNum = pairNum || 1;
+    const targetDay = currentGroup.days[dayIndex] || currentGroup.days[0];
+    const occupiedPairs = new Set((targetDay?.lessons || []).map((l) => l.pairNumber));
+
+    let pNum = pairNum;
+    if (!pNum) {
+      const freeSlot = [1, 2, 3, 4, 5, 6].find((n) => !occupiedPairs.has(n));
+      pNum = freeSlot || 1;
+    }
+
     const computedSlots = calculatePairSlotsFromStart(groupStartTime);
     const initialTime = computedSlots[pNum] || "08:00 – 09:20";
 
@@ -606,8 +623,8 @@ export function ScheduleView() {
     }
   };
 
-  // Save Lesson
-  const handleSaveLesson = () => {
+  // Save Lesson (keepOpenForNext allows adding the next pair on the same day immediately)
+  const handleSaveLesson = (keepOpenForNext: boolean = false) => {
     if (!editingLesson || !formSubject.trim()) return;
 
     const time = formTime.trim() || getTimeSlotForShift(formShift, formPairNum);
@@ -636,62 +653,308 @@ export function ScheduleView() {
           }
         : null;
 
-    setScheduleData((prev) =>
-      prev.map((g) => {
-        if (g.groupId !== editingLesson.groupId) return g;
+    const updated = scheduleData.map((g) => {
+      if (g.groupId !== editingLesson.groupId) return g;
 
-        const updatedDays = [...g.days];
-        const targetDay = { ...updatedDays[formDayIndex] };
+      const updatedDays = [...g.days];
+      const targetDay = { ...updatedDays[formDayIndex] };
 
-        if (editingLesson.lesson) {
-          // If day changed during edit
-          if (formDayIndex !== editingLesson.dayIndex) {
-            // Remove from old day
-            const oldDay = { ...updatedDays[editingLesson.dayIndex] };
-            oldDay.lessons = oldDay.lessons.filter((l) => l.id !== editingLesson.lesson!.id);
-            updatedDays[editingLesson.dayIndex] = oldDay;
+      if (editingLesson.lesson) {
+        // If day changed during edit
+        if (formDayIndex !== editingLesson.dayIndex) {
+          // Remove from old day
+          const oldDay = { ...updatedDays[editingLesson.dayIndex] };
+          oldDay.lessons = oldDay.lessons.filter((l) => l.id !== editingLesson.lesson!.id);
+          updatedDays[editingLesson.dayIndex] = oldDay;
 
-            // Add to new day
-            const filtered = targetDay.lessons.filter((l) => l.pairNumber !== formPairNum);
-            targetDay.lessons = [...filtered, newLessonObj].sort((a, b) => a.pairNumber - b.pairNumber);
-          } else {
-            // Edit in same day
-            targetDay.lessons = targetDay.lessons.map((l) =>
-              l.id === editingLesson.lesson!.id ? newLessonObj : l
-            );
-          }
+          // Add to new day
+          const filtered = targetDay.lessons.filter((l) => l.pairNumber !== formPairNum);
+          targetDay.lessons = [...filtered, newLessonObj].sort((a, b) => a.pairNumber - b.pairNumber);
         } else {
-          // Check if pair slots occupied and insert
-          const pairsToReplace = new Set([formPairNum]);
-          if (doubleLessonObj) pairsToReplace.add(formPairNum + 1);
-
-          const filtered = targetDay.lessons.filter((l) => !pairsToReplace.has(l.pairNumber));
-          const toAdd = [newLessonObj];
-          if (doubleLessonObj) toAdd.push(doubleLessonObj);
-
-          targetDay.lessons = [...filtered, ...toAdd].sort((a, b) => a.pairNumber - b.pairNumber);
+          // Edit in same day
+          targetDay.lessons = targetDay.lessons.map((l) =>
+            l.id === editingLesson.lesson!.id ? newLessonObj : l
+          );
         }
+      } else {
+        // Check if pair slots occupied and insert
+        const pairsToReplace = new Set([formPairNum]);
+        if (doubleLessonObj) pairsToReplace.add(formPairNum + 1);
 
-        updatedDays[formDayIndex] = targetDay;
-        return { ...g, days: updatedDays };
-      })
-    );
+        const filtered = targetDay.lessons.filter((l) => !pairsToReplace.has(l.pairNumber));
+        const toAdd = [newLessonObj];
+        if (doubleLessonObj) toAdd.push(doubleLessonObj);
 
-    setIsLessonDialogOpen(false);
+        targetDay.lessons = [...filtered, ...toAdd].sort((a, b) => a.pairNumber - b.pairNumber);
+      }
+
+      updatedDays[formDayIndex] = targetDay;
+      return { ...g, days: updatedDays };
+    });
+
+    persistSchedule(updated);
+    toast.add({
+      title: `${formPairNum} пара (${formSubject.trim()}) сохранена`,
+      type: "success",
+    });
+
+    if (keepOpenForNext) {
+      const nextPair = Math.min(6, formPairNum + (doubleLessonObj ? 2 : 1));
+      const slots = calculatePairSlotsFromStart(formStartTime);
+      setEditingLesson({
+        groupId: editingLesson.groupId,
+        dayIndex: formDayIndex,
+      });
+      setFormPairNum(nextPair);
+      setFormTime(slots[nextPair] || "08:00 – 09:20");
+      setFormSubject("");
+      setFormNote("");
+      setFormIsDoublePair(false);
+    } else {
+      setIsLessonDialogOpen(false);
+    }
   };
 
   // Delete Lesson
   const handleDeleteLesson = (dayIndex: number, lessonId: string) => {
-    setScheduleData((prev) =>
-      prev.map((g) => {
+    const updated = scheduleData.map((g) => {
+      if (g.groupId !== selectedGroupId) return g;
+      const updatedDays = [...g.days];
+      const targetDay = { ...updatedDays[dayIndex] };
+      targetDay.lessons = targetDay.lessons.filter((l) => l.id !== lessonId);
+      updatedDays[dayIndex] = targetDay;
+      return { ...g, days: updatedDays };
+    });
+    persistSchedule(updated);
+  };
+
+  // Drag & Drop Builder States
+  const [showBuilderPalette, setShowBuilderPalette] = useState<boolean>(true);
+  const [dragActionMode, setDragActionMode] = useState<"move" | "copy">("move");
+  const [quickDefaultRoom, setQuickDefaultRoom] = useState<string>("каб. 201");
+  const [dragPayload, setDragPayload] = useState<
+    | {
+        type: "cell";
+        fromDayIndex: number;
+        fromPairNum: number;
+        lesson: LessonSlot;
+      }
+    | {
+        type: "palette";
+        subject: string;
+      }
+    | null
+  >(null);
+  const [dragOverCell, setDragOverCell] = useState<{
+    dayIndex: number;
+    pairNum: number;
+  } | null>(null);
+
+  // Quick duplicate a lesson to the next pair slot on the same day
+  const handleDuplicateToNextPair = (dayIndex: number, lesson: LessonSlot) => {
+    const nextPairNum = Math.min(6, lesson.pairNumber + 1);
+    if (nextPairNum === lesson.pairNumber) return;
+
+    const newTime = getTimeSlotForShift(currentGroup.shift, nextPairNum);
+    const duplicatedLesson: LessonSlot = {
+      ...lesson,
+      id: `lesson-${Date.now()}`,
+      pairNumber: nextPairNum,
+      time: newTime,
+    };
+
+    const updated = scheduleData.map((g) => {
+      if (g.groupId !== selectedGroupId) return g;
+      const updatedDays = [...g.days];
+      const targetDay = { ...updatedDays[dayIndex] };
+      const filtered = targetDay.lessons.filter((l) => l.pairNumber !== nextPairNum);
+      targetDay.lessons = [...filtered, duplicatedLesson].sort(
+        (a, b) => a.pairNumber - b.pairNumber
+      );
+      updatedDays[dayIndex] = targetDay;
+      return { ...g, days: updatedDays };
+    });
+
+    persistSchedule(updated);
+    toast.add({
+      title: `Дублировано на ${nextPairNum}-ю пару (${lesson.subject})`,
+      type: "success",
+    });
+  };
+
+  // Copy all lessons from one day to the next day
+  const handleCopyDayToNext = (fromDayIndex: number) => {
+    const nextDayIndex = (fromDayIndex + 1) % currentGroup.days.length;
+    const sourceDay = currentGroup.days[fromDayIndex];
+    const targetDayName = currentGroup.days[nextDayIndex]?.dayOfWeek || "";
+
+    if (!sourceDay || sourceDay.lessons.length === 0) {
+      toast.add({ title: "В этом дне нет пар для копирования", type: "error" });
+      return;
+    }
+
+    const updated = scheduleData.map((g) => {
+      if (g.groupId !== selectedGroupId) return g;
+      const updatedDays = [...g.days];
+      const targetDay = { ...updatedDays[nextDayIndex] };
+      targetDay.lessons = sourceDay.lessons.map((l, idx) => ({
+        ...l,
+        id: `lesson-${Date.now()}-${idx}`,
+      }));
+      updatedDays[nextDayIndex] = targetDay;
+      return { ...g, days: updatedDays };
+    });
+
+    persistSchedule(updated);
+    toast.add({
+      title: `Расписание скопировано на ${targetDayName}`,
+      type: "success",
+    });
+  };
+
+  // Handle Drop on Schedule Grid Cell
+  const handleDropOnCell = (
+    targetDayIndex: number,
+    targetPairNum: number,
+    e: React.DragEvent
+  ) => {
+    e.preventDefault();
+    setDragOverCell(null);
+    if (!canEdit || !dragPayload) return;
+
+    const isCopy =
+      dragActionMode === "copy" || e.altKey || e.ctrlKey || e.metaKey;
+    const targetTime = getTimeSlotForShift(currentGroup.shift, targetPairNum);
+
+    if (dragPayload.type === "palette") {
+      const subj = dragPayload.subject;
+      // Find existing room & teacher for this subject in current group if any
+      let room = quickDefaultRoom.trim() || "каб. 201";
+      let teacher = currentGroup.curator;
+
+      for (const d of currentGroup.days) {
+        const match = d.lessons.find((l) => l.subject === subj);
+        if (match) {
+          if (match.room) room = match.room;
+          if (match.teacher) teacher = match.teacher;
+          break;
+        }
+      }
+
+      const newLesson: LessonSlot = {
+        id: `lesson-${Date.now()}`,
+        pairNumber: targetPairNum,
+        time: targetTime,
+        subject: subj,
+        room,
+        teacher,
+      };
+
+      const updated = scheduleData.map((g) => {
         if (g.groupId !== selectedGroupId) return g;
         const updatedDays = [...g.days];
-        const targetDay = { ...updatedDays[dayIndex] };
-        targetDay.lessons = targetDay.lessons.filter((l) => l.id !== lessonId);
-        updatedDays[dayIndex] = targetDay;
+        const targetDay = { ...updatedDays[targetDayIndex] };
+        const filtered = targetDay.lessons.filter(
+          (l) => l.pairNumber !== targetPairNum
+        );
+        targetDay.lessons = [...filtered, newLesson].sort(
+          (a, b) => a.pairNumber - b.pairNumber
+        );
+        updatedDays[targetDayIndex] = targetDay;
         return { ...g, days: updatedDays };
-      })
-    );
+      });
+
+      persistSchedule(updated);
+      toast.add({
+        title: `${subj} поставлен на ${targetPairNum}-ю пару (${currentGroup.days[targetDayIndex]?.dayOfWeek})`,
+        type: "success",
+      });
+      setDragPayload(null);
+      return;
+    }
+
+    if (dragPayload.type === "cell") {
+      const { fromDayIndex, fromPairNum, lesson } = dragPayload;
+      if (fromDayIndex === targetDayIndex && fromPairNum === targetPairNum) {
+        setDragPayload(null);
+        return;
+      }
+
+      const existingTargetLesson = currentGroup.days[
+        targetDayIndex
+      ]?.lessons.find((l) => l.pairNumber === targetPairNum);
+
+      const updated = scheduleData.map((g) => {
+        if (g.groupId !== selectedGroupId) return g;
+        const updatedDays = g.days.map((d) => ({
+          ...d,
+          lessons: [...d.lessons],
+        }));
+
+        const movedLesson: LessonSlot = {
+          ...lesson,
+          id: isCopy ? `lesson-${Date.now()}` : lesson.id,
+          pairNumber: targetPairNum,
+          time: targetTime,
+        };
+
+        if (isCopy) {
+          // Copy mode: keep source lesson, overwrite target slot
+          updatedDays[targetDayIndex].lessons = [
+            ...updatedDays[targetDayIndex].lessons.filter(
+              (l) => l.pairNumber !== targetPairNum
+            ),
+            movedLesson,
+          ].sort((a, b) => a.pairNumber - b.pairNumber);
+        } else {
+          // Move or Swap mode
+          const sourceTime = getTimeSlotForShift(
+            currentGroup.shift,
+            fromPairNum
+          );
+          // Remove from source
+          updatedDays[fromDayIndex].lessons = updatedDays[
+            fromDayIndex
+          ].lessons.filter((l) => l.id !== lesson.id);
+
+          // Remove existing target if swapping
+          updatedDays[targetDayIndex].lessons = updatedDays[
+            targetDayIndex
+          ].lessons.filter((l) => l.pairNumber !== targetPairNum);
+
+          // If target had a lesson, put it into source slot (Swap!)
+          if (existingTargetLesson) {
+            const swappedLesson: LessonSlot = {
+              ...existingTargetLesson,
+              pairNumber: fromPairNum,
+              time: sourceTime,
+            };
+            updatedDays[fromDayIndex].lessons.push(swappedLesson);
+            updatedDays[fromDayIndex].lessons.sort(
+              (a, b) => a.pairNumber - b.pairNumber
+            );
+          }
+
+          updatedDays[targetDayIndex].lessons.push(movedLesson);
+          updatedDays[targetDayIndex].lessons.sort(
+            (a, b) => a.pairNumber - b.pairNumber
+          );
+        }
+
+        return { ...g, days: updatedDays };
+      });
+
+      persistSchedule(updated);
+      toast.add({
+        title: isCopy
+          ? `Пара скопирована на ${targetPairNum}-ю пару`
+          : existingTargetLesson
+            ? "Пары поменялись местами"
+            : `Пара перенесена на ${targetPairNum}-ю пару`,
+        type: "success",
+      });
+      setDragPayload(null);
+    }
   };
 
   // Simulate Excel Import
@@ -709,22 +972,55 @@ export function ScheduleView() {
     }, 1000);
   };
 
+  const groupStats = useMemo(() => {
+    let totalLessons = 0;
+    const uniqueSubjects = new Set<string>();
+    const uniqueRooms = new Set<string>();
+    let maxPairNum = 3;
+
+    currentGroup.days.forEach((d) => {
+      d.lessons.forEach((l) => {
+        totalLessons++;
+        if (l.subject) uniqueSubjects.add(l.subject);
+        if (l.room) uniqueRooms.add(l.room);
+        if (l.pairNumber > maxPairNum) maxPairNum = l.pairNumber;
+      });
+    });
+
+    return {
+      totalLessons,
+      subjectsCount: uniqueSubjects.size,
+      roomsCount: uniqueRooms.size,
+      maxPairNum,
+    };
+  }, [currentGroup]);
+
+  const visiblePairNumbers = useMemo(() => {
+    const allPairs = [1, 2, 3, 4, 5];
+    if (groupStats.maxPairNum >= 6) allPairs.push(6);
+    if (!hideEmptyPairs) return allPairs;
+    const occupied = allPairs.filter((pNum) =>
+      currentGroup.days.some((d) => d.lessons.some((l) => l.pairNumber === pNum))
+    );
+    return occupied.length > 0 ? occupied : [1, 2, 3];
+  }, [currentGroup, hideEmptyPairs, groupStats.maxPairNum]);
+
   return (
     <div className="space-y-3 w-full text-xs">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-2xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border border-border">
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span>Учебный процесс</span>
             <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-semibold">Расписание занятий</span>
+            <span className="text-foreground font-medium">Расписание занятий</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-primary" /> Сетка расписания пар
             </h1>
-            <Badge variant="outline" className="text-[10px] font-semibold bg-primary/10 text-primary border-primary/30">
-              2026–2027 уч. год (2-я неделя)
+            <Badge variant="outline" className="text-[10px] font-medium bg-primary/10 text-primary border-primary/30">
+              Группа {currentGroup.groupName}
             </Badge>
           </div>
         </div>
@@ -734,9 +1030,16 @@ export function ScheduleView() {
           {/* Group Selector */}
           <div className="flex items-center gap-1.5">
             <span className="text-muted-foreground text-[11px] hidden sm:inline">Группа:</span>
-            <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-              <SelectTrigger className="h-8 text-xs bg-background w-[130px] font-medium">
-                <SelectValue placeholder="Выберите группу" />
+            <Select
+              value={selectedGroupId}
+              onValueChange={(val) => {
+                if (val) setSelectedGroupId(val);
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs bg-background min-w-[140px] rounded-md font-medium">
+                <SelectValue placeholder="Выберите группу">
+                  {currentGroup ? `Группа ${currentGroup.groupName}` : "Выберите группу"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {scheduleData.map((g) => (
@@ -749,39 +1052,41 @@ export function ScheduleView() {
           </div>
 
           {/* Shift Switcher for Selected Group */}
-          <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border text-xs">
-            <button
-              type="button"
-              onClick={() => handleChangeGroupShift("1-я смена", "08:00")}
-              className={`h-7 px-3 rounded-md text-[11px] font-medium transition-colors ${
-                normalizeShiftType(currentGroup.shift) === "1-я смена"
-                  ? "bg-background text-foreground shadow-2xs border font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              1-я смена (08:00)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleChangeGroupShift("2-я смена", "14:20")}
-              className={`h-7 px-3 rounded-md text-[11px] font-medium transition-colors ${
-                normalizeShiftType(currentGroup.shift) === "2-я смена"
-                  ? "bg-background text-foreground shadow-2xs border font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              2-я смена (14:20)
-            </button>
-          </div>
+          {canEdit && (
+            <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border text-xs">
+              <button
+                type="button"
+                onClick={() => handleChangeGroupShift("1-я смена", "08:00")}
+                className={`h-7 px-2.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                  normalizeShiftType(currentGroup.shift) === "1-я смена"
+                    ? "bg-background text-primary border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                1-я смена (08:00)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleChangeGroupShift("2-я смена", "14:20")}
+                className={`h-7 px-2.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                  normalizeShiftType(currentGroup.shift) === "2-я смена"
+                    ? "bg-background text-primary border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                2-я смена (14:20)
+              </button>
+            </div>
+          )}
 
           {/* Quick Search */}
           <div className="relative w-[150px] sm:w-[170px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Поиск..."
+              placeholder="Предмет, каб..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 pl-8 pr-7 text-xs bg-background"
+              className="h-8 pl-8 pr-7 text-xs bg-background rounded-md"
             />
             {searchQuery && (
               <button
@@ -793,236 +1098,599 @@ export function ScheduleView() {
             )}
           </div>
 
-          {/* Admin Add Lesson Button */}
-          <Button
-            size="xs"
-            onClick={() => handleOpenAddLesson(activeMobileDayIndex || 0, 1)}
-            className="h-8 text-xs gap-1.5 font-medium shadow-2xs"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Добавить пару</span>
-          </Button>
+          {canEdit && (
+            <>
+              {/* Admin Add Lesson Button */}
+              <Button
+                size="sm"
+                onClick={() => handleOpenAddLesson(todayDayIndex >= 0 ? todayDayIndex : 0)}
+                className="h-8 px-3 rounded-md text-xs gap-1.5 font-medium cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Добавить пару</span>
+              </Button>
 
-          {/* Admin Import Excel Action */}
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => setIsImportDialogOpen(true)}
-            className="h-8 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
-            title="Импорт из Excel учебной части"
-          >
-            <UploadCloud className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Импорт Excel</span>
-          </Button>
+              {/* Admin Import Excel Action */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsImportDialogOpen(true)}
+                className="h-8 px-3 rounded-md text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+                title="Импорт из Excel учебной части"
+              >
+                <UploadCloud className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Импорт Excel</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Live Status Banner */}
-      <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-          <div>
-            <div className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
-              <span>Сейчас идёт: {currentGroup.shift.includes("14:20") ? "1-я пара (14:20 – 15:40)" : currentGroup.shift.includes("13:00") ? "1-я пара (13:00 – 14:20)" : "2-я пара (09:30 – 10:50)"}</span>
-              <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-                Идёт пара
-              </Badge>
-              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
-                {currentGroup.shift}
-              </Badge>
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              Группа <span className="font-medium text-foreground">{currentGroup.groupName}</span>: {currentGroup.days[0]?.lessons[1]?.subject || "Русский язык"} • {currentGroup.days[0]?.lessons[1]?.room || "каб. 204"} ({currentGroup.days[0]?.lessons[1]?.teacher || "Смирнова Е. В."})
+      {/* Group KPI & Summary Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
+          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+            <BookOpen className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground">Специальность</div>
+            <div className="font-bold text-foreground text-xs truncate" title={currentGroup.specialty}>
+              {currentGroup.specialty}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <div>Специальность: <span className="font-medium text-foreground">{currentGroup.specialty}</span></div>
-          <div>•</div>
-          <div>Куратор: <span className="font-semibold text-foreground">{currentGroup.curator}</span></div>
+        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
+          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+            <User className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground">Куратор группы</div>
+            <div className="font-bold text-foreground text-xs truncate" title={currentGroup.curator}>
+              {currentGroup.curator}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
+          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+            <Clock className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground">Режим звонков</div>
+            <div className="font-bold text-foreground text-xs truncate">
+              {currentGroup.shift} • 80 мин
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+              <CalendarDays className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] text-muted-foreground">Недельная нагрузка</div>
+              <div className="font-bold text-foreground text-xs truncate">
+                {groupStats.totalLessons} пар • {groupStats.subjectsCount} дисц.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHideEmptyPairs((prev) => !prev)}
+            className={`px-2 py-1 rounded-md border text-[10px] font-medium transition-colors shrink-0 cursor-pointer ${
+              hideEmptyPairs
+                ? "bg-primary/10 border-primary text-primary"
+                : "bg-muted/40 border-border text-muted-foreground hover:text-foreground"
+            }`}
+            title="Скрыть или показать пустые строки пар"
+          >
+            {hideEmptyPairs ? "Все пары" : "Без пустых"}
+          </button>
         </div>
       </div>
 
+      {/* Quick Drag-and-Drop Subject Palette (Builder Toolbar) */}
+      {canEdit && (
+        <div className="hidden md:block bg-card border border-border rounded-xl p-3 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className="text-[10px] font-medium bg-primary/10 text-primary border-primary/30 gap-1"
+              >
+                <GripVertical className="h-3 w-3" />
+                Конструктор расписания (Drag & Drop)
+              </Badge>
+              <span className="text-[11px] text-muted-foreground">
+                Перетащите дисциплину в любую ячейку таблицы или перетаскивайте карточки между парами
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Default room for quick-dropped subjects */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground">Кабинет:</span>
+                <Input
+                  value={quickDefaultRoom}
+                  onChange={(e) => setQuickDefaultRoom(e.target.value)}
+                  placeholder="каб. 201"
+                  className="h-7 w-[92px] text-xs px-2 rounded-md bg-background"
+                />
+              </div>
+
+              {/* Drag mode switcher: Move/Swap vs Copy */}
+              <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border text-xs">
+                <button
+                  type="button"
+                  onClick={() => setDragActionMode("move")}
+                  className={`h-6 px-2 rounded-md text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                    dragActionMode === "move"
+                      ? "bg-background text-primary border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="При перетаскивании карточки: перенос в пустую ячейку или обмен местами с занятой"
+                >
+                  <ArrowRightLeft className="h-3 w-3" />
+                  <span>Перенос / Обмен</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDragActionMode("copy")}
+                  className={`h-6 px-2 rounded-md text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                    dragActionMode === "copy"
+                      ? "bg-background text-primary border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="При перетаскивании карточки: копировать пару в целевую ячейку (также работает с зажатым Alt / Ctrl)"
+                >
+                  <Copy className="h-3 w-3" />
+                  <span>Копирование</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowBuilderPalette((prev) => !prev)}
+                className="h-7 px-2 rounded-md border border-border text-[11px] font-medium text-muted-foreground hover:text-foreground bg-muted/30 cursor-pointer"
+              >
+                {showBuilderPalette ? "Скрыть предметы" : "Показать предметы"}
+              </button>
+            </div>
+          </div>
+
+          {showBuilderPalette && (
+            <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border/60">
+              {suggestions.subjects.map((subj) => (
+                <div
+                  key={subj}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "copy";
+                    setDragPayload({ type: "palette", subject: subj });
+                  }}
+                  onDragEnd={() => {
+                    setDragPayload(null);
+                    setDragOverCell(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border bg-muted/30 hover:bg-primary/10 hover:border-primary/40 hover:text-primary text-foreground text-xs font-medium cursor-grab active:cursor-grabbing transition-colors select-none"
+                  title="Зажмите и перетащите в нужный день и пару"
+                >
+                  <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <span>{subj}</span>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  handleOpenAddLesson(todayDayIndex >= 0 ? todayDayIndex : 0)
+                }
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-primary/40 text-primary hover:bg-primary/10 text-xs font-medium transition-colors cursor-pointer"
+              >
+                <Plus className="h-3 w-3" />
+                <span>Свой предмет</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 1. Desktop & Tablet Week Table (hidden on mobile) */}
-      <div className="hidden md:block bg-card border rounded-xl p-3.5 shadow-2xs space-y-3 overflow-x-auto">
-        <div className="flex items-center justify-between">
+      <div className="hidden md:block bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-2.5 border-b bg-muted/20 flex items-center justify-between">
           <h3 className="font-bold text-foreground text-xs flex items-center gap-1.5">
             <LayoutGrid className="h-4 w-4 text-primary" />
-            Сетка занятий: Группа {currentGroup.groupName} ({currentGroup.shift})
+            Расписание на неделю: Группа {currentGroup.groupName}
           </h3>
-          <span className="text-[11px] text-muted-foreground">Понедельник – Суббота</span>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            {canEdit && (
+              <span>
+                Перетаскивайте карточки мышью (с зажатым Alt/Ctrl — копирование) или нажмите на ячейку
+              </span>
+            )}
+          </div>
         </div>
 
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="bg-muted/50 border-y text-muted-foreground text-[11px]">
-              <th className="py-2.5 px-3 text-left font-semibold w-28 border-r">Пара / Время</th>
-              {currentGroup.days.map((d, dayIndex) => (
-                <th key={d.dateStr} className="py-2.5 px-3 text-left font-semibold min-w-[160px] border-r last:border-r-0 group/th relative">
-                  <div className="flex items-center justify-between">
-                    <div className="font-bold text-foreground">{d.dayOfWeek}</div>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenDayNoteDialog(dayIndex)}
-                      className="opacity-0 group-hover/th:opacity-100 p-1 rounded text-muted-foreground hover:text-primary hover:bg-background transition-opacity duration-200"
-                      title="Редактировать событие / праздник дня"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <div className="text-[10px] font-normal text-muted-foreground">{d.fullDateRu}</div>
-                  
-                  {/* Stable fixed height container for day note (prevents any header height jumping) */}
-                  <div className="h-5 mt-1 flex items-center">
-                    {d.holidayNote ? (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDayNoteDialog(dayIndex)}
-                        className="text-[10px] font-medium text-amber-600 dark:text-amber-400 truncate bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors duration-200 text-left max-w-full"
-                        title={`Нажмите для редактирования: ${d.holidayNote}`}
-                      >
-                        <Sparkles className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{d.holidayNote}</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDayNoteDialog(dayIndex)}
-                        className="text-[9px] text-muted-foreground/40 hover:text-primary opacity-0 group-hover/th:opacity-100 flex items-center gap-1 transition-opacity duration-200"
-                      >
-                        <Plus className="h-2.5 w-2.5" /> событие дня
-                      </button>
-                    )}
-                  </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse table-fixed min-w-[960px]">
+            <thead>
+              <tr className="bg-muted/40 border-b text-muted-foreground text-[11px]">
+                <th className="py-2.5 px-3 text-left font-medium w-[112px] border-r">
+                  Пара / Время
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {[1, 2, 3, 4, 5].map((pairNum) => {
-              const timeSlot = getTimeSlotForShift(currentGroup.shift, pairNum);
+                {currentGroup.days.map((d, dayIndex) => {
+                  const isToday = dayIndex === todayDayIndex;
+                  const lessonsInDay = d.lessons.length;
+                  return (
+                    <th
+                      key={d.dateStr}
+                      className={`py-2.5 px-3 text-left font-medium border-r last:border-r-0 group/th relative transition-colors ${
+                        isToday ? "bg-primary/8" : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-foreground text-xs">
+                            {d.dayOfWeek}
+                          </span>
+                          {isToday && (
+                            <Badge
+                              variant="default"
+                              className="text-[9px] h-4 px-1.5 py-0 font-medium"
+                            >
+                              Сегодня
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-normal text-muted-foreground">
+                            {lessonsInDay}{" "}
+                            {lessonsInDay === 1
+                              ? "пара"
+                              : lessonsInDay >= 2 && lessonsInDay <= 4
+                                ? "пары"
+                                : "пар"}
+                          </span>
+                          {canEdit && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyDayToNext(dayIndex)}
+                                className="opacity-0 group-hover/th:opacity-100 p-1 rounded text-muted-foreground hover:text-primary hover:bg-background transition-opacity cursor-pointer"
+                                title="Скопировать все пары этого дня на следующий день"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDayNoteDialog(dayIndex)}
+                                className="opacity-0 group-hover/th:opacity-100 p-1 rounded text-muted-foreground hover:text-primary hover:bg-background transition-opacity cursor-pointer"
+                                title="Редактировать событие / праздник дня"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-[10px] font-normal text-muted-foreground mt-0.5">
+                        {d.fullDateRu}
+                      </div>
 
-              return (
-                <tr key={pairNum} className="hover:bg-muted/10 transition-colors duration-200">
-                  {/* Left Column: Fixed Pair Time Slot */}
-                  <td className="p-2 font-medium text-muted-foreground bg-muted/15 border-r align-middle w-28">
-                    <div className="h-[76px] flex flex-col justify-center px-1">
-                      <div className="font-bold text-foreground text-xs">{pairNum} пара</div>
-                      <div className="text-[10px] font-mono text-muted-foreground">{timeSlot}</div>
-                    </div>
-                  </td>
+                      {d.holidayNote && (
+                        <div className="mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              canEdit && handleOpenDayNoteDialog(dayIndex)
+                            }
+                            className="text-[10px] font-medium text-primary truncate bg-primary/10 hover:bg-primary/15 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors text-left max-w-full"
+                            title={d.holidayNote}
+                          >
+                            <Sparkles className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{d.holidayNote}</span>
+                          </button>
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {visiblePairNumbers.map((pairNum) => {
+                const timeSlot = getTimeSlotForShift(
+                  currentGroup.shift,
+                  pairNum
+                );
+                const [startStr, endStr] = timeSlot
+                  .split("–")
+                  .map((s) => s.trim());
+                const rowHasAnyLesson = currentGroup.days.some((d) =>
+                  d.lessons.some((l) => l.pairNumber === pairNum)
+                );
 
-                  {/* Day Columns */}
-                  {currentGroup.days.map((day, dayIndex) => {
-                    let lesson = day.lessons.find((l) => l.pairNumber === pairNum);
-                    
-                    // Filter by search query if any
-                    if (searchQuery.trim() && lesson) {
-                      const q = searchQuery.toLowerCase().trim();
-                      const matches =
-                        lesson.subject.toLowerCase().includes(q) ||
-                        lesson.room.toLowerCase().includes(q) ||
-                        (lesson.teacher && lesson.teacher.toLowerCase().includes(q));
-                      if (!matches) lesson = undefined;
-                    }
+                return (
+                  <tr
+                    key={pairNum}
+                    className="hover:bg-muted/10 transition-colors"
+                  >
+                    {/* Left Column: Fixed Pair Time Slot */}
+                    <td className="p-2.5 font-medium text-muted-foreground bg-muted/15 border-r align-top w-[112px]">
+                      <div className="flex flex-col justify-between gap-1">
+                        <Badge
+                          variant="outline"
+                          className={`w-fit text-[10px] px-1.5 py-0 h-5 font-medium ${
+                            rowHasAnyLesson
+                              ? "border-primary/30 bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground"
+                          }`}
+                        >
+                          {pairNum} пара
+                        </Badge>
+                        <div className="font-mono text-[11px] font-medium text-foreground mt-0.5">
+                          {startStr}
+                        </div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          до {endStr}
+                        </div>
+                      </div>
+                    </td>
 
-                    // Empty Slot
-                    if (!lesson) {
+                    {/* Day Columns */}
+                    {currentGroup.days.map((day, dayIndex) => {
+                      const isToday = dayIndex === todayDayIndex;
+                      const isDragOver =
+                        dragOverCell?.dayIndex === dayIndex &&
+                        dragOverCell?.pairNum === pairNum;
+                      let lesson = day.lessons.find(
+                        (l) => l.pairNumber === pairNum
+                      );
+
+                      if (searchQuery.trim() && lesson) {
+                        const q = searchQuery.toLowerCase().trim();
+                        const matches =
+                          lesson.subject.toLowerCase().includes(q) ||
+                          lesson.room.toLowerCase().includes(q) ||
+                          (lesson.teacher &&
+                            lesson.teacher.toLowerCase().includes(q));
+                        if (!matches) lesson = undefined;
+                      }
+
+                      // Empty Slot
+                      if (!lesson) {
+                        return (
+                          <td
+                            key={day.dateStr}
+                            onClick={() =>
+                              canEdit && handleOpenAddLesson(dayIndex, pairNum)
+                            }
+                            onDragOver={(e) => {
+                              if (!canEdit) return;
+                              e.preventDefault();
+                              if (
+                                dragOverCell?.dayIndex !== dayIndex ||
+                                dragOverCell?.pairNum !== pairNum
+                              ) {
+                                setDragOverCell({ dayIndex, pairNum });
+                              }
+                            }}
+                            onDragLeave={() => {
+                              if (
+                                dragOverCell?.dayIndex === dayIndex &&
+                                dragOverCell?.pairNum === pairNum
+                              ) {
+                                setDragOverCell(null);
+                              }
+                            }}
+                            onDrop={(e) =>
+                              handleDropOnCell(dayIndex, pairNum, e)
+                            }
+                            className={`p-1.5 border-r last:border-r-0 align-middle ${
+                              isToday ? "bg-primary/[0.02]" : ""
+                            } ${canEdit ? "cursor-pointer group" : ""}`}
+                            title={
+                              canEdit
+                                ? `Добавить ${pairNum}-ю пару (${day.dayOfWeek})`
+                                : undefined
+                            }
+                          >
+                            <div
+                              className={`${
+                                rowHasAnyLesson || dragPayload
+                                  ? "min-h-[82px]"
+                                  : "min-h-[48px]"
+                              } rounded-lg border border-dashed flex items-center justify-center gap-1 transition-colors ${
+                                isDragOver
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-transparent group-hover:border-primary/40 group-hover:bg-primary/5 text-muted-foreground/25 group-hover:text-primary"
+                              }`}
+                            >
+                              {isDragOver ? (
+                                <span className="text-[11px] font-medium">
+                                  Поставить на {pairNum} пару
+                                </span>
+                              ) : (
+                                <>
+                                  {canEdit && (
+                                    <>
+                                      <Plus className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      <span className="text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                        Добавить
+                                      </span>
+                                    </>
+                                  )}
+                                  <span className="text-xs font-normal text-muted-foreground/25 group-hover:hidden select-none">
+                                    —
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      }
+
+                      // Lesson Card
                       return (
                         <td
                           key={day.dateStr}
-                          onClick={() => handleOpenAddLesson(dayIndex, pairNum)}
-                          className="p-2 border-r last:border-r-0 cursor-pointer group align-middle"
-                          title="Кликните, чтобы добавить пару"
+                          onDragOver={(e) => {
+                            if (!canEdit) return;
+                            e.preventDefault();
+                            if (
+                              dragOverCell?.dayIndex !== dayIndex ||
+                              dragOverCell?.pairNum !== pairNum
+                            ) {
+                              setDragOverCell({ dayIndex, pairNum });
+                            }
+                          }}
+                          onDragLeave={() => {
+                            if (
+                              dragOverCell?.dayIndex === dayIndex &&
+                              dragOverCell?.pairNum === pairNum
+                            ) {
+                              setDragOverCell(null);
+                            }
+                          }}
+                          onDrop={(e) => handleDropOnCell(dayIndex, pairNum, e)}
+                          className={`p-1.5 align-top border-r last:border-r-0 group transition-colors ${
+                            isToday ? "bg-primary/[0.02]" : ""
+                          }`}
                         >
-                          <div className="h-[76px] rounded-lg border border-dashed border-transparent group-hover:border-primary/30 group-hover:bg-primary/5 flex items-center justify-center gap-1.5 text-muted-foreground/20 group-hover:text-primary transition-all duration-200">
-                            <Plus className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                            <span className="text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                              Добавить
-                            </span>
-                            <span className="text-sm font-normal text-muted-foreground/20 group-hover:hidden select-none">
-                              —
-                            </span>
+                          <div
+                            draggable={canEdit}
+                            onDragStart={(e) => {
+                              if (!canEdit) return;
+                              e.dataTransfer.effectAllowed = "move";
+                              setDragPayload({
+                                type: "cell",
+                                fromDayIndex: dayIndex,
+                                fromPairNum: pairNum,
+                                lesson: lesson!,
+                              });
+                            }}
+                            onDragEnd={() => {
+                              setDragPayload(null);
+                              setDragOverCell(null);
+                            }}
+                            onClick={() =>
+                              canEdit && handleOpenEditLesson(dayIndex, lesson!)
+                            }
+                            className={`min-h-[82px] p-2.5 rounded-lg border flex flex-col justify-between gap-2 transition-colors ${
+                              canEdit
+                                ? "cursor-grab active:cursor-grabbing"
+                                : ""
+                            } ${
+                              isDragOver
+                                ? "border-primary bg-primary/10"
+                                : lesson.isSpecialEvent
+                                  ? "bg-primary/5 border-primary/40"
+                                  : "bg-background border-border hover:border-primary/50"
+                            }`}
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-start justify-between gap-1">
+                                <div className="flex items-start gap-1 min-w-0">
+                                  {canEdit && (
+                                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 group-hover:text-primary shrink-0 mt-0.5 transition-colors" />
+                                  )}
+                                  <div
+                                    className="font-bold text-foreground text-xs leading-snug line-clamp-2"
+                                    title={lesson.subject}
+                                  >
+                                    {lesson.subject}
+                                  </div>
+                                </div>
+                                {canEdit && (
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0">
+                                    {pairNum < 6 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDuplicateToNextPair(
+                                            dayIndex,
+                                            lesson!
+                                          );
+                                        }}
+                                        className="p-1 hover:text-primary text-muted-foreground rounded hover:bg-muted transition-colors cursor-pointer"
+                                        title={`Дублировать на ${pairNum + 1}-ю пару`}
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenEditLesson(dayIndex, lesson!);
+                                      }}
+                                      className="p-1 hover:text-primary text-muted-foreground rounded hover:bg-muted transition-colors cursor-pointer"
+                                      title="Редактировать пару"
+                                    >
+                                      <Edit2 className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteLesson(
+                                          dayIndex,
+                                          lesson!.id
+                                        );
+                                      }}
+                                      className="p-1 hover:text-destructive text-muted-foreground rounded hover:bg-muted transition-colors cursor-pointer"
+                                      title="Удалить пару"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/70 text-foreground border border-border/60">
+                                  <MapPin className="h-2.5 w-2.5 text-primary shrink-0" />
+                                  <span className="truncate">
+                                    {lesson.room}
+                                  </span>
+                                </span>
+                                {lesson.note && (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded truncate max-w-full"
+                                    title={lesson.note}
+                                  >
+                                    <Sparkles className="h-2.5 w-2.5 shrink-0" />
+                                    <span className="truncate">
+                                      {lesson.note}
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {lesson.teacher && (
+                              <div
+                                className="flex items-center gap-1 text-[10px] text-muted-foreground pt-1 border-t border-border/50 truncate"
+                                title={lesson.teacher}
+                              >
+                                <User className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                                <span className="truncate">
+                                  {lesson.teacher}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </td>
                       );
-                    }
-
-                    // Lesson Card
-                    return (
-                      <td
-                        key={day.dateStr}
-                        className={`p-2 align-middle border-r last:border-r-0 group transition-colors duration-200 ${
-                          lesson.isSpecialEvent ? "bg-emerald-500/5 dark:bg-emerald-950/10" : ""
-                        }`}
-                      >
-                        <div
-                          className={`h-[76px] p-2 rounded-lg border flex flex-col justify-between transition-all duration-200 ${
-                            lesson.isSpecialEvent
-                              ? "bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/60 shadow-2xs"
-                              : "bg-card border-border/70 hover:border-primary/40 hover:shadow-2xs"
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-start justify-between gap-1">
-                              <div className="font-bold text-foreground text-[11px] leading-snug line-clamp-1">
-                                {lesson.subject}
-                              </div>
-                              {/* Fast Action Buttons on Hover */}
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-0.5 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenEditLesson(dayIndex, lesson!);
-                                  }}
-                                  className="p-1 hover:text-primary text-muted-foreground rounded hover:bg-muted transition-colors duration-150"
-                                  title="Редактировать пару"
-                                >
-                                  <Edit2 className="h-3 w-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteLesson(dayIndex, lesson!.id);
-                                  }}
-                                  className="p-1 hover:text-destructive text-muted-foreground rounded hover:bg-muted transition-colors duration-150"
-                                  title="Удалить пару"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 font-medium">
-                              <MapPin className="h-2.5 w-2.5 text-primary shrink-0" />
-                              <span className="text-foreground/80 truncate">{lesson.room}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-1 text-[9px] text-muted-foreground">
-                            {lesson.teacher ? (
-                              <span className="truncate">{lesson.teacher}</span>
-                            ) : (
-                              <span />
-                            )}
-                            {lesson.note && (
-                              <span className="font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded shrink-0">
-                                ★ {lesson.note}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* 2. Native Mobile Adaptive View (Days Ribbon + Timeline Cards) */}
@@ -1081,27 +1749,29 @@ export function ScheduleView() {
                     <span>{selectedDay.dayOfWeek}</span>
                     <span className="text-xs font-normal text-muted-foreground">({selectedDay.fullDateRu})</span>
                   </h3>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => handleOpenDayNoteDialog(activeMobileDayIndex)}
-                    className="h-6 px-2 text-[10px] gap-1 font-medium text-muted-foreground hover:text-primary"
-                  >
-                    <Sparkles className="h-3 w-3 text-primary" />
-                    <span>{selectedDay.holidayNote ? "Изменить" : "+ Событие"}</span>
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => handleOpenDayNoteDialog(activeMobileDayIndex)}
+                      className="h-6 px-2 text-[10px] gap-1 font-medium text-muted-foreground hover:text-primary"
+                    >
+                      <Sparkles className="h-3 w-3 text-primary" />
+                      <span>{selectedDay.holidayNote ? "Изменить" : "+ Событие"}</span>
+                    </Button>
+                  )}
                 </div>
 
                 {selectedDay.holidayNote && (
                   <div
-                    onClick={() => handleOpenDayNoteDialog(activeMobileDayIndex)}
-                    className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-medium flex items-center justify-between cursor-pointer hover:bg-amber-500/15 transition-colors"
+                    onClick={() => canEdit && handleOpenDayNoteDialog(activeMobileDayIndex)}
+                    className="p-2 rounded-lg bg-primary/10 border border-primary/30 text-primary text-xs font-medium flex items-center justify-between cursor-pointer hover:bg-primary/15 transition-colors"
                   >
                     <div className="flex items-center gap-1.5 truncate">
                       <Sparkles className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">★ {selectedDay.holidayNote}</span>
+                      <span className="truncate">{selectedDay.holidayNote}</span>
                     </div>
-                    <Edit2 className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />
+                    {canEdit && <Edit2 className="h-3 w-3 shrink-0 text-primary" />}
                   </div>
                 )}
               </div>
@@ -1122,6 +1792,7 @@ export function ScheduleView() {
                   }
 
                   if (!lesson) {
+                    if (!canEdit) return null;
                     return (
                       <div
                         key={pairNum}
@@ -1165,25 +1836,27 @@ export function ScheduleView() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => handleOpenEditLesson(activeMobileDayIndex, lesson!)}
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-primary font-medium"
-                          >
-                            <Edit2 className="h-3 w-3 mr-1" />
-                            <span>Изменить</span>
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => handleDeleteLesson(activeMobileDayIndex, lesson!.id)}
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive font-medium"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        {canEdit && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              onClick={() => handleOpenEditLesson(activeMobileDayIndex, lesson!)}
+                              className="h-7 px-2 text-xs text-muted-foreground hover:text-primary font-medium"
+                            >
+                              <Edit2 className="h-3 w-3 mr-1" />
+                              <span>Изменить</span>
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              onClick={() => handleDeleteLesson(activeMobileDayIndex, lesson!.id)}
+                              className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive font-medium"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -1333,30 +2006,45 @@ export function ScheduleView() {
                   </div>
                 </div>
 
-                {/* 3. Pair Number Selector (auto-calculated time on each button) */}
+                {/* 3. Pair Number Selector (auto-calculated time on each button + occupied indicator) */}
                 <div className="space-y-1.5 pt-1 border-t">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold text-foreground">Номер пары</label>
+                    <label className="text-[11px] font-semibold text-foreground">Номер пары (1–6)</label>
                     <span className="text-[9px] text-primary font-medium">80 мин + 10 мин перерыв</span>
                   </div>
-                  <div className="grid grid-cols-5 gap-1">
-                    {[1, 2, 3, 4, 5].map((num) => {
+                  <div className="grid grid-cols-6 gap-1">
+                    {[1, 2, 3, 4, 5, 6].map((num) => {
                       const isActive = formPairNum === num;
                       const slotTime = dynamicPairSlots[num] || "08:00 – 09:20";
                       const startPart = slotTime.split("–")[0]?.trim();
+                      const existingOnDay = currentGroup.days[formDayIndex]?.lessons.find(
+                        (l) => l.pairNumber === num
+                      );
                       return (
                         <button
                           key={num}
                           type="button"
                           onClick={() => handleModalPairChange(num)}
-                          className={`h-11 rounded-lg border font-medium text-xs transition-colors flex flex-col items-center justify-center p-1 ${
+                          className={`relative h-12 rounded-lg border font-medium text-xs transition-colors flex flex-col items-center justify-center p-1 ${
                             isActive
-                              ? "bg-primary/10 border-primary text-primary ring-1 ring-primary/40"
+                              ? "bg-primary/10 border-primary text-primary"
+                              : existingOnDay
+                              ? "bg-muted/60 border-primary/30 text-foreground hover:bg-muted"
                               : "bg-background border-border text-foreground hover:bg-muted"
                           }`}
-                          title={`Пара ${num}: ${slotTime}`}
+                          title={
+                            existingOnDay
+                              ? `Пара ${num} (${slotTime}): занята — ${existingOnDay.subject}`
+                              : `Пара ${num} (${slotTime}): свободна`
+                          }
                         >
-                          <span className="font-bold">{num} пара</span>
+                          {existingOnDay && (
+                            <span
+                              className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary"
+                              title={`Занята: ${existingOnDay.subject}`}
+                            />
+                          )}
+                          <span className="font-bold text-[11px]">{num} пара</span>
                           <span className="text-[9px] text-muted-foreground leading-tight font-mono">
                             {startPart}
                           </span>
@@ -1500,7 +2188,18 @@ export function ScheduleView() {
               <Button size="xs" variant="outline" onClick={() => setIsLessonDialogOpen(false)}>
                 Отмена
               </Button>
-              <Button size="xs" onClick={handleSaveLesson} disabled={!formSubject.trim()} className="px-4 font-medium">
+              {!editingLesson?.lesson && formPairNum < 6 && (
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => handleSaveLesson(true)}
+                  disabled={!formSubject.trim()}
+                  className="px-3 font-medium gap-1"
+                >
+                  <Plus className="h-3 w-3" /> Сохранить и +1 пару
+                </Button>
+              )}
+              <Button size="xs" onClick={() => handleSaveLesson(false)} disabled={!formSubject.trim()} className="px-4 font-medium">
                 Сохранить пару
               </Button>
             </div>
