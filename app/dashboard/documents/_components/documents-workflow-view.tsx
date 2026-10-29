@@ -596,25 +596,50 @@ export function DocumentsWorkflowView({
   const handleApproveDocument = async () => {
     if (!approvalDoc) return;
     const nextSteps = [...approvalDoc.approvalSteps];
-    const currentIdx = approvalDoc.currentApprovalStepIndex;
-    if (nextSteps[currentIdx]) {
-      nextSteps[currentIdx] = {
-        ...nextSteps[currentIdx],
+    const adminStepIdx = nextSteps.findIndex((s) => s.role !== "CURATOR");
+    const targetIdx =
+      adminStepIdx >= 0
+        ? adminStepIdx
+        : nextSteps[approvalDoc.currentApprovalStepIndex]
+          ? approvalDoc.currentApprovalStepIndex
+          : -1;
+
+    const resolutionText =
+      approvalComment.trim() || "Решение утверждено администрацией лицея";
+    const todayStr = new Date().toLocaleDateString("ru-RU");
+
+    if (targetIdx >= 0 && nextSteps[targetIdx]) {
+      nextSteps[targetIdx] = {
+        ...nextSteps[targetIdx],
         status: "APPROVED" as const,
-        date: new Date().toLocaleDateString("ru-RU"),
-        comment: approvalComment.trim() || "Решение утверждено администрацией лицея",
+        date: todayStr,
+        comment: resolutionText,
       };
+    } else {
+      nextSteps.push({
+        stepIndex: nextSteps.length + 1,
+        role: "ADMINISTRATION",
+        roleTitle: "Администрация лицея (Зам. директора по УПР)",
+        name: currentUser?.name || "Тоялиева М. Р.",
+        status: "APPROVED",
+        date: todayStr,
+        comment: resolutionText,
+      });
     }
+
     const updatedDoc: WorkflowDocument = {
       ...approvalDoc,
       status: "APPROVED",
       approvalSteps: nextSteps,
-      currentApprovalStepIndex: currentIdx + 1,
+      currentApprovalStepIndex: nextSteps.length,
       updatedAt: new Date().toISOString(),
     };
 
     isMutatingRef.current = true;
     setWorkflowDocs((prev) => prev.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
+    if (previewDoc?.id === updatedDoc.id) {
+      setPreviewDoc(updatedDoc);
+    }
     setApprovalDoc(null);
     setApprovalComment("");
 
@@ -629,7 +654,7 @@ export function DocumentsWorkflowView({
         setWorkflowDocs(res.documents);
       }
       toast.add({
-        title: `Решение утверждено! Документ готов к изданию приказа.`,
+        title: `Решение утверждено! Резолюция добавлена на печатный бланк.`,
         type: "success",
       });
     } finally {
@@ -640,15 +665,37 @@ export function DocumentsWorkflowView({
   const handleRejectDocument = async () => {
     if (!approvalDoc) return;
     const nextSteps = [...approvalDoc.approvalSteps];
-    const currentIdx = approvalDoc.currentApprovalStepIndex;
-    if (nextSteps[currentIdx]) {
-      nextSteps[currentIdx] = {
-        ...nextSteps[currentIdx],
+    const adminStepIdx = nextSteps.findIndex((s) => s.role !== "CURATOR");
+    const targetIdx =
+      adminStepIdx >= 0
+        ? adminStepIdx
+        : nextSteps[approvalDoc.currentApprovalStepIndex]
+          ? approvalDoc.currentApprovalStepIndex
+          : -1;
+
+    const resolutionText =
+      approvalComment.trim() || "Отклонено решением администрации";
+    const todayStr = new Date().toLocaleDateString("ru-RU");
+
+    if (targetIdx >= 0 && nextSteps[targetIdx]) {
+      nextSteps[targetIdx] = {
+        ...nextSteps[targetIdx],
         status: "REJECTED" as const,
-        date: new Date().toLocaleDateString("ru-RU"),
-        comment: approvalComment.trim() || "Отклонено решением администрации",
+        date: todayStr,
+        comment: resolutionText,
       };
+    } else {
+      nextSteps.push({
+        stepIndex: nextSteps.length + 1,
+        role: "ADMINISTRATION",
+        roleTitle: "Администрация лицея (Зам. директора по УПР)",
+        name: currentUser?.name || "Тоялиева М. Р.",
+        status: "REJECTED",
+        date: todayStr,
+        comment: resolutionText,
+      });
     }
+
     const updatedDoc: WorkflowDocument = {
       ...approvalDoc,
       status: "REJECTED",
@@ -658,6 +705,9 @@ export function DocumentsWorkflowView({
 
     isMutatingRef.current = true;
     setWorkflowDocs((prev) => prev.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
+    if (previewDoc?.id === updatedDoc.id) {
+      setPreviewDoc(updatedDoc);
+    }
     setApprovalDoc(null);
     setApprovalComment("");
 
@@ -672,7 +722,7 @@ export function DocumentsWorkflowView({
         setWorkflowDocs(res.documents);
       }
       toast.add({
-        title: `Документ отклонён и возвращён на доработку куратору.`,
+        title: `Документ отклонён. Резолюция сохранена в бланке.`,
         type: "warning",
       });
     } finally {

@@ -10,9 +10,19 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Printer, Download, Trash2, History, CheckCircle2, AlertCircle, Clock, ShieldCheck } from "lucide-react";
+import {
+  FileText,
+  Printer,
+  Download,
+  Trash2,
+  History,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  ShieldCheck,
+} from "lucide-react";
 import type { WorkflowDocument, StudentItem, ApprovalStep } from "../../../workflow-data";
-import { cleanDocumentText } from "../document-print-utils";
+import { cleanDocumentText, getAdminResolutionStep } from "../document-print-utils";
 
 interface DocumentPreviewDialogProps {
   previewDoc: WorkflowDocument | null;
@@ -35,11 +45,14 @@ export function DocumentPreviewDialog({
   onDownloadPdf,
   onDeleteRequest,
   onApprovalRequest,
-  canManage,
   canApprove,
   currentUserName,
 }: DocumentPreviewDialogProps) {
   if (!previewDoc) return null;
+
+  const resolutionStep = getAdminResolutionStep(previewDoc);
+  const dateFormatted = new Date(previewDoc.createdAt).toLocaleDateString("ru-RU");
+  const adminSignerName = resolutionStep?.name || "Тоялиева М. Р.";
 
   return (
     <Dialog open={!!previewDoc} onOpenChange={() => onClose()}>
@@ -72,8 +85,11 @@ export function DocumentPreviewDialog({
                 <p>
                   Дата:{" "}
                   <span className="font-medium">
-                    {new Date(previewDoc.createdAt).toLocaleDateString("ru-RU")} г.
+                    {dateFormatted} г.
                   </span>
+                  {previewDoc.docNumber ? (
+                    <span className="font-mono ml-1.5">• № {previewDoc.docNumber}</span>
+                  ) : null}
                 </p>
               </div>
               <div className="text-right whitespace-pre-line font-medium text-zinc-800 max-w-xs">
@@ -163,11 +179,21 @@ export function DocumentPreviewDialog({
                   <p className="font-bold text-zinc-950">
                     Зам. директора по учебной части:
                   </p>
+                  {resolutionStep?.status === "APPROVED" && (
+                    <p className="text-[9.5px] font-semibold text-zinc-900 mt-1">
+                      (УТВЕРЖДЕНО • {resolutionStep.date || dateFormatted})
+                    </p>
+                  )}
+                  {resolutionStep?.status === "REJECTED" && (
+                    <p className="text-[9.5px] font-semibold text-zinc-900 mt-1">
+                      (ОТКЛОНЕНО • {resolutionStep.date || dateFormatted})
+                    </p>
+                  )}
                   <p className="text-[9px] text-zinc-500 mt-1.5">
                     (подпись) _______________________
                   </p>
                   <p className="font-bold text-zinc-950 text-[11px] mt-2">
-                    Тоялиева М. Р.
+                    {adminSignerName}
                   </p>
                 </div>
               </div>

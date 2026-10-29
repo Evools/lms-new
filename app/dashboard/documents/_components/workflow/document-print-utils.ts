@@ -1,4 +1,4 @@
-import type { WorkflowDocument } from "../../workflow-data";
+import type { WorkflowDocument, ApprovalStep } from "../../workflow-data";
 import { toast } from "@/components/ui/toast";
 
 export const cleanDocumentText = (text: string) => {
@@ -8,6 +8,21 @@ export const cleanDocumentText = (text: string) => {
     .replace(/\s*\((?:номер\s+)?личного\s+дела:?[^)]*\)/gi, "")
     .replace(/\s*\(Личное\s+дело[^)]*\)/gi, "");
 };
+
+export function getAdminResolutionStep(doc: {
+  status?: string;
+  approvalSteps?: ApprovalStep[];
+}): ApprovalStep | null {
+  if (!Array.isArray(doc.approvalSteps) || doc.approvalSteps.length === 0) {
+    return null;
+  }
+  const adminSteps = doc.approvalSteps.filter((s) => s.role !== "CURATOR");
+  const decidedAdmin = [...adminSteps]
+    .reverse()
+    .find((s) => s.status === "APPROVED" || s.status === "REJECTED");
+  if (decidedAdmin) return decidedAdmin;
+  return null;
+}
 
 export const generateOfficialDocumentHtml = (
   doc: {
@@ -22,6 +37,8 @@ export const generateOfficialDocumentHtml = (
     authorName?: string;
     authorRole?: string;
     docNumber?: string;
+    status?: string;
+    approvalSteps?: ApprovalStep[];
   },
   currentUserName?: string
 ) => {
@@ -36,6 +53,9 @@ export const generateOfficialDocumentHtml = (
     doc.authorName ||
     currentUserName ||
     "Вопольский Виктор Владимирович";
+
+  const resolutionStep = getAdminResolutionStep(doc);
+  const adminSignerName = resolutionStep?.name || "Тоялиева М. Р.";
 
   const addresseeText = doc.addressee?.trim() || "По месту требования";
   const cleanedBody = cleanDocumentText(doc.descriptionText || "");
@@ -88,6 +108,29 @@ export const generateOfficialDocumentHtml = (
       </table>
     `
       : "";
+
+  const resolutionHtml = resolutionStep
+    ? `
+      <div class="resolution-box">
+        <div class="resolution-header">
+          <span>РЕЗОЛЮЦИЯ АДМИНИСТРАЦИИ ЛИЦЕЯ: ${
+            resolutionStep.status === "APPROVED"
+              ? "УТВЕРЖДЕНО / ОДОБРЕНО"
+              : "ОТКЛОНЕНО"
+          }</span>
+          <span>Дата решения: ${resolutionStep.date || dateFormatted} г.</span>
+        </div>
+        ${
+          resolutionStep.comment
+            ? `<div class="resolution-comment">Решение: «${resolutionStep.comment}»</div>`
+            : ""
+        }
+        <div class="resolution-signer">
+          Рассмотрел(а): ${resolutionStep.roleTitle} — <strong>${resolutionStep.name}</strong>
+        </div>
+      </div>
+    `
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -198,10 +241,38 @@ export const generateOfficialDocumentHtml = (
       page-break-inside: avoid;
       break-inside: avoid;
     }
+    .resolution-box {
+      margin: 14px 0 6px 0;
+      padding: 8px 10px;
+      border: 1.5px solid #18181b;
+      background-color: #fafafa;
+      font-size: 9.5pt;
+      line-height: 1.35;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .resolution-header {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 9pt;
+      border-bottom: 1px solid #d4d4d8;
+      padding-bottom: 4px;
+      margin-bottom: 4px;
+    }
+    .resolution-comment {
+      margin: 4px 0;
+      font-weight: 600;
+    }
+    .resolution-signer {
+      font-size: 9pt;
+      color: #27272a;
+    }
     .signatures-divider {
       border: none;
       border-top: 1px solid #d4d4d8;
-      margin: ${isMulti ? "14px 0 10px 0" : "22px 0 14px 0"};
+      margin: ${isMulti ? "14px 0 10px 0" : "20px 0 14px 0"};
     }
     .signatures-row {
       display: flex;
@@ -244,7 +315,7 @@ export const generateOfficialDocumentHtml = (
     <hr class="header-rule" />
 
     <div class="meta-row">
-      <div class="meta-date">Дата: ${dateFormatted} г.</div>
+      <div class="meta-date">Дата: ${dateFormatted} г.${doc.docNumber ? ` • № ${doc.docNumber}` : ""}</div>
       <div class="meta-addressee">${addresseeText}</div>
     </div>
 
@@ -271,8 +342,15 @@ export const generateOfficialDocumentHtml = (
       </div>
       <div class="signature-block text-right">
         <div class="signature-role">Зам. директора по учебной части:</div>
+        ${
+          resolutionStep?.status === "APPROVED"
+            ? `<div class="signature-line" style="font-weight: 600; color: #18181b;">(УТВЕРЖДЕНО • ${resolutionStep.date || dateFormatted})</div>`
+            : resolutionStep?.status === "REJECTED"
+            ? `<div class="signature-line" style="font-weight: 600; color: #18181b;">(ОТКЛОНЕНО • ${resolutionStep.date || dateFormatted})</div>`
+            : ""
+        }
         <div class="signature-line">(подпись) _______________________</div>
-        <div class="signature-name">Тоялиева М. Р.</div>
+        <div class="signature-name">${adminSignerName}</div>
       </div>
     </div>
   </div>
@@ -311,6 +389,8 @@ export const exportDocumentDocx = (doc: WorkflowDocument, currentUserName?: stri
     doc.authorName ||
     currentUserName ||
     "Вопольский Виктор Владимирович";
+  const resolutionStep = getAdminResolutionStep(doc);
+  const adminSignerName = resolutionStep?.name || "Тоялиева М. Р.";
   const addresseeText = doc.addressee?.trim() || "По месту требования";
   const cleanedBody = cleanDocumentText(doc.descriptionText || "");
   const cleanedGeneralReason = doc.generalReason
@@ -362,6 +442,28 @@ export const exportDocumentDocx = (doc: WorkflowDocument, currentUserName?: stri
       </table>
     `
       : "";
+
+  const resolutionWordBlock = resolutionStep
+    ? `
+      <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-top:12pt; margin-bottom:6pt; background-color:#fafafa; font-size:9.5pt;">
+        <tr>
+          <td>
+            <strong>РЕЗОЛЮЦИЯ АДМИНИСТРАЦИИ ЛИЦЕЯ: ${
+              resolutionStep.status === "APPROVED"
+                ? "УТВЕРЖДЕНО / ОДОБРЕНО"
+                : "ОТКЛОНЕНО"
+            }</strong> (Дата: ${resolutionStep.date || dateFormatted} г.)<br/>
+            ${
+              resolutionStep.comment
+                ? `<span>Решение: «${resolutionStep.comment}»</span><br/>`
+                : ""
+            }
+            <span>Рассмотрел(а): ${resolutionStep.roleTitle} — <strong>${resolutionStep.name}</strong></span>
+          </td>
+        </tr>
+      </table>
+    `
+    : "";
 
   const html = `
     <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -415,7 +517,7 @@ export const exportDocumentDocx = (doc: WorkflowDocument, currentUserName?: stri
       <table class="meta-tbl">
         <tr>
           <td style="text-align: left; vertical-align: top;">
-            <strong>Дата:</strong> ${dateFormatted} г.
+            <strong>Дата:</strong> ${dateFormatted} г.${doc.docNumber ? ` • № ${doc.docNumber}` : ""}
           </td>
           <td style="text-align: right; vertical-align: top;">
             ${addresseeText.replace(/\n/g, "<br/>")}
@@ -447,8 +549,15 @@ export const exportDocumentDocx = (doc: WorkflowDocument, currentUserName?: stri
           </td>
           <td style="width: 50%; text-align: right;">
             <strong>Зам. директора по учебной части:</strong><br/>
+            ${
+              resolutionStep?.status === "APPROVED"
+                ? `<span style="font-size: 8.5pt; font-weight: bold; color: #18181b;">(УТВЕРЖДЕНО • ${resolutionStep.date || dateFormatted})</span><br/>`
+                : resolutionStep?.status === "REJECTED"
+                ? `<span style="font-size: 8.5pt; font-weight: bold; color: #18181b;">(ОТКЛОНЕНО • ${resolutionStep.date || dateFormatted})</span><br/>`
+                : ""
+            }
             <span style="font-size: 8.5pt; color: #71717a;">(подпись) _______________________</span><br/>
-            <strong style="margin-top: 4pt; display: inline-block;">Тоялиева М. Р.</strong>
+            <strong style="margin-top: 4pt; display: inline-block;">${adminSignerName}</strong>
           </td>
         </tr>
       </table>
