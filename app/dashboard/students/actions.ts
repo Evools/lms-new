@@ -591,6 +591,41 @@ export interface StudentSubjectStatItem {
   grades: number[];
 }
 
+export interface StudentLanguageItem {
+  id: string;
+  language: string;
+  level: "NATIVE" | "FLUENT" | "CONVERSATIONAL" | "DICTIONARY";
+}
+
+export interface StudentSkillItem {
+  id: string;
+  name: string;
+  level: "ADVANCED" | "INTERMEDIATE" | "BASIC";
+}
+
+export interface StudentProjectItem {
+  id: string;
+  title: string;
+  role: string;
+  period: string;
+  description: string;
+}
+
+export interface StudentResumeProfileDTO {
+  desiredPosition: string;
+  workFormat: string;
+  aboutMe: string;
+  githubUrl?: string;
+  portfolioUrl?: string;
+  telegram?: string;
+  driverLicense?: string;
+  languages: StudentLanguageItem[];
+  hardSkills: StudentSkillItem[];
+  softSkills: string[];
+  projects: StudentProjectItem[];
+  updatedAt?: string;
+}
+
 export interface StudentCardDTO {
   id: string;
   name: string;
@@ -644,6 +679,7 @@ export interface StudentCardDTO {
   monthlyStats: StudentMonthlyStatItem[];
   subjectStats: StudentSubjectStatItem[];
   achievements: StudentAchievementDTO[];
+  resumeProfile: StudentResumeProfileDTO;
 }
 
 export interface StudentAchievementDTO {
@@ -692,12 +728,75 @@ function formatRuMonth(monthKey: string): string {
   return `${monthName} ${year}`;
 }
 
+const STUDENT_RESUMES_SETTING_KEY = "lms_student_resumes_v1";
+
+function buildDefaultStudentResumeProfile(
+  specialtyName?: string | null,
+  groupName?: string | null
+): StudentResumeProfileDTO {
+  const spec = specialtyName || "Информационные системы и программирование";
+  const isNetworkOrAdmin =
+    spec.toLowerCase().includes("сет") ||
+    (groupName || "").toUpperCase().includes("СИТ");
+
+  return {
+    desiredPosition: isNetworkOrAdmin
+      ? "Младший системный / сетевой администратор (IT-специалист)"
+      : "Junior Frontend / Web-разработчик (Стажёр)",
+    workFormat: "Стажировка / Производственная практика / Полный или неполный день",
+    aboutMe: `Студент Профессионального лицея №98 по направлению «${spec}». Ответственно подхожу к выполнению учебных и практических задач, быстро осваиваю новые технологии и инструменты, умею работать как самостоятельно, так и в команде.`,
+    githubUrl: "",
+    portfolioUrl: "",
+    telegram: "",
+    driverLicense: "Нет",
+    languages: [
+      { id: "lang-ky", language: "Кыргызский", level: "NATIVE" },
+      { id: "lang-ru", language: "Русский", level: "FLUENT" },
+      { id: "lang-en", language: "Английский", level: "DICTIONARY" },
+    ],
+    hardSkills: isNetworkOrAdmin
+      ? [
+          { id: "sk-1", name: "Настройка локальных сетей (LAN / Wi-Fi / TCP/IP)", level: "ADVANCED" },
+          { id: "sk-2", name: "Сборка, диагностика и обслуживание ПК", level: "ADVANCED" },
+          { id: "sk-3", name: "Установка и администрирование Windows / Linux", level: "INTERMEDIATE" },
+          { id: "sk-4", name: "Информационная безопасность и резервное копирование", level: "INTERMEDIATE" },
+          { id: "sk-5", name: "MS Office (Word, Excel, PowerPoint)", level: "ADVANCED" },
+        ]
+      : [
+          { id: "sk-1", name: "HTML5, CSS3, адаптивная вёрстка", level: "ADVANCED" },
+          { id: "sk-2", name: "JavaScript / TypeScript", level: "INTERMEDIATE" },
+          { id: "sk-3", name: "React / Next.js", level: "INTERMEDIATE" },
+          { id: "sk-4", name: "Git / GitHub (командная разработка)", level: "INTERMEDIATE" },
+          { id: "sk-5", name: "Базы данных SQL (PostgreSQL / MySQL)", level: "BASIC" },
+          { id: "sk-6", name: "Figma и работа с макетами", level: "INTERMEDIATE" },
+        ],
+    softSkills: [
+      "Ответственность и дисциплинированность",
+      "Быстрая обучаемость",
+      "Умение работать в команде",
+      "Пунктуальность",
+      "Внимательность к деталям",
+    ],
+    projects: [
+      {
+        id: "proj-1",
+        title: "Учебная и производственная практика (ПЛ №98)",
+        role: isNetworkOrAdmin ? "Технический специалист / Практикант" : "Разработчик учебных проектов",
+        period: "2025 – 2026 уч. год",
+        description: isNetworkOrAdmin
+          ? "Обслуживание компьютерных классов, настройка сетевого оборудования, установка ОС и прикладного ПО."
+          : "Разработка веб-интерфейсов, вёрстка многостраничных сайтов, работа с базами данных и системами контроля версий.",
+      },
+    ],
+  };
+}
+
 export async function getStudentCardDataAction(studentId: string): Promise<StudentCardDTO | null> {
   try {
     const session = await auth();
     if (!session?.user) return null;
 
-    const [user, attendanceRecords, submissions, rawAchievements] = await Promise.all([
+    const [user, attendanceRecords, submissions, rawAchievements, resumesSetting] = await Promise.all([
       prisma.user.findUnique({
         where: { id: studentId },
         include: {
@@ -755,6 +854,11 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
         where: { studentId },
         orderBy: { date: "desc" },
       }),
+      prisma.systemSetting
+        ? prisma.systemSetting.findUnique({
+            where: { key: STUDENT_RESUMES_SETTING_KEY },
+          })
+        : Promise.resolve(null),
     ]);
 
     if (!user) return null;
@@ -991,6 +1095,23 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
       };
     });
 
+    let resumeProfile: StudentResumeProfileDTO = buildDefaultStudentResumeProfile(
+      group?.specialty?.name,
+      group?.name
+    );
+
+    if (resumesSetting?.value) {
+      try {
+        const parsed = JSON.parse(resumesSetting.value);
+        if (parsed && typeof parsed === "object" && parsed[studentId]) {
+          resumeProfile = {
+            ...resumeProfile,
+            ...parsed[studentId],
+          };
+        }
+      } catch {}
+    }
+
     return {
       id: user.id,
       name: user.name,
@@ -1046,10 +1167,67 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
         verifiedBy: a.verifiedBy,
         createdAt: a.createdAt.toLocaleDateString("ru-RU"),
       })),
+      resumeProfile,
     };
   } catch (error) {
     console.error("getStudentCardDataAction error:", error);
     return null;
+  }
+}
+
+export async function saveStudentResumeProfileAction(
+  studentId: string,
+  profile: StudentResumeProfileDTO
+) {
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: "Не авторизован" };
+  }
+
+  const isSelf = session.user.id === studentId;
+  const isPrivileged =
+    session.user.role === "ADMIN" ||
+    session.user.role === "TEACHER" ||
+    session.user.role === "ADMINISTRATION";
+
+  if (!isSelf && !isPrivileged) {
+    return { success: false, error: "Недостаточно прав для сохранения резюме" };
+  }
+
+  try {
+    let allResumes: Record<string, StudentResumeProfileDTO> = {};
+    const existingSetting = await prisma.systemSetting.findUnique({
+      where: { key: STUDENT_RESUMES_SETTING_KEY },
+    });
+    if (existingSetting?.value) {
+      try {
+        const parsed = JSON.parse(existingSetting.value);
+        if (parsed && typeof parsed === "object") {
+          allResumes = parsed;
+        }
+      } catch {}
+    }
+
+    const updatedProfile: StudentResumeProfileDTO = {
+      ...profile,
+      updatedAt: new Date().toLocaleDateString("ru-RU"),
+    };
+    allResumes[studentId] = updatedProfile;
+
+    await prisma.systemSetting.upsert({
+      where: { key: STUDENT_RESUMES_SETTING_KEY },
+      update: { value: JSON.stringify(allResumes) },
+      create: {
+        key: STUDENT_RESUMES_SETTING_KEY,
+        value: JSON.stringify(allResumes),
+      },
+    });
+
+    revalidatePath(`/dashboard/students/${studentId}`);
+    return { success: true, resumeProfile: updatedProfile };
+  } catch (err) {
+    console.error("saveStudentResumeProfileAction error:", err);
+    return { success: false, error: "Ошибка сохранения резюме в БД" };
   }
 }
 

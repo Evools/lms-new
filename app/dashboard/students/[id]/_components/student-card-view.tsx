@@ -57,10 +57,13 @@ import {
   BookMarked,
   FileCheck,
   Trophy,
+  Globe,
+  Wrench,
 } from "lucide-react";
 import { StudentCardDTO, resetPasswordAction } from "../../actions";
 import { updateStudentRollNumberInGroupAction } from "@/app/dashboard/groups/actions";
 import { StudentPortfolioTab } from "./student-portfolio-tab";
+import { LANGUAGE_LEVEL_LABELS, SKILL_LEVEL_LABELS } from "./student-resume-dialog";
 
 interface StudentCardViewProps {
   student: StudentCardDTO;
@@ -69,7 +72,8 @@ interface StudentCardViewProps {
 
 export function StudentCardView({ student, userRole }: StudentCardViewProps) {
   const router = useRouter();
-  const isAdminOrTeacher = userRole === "ADMIN" || userRole === "TEACHER";
+  const isAdminOrTeacher =
+    userRole === "ADMIN" || userRole === "TEACHER" || userRole === "ADMINISTRATION";
 
   // Active Main Tab
   const [activeTab, setActiveTab] = useState<"overview" | "monthly" | "subjects" | "portfolio">("overview");
@@ -278,7 +282,15 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
             <ArrowLeft className="h-3.5 w-3.5" /> Назад
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+              onClick={() => setActiveTab("portfolio")}
+            >
+              <FileCheck className="h-3.5 w-3.5 text-primary" /> Резюме и навыки
+            </Button>
             <Button
               variant="outline"
               size="xs"
@@ -467,7 +479,10 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
           }`}
         >
           <Trophy className="h-3.5 w-3.5" />
-          <span>Портфолио и достижения ({student.achievements?.length || 0})</span>
+          <span>
+            Резюме, языки и портфолио ({student.resumeProfile?.languages?.length || 0} яз. •{" "}
+            {student.resumeProfile?.hardSkills?.length || 0} нав.)
+          </span>
         </button>
       </div>
 
@@ -892,6 +907,101 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Quick Student Resume Summary Card (Languages & Skills) */}
+              {student.resumeProfile && (
+                <div className="rounded-xl border bg-card p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <FileCheck className="h-4 w-4 text-primary" /> Резюме: языки и навыки
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => setActiveTab("portfolio")}
+                      className="h-6 px-2 text-[10px] border-primary/30 text-primary hover:bg-primary/5"
+                    >
+                      Открыть резюме
+                    </Button>
+                  </div>
+
+                  {student.resumeProfile.desiredPosition && (
+                    <div className="p-2 rounded-lg border bg-primary/5 border-primary/20">
+                      <span className="text-[10px] text-muted-foreground block">
+                        Профиль / Желаемая должность:
+                      </span>
+                      <span className="text-xs font-bold text-primary">
+                        {student.resumeProfile.desiredPosition}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Languages */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                        <Globe className="h-3.5 w-3.5 text-primary" /> Знание языков
+                      </span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                        {student.resumeProfile.languages.length} яз.
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      {student.resumeProfile.languages.map((lang) => (
+                        <div
+                          key={lang.id}
+                          className="p-1.5 px-2 rounded-md border bg-background flex items-center justify-between gap-2 text-[11px]"
+                        >
+                          <span className="font-semibold text-foreground">{lang.language}</span>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 font-medium ${
+                              LANGUAGE_LEVEL_LABELS[lang.level]?.badgeClass || ""
+                            }`}
+                          >
+                            {LANGUAGE_LEVEL_LABELS[lang.level]?.shortLabel || lang.level}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Hard Skills */}
+                  <div className="space-y-1.5 pt-1 border-t">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                        <Wrench className="h-3.5 w-3.5 text-primary" /> Навыки (что умеет)
+                      </span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                        {student.resumeProfile.hardSkills.length}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {student.resumeProfile.hardSkills.map((skill) => (
+                        <span
+                          key={skill.id}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border bg-background text-[11px] text-foreground"
+                        >
+                          <span className="font-medium">{skill.name}</span>
+                          <span className="text-[9px] text-primary font-mono">
+                            ({SKILL_LEVEL_LABELS[skill.level]?.label || skill.level})
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setActiveTab("portfolio")}
+                    className="w-full h-7 text-xs font-medium gap-1.5"
+                  >
+                    <Edit className="h-3.5 w-3.5 text-primary" />
+                    Редактировать языки, навыки и резюме
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1167,7 +1277,7 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
       {activeTab === "portfolio" && (
         <StudentPortfolioTab
           student={student}
-          userRole={userRole as "STUDENT" | "TEACHER" | "ADMIN"}
+          userRole={userRole}
         />
       )}
 

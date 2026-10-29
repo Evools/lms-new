@@ -1,17 +1,11 @@
 import {
-  Document,
-  Packer,
-  Paragraph,
-  Table,
-  TableCell,
-  TableRow,
-  TextRun,
-  AlignmentType,
-  WidthType,
-  BorderStyle,
-} from "docx";
-import { StudentCardDTO, StudentAchievementDTO } from "../../actions";
+  StudentCardDTO,
+  StudentAchievementDTO,
+  StudentResumeProfileDTO,
+} from "../../actions";
 import { ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_LEVELS } from "../_components/achievement-dialog";
+import { LANGUAGE_LEVEL_LABELS, SKILL_LEVEL_LABELS } from "../_components/student-resume-dialog";
+import { toast } from "@/components/ui/toast";
 
 function getCategoryLabel(cat: StudentAchievementDTO["category"]): string {
   return ACHIEVEMENT_CATEGORIES.find((c) => c.value === cat)?.label.split("/")[0].trim() || cat;
@@ -22,487 +16,446 @@ function getLevelLabel(lvl: StudentAchievementDTO["level"]): string {
 }
 
 /**
- * Clean isolated A4 HTML print/PDF export
- * Opens an isolated print window without any dashboard layout, sidebar or buttons.
+ * Generates clean official A4 HTML for Student Resume (in the exact style of /dashboard/documents)
  */
-export function printStudentResume(
+export function generateOfficialResumeHtml(
   student: StudentCardDTO,
-  achievements: StudentAchievementDTO[]
-) {
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) {
-    alert("Пожалуйста, разрешите всплывающие окна в браузере для печати резюме");
-    return;
-  }
+  achievements: StudentAchievementDTO[],
+  customResume?: StudentResumeProfileDTO
+): string {
+  const resume = customResume || student.resumeProfile;
+  const dateFormatted = new Date().toLocaleDateString("ru-RU");
+  const curatorName = student.curatorName || "Вопольский Виктор Владимирович";
 
-  const achievementsRowsHtml =
-    achievements.length > 0
-      ? achievements
-          .map(
-            (a, idx) => `
-            <tr>
-              <td style="text-align: center; width: 30px;">${idx + 1}</td>
-              <td>
-                <div style="font-weight: 600;">${a.title}</div>
-                ${a.description ? `<div style="font-size: 8.5pt; color: #4b5563; margin-top: 2px;">${a.description}</div>` : ""}
-              </td>
-              <td style="width: 120px;">${getCategoryLabel(a.category)}</td>
-              <td style="width: 110px;">${getLevelLabel(a.level)}</td>
-              <td style="width: 100px; font-weight: 600; color: #047857;">${a.place || "Участник"}</td>
-              <td style="width: 75px; text-align: center;">${a.date}</td>
-              <td style="width: 120px;">${a.issuer || "—"}</td>
-            </tr>
-          `
-          )
-          .join("")
-      : `<tr><td colspan="7" style="text-align: center; color: #6b7280; padding: 16px;">Внеучебных достижений пока не зафиксировано</td></tr>`;
+  const languagesList = resume?.languages || [];
+  const hardSkillsList = resume?.hardSkills || [];
+  const softSkillsList = resume?.softSkills || [];
+  const projectsList = resume?.projects || [];
 
-  const html = `
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-      <meta charset="utf-8" />
-      <title>Портфолио и резюме — ${student.name}</title>
-      <style>
-        @page {
-          size: A4 portrait;
-          margin: 12mm 15mm 15mm 15mm;
-        }
-        * {
-          box-sizing: border-box;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-        body {
-          font-family: "Times New Roman", Times, Georgia, serif;
-          color: #111827;
-          background: #ffffff;
-          margin: 0;
-          padding: 0;
-          font-size: 10.5pt;
-          line-height: 1.35;
-        }
-        .header {
-          text-align: center;
-          border-bottom: 2px solid #111827;
-          padding-bottom: 10px;
-          margin-bottom: 14px;
-        }
-        .institution {
-          font-size: 10pt;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          color: #374151;
-          margin-bottom: 4px;
-        }
-        .doc-title {
-          font-size: 14pt;
-          font-weight: bold;
-          text-transform: uppercase;
-          margin: 4px 0;
-        }
-        .doc-subtitle {
-          font-size: 10pt;
-          color: #4b5563;
-        }
-        .profile-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px 24px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          padding: 10px 14px;
-          margin-bottom: 14px;
-          font-size: 10pt;
-        }
-        .profile-item {
-          display: flex;
-          justify-content: space-between;
-        }
-        .profile-label {
-          color: #6b7280;
-        }
-        .profile-value {
-          font-weight: 600;
-          color: #111827;
-          text-align: right;
-        }
-        .section-title {
-          font-size: 11pt;
-          font-weight: bold;
-          text-transform: uppercase;
-          border-bottom: 1.5px solid #d1d5db;
-          padding-bottom: 3px;
-          margin: 14px 0 8px 0;
-          display: flex;
-          justify-content: space-between;
-        }
-        .kpi-row {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 8px;
-          margin-bottom: 14px;
-        }
-        .kpi-card {
-          border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          padding: 6px 10px;
-          text-align: center;
-          background: #ffffff;
-        }
-        .kpi-label {
-          font-size: 8.5pt;
-          color: #6b7280;
-          text-transform: uppercase;
-        }
-        .kpi-value {
-          font-size: 13pt;
-          font-weight: bold;
-          color: #111827;
-          margin-top: 2px;
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 9.5pt;
-          margin-top: 6px;
-        }
-        th, td {
-          border: 1px solid #d1d5db;
-          padding: 6px 8px;
-          vertical-align: middle;
-        }
-        th {
-          background-color: #f3f4f6;
-          font-weight: bold;
-          text-align: left;
-          font-size: 9pt;
-          text-transform: uppercase;
-        }
-        .footer-signs {
-          margin-top: 30px;
-          display: flex;
-          justify-content: space-between;
-          font-size: 10pt;
-        }
-        .sign-block {
-          width: 45%;
-        }
-        .sign-line {
-          border-bottom: 1px solid #111827;
-          margin-top: 24px;
-          margin-bottom: 4px;
-        }
-        .sign-hint {
-          font-size: 8pt;
-          color: #6b7280;
-          text-align: center;
-        }
-        @media print {
-          body {
-            padding: 0;
-          }
-          button {
-            display: none !important;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <div class="institution">Официальный документ • Лицей LMS</div>
-        <div class="doc-title">Портфолио и резюме выпускника / студента</div>
-        <div class="doc-subtitle">Сводная ведомость академической успеваемости и внеучебных достижений</div>
-      </div>
-
-      <div class="profile-grid">
-        <div class="profile-item">
-          <span class="profile-label">Ф.И.О. студента:</span>
-          <span class="profile-value">${student.name}</span>
-        </div>
-        <div class="profile-item">
-          <span class="profile-label">Учебная группа:</span>
-          <span class="profile-value">${student.groupName} (${student.course} курс)</span>
-        </div>
-        <div class="profile-item">
-          <span class="profile-label">Специальность:</span>
-          <span class="profile-value">${student.specialtyName || "—"}</span>
-        </div>
-        <div class="profile-item">
-          <span class="profile-label">Поименный № (П/Н):</span>
-          <span class="profile-value">${student.rollNumber || "—"}</span>
-        </div>
-        <div class="profile-item">
-          <span class="profile-label">Куратор группы:</span>
-          <span class="profile-value">${student.curatorName || "—"}</span>
-        </div>
-        <div class="profile-item">
-          <span class="profile-label">Дата зачисления:</span>
-          <span class="profile-value">${student.joinedAt}</span>
-        </div>
-      </div>
-
-      <div class="section-title">
-        <span>Академическая успеваемость и дисциплина</span>
-      </div>
-
-      <div class="kpi-row">
-        <div class="kpi-card">
-          <div class="kpi-label">Средний балл (GPA)</div>
-          <div class="kpi-value">${student.academics.averageGrade || "—"}</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Посещаемость</div>
-          <div class="kpi-value">${student.attendance.percent}%</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Сдано заданий</div>
-          <div class="kpi-value">${student.academics.submittedAssignments}</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Пропусков (Н/Б)</div>
-          <div class="kpi-value">${student.attendance.absent + student.attendance.excused}</div>
-        </div>
-      </div>
-
-      <div class="section-title">
-        <span>Внеучебные достижения, олимпиады и сертификаты (${achievements.length})</span>
-      </div>
-
-      <table>
+  const languagesTableHtml =
+    languagesList.length > 0
+      ? `
+      <div class="section-heading">1. Знание языков</div>
+      <table class="official-table">
         <thead>
           <tr>
-            <th style="text-align: center;">№</th>
-            <th>Мероприятие / Достижение</th>
-            <th>Категория</th>
-            <th>Уровень</th>
-            <th>Результат</th>
-            <th style="text-align: center;">Дата</th>
-            <th>Организатор</th>
+            <th style="width: 36px; text-align: center;">№</th>
+            <th style="text-align: left;">Язык</th>
+            <th style="text-align: left;">Степень владения</th>
           </tr>
         </thead>
         <tbody>
-          ${achievementsRowsHtml}
+          ${languagesList
+            .map(
+              (lang, idx) => `
+            <tr>
+              <td style="text-align: center; font-family: monospace;">${idx + 1}</td>
+              <td style="font-weight: 600;">${lang.language}</td>
+              <td>${LANGUAGE_LEVEL_LABELS[lang.level]?.label || lang.level}</td>
+            </tr>
+          `
+            )
+            .join("")}
         </tbody>
       </table>
+    `
+      : "";
 
-      <div class="footer-signs">
-        <div class="sign-block">
-          <div>Куратор учебной группы:</div>
-          <div class="sign-line"></div>
-          <div class="sign-hint">(подпись / ${student.curatorName || "расшифровка"})</div>
-        </div>
-        <div class="sign-block" style="text-align: right;">
-          <div>Учебная часть / Заведующий отделением:</div>
-          <div class="sign-line"></div>
-          <div class="sign-hint">М.П. (подпись / дата выдачи: ${new Date().toLocaleDateString("ru-RU")})</div>
-        </div>
+  const skillsTableHtml =
+    hardSkillsList.length > 0
+      ? `
+      <div class="section-heading">2. Профессиональные навыки и компетенции (что умеет студент)</div>
+      <table class="official-table">
+        <thead>
+          <tr>
+            <th style="width: 36px; text-align: center;">№</th>
+            <th style="text-align: left;">Профессиональный навык / Компетенция</th>
+            <th style="width: 170px; text-align: left;">Уровень освоения</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${hardSkillsList
+            .map(
+              (skill, idx) => `
+            <tr>
+              <td style="text-align: center; font-family: monospace;">${idx + 1}</td>
+              <td style="font-weight: 600;">${skill.name}</td>
+              <td>${SKILL_LEVEL_LABELS[skill.level]?.label || skill.level}</td>
+            </tr>
+          `
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `
+      : "";
+
+  const projectsHtml =
+    projectsList.length > 0
+      ? `
+      <div class="section-heading">3. Производственная практика и учебные проекты</div>
+      <table class="official-table">
+        <thead>
+          <tr>
+            <th style="width: 140px; text-align: left;">Период / Срок</th>
+            <th style="text-align: left;">Проект / Место практики и выполняемые задачи</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${projectsList
+            .map(
+              (proj) => `
+            <tr>
+              <td style="vertical-align: top;">${proj.period || "За период обучения"}</td>
+              <td>
+                <div style="font-weight: 700;">${proj.title}${proj.role ? ` — ${proj.role}` : ""}</div>
+                ${proj.description ? `<div style="margin-top: 2px;">${proj.description}</div>` : ""}
+              </td>
+            </tr>
+          `
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `
+      : "";
+
+  const achievementsHtml =
+    achievements.length > 0
+      ? `
+      <div class="section-heading">4. Олимпиады, сертификаты и достижения</div>
+      <table class="official-table">
+        <thead>
+          <tr>
+            <th style="width: 32px; text-align: center;">№</th>
+            <th style="text-align: left;">Наименование мероприятия / достижения</th>
+            <th style="width: 120px; text-align: left;">Уровень</th>
+            <th style="width: 110px; text-align: left;">Результат</th>
+            <th style="width: 80px; text-align: center;">Дата</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${achievements
+            .map(
+              (a, idx) => `
+            <tr>
+              <td style="text-align: center; font-family: monospace;">${idx + 1}</td>
+              <td>
+                <div style="font-weight: 600;">${a.title}</div>
+                <div style="font-size: 8pt; color: #3f3f46;">${getCategoryLabel(a.category)}${a.issuer ? ` • ${a.issuer}` : ""}</div>
+              </td>
+              <td>${getLevelLabel(a.level)}</td>
+              <td style="font-weight: 600;">${a.place || "Участник"}</td>
+              <td style="text-align: center;">${a.date}</td>
+            </tr>
+          `
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `
+      : "";
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Резюме студента — ${student.name}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 14mm 18mm 14mm 18mm;
+    }
+    *, *:before, *:after {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #09090b;
+      font-family: Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif;
+      font-size: 10pt;
+      line-height: 1.4;
+    }
+    .page-sheet {
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    .official-header {
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .ministry-title {
+      font-size: 9pt;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #18181b;
+      margin: 0 0 2px 0;
+    }
+    .lyceum-title {
+      font-size: 13pt;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #000000;
+      margin: 0;
+    }
+    .header-rule {
+      border: none;
+      border-top: 1.5px solid #000000;
+      margin: 6px 0 10px 0;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      font-size: 9.5pt;
+      color: #09090b;
+    }
+    .doc-title {
+      text-align: center;
+      font-size: 11.5pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin: 8px 0 10px 0;
+      color: #000000;
+    }
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      font-size: 9.5pt;
+    }
+    .info-table td {
+      border: 1px solid #18181b;
+      padding: 4px 7px;
+      vertical-align: top;
+    }
+    .info-label {
+      width: 32%;
+      background-color: #f4f4f5;
+      font-weight: 700;
+    }
+    .section-heading {
+      font-size: 10pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin: 10px 0 4px 0;
+      color: #000000;
+    }
+    .body-paragraph {
+      text-align: justify;
+      margin: 0 0 8px 0;
+      font-size: 9.5pt;
+    }
+    .official-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 4px 0 8px 0;
+      font-size: 9pt;
+      line-height: 1.3;
+    }
+    .official-table th, .official-table td {
+      border: 1px solid #18181b;
+      padding: 4px 6px;
+    }
+    .official-table th {
+      background-color: #f4f4f5;
+      font-weight: 700;
+    }
+    .official-table tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .signatures-divider {
+      border: none;
+      border-top: 1px solid #d4d4d8;
+      margin: 16px 0 10px 0;
+    }
+    .signatures-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 20px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      font-size: 9.5pt;
+    }
+    .signature-block {
+      flex: 1;
+    }
+    .signature-role {
+      font-weight: 700;
+      color: #09090b;
+      margin: 0 0 3px 0;
+    }
+    .signature-line {
+      font-size: 8.5pt;
+      color: #71717a;
+      margin: 3px 0 5px 0;
+    }
+    .signature-name {
+      font-weight: 700;
+      color: #09090b;
+      margin: 0;
+    }
+    .text-right {
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-sheet">
+    <div class="official-header">
+      <div class="ministry-title">МИНИСТЕРСТВО ПРОСВЕЩЕНИЯ КЫРГЫЗСКОЙ РЕСПУБЛИКИ</div>
+      <div class="lyceum-title">ПРОФЕССИОНАЛЬНЫЙ ЛИЦЕЙ №98</div>
+    </div>
+    <hr class="header-rule" />
+
+    <div class="meta-row">
+      <div>Дата формирования: <strong>${dateFormatted} г.</strong></div>
+      <div class="text-right">По месту требования / Для трудоустройства и практики</div>
+    </div>
+
+    <div class="doc-title">РЕЗЮМЕ ВЫПУСКНИКА / СТУДЕНТА</div>
+
+    <table class="info-table">
+      <tr>
+        <td class="info-label">Ф.И.О. студента:</td>
+        <td><strong>${student.name}</strong></td>
+      </tr>
+      <tr>
+        <td class="info-label">Учебная группа и курс:</td>
+        <td>${student.groupName} (${student.course} курс)${student.rollNumber ? `, поименный № ${student.rollNumber}` : ""}</td>
+      </tr>
+      <tr>
+        <td class="info-label">Специальность:</td>
+        <td>${student.specialtyName || "Информационные системы и программирование"}</td>
+      </tr>
+      ${
+        resume?.desiredPosition
+          ? `<tr>
+              <td class="info-label">Желаемая должность / профиль:</td>
+              <td><strong>${resume.desiredPosition}</strong>${resume.workFormat ? ` (${resume.workFormat})` : ""}</td>
+            </tr>`
+          : ""
+      }
+      <tr>
+        <td class="info-label">Контактные данные:</td>
+        <td>${student.phone ? `Тел.: ${student.phone}; ` : ""}Email: ${student.email}</td>
+      </tr>
+      <tr>
+        <td class="info-label">Успеваемость и посещаемость:</td>
+        <td>Средний балл (GPA): <strong>${student.academics.averageGrade || "—"}</strong> • Посещаемость занятий: <strong>${student.attendance.percent}%</strong></td>
+      </tr>
+    </table>
+
+    ${
+      resume?.aboutMe
+        ? `<p class="body-paragraph"><strong>Краткая характеристика и цель:</strong> ${resume.aboutMe}</p>`
+        : ""
+    }
+
+    ${languagesTableHtml}
+
+    ${skillsTableHtml}
+
+    ${
+      softSkillsList.length > 0
+        ? `<p class="body-paragraph" style="margin-top: 6px;"><strong>Личные и деловые качества:</strong> ${softSkillsList.join(", ")}.</p>`
+        : ""
+    }
+
+    ${projectsHtml}
+
+    ${achievementsHtml}
+
+    <hr class="signatures-divider" />
+
+    <div class="signatures-row">
+      <div class="signature-block">
+        <div class="signature-role">Мастер группы (куратор):</div>
+        <div class="signature-line">(подпись) _______________________</div>
+        <div class="signature-name">${curatorName}</div>
       </div>
-    </body>
-    </html>
-  `;
-
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-
-  // Give fonts and styles a brief tick to load before showing print dialog
-  setTimeout(() => {
-    printWindow.print();
-  }, 200);
+      <div class="signature-block text-right">
+        <div class="signature-role">Зам. директора по учебной части:</div>
+        <div class="signature-line">(подпись) _______________________</div>
+        <div class="signature-name">Тоялиева М. Р.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 /**
- * Official Word (.docx) export for student portfolio & resume
+ * Silent iframe print (no popup windows, exact A4 output like /dashboard/documents)
+ */
+export function printStudentResume(
+  student: StudentCardDTO,
+  achievements: StudentAchievementDTO[],
+  customResume?: StudentResumeProfileDTO
+) {
+  const htmlContent = generateOfficialResumeHtml(student, achievements, customResume);
+
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+  iframe.contentWindow?.document.open();
+  iframe.contentWindow?.document.write(htmlContent);
+  iframe.contentWindow?.document.close();
+  iframe.contentWindow?.focus();
+  setTimeout(() => {
+    iframe.contentWindow?.print();
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 1500);
+  }, 300);
+}
+
+/**
+ * Official Word (.doc) export matching /dashboard/documents style
  */
 export async function exportStudentResumeDocx(
   student: StudentCardDTO,
-  achievements: StudentAchievementDTO[]
+  achievements: StudentAchievementDTO[],
+  customResume?: StudentResumeProfileDTO
 ) {
-  const tableBorder = {
-    top: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" },
-    bottom: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" },
-    left: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" },
-    right: { style: BorderStyle.SINGLE, size: 4, color: "CCCCCC" },
-  };
+  const htmlContent = generateOfficialResumeHtml(student, achievements, customResume);
 
-  const headerCells = [
-    new TableCell({
-      width: { size: 5, type: WidthType.PERCENTAGE },
-      children: [new Paragraph({ text: "№", alignment: AlignmentType.CENTER })],
-    }),
-    new TableCell({
-      width: { size: 30, type: WidthType.PERCENTAGE },
-      children: [new Paragraph({ text: "Мероприятие / Достижение", alignment: AlignmentType.LEFT })],
-    }),
-    new TableCell({
-      width: { size: 15, type: WidthType.PERCENTAGE },
-      children: [new Paragraph({ text: "Категория", alignment: AlignmentType.LEFT })],
-    }),
-    new TableCell({
-      width: { size: 15, type: WidthType.PERCENTAGE },
-      children: [new Paragraph({ text: "Уровень", alignment: AlignmentType.LEFT })],
-    }),
-    new TableCell({
-      width: { size: 15, type: WidthType.PERCENTAGE },
-      children: [new Paragraph({ text: "Результат", alignment: AlignmentType.LEFT })],
-    }),
-    new TableCell({
-      width: { size: 10, type: WidthType.PERCENTAGE },
-      children: [new Paragraph({ text: "Дата", alignment: AlignmentType.CENTER })],
-    }),
-    new TableCell({
-      width: { size: 10, type: WidthType.PERCENTAGE },
-      children: [new Paragraph({ text: "Организатор", alignment: AlignmentType.LEFT })],
-    }),
-  ];
+  const wordHtml = htmlContent.replace(
+    "<html lang=\"ru\">",
+    "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40' lang='ru'>"
+  );
 
-  const achievementRows = achievements.map((a, idx) => {
-    return new TableRow({
-      children: [
-        new TableCell({
-          children: [new Paragraph({ text: String(idx + 1), alignment: AlignmentType.CENTER })],
-        }),
-        new TableCell({
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({ text: a.title, bold: true }),
-                ...(a.description
-                  ? [new TextRun({ text: `\n${a.description}`, size: 18, color: "666666" })]
-                  : []),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          children: [new Paragraph({ text: getCategoryLabel(a.category) })],
-        }),
-        new TableCell({
-          children: [new Paragraph({ text: getLevelLabel(a.level) })],
-        }),
-        new TableCell({
-          children: [
-            new Paragraph({
-              children: [new TextRun({ text: a.place || "Участник", bold: true, color: "047857" })],
-            }),
-          ],
-        }),
-        new TableCell({
-          children: [new Paragraph({ text: a.date, alignment: AlignmentType.CENTER })],
-        }),
-        new TableCell({
-          children: [new Paragraph({ text: a.issuer || "—" })],
-        }),
-      ],
-    });
+  const blob = new Blob(["\ufeff", wordHtml], {
+    type: "application/msword;charset=utf-8",
   });
-
-  const doc = new Document({
-    sections: [
-      {
-        properties: {},
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [
-              new TextRun({
-                text: "ПОРТФОЛИО И РЕЗЮМЕ СТУДЕНТА",
-                bold: true,
-                size: 28,
-              }),
-            ],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
-            children: [
-              new TextRun({
-                text: "Сводная ведомость академической успеваемости и внеучебных достижений",
-                size: 20,
-                color: "666666",
-              }),
-            ],
-          }),
-
-          // Student Details Table
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({
-                children: [
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: "Ф.И.О.: ", bold: true }), new TextRun(student.name)] })],
-                  }),
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: "Группа: ", bold: true }), new TextRun(`${student.groupName} (${student.course} курс)`)] })],
-                  }),
-                ],
-              }),
-              new TableRow({
-                children: [
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: "Специальность: ", bold: true }), new TextRun(student.specialtyName || "—")] })],
-                  }),
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: "Куратор: ", bold: true }), new TextRun(student.curatorName || "—")] })],
-                  }),
-                ],
-              }),
-              new TableRow({
-                children: [
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: "Средний балл (GPA): ", bold: true }), new TextRun(student.academics.averageGrade || "—")] })],
-                  }),
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: "Посещаемость: ", bold: true }), new TextRun(`${student.attendance.percent}%`)] })],
-                  }),
-                ],
-              }),
-            ],
-          }),
-
-          new Paragraph({
-            spacing: { before: 200, after: 100 },
-            children: [
-              new TextRun({
-                text: "Внеучебные достижения, олимпиады и сертификаты",
-                bold: true,
-                size: 22,
-              }),
-            ],
-          }),
-
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [new TableRow({ children: headerCells }), ...achievementRows],
-          }),
-
-          new Paragraph({ spacing: { before: 400 } }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Куратор группы: _______________________ / " + (student.curatorName || "____________") }),
-            ],
-          }),
-          new Paragraph({
-            spacing: { before: 100 },
-            children: [
-              new TextRun({ text: `Дата формирования: ${new Date().toLocaleDateString("ru-RU")}                     М.П.` }),
-            ],
-          }),
-        ],
-      },
-    ],
-  });
-
-  const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Резюме_Портфолио_${student.name.replace(/\s+/g, "_")}.docx`;
+  a.download = `Резюме_${student.name.replace(/\s+/g, "_")}.doc`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  toast.add({
+    title: "Официальный бланк резюме скачан для Microsoft Word",
+    type: "success",
+  });
 }

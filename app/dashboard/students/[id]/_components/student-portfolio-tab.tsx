@@ -9,7 +9,6 @@ import {
   Clock,
   ExternalLink,
   Plus,
-  Printer,
   Download,
   FileText,
   Trash2,
@@ -17,11 +16,15 @@ import {
   ShieldCheck,
   Building,
   Calendar,
-  Filter,
-  Sparkles,
+  Languages,
+  Wrench,
+  Briefcase,
+  UserCheck,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/toast";
 import {
   Select,
   SelectContent,
@@ -32,39 +35,56 @@ import {
 import {
   StudentAchievementDTO,
   StudentCardDTO,
+  StudentResumeProfileDTO,
   addStudentAchievementAction,
   updateStudentAchievementAction,
   deleteStudentAchievementAction,
   toggleVerifyAchievementAction,
+  saveStudentResumeProfileAction,
 } from "../../actions";
 import {
   AchievementDialog,
   ACHIEVEMENT_CATEGORIES,
   ACHIEVEMENT_LEVELS,
 } from "./achievement-dialog";
+import {
+  StudentResumeDialog,
+  LANGUAGE_LEVEL_LABELS,
+  SKILL_LEVEL_LABELS,
+} from "./student-resume-dialog";
 import { ResumePreviewModal } from "./resume-preview-modal";
 import { exportStudentResumeDocx } from "../_lib/export-student-resume";
 
 interface StudentPortfolioTabProps {
   student: StudentCardDTO;
-  userRole: "STUDENT" | "TEACHER" | "ADMIN";
+  userRole: string;
 }
 
-export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabProps) {
+export function StudentPortfolioTab({
+  student,
+  userRole,
+}: StudentPortfolioTabProps) {
   const [achievements, setAchievements] = useState<StudentAchievementDTO[]>(
     student.achievements || []
+  );
+  const [resumeProfile, setResumeProfile] = useState<StudentResumeProfileDTO>(
+    student.resumeProfile
   );
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedLevel, setSelectedLevel] = useState<string>("ALL");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [editingAchievement, setEditingAchievement] =
     useState<StudentAchievementDTO | null>(null);
 
   const [isPending, startTransition] = useTransition();
 
-  const isPrivileged = userRole === "ADMIN" || userRole === "TEACHER";
+  const isPrivileged =
+    userRole === "ADMIN" ||
+    userRole === "TEACHER" ||
+    userRole === "ADMINISTRATION";
 
   // Computed KPIs
   const stats = useMemo(() => {
@@ -82,7 +102,9 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
         p.includes("гран-при")
       );
     }).length;
-    const certificates = achievements.filter((a) => a.category === "CERTIFICATE").length;
+    const certificates = achievements.filter(
+      (a) => a.category === "CERTIFICATE"
+    ).length;
     const verified = achievements.filter((a) => a.isVerified).length;
     return { total, prizes, certificates, verified };
   }, [achievements]);
@@ -90,13 +112,33 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
   // Filtered achievements
   const filteredAchievements = useMemo(() => {
     return achievements.filter((a) => {
-      if (selectedCategory !== "ALL" && a.category !== selectedCategory) return false;
+      if (selectedCategory !== "ALL" && a.category !== selectedCategory)
+        return false;
       if (selectedLevel !== "ALL" && a.level !== selectedLevel) return false;
       return true;
     });
   }, [achievements, selectedCategory, selectedLevel]);
 
-  // Handle Save (Add or Edit)
+  const handleSaveResumeProfile = async (
+    updatedProfile: StudentResumeProfileDTO
+  ) => {
+    setResumeProfile(updatedProfile);
+    const res = await saveStudentResumeProfileAction(student.id, updatedProfile);
+    if (res.success && res.resumeProfile) {
+      setResumeProfile(res.resumeProfile);
+      toast.add({
+        title: "Резюме студента сохранено",
+        type: "success",
+      });
+    } else {
+      toast.add({
+        title: res.error || "Ошибка сохранения резюме",
+        type: "error",
+      });
+    }
+  };
+
+  // Handle Save (Add or Edit Achievement)
   const handleSaveAchievement = async (data: {
     title: string;
     category: StudentAchievementDTO["category"];
@@ -169,7 +211,10 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
   const handleToggleVerify = async (achievementId: string) => {
     startTransition(async () => {
       try {
-        const res = await toggleVerifyAchievementAction(achievementId, student.id);
+        const res = await toggleVerifyAchievementAction(
+          achievementId,
+          student.id
+        );
         if (res.success) {
           setAchievements((prev) =>
             prev.map((a) =>
@@ -190,7 +235,10 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
   };
 
   const getCategoryMeta = (cat: StudentAchievementDTO["category"]) => {
-    return ACHIEVEMENT_CATEGORIES.find((c) => c.value === cat) || ACHIEVEMENT_CATEGORIES[0];
+    return (
+      ACHIEVEMENT_CATEGORIES.find((c) => c.value === cat) ||
+      ACHIEVEMENT_CATEGORIES[0]
+    );
   };
 
   const getLevelLabel = (lvl: StudentAchievementDTO["level"]) => {
@@ -211,9 +259,282 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
     }
   };
 
+  const studentWithResume: StudentCardDTO = {
+    ...student,
+    resumeProfile,
+  };
+
   return (
     <div className="space-y-4">
-      {/* 4 Summary KPI Cards */}
+      {/* ================================================================ */}
+      {/* БЛОК 1: РЕЗЮМЕ СТУДЕНТА (ЯЗЫКИ, НАВЫКИ, О СЕБЕ, ПРАКТИКА)        */}
+      {/* ================================================================ */}
+      <div className="rounded-xl border bg-card p-4 space-y-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary shrink-0" />
+              <h2 className="text-sm font-bold text-foreground">
+                Резюме и профессиональный профиль студента
+              </h2>
+              <Badge
+                variant="outline"
+                className="text-[10px] border-primary/30 bg-primary/5 text-primary"
+              >
+                Языков: {resumeProfile.languages.length} • Навыков:{" "}
+                {resumeProfile.hardSkills.length}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Желаемая должность:{" "}
+              <span className="font-semibold text-foreground">
+                {resumeProfile.desiredPosition || "Не указана"}
+              </span>{" "}
+              ({resumeProfile.workFormat || "Полный / неполный день"})
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() =>
+                exportStudentResumeDocx(studentWithResume, achievements)
+              }
+              className="h-7 px-2.5 gap-1 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 cursor-pointer"
+              title="Скачать официальное резюме и портфолио в Word (.docx)"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Скачать Word (.docx)</span>
+            </Button>
+
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setIsPreviewModalOpen(true)}
+              className="h-7 px-2.5 gap-1 text-xs font-medium cursor-pointer"
+              title="Открыть предпросмотр резюме на листе А4"
+            >
+              <FileText className="h-3.5 w-3.5 text-primary" />
+              <span>Бланк резюме (PDF / Печать)</span>
+            </Button>
+
+            <Button
+              size="xs"
+              onClick={() => setIsResumeDialogOpen(true)}
+              className="h-7 px-3 gap-1.5 text-xs font-medium bg-primary text-primary-foreground cursor-pointer"
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+              <span>Редактировать резюме</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Grid: Languages + Hard Skills + Soft Skills & About */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {/* Column 1: Languages */}
+          <div className="p-3 rounded-lg border border-border bg-background space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Languages className="h-3.5 w-3.5 text-primary" />
+                Знание языков ({resumeProfile.languages.length})
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsResumeDialogOpen(true)}
+                className="text-[10px] text-primary hover:underline font-medium cursor-pointer"
+              >
+                Изменить
+              </button>
+            </div>
+
+            {resumeProfile.languages.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Языки не указаны
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {resumeProfile.languages.map((lang) => {
+                  const meta =
+                    LANGUAGE_LEVEL_LABELS[lang.level] ||
+                    LANGUAGE_LEVEL_LABELS.CONVERSATIONAL;
+                  return (
+                    <div
+                      key={lang.id}
+                      className="flex items-center justify-between gap-2 p-2 rounded-md border border-border bg-muted/20"
+                    >
+                      <span className="font-semibold text-foreground text-xs">
+                        {lang.language}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] px-2 py-0 font-medium ${meta.badgeClass}`}
+                      >
+                        {meta.label}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Extra contacts / info */}
+            {(resumeProfile.telegram ||
+              resumeProfile.githubUrl ||
+              resumeProfile.driverLicense) && (
+              <div className="pt-2 border-t space-y-1 text-[11px] text-muted-foreground">
+                {resumeProfile.telegram && (
+                  <div className="flex items-center justify-between">
+                    <span>Telegram:</span>
+                    <span className="font-mono text-foreground">
+                      {resumeProfile.telegram}
+                    </span>
+                  </div>
+                )}
+                {resumeProfile.githubUrl && (
+                  <div className="flex items-center justify-between">
+                    <span>GitHub:</span>
+                    <a
+                      href={resumeProfile.githubUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline truncate max-w-[160px] flex items-center gap-1"
+                    >
+                      <Globe className="h-3 w-3 shrink-0" />
+                      <span>Профиль</span>
+                    </a>
+                  </div>
+                )}
+                {resumeProfile.driverLicense && (
+                  <div className="flex items-center justify-between">
+                    <span>Вод. удостоверение:</span>
+                    <span className="text-foreground font-medium">
+                      {resumeProfile.driverLicense}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Column 2: Hard Skills (Что умеет) */}
+          <div className="p-3 rounded-lg border border-border bg-background space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Wrench className="h-3.5 w-3.5 text-primary" />
+                Профессиональные навыки ({resumeProfile.hardSkills.length})
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsResumeDialogOpen(true)}
+                className="text-[10px] text-primary hover:underline font-medium cursor-pointer"
+              >
+                Добавить навыки
+              </button>
+            </div>
+
+            {resumeProfile.hardSkills.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Профессиональные навыки ещё не указаны
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {resumeProfile.hardSkills.map((sk) => {
+                  const meta =
+                    SKILL_LEVEL_LABELS[sk.level] ||
+                    SKILL_LEVEL_LABELS.INTERMEDIATE;
+                  return (
+                    <div
+                      key={sk.id}
+                      className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md border border-border bg-muted/20"
+                    >
+                      <span className="text-foreground font-medium text-[11px] leading-tight">
+                        {sk.name}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] px-1.5 py-0 shrink-0 font-medium ${meta.badgeClass}`}
+                      >
+                        {meta.label}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Column 3: About Me, Soft Skills & Practice */}
+          <div className="p-3 rounded-lg border border-border bg-background space-y-3 flex flex-col justify-between">
+            <div className="space-y-2.5">
+              <div>
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5 mb-1">
+                  <UserCheck className="h-3.5 w-3.5 text-primary" />О себе и
+                  профессиональная цель
+                </span>
+                <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/20 p-2 rounded border border-border">
+                  {resumeProfile.aboutMe || "Описание не заполнено"}
+                </p>
+              </div>
+
+              {resumeProfile.softSkills.length > 0 && (
+                <div>
+                  <span className="text-[11px] font-bold text-foreground block mb-1.5">
+                    Личные и деловые качества:
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {resumeProfile.softSkills.map((soft) => (
+                      <Badge
+                        key={soft}
+                        variant="outline"
+                        className="text-[10px] px-2 py-0.5 font-normal bg-muted/40"
+                      >
+                        {soft}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {resumeProfile.projects.length > 0 && (
+                <div className="pt-1 border-t space-y-1.5">
+                  <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                    <Briefcase className="h-3 w-3 text-primary" />
+                    Практика и учебные проекты:
+                  </span>
+                  {resumeProfile.projects.map((pr) => (
+                    <div
+                      key={pr.id}
+                      className="p-2 rounded border border-border bg-muted/20 text-[11px]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-foreground">
+                          {pr.title}
+                        </span>
+                        <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                          {pr.period}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-primary font-medium">
+                        {pr.role}
+                      </div>
+                      {pr.description && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
+                          {pr.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ================================================================ */}
+      {/* БЛОК 2: ВНЕУЧЕБНЫЕ ДОСТИЖЕНИЯ, ОЛИМПИАДЫ И СЕРТИФИКАТЫ           */}
+      {/* ================================================================ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div className="p-3 rounded-xl border bg-card flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
@@ -223,40 +544,52 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
           <span className="text-xl font-bold font-mono text-foreground mt-1">
             {stats.total}
           </span>
-          <span className="text-[10px] text-muted-foreground">В личном портфолио</span>
+          <span className="text-[10px] text-muted-foreground">
+            В личном портфолио
+          </span>
         </div>
 
         <div className="p-3 rounded-xl border bg-card flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[11px] font-medium">Призовых мест</span>
-            <Medal className="h-4 w-4 text-amber-500" />
+            <Medal className="h-4 w-4 text-primary" />
           </div>
-          <span className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400 mt-1">
+          <span className="text-xl font-bold font-mono text-primary mt-1">
             {stats.prizes}
           </span>
-          <span className="text-[10px] text-muted-foreground">Победитель / 1-3 место</span>
+          <span className="text-[10px] text-muted-foreground">
+            Победитель / 1–3 место
+          </span>
         </div>
 
         <div className="p-3 rounded-xl border bg-card flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[11px] font-medium">Сертификатов и курсов</span>
+            <span className="text-[11px] font-medium">
+              Сертификатов и курсов
+            </span>
             <Award className="h-4 w-4 text-sky-500" />
           </div>
           <span className="text-xl font-bold font-mono text-sky-600 dark:text-sky-400 mt-1">
             {stats.certificates}
           </span>
-          <span className="text-[10px] text-muted-foreground">Повышение квалификации</span>
+          <span className="text-[10px] text-muted-foreground">
+            Повышение квалификации
+          </span>
         </div>
 
         <div className="p-3 rounded-xl border bg-card flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[11px] font-medium">Подтверждено колледжем</span>
-            <CheckCircle2 className="h-4 w-4 text-primary" />
+            <span className="text-[11px] font-medium">
+              Подтверждено лицеем
+            </span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
-          <span className="text-xl font-bold font-mono text-primary mt-1">
+          <span className="text-xl font-bold font-mono text-emerald-600 mt-1">
             {stats.verified}
           </span>
-          <span className="text-[10px] text-muted-foreground">Верифицировано куратором</span>
+          <span className="text-[10px] text-muted-foreground">
+            Верифицировано куратором
+          </span>
         </div>
       </div>
 
@@ -277,7 +610,9 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
               Все ({achievements.length})
             </button>
             {ACHIEVEMENT_CATEGORIES.slice(0, 4).map((c) => {
-              const count = achievements.filter((a) => a.category === c.value).length;
+              const count = achievements.filter(
+                (a) => a.category === c.value
+              ).length;
               if (count === 0 && selectedCategory !== c.value) return null;
               return (
                 <button
@@ -298,13 +633,21 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
 
           {/* Level Filter Select */}
           <div className="w-40">
-            <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+            <Select
+              value={selectedLevel}
+              onValueChange={(val) => setSelectedLevel(val || "ALL")}
+            >
               <SelectTrigger className="h-7 text-xs bg-background">
                 <SelectValue>
                   {selectedLevel === "ALL"
                     ? `Все уровни (${achievements.length})`
-                    : `${ACHIEVEMENT_LEVELS.find((l) => l.value === selectedLevel)?.label || "Уровень"} (${
-                        achievements.filter((a) => a.level === selectedLevel).length
+                    : `${
+                        ACHIEVEMENT_LEVELS.find(
+                          (l) => l.value === selectedLevel
+                        )?.label || "Уровень"
+                      } (${
+                        achievements.filter((a) => a.level === selectedLevel)
+                          .length
                       })`}
                 </SelectValue>
               </SelectTrigger>
@@ -313,9 +656,15 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
                   Все уровни ({achievements.length})
                 </SelectItem>
                 {ACHIEVEMENT_LEVELS.map((l) => {
-                  const count = achievements.filter((a) => a.level === l.value).length;
+                  const count = achievements.filter(
+                    (a) => a.level === l.value
+                  ).length;
                   return (
-                    <SelectItem key={l.value} value={l.value} className="text-xs">
+                    <SelectItem
+                      key={l.value}
+                      value={l.value}
+                      className="text-xs"
+                    >
                       {l.label} ({count})
                     </SelectItem>
                   );
@@ -329,36 +678,14 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
         <div className="flex items-center gap-2">
           <Button
             size="xs"
-            variant="outline"
-            onClick={() => exportStudentResumeDocx(student, achievements)}
-            className="h-7 px-2.5 gap-1 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5"
-            title="Скачать официальное резюме и портфолио в Word (.docx)"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span>Word (.docx)</span>
-          </Button>
-
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => setIsPreviewModalOpen(true)}
-            className="h-7 px-2.5 gap-1 text-xs font-medium"
-            title="Открыть предпросмотр резюме в модальном окне"
-          >
-            <FileText className="h-3.5 w-3.5 text-primary" />
-            <span>Превью резюме (PDF)</span>
-          </Button>
-
-          <Button
-            size="xs"
             onClick={() => {
               setEditingAchievement(null);
               setIsDialogOpen(true);
             }}
-            className="h-7 px-2.5 gap-1 text-xs font-medium"
+            className="h-7 px-2.5 gap-1 text-xs font-medium cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Добавить достижение</span>
+            <span>Добавить достижение / сертификат</span>
           </Button>
         </div>
       </div>
@@ -369,7 +696,9 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
             <Trophy className="h-5 w-5" />
           </div>
-          <span className="text-xs font-bold text-foreground">В портфолио пока нет записей</span>
+          <span className="text-xs font-bold text-foreground">
+            В портфолио пока нет записей о грамотах и сертификатах
+          </span>
           <p className="text-[11px] text-muted-foreground max-w-sm">
             {selectedCategory !== "ALL" || selectedLevel !== "ALL"
               ? "По выбранным фильтрам ничего не найдено. Попробуйте сбросить фильтры."
@@ -414,7 +743,7 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
                       {item.place && (
                         <Badge
                           variant="outline"
-                          className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium text-[10px] gap-1 px-1.5 py-0"
+                          className="border-primary/30 bg-primary/10 text-primary font-medium text-[10px] gap-1 px-1.5 py-0"
                         >
                           <Medal className="h-2.5 w-2.5 shrink-0" />
                           <span>{item.place}</span>
@@ -425,8 +754,10 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
                       {item.isVerified ? (
                         <Badge
                           variant="outline"
-                          className="border-primary/30 bg-primary/10 text-primary font-medium text-[10px] gap-1 px-1.5 py-0"
-                          title={`Подтверждено: ${item.verifiedBy || "Колледжем"}`}
+                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium text-[10px] gap-1 px-1.5 py-0"
+                          title={`Подтверждено: ${
+                            item.verifiedBy || "Лицеем"
+                          }`}
                         >
                           <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />
                           <span>Подтверждено</span>
@@ -461,7 +792,9 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
                       {item.issuer && (
                         <span className="flex items-center gap-1 text-[11px]">
                           <Building className="h-3 w-3 text-muted-foreground" />
-                          <span className="truncate max-w-[200px]">{item.issuer}</span>
+                          <span className="truncate max-w-[200px]">
+                            {item.issuer}
+                          </span>
                         </span>
                       )}
                     </div>
@@ -492,7 +825,6 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
 
                 {/* Right: Actions */}
                 <div className="flex items-center gap-1 shrink-0 self-end sm:self-start">
-                  {/* Verification toggle for teacher / admin */}
                   {isPrivileged && (
                     <Button
                       size="xs"
@@ -511,7 +843,9 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
                       }
                     >
                       <ShieldCheck className="h-3 w-3" />
-                      <span>{item.isVerified ? "Отозвать" : "Подтвердить"}</span>
+                      <span>
+                        {item.isVerified ? "Отозвать" : "Подтвердить"}
+                      </span>
                     </Button>
                   )}
 
@@ -544,7 +878,16 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
         </div>
       )}
 
-      {/* Add / Edit Dialog */}
+      {/* Resume Profile Edit Dialog */}
+      <StudentResumeDialog
+        isOpen={isResumeDialogOpen}
+        onClose={() => setIsResumeDialogOpen(false)}
+        initialProfile={resumeProfile}
+        onSave={handleSaveResumeProfile}
+        studentName={student.name}
+      />
+
+      {/* Add / Edit Achievement Dialog */}
       <AchievementDialog
         isOpen={isDialogOpen}
         onClose={() => {
@@ -559,7 +902,7 @@ export function StudentPortfolioTab({ student, userRole }: StudentPortfolioTabPr
       <ResumePreviewModal
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
-        student={student}
+        student={studentWithResume}
         achievements={achievements}
       />
     </div>
