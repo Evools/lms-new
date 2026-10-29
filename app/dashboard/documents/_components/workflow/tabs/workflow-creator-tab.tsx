@@ -833,7 +833,10 @@ export function WorkflowCreatorTab({
                 className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground"
               >
                 <Send className="h-3.5 w-3.5" />
-                Отправить на согласование
+                {selectedTemplate.category === "CURATOR" ||
+                selectedTemplate.id === "student_characteristic"
+                  ? "Сформировать документ"
+                  : "Передать администрации лицея"}
               </Button>
             </div>
           </div>

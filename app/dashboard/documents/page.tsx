@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth";
 import { getDocumentsAction } from "./actions";
 import { DocumentsWorkflowView } from "./_components/documents-workflow-view";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata = {
   title: "Документооборот и отчётность | Лицей LMS",
   description: "Автоматизированное формирование, согласование и архив документов лицея",
@@ -18,6 +21,7 @@ export default async function DocumentsPage() {
   return (
     <DocumentsWorkflowView
       documents={data.documents}
+      initialWorkflowDocs={data.workflowDocuments}
       canManage={data.canManage}
       availableGroups={data.groups}
       groupDetails={data.groupDetails}

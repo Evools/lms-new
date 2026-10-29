@@ -19,6 +19,10 @@ import type {
 import {
   createDocumentAction,
   deleteDocumentAction,
+  getWorkflowDocumentsAction,
+  upsertWorkflowDocumentAction,
+  deleteWorkflowDocumentAction,
+  syncLocalWorkflowDocumentsAction,
 } from "../actions";
 import {
   WorkflowDocument,
@@ -48,6 +52,7 @@ import { WorkflowCreatorTab } from "./workflow/tabs/workflow-creator-tab";
 
 interface DocumentsWorkflowViewProps {
   documents: DocumentDTO[];
+  initialWorkflowDocs?: WorkflowDocument[];
   canManage: boolean;
   availableGroups?: string[];
   groupDetails?: WorkflowGroupDTO[];
@@ -57,6 +62,7 @@ interface DocumentsWorkflowViewProps {
 
 export function DocumentsWorkflowView({
   documents: initialRegulatoryDocs,
+  initialWorkflowDocs = [],
   canManage,
   availableGroups = [],
   availableStudents = [],
@@ -64,36 +70,102 @@ export function DocumentsWorkflowView({
 }: DocumentsWorkflowViewProps) {
   const groups = useMemo(() => availableGroups, [availableGroups]);
   const students = useMemo(() => availableStudents, [availableStudents]);
+  const canApprove =
+    currentUser?.role === "ADMIN" || currentUser?.role === "ADMINISTRATION";
 
   // Navigation state
   const [activeTab, setActiveTab] = useState<TabType>("OVERVIEW");
 
-  // Workflow documents state (localStorage persistence)
-  const [workflowDocs, setWorkflowDocs] = useState<WorkflowDocument[]>([]);
-
-  const saveWorkflowDocs = (newDocs: WorkflowDocument[]) => {
-    setWorkflowDocs(newDocs);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("lms_workflow_documents_v2", JSON.stringify(newDocs));
-      } catch {}
-    }
-  };
-
+  // Workflow documents state (PostgreSQL DB + local server store single source of truth via /api/workflow-documents)
+  const [workflowDocs, setWorkflowDocs] = useState<WorkflowDocument[]>(
+    () => initialWorkflowDocs.filter((d) => !d.id.startsWith("wf-seed-"))
+  );
+  const workflowDocsRef = React.useRef<WorkflowDocument[]>(workflowDocs);
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem("lms_workflow_documents_v1");
-        const saved = localStorage.getItem("lms_workflow_documents_v2");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            setWorkflowDocs(parsed);
+    workflowDocsRef.current = workflowDocs;
+  }, [workflowDocs]);
+  const isMutatingRef = React.useRef(false);
+
+  const refreshFromServer = React.useCallback(async () => {
+    if (isMutatingRef.current) return;
+    try {
+      // Collect any client-side documents from memory or legacy localStorage keys so nothing created in an open tab is lost
+      const candidateDocs: WorkflowDocument[] = [...workflowDocsRef.current];
+      if (typeof window !== "undefined") {
+        for (const key of ["lms_workflow_documents_v2", "lms_workflow_documents_v1"]) {
+          const saved = localStorage.getItem(key);
+          if (saved) {
+            localStorage.removeItem(key);
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) {
+                candidateDocs.push(...parsed);
+              }
+            } catch {}
           }
         }
-      } catch {}
-    }
+      }
+
+      const validLocalDocs = candidateDocs.filter(
+        (d) => d && typeof d.id === "string" && !d.id.startsWith("wf-seed-")
+      );
+
+      if (validLocalDocs.length > 0) {
+        const syncRes = await fetch("/api/workflow-documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ docs: validLocalDocs }),
+          cache: "no-store",
+        });
+        if (syncRes.ok && !isMutatingRef.current) {
+          const syncData = await syncRes.json();
+          if (syncData?.success && Array.isArray(syncData.documents) && !isMutatingRef.current) {
+            setWorkflowDocs(syncData.documents);
+            return;
+          }
+        }
+      }
+
+      const res = await fetch("/api/workflow-documents", {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!res.ok || isMutatingRef.current) return;
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.documents) && !isMutatingRef.current) {
+        setWorkflowDocs(data.documents);
+      }
+    } catch {}
   }, []);
+
+  // Live sync from PostgreSQL on mount, window focus, and every 4s
+  useEffect(() => {
+    refreshFromServer();
+
+    const handleFocus = () => {
+      refreshFromServer();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshFromServer();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshFromServer();
+      }
+    }, 4000);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearInterval(intervalId);
+    };
+  }, [refreshFromServer]);
 
   // Deletion targets
   const [deleteWorkflowDocTarget, setDeleteWorkflowDocTarget] =
@@ -396,7 +468,7 @@ export function DocumentsWorkflowView({
   };
 
   // Save / Submit workflow document
-  const handleSaveDocument = (asDraft: boolean) => {
+  const handleSaveDocument = async (asDraft: boolean) => {
     const selectedStudentsList = students
       .filter((st) => creatorSelectedStudentIds.includes(st.id))
       .map((st) => ({
@@ -468,12 +540,12 @@ export function DocumentsWorkflowView({
               name: creatorSignatory || currentUser?.name || "Вопольский Виктор Владимирович",
               status: "APPROVED",
               date: new Date().toLocaleDateString("ru-RU"),
-              comment: "Рапорт сформирован и передан на рассмотрение.",
+              comment: "Рапорт сформирован и передан в администрацию лицея.",
             },
             {
               stepIndex: 2,
               role: "ADMINISTRATION",
-              roleTitle: "Зам. директора по УПР / Педсовет",
+              roleTitle: "Администрация лицея (Зам. директора по УПР)",
               name: "Тоялиева М. Р.",
               status: asDraft ? "PENDING" : "PENDING",
             },
@@ -482,90 +554,156 @@ export function DocumentsWorkflowView({
       isArchived: false,
     };
 
-    saveWorkflowDocs([newDoc, ...workflowDocs]);
-    toast.add({
-      title: asDraft
-        ? `Черновик документа сохранён`
-        : isCharacteristicOrSimple
-          ? `Характеристика сформирована и готова к печати!`
-          : `Рапорт подан на рассмотрение руководства лицея!`,
-      type: "success",
-    });
+    isMutatingRef.current = true;
+    setWorkflowDocs((prev) => [newDoc, ...prev]);
     setActiveTab("ALL_DOCS");
     setCreatorStep(1);
+
+    try {
+      const response = await fetch("/api/workflow-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc: newDoc }),
+      });
+      const res = await response.json();
+      if (res?.success && Array.isArray(res.documents)) {
+        setWorkflowDocs(res.documents);
+        toast.add({
+          title: asDraft
+            ? `Черновик документа сохранён в базе`
+            : isCharacteristicOrSimple
+              ? `Характеристика сформирована и сохранена в базе!`
+              : `Документ передан в администрацию лицея!`,
+          type: "success",
+        });
+      } else {
+        toast.add({
+          title: res?.error || "Ошибка сохранения документа в базе данных",
+          type: "error",
+        });
+      }
+    } catch {
+      toast.add({
+        title: "Ошибка соединения при сохранении документа",
+        type: "error",
+      });
+    } finally {
+      isMutatingRef.current = false;
+    }
   };
 
   // Approval actions
-  const handleApproveDocument = () => {
+  const handleApproveDocument = async () => {
     if (!approvalDoc) return;
-    const updated = workflowDocs.map((d) => {
-      if (d.id !== approvalDoc.id) return d;
-      const nextSteps = [...d.approvalSteps];
-      const currentIdx = d.currentApprovalStepIndex;
-      if (nextSteps[currentIdx]) {
-        nextSteps[currentIdx] = {
-          ...nextSteps[currentIdx],
-          status: "APPROVED" as const,
-          date: new Date().toLocaleDateString("ru-RU"),
-          comment: approvalComment.trim() || "Решение утверждено педагогическим советом",
-        };
-      }
-      return {
-        ...d,
+    const nextSteps = [...approvalDoc.approvalSteps];
+    const currentIdx = approvalDoc.currentApprovalStepIndex;
+    if (nextSteps[currentIdx]) {
+      nextSteps[currentIdx] = {
+        ...nextSteps[currentIdx],
         status: "APPROVED" as const,
-        approvalSteps: nextSteps,
-        currentApprovalStepIndex: currentIdx + 1,
+        date: new Date().toLocaleDateString("ru-RU"),
+        comment: approvalComment.trim() || "Решение утверждено администрацией лицея",
       };
-    });
-    saveWorkflowDocs(updated);
-    toast.add({
-      title: `Решение утверждено! Документ готов к изданию приказа.`,
-      type: "success",
-    });
+    }
+    const updatedDoc: WorkflowDocument = {
+      ...approvalDoc,
+      status: "APPROVED",
+      approvalSteps: nextSteps,
+      currentApprovalStepIndex: currentIdx + 1,
+      updatedAt: new Date().toISOString(),
+    };
+
+    isMutatingRef.current = true;
+    setWorkflowDocs((prev) => prev.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
     setApprovalDoc(null);
     setApprovalComment("");
+
+    try {
+      const response = await fetch("/api/workflow-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc: updatedDoc }),
+      });
+      const res = await response.json();
+      if (res?.success && Array.isArray(res.documents)) {
+        setWorkflowDocs(res.documents);
+      }
+      toast.add({
+        title: `Решение утверждено! Документ готов к изданию приказа.`,
+        type: "success",
+      });
+    } finally {
+      isMutatingRef.current = false;
+    }
   };
 
-  const handleRejectDocument = () => {
+  const handleRejectDocument = async () => {
     if (!approvalDoc) return;
-    const updated = workflowDocs.map((d) => {
-      if (d.id !== approvalDoc.id) return d;
-      const nextSteps = [...d.approvalSteps];
-      const currentIdx = d.currentApprovalStepIndex;
-      if (nextSteps[currentIdx]) {
-        nextSteps[currentIdx] = {
-          ...nextSteps[currentIdx],
-          status: "REJECTED" as const,
-          date: new Date().toLocaleDateString("ru-RU"),
-          comment: approvalComment.trim() || "Отклонено решением администрации",
-        };
-      }
-      return {
-        ...d,
+    const nextSteps = [...approvalDoc.approvalSteps];
+    const currentIdx = approvalDoc.currentApprovalStepIndex;
+    if (nextSteps[currentIdx]) {
+      nextSteps[currentIdx] = {
+        ...nextSteps[currentIdx],
         status: "REJECTED" as const,
-        approvalSteps: nextSteps,
+        date: new Date().toLocaleDateString("ru-RU"),
+        comment: approvalComment.trim() || "Отклонено решением администрации",
       };
-    });
-    saveWorkflowDocs(updated);
-    toast.add({
-      title: `Документ отклонён и возвращён на доработку куратору.`,
-      type: "warning",
-    });
+    }
+    const updatedDoc: WorkflowDocument = {
+      ...approvalDoc,
+      status: "REJECTED",
+      approvalSteps: nextSteps,
+      updatedAt: new Date().toISOString(),
+    };
+
+    isMutatingRef.current = true;
+    setWorkflowDocs((prev) => prev.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
     setApprovalDoc(null);
     setApprovalComment("");
+
+    try {
+      const response = await fetch("/api/workflow-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc: updatedDoc }),
+      });
+      const res = await response.json();
+      if (res?.success && Array.isArray(res.documents)) {
+        setWorkflowDocs(res.documents);
+      }
+      toast.add({
+        title: `Документ отклонён и возвращён на доработку куратору.`,
+        type: "warning",
+      });
+    } finally {
+      isMutatingRef.current = false;
+    }
   };
 
   // Deletion actions
-  const handleConfirmDeleteWorkflowDoc = () => {
+  const handleConfirmDeleteWorkflowDoc = async () => {
     if (!deleteWorkflowDocTarget) return;
     const targetId = deleteWorkflowDocTarget.id;
-    const updated = workflowDocs.filter((d) => d.id !== targetId);
-    saveWorkflowDocs(updated);
-    toast.add({
-      title: `Документ успешно удалён`,
-      type: "success",
-    });
+    isMutatingRef.current = true;
+    setWorkflowDocs((prev) => prev.filter((d) => d.id !== targetId));
     setDeleteWorkflowDocTarget(null);
+
+    try {
+      const response = await fetch(
+        `/api/workflow-documents?id=${encodeURIComponent(targetId)}`,
+        { method: "DELETE" }
+      );
+      const res = await response.json();
+      if (res?.success && Array.isArray(res.documents)) {
+        setWorkflowDocs(res.documents);
+      }
+      toast.add({
+        title: `Документ успешно удалён`,
+        type: "success",
+      });
+    } finally {
+      isMutatingRef.current = false;
+    }
   };
 
   const handleConfirmDeleteRegDoc = async () => {
@@ -659,7 +797,7 @@ export function DocumentsWorkflowView({
           <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border bg-muted/30 text-[11px] text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-primary" />
             <span>
-              Доступ: <strong className="text-foreground font-medium">Администрация лицея</strong> (директорат, завучи, педсовет)
+              Доступ: <strong className="text-foreground font-medium">Администрация лицея</strong> (директорат, завучи, кураторы)
             </span>
           </div>
 
@@ -680,7 +818,10 @@ export function DocumentsWorkflowView({
       {/* Navigation Pills */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b text-xs">
         <button
-          onClick={() => setActiveTab("OVERVIEW")}
+          onClick={() => {
+            setActiveTab("OVERVIEW");
+            refreshFromServer();
+          }}
           className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeTab === "OVERVIEW"
               ? "bg-primary text-primary-foreground"
@@ -692,7 +833,10 @@ export function DocumentsWorkflowView({
         </button>
 
         <button
-          onClick={() => setActiveTab("ALL_DOCS")}
+          onClick={() => {
+            setActiveTab("ALL_DOCS");
+            refreshFromServer();
+          }}
           className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeTab === "ALL_DOCS"
               ? "bg-primary text-primary-foreground"
@@ -750,6 +894,7 @@ export function DocumentsWorkflowView({
           creatorGroup={creatorGroup}
           creatorSelectedStudentIds={creatorSelectedStudentIds}
           canManage={canManage}
+          canApprove={canApprove}
           onQuickCreate={(tpl, desc) => {
             setSelectedTemplate(tpl);
             setCreatorGeneralReason(tpl.defaultReason);
@@ -761,6 +906,8 @@ export function DocumentsWorkflowView({
           onNavigateToAll={() => setActiveTab("ALL_DOCS")}
           onPreviewDoc={(doc) => setPreviewDoc(doc)}
           onApprovalDoc={(doc) => setApprovalDoc(doc)}
+          onPrintDoc={(doc) => handlePrintDocument(doc)}
+          onDownloadPdf={(doc) => handleDownloadPdf(doc)}
           onDeleteDoc={(doc) => setDeleteWorkflowDocTarget(doc)}
         />
       )}
@@ -771,10 +918,12 @@ export function DocumentsWorkflowView({
           workflowDocs={workflowDocs}
           groups={groups}
           canManage={canManage}
+          canApprove={canApprove}
           currentUserId={currentUser?.id}
           activeFilterMode="ALL_DOCS"
           onPreviewDoc={(doc) => setPreviewDoc(doc)}
           onApprovalDoc={(doc) => setApprovalDoc(doc)}
+          onPrintDoc={(doc) => handlePrintDocument(doc)}
           onDownloadPdf={(doc) => handleDownloadPdf(doc)}
           onDeleteDoc={(doc) => setDeleteWorkflowDocTarget(doc)}
         />
@@ -859,7 +1008,9 @@ export function DocumentsWorkflowView({
         onDownloadDocx={(doc) => handleDownloadDocx(doc)}
         onDownloadPdf={(doc) => handleDownloadPdf(doc)}
         onDeleteRequest={(doc) => setDeleteWorkflowDocTarget(doc)}
+        onApprovalRequest={(doc) => setApprovalDoc(doc)}
         canManage={canManage}
+        canApprove={canApprove}
         currentUserName={currentUser?.name}
       />
 

@@ -11,7 +11,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Search, Eye, ShieldCheck, Download, Trash2 } from "lucide-react";
+import { Search, Eye, ShieldCheck, Download, Trash2, Printer } from "lucide-react";
 import type { WorkflowDocument } from "../../../workflow-data";
 import { getDocumentStatusBadge } from "../workflow-types";
 
@@ -19,10 +19,12 @@ interface WorkflowRegistryTabProps {
   workflowDocs: WorkflowDocument[];
   groups: string[];
   canManage: boolean;
+  canApprove: boolean;
   currentUserId?: string;
   activeFilterMode?: "ALL_DOCS" | "MY_DOCS" | "APPROVAL" | "ARCHIVE";
   onPreviewDoc: (doc: WorkflowDocument) => void;
   onApprovalDoc: (doc: WorkflowDocument) => void;
+  onPrintDoc: (doc: WorkflowDocument) => void;
   onDownloadPdf: (doc: WorkflowDocument) => void;
   onDeleteDoc: (doc: WorkflowDocument) => void;
 }
@@ -31,10 +33,12 @@ export function WorkflowRegistryTab({
   workflowDocs,
   groups,
   canManage,
+  canApprove,
   currentUserId,
   activeFilterMode = "ALL_DOCS",
   onPreviewDoc,
   onApprovalDoc,
+  onPrintDoc,
   onDownloadPdf,
   onDeleteDoc,
 }: WorkflowRegistryTabProps) {
@@ -106,7 +110,7 @@ export function WorkflowRegistryTab({
             <SelectContent className="text-xs">
               <SelectItem value="ALL">Все статусы</SelectItem>
               <SelectItem value="DRAFT">Черновик</SelectItem>
-              <SelectItem value="PENDING_APPROVAL">На согласовании</SelectItem>
+              <SelectItem value="PENDING_APPROVAL">Передан администрации</SelectItem>
               <SelectItem value="APPROVED">Утверждён</SelectItem>
               <SelectItem value="REJECTED">Отклонён</SelectItem>
               <SelectItem value="ARCHIVED">В архиве</SelectItem>
@@ -138,21 +142,19 @@ export function WorkflowRegistryTab({
       <div className="overflow-x-auto border border-border rounded-lg bg-card">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="border-b bg-muted/40 text-muted-foreground">
-              <th className="p-2.5 font-medium">Номер документа</th>
-              <th className="p-2.5 font-medium">Название и категория</th>
-              <th className="p-2.5 font-medium">Группа / Студенты</th>
-              <th className="p-2.5 font-medium">Автор / Роль</th>
-              <th className="p-2.5 font-medium">Дата</th>
-              <th className="p-2.5 font-medium">Статус</th>
-              <th className="p-2.5 font-medium text-right">Действия</th>
+            <tr className="border-b bg-muted/40 text-muted-foreground text-[11px]">
+              <th className="py-2.5 px-3 font-medium">Документ</th>
+              <th className="py-2.5 px-3 font-medium">Группа и студенты</th>
+              <th className="py-2.5 px-3 font-medium">Автор</th>
+              <th className="py-2.5 px-3 font-medium">Статус согласования</th>
+              <th className="py-2.5 px-3 font-medium text-right">Действия</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {filteredDocs.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={5}
                   className="p-8 text-center text-muted-foreground"
                 >
                   Документы не найдены по заданным критериям
@@ -161,103 +163,133 @@ export function WorkflowRegistryTab({
             ) : (
               filteredDocs.map((doc) => {
                 const statusMeta = getDocumentStatusBadge(doc);
+                const studentSummary =
+                  doc.students.length === 1
+                    ? doc.students[0].name
+                    : doc.students.length > 1
+                      ? `${doc.students[0].name} и ещё ${doc.students.length - 1}`
+                      : "Без привязки к студенту";
                 return (
-                  <tr key={doc.id} className="hover:bg-muted/20">
-                    <td className="p-2.5 font-mono text-muted-foreground whitespace-nowrap">
-                      {doc.docNumber}
-                    </td>
-                    <td className="p-2.5">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-foreground">
+                  <tr key={doc.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="py-2.5 px-3 max-w-[320px]">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                          <span className="font-mono font-medium text-foreground/80">
+                            {doc.docNumber}
+                          </span>
+                          <span>•</span>
+                          <span>{new Date(doc.createdAt).toLocaleDateString("ru-RU")}</span>
+                          <span>•</span>
+                          <span className="truncate">{doc.categoryLabel}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onPreviewDoc(doc)}
+                          className="font-medium text-foreground hover:text-primary transition-colors text-left truncate cursor-pointer"
+                          title={doc.title}
+                        >
                           {doc.title}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {doc.categoryLabel}
-                        </span>
+                        </button>
                       </div>
                     </td>
-                    <td className="p-2.5">
-                      <div className="flex flex-col gap-0.5">
+
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
                         {doc.groupName && (
                           <Badge
                             variant="outline"
-                            className="w-fit text-[10px] font-mono px-1.5 py-0"
+                            className="text-[10px] font-mono px-1.5 py-0 h-5 shrink-0"
                           >
                             {doc.groupName}
                           </Badge>
                         )}
-                        {doc.students.length > 0 && (
-                          <span className="text-muted-foreground text-[11px] line-clamp-1">
-                            {doc.students.map((s: any) => s.name).join(", ")}
-                          </span>
-                        )}
+                        <span
+                          className="text-muted-foreground text-[11px] truncate max-w-[190px]"
+                          title={doc.students.map((s) => s.name).join(", ")}
+                        >
+                          {studentSummary}
+                        </span>
                       </div>
                     </td>
-                    <td className="p-2.5">
+
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <div className="flex flex-col">
-                        <span className="text-foreground">{doc.authorName}</span>
+                        <span className="text-foreground font-medium text-[11px]">
+                          {doc.authorName}
+                        </span>
                         <span className="text-[10px] text-muted-foreground">
                           {doc.authorRole}
                         </span>
                       </div>
                     </td>
-                    <td className="p-2.5 text-muted-foreground whitespace-nowrap">
-                      {new Date(doc.createdAt).toLocaleDateString("ru-RU")}
-                    </td>
-                    <td className="p-2.5 whitespace-nowrap">
+
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <div className="flex flex-col gap-0.5">
                         <span
-                          className={`w-fit inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border ${statusMeta.bg}`}
+                          className={`w-fit inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border whitespace-nowrap ${statusMeta.bg}`}
                         >
                           {statusMeta.icon}
                           {statusMeta.label}
                         </span>
-                        <span className={`text-[10px] ${statusMeta.text}`}>
+                        <span className="text-[10px] text-muted-foreground">
                           {statusMeta.subtext}
                         </span>
                       </div>
                     </td>
-                    <td className="p-2.5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
+
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        {canApprove && doc.status === "PENDING_APPROVAL" && (
+                          <Button
+                            size="sm"
+                            onClick={() => onApprovalDoc(doc)}
+                            className="h-7 px-2.5 text-[11px] bg-primary text-primary-foreground gap-1 cursor-pointer"
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Решение
+                          </Button>
+                        )}
+
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => onPreviewDoc(doc)}
-                          className="h-6 px-2 text-[11px]"
+                          className="h-7 px-2.5 text-[11px] gap-1 cursor-pointer"
                         >
-                          <Eye className="h-3 w-3 mr-1" />
+                          <Eye className="h-3.5 w-3.5" />
                           Бланк
                         </Button>
-                        {doc.status === "PENDING_APPROVAL" && (
-                          <Button
-                            size="sm"
-                            onClick={() => onApprovalDoc(doc)}
-                            className="h-6 px-2 text-[11px] bg-primary text-primary-foreground gap-1"
+
+                        <div className="inline-flex items-center rounded-md border border-border bg-background divide-x divide-border">
+                          <button
+                            type="button"
+                            onClick={() => onPrintDoc(doc)}
+                            className="h-7 w-7 inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer rounded-l-md"
+                            title="Распечатать бланк"
                           >
-                            <ShieldCheck className="h-3 w-3" />
-                            Решение педсовета
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onDownloadPdf(doc)}
-                          className="h-6 px-1.5 text-muted-foreground hover:text-foreground"
-                          title="Скачать PDF"
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
-                        {canManage && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onDeleteDoc(doc)}
-                            className="h-6 px-1.5 text-muted-foreground hover:text-destructive cursor-pointer"
-                            title="Удалить документ"
+                            <Printer className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDownloadPdf(doc)}
+                            className={`h-7 w-7 inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer ${
+                              !canApprove ? "rounded-r-md" : ""
+                            }`}
+                            title="Скачать PDF"
                           >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                          {canApprove && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteDoc(doc)}
+                              className="h-7 w-7 inline-flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer rounded-r-md"
+                              title="Удалить документ"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>

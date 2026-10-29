@@ -17,6 +17,8 @@ import {
   Eye,
   ShieldCheck,
   Trash2,
+  Printer,
+  Download,
 } from "lucide-react";
 import type { WorkflowDocument, DocumentTemplateItem } from "../../../workflow-data";
 import { DOCUMENT_TEMPLATES, substituteVariables } from "../../../workflow-data";
@@ -36,10 +38,13 @@ interface WorkflowOverviewTabProps {
   creatorGroup: string;
   creatorSelectedStudentIds: string[];
   canManage: boolean;
+  canApprove: boolean;
   onQuickCreate: (template: DocumentTemplateItem, description: string) => void;
   onNavigateToAll: () => void;
   onPreviewDoc: (doc: WorkflowDocument) => void;
   onApprovalDoc: (doc: WorkflowDocument) => void;
+  onPrintDoc: (doc: WorkflowDocument) => void;
+  onDownloadPdf: (doc: WorkflowDocument) => void;
   onDeleteDoc: (doc: WorkflowDocument) => void;
 }
 
@@ -50,10 +55,13 @@ export function WorkflowOverviewTab({
   creatorGroup,
   creatorSelectedStudentIds,
   canManage,
+  canApprove,
   onQuickCreate,
   onNavigateToAll,
   onPreviewDoc,
   onApprovalDoc,
+  onPrintDoc,
+  onDownloadPdf,
   onDeleteDoc,
 }: WorkflowOverviewTabProps) {
   const getSelectedStudent = () =>
@@ -78,14 +86,14 @@ export function WorkflowOverviewTab({
 
         <div className="p-3 rounded-lg border border-border bg-card flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[11px] font-medium">Рапорты на педсовете</span>
+            <span className="text-[11px] font-medium">Передано администрации</span>
             <Send className="h-4 w-4 text-primary" />
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <span className="text-xl font-bold text-primary">
               {stats.pending}
             </span>
-            <span className="text-[10px] text-primary">ждут решения</span>
+            <span className="text-[10px] text-primary">на рассмотрении</span>
           </div>
         </div>
 
@@ -294,100 +302,157 @@ export function WorkflowOverviewTab({
         <div className="overflow-x-auto border border-border rounded-md">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b bg-muted/40 text-muted-foreground">
-                <th className="p-2 font-medium">Номер и название</th>
-                <th className="p-2 font-medium">Группа / Субъекты</th>
-                <th className="p-2 font-medium">Автор</th>
-                <th className="p-2 font-medium">Статус</th>
-                <th className="p-2 font-medium">Состояние / Резолюция</th>
-                <th className="p-2 font-medium text-right">Действия</th>
+              <tr className="border-b bg-muted/40 text-muted-foreground text-[11px]">
+                <th className="py-2 px-3 font-medium">Документ</th>
+                <th className="py-2 px-3 font-medium">Группа и студенты</th>
+                <th className="py-2 px-3 font-medium">Автор</th>
+                <th className="py-2 px-3 font-medium">Статус согласования</th>
+                <th className="py-2 px-3 font-medium text-right">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {workflowDocs.slice(0, 5).map((doc) => {
-                const statusMeta = getDocumentStatusBadge(doc);
-                return (
-                  <tr key={doc.id} className="hover:bg-muted/20">
-                    <td className="p-2">
-                      <div className="flex flex-col">
-                        <span className="font-mono text-[10px] text-muted-foreground">
-                          {doc.docNumber}
-                        </span>
-                        <span className="font-medium text-foreground line-clamp-1">
-                          {doc.title}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-2">
-                      <div className="flex items-center gap-1.5">
-                        {doc.groupName && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-mono px-1.5 py-0"
+              {workflowDocs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-muted-foreground text-xs">
+                    Нет сформированных документов. Выберите один из шаблонов выше, чтобы создать документ.
+                  </td>
+                </tr>
+              ) : (
+                workflowDocs.slice(0, 5).map((doc) => {
+                  const statusMeta = getDocumentStatusBadge(doc);
+                  const studentSummary =
+                    doc.students.length === 1
+                      ? doc.students[0].name
+                      : doc.students.length > 1
+                        ? `${doc.students[0].name} и ещё ${doc.students.length - 1}`
+                        : "Без привязки к студенту";
+                  return (
+                    <tr key={doc.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-2.5 px-3 max-w-[300px]">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                            <span className="font-mono font-medium text-foreground/80">
+                              {doc.docNumber}
+                            </span>
+                            <span>•</span>
+                            <span>{new Date(doc.createdAt).toLocaleDateString("ru-RU")}</span>
+                            <span>•</span>
+                            <span className="truncate">{doc.categoryLabel}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onPreviewDoc(doc)}
+                            className="font-medium text-foreground hover:text-primary transition-colors text-left truncate cursor-pointer"
+                            title={doc.title}
                           >
-                            {doc.groupName}
-                          </Badge>
-                        )}
-                        {doc.students.length > 0 && (
-                          <span className="text-muted-foreground text-[11px]">
-                            ({doc.students.length} студ.)
+                            {doc.title}
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {doc.groupName && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] font-mono px-1.5 py-0 h-5 shrink-0"
+                            >
+                              {doc.groupName}
+                            </Badge>
+                          )}
+                          <span
+                            className="text-muted-foreground text-[11px] truncate max-w-[180px]"
+                            title={doc.students.map((s) => s.name).join(", ")}
+                          >
+                            {studentSummary}
                           </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-2 text-muted-foreground">
-                      {doc.authorName}
-                    </td>
-                    <td className="p-2">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border ${statusMeta.bg}`}
-                      >
-                        {statusMeta.icon}
-                        {statusMeta.label}
-                      </span>
-                    </td>
-                    <td className="p-2 text-muted-foreground">
-                      <span className={statusMeta.text}>
-                        {statusMeta.subtext}
-                      </span>
-                    </td>
-                    <td className="p-2 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onPreviewDoc(doc)}
-                          className="h-6 px-2 text-[11px]"
-                        >
-                          <Eye className="h-3 w-3 mr-1" />
-                          Бланк
-                        </Button>
-                        {doc.status === "PENDING_APPROVAL" && (
-                          <Button
-                            size="sm"
-                            onClick={() => onApprovalDoc(doc)}
-                            className="h-6 px-2 text-[11px] bg-primary text-primary-foreground gap-1"
+                        </div>
+                      </td>
+
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <span className="text-foreground font-medium text-[11px]">
+                            {doc.authorName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {doc.authorRole}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <div className="flex flex-col gap-0.5">
+                          <span
+                            className={`w-fit inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border whitespace-nowrap ${statusMeta.bg}`}
                           >
-                            <ShieldCheck className="h-3 w-3" />
-                            Решение педсовета
-                          </Button>
-                        )}
-                        {canManage && (
+                            {statusMeta.icon}
+                            {statusMeta.label}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {statusMeta.subtext}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          {canApprove && doc.status === "PENDING_APPROVAL" && (
+                            <Button
+                              size="sm"
+                              onClick={() => onApprovalDoc(doc)}
+                              className="h-7 px-2.5 text-[11px] bg-primary text-primary-foreground gap-1 cursor-pointer"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                              Решение
+                            </Button>
+                          )}
+
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => onDeleteDoc(doc)}
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
-                            title="Удалить документ"
+                            onClick={() => onPreviewDoc(doc)}
+                            className="h-7 px-2.5 text-[11px] gap-1 cursor-pointer"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Eye className="h-3.5 w-3.5" />
+                            Бланк
                           </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+
+                          <div className="inline-flex items-center rounded-md border border-border bg-background divide-x divide-border">
+                            <button
+                              type="button"
+                              onClick={() => onPrintDoc(doc)}
+                              className="h-7 w-7 inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer rounded-l-md"
+                              title="Распечатать бланк"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDownloadPdf(doc)}
+                              className={`h-7 w-7 inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer ${
+                                !canApprove ? "rounded-r-md" : ""
+                              }`}
+                              title="Скачать PDF"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </button>
+                            {canApprove && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteDoc(doc)}
+                                className="h-7 w-7 inline-flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer rounded-r-md"
+                                title="Удалить документ"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

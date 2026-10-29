@@ -10,7 +10,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Printer, Download, Trash2, History, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { FileText, Printer, Download, Trash2, History, CheckCircle2, AlertCircle, Clock, ShieldCheck } from "lucide-react";
 import type { WorkflowDocument, StudentItem, ApprovalStep } from "../../../workflow-data";
 import { cleanDocumentText } from "../document-print-utils";
 
@@ -21,7 +21,9 @@ interface DocumentPreviewDialogProps {
   onDownloadDocx: (doc: WorkflowDocument) => void;
   onDownloadPdf: (doc: WorkflowDocument) => void;
   onDeleteRequest: (doc: WorkflowDocument) => void;
+  onApprovalRequest?: (doc: WorkflowDocument) => void;
   canManage: boolean;
+  canApprove?: boolean;
   currentUserName?: string;
 }
 
@@ -32,7 +34,9 @@ export function DocumentPreviewDialog({
   onDownloadDocx,
   onDownloadPdf,
   onDeleteRequest,
+  onApprovalRequest,
   canManage,
+  canApprove,
   currentUserName,
 }: DocumentPreviewDialogProps) {
   if (!previewDoc) return null;
@@ -228,6 +232,19 @@ export function DocumentPreviewDialog({
         </div>
 
         <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+          {canApprove && previewDoc.status === "PENDING_APPROVAL" && onApprovalRequest && (
+            <Button
+              size="sm"
+              onClick={() => {
+                onApprovalRequest(previewDoc);
+                onClose();
+              }}
+              className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Решение администрации
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -255,7 +272,7 @@ export function DocumentPreviewDialog({
             <Download className="h-3.5 w-3.5" />
             PDF
           </Button>
-          {canManage && (
+          {canApprove && (
             <Button
               variant="outline"
               size="sm"

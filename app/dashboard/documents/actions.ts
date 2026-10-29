@@ -2,8 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 import { ALLOWED_CATEGORIES } from "./constants";
+import type { WorkflowDocument } from "./workflow-data";
+import { readWorkflowStore, writeWorkflowStore } from "./workflow-storage";
+
+async function readWorkflowDocsFromDb(): Promise<WorkflowDocument[]> {
+  noStore();
+  const store = await readWorkflowStore();
+  return store.documents;
+}
 
 export interface DocumentDTO {
   id: string;
@@ -44,11 +52,13 @@ export interface WorkflowUserDTO {
 }
 
 export async function getDocumentsAction() {
+  noStore();
   try {
     const session = await auth();
     if (!session?.user || session.user.role === "STUDENT") {
       return {
         documents: [],
+        workflowDocuments: [] as WorkflowDocument[],
         canManage: false,
         groups: [],
         groupDetails: [],
@@ -57,7 +67,7 @@ export async function getDocumentsAction() {
       };
     }
 
-    const [docs, dbGroups, dbGroupStudents] = await Promise.all([
+    const [docs, dbGroups, dbGroupStudents, workflowDocuments] = await Promise.all([
       prisma.document.findMany({
         include: { author: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
@@ -85,6 +95,7 @@ export async function getDocumentsAction() {
         },
         orderBy: { student: { name: "asc" } },
       }),
+      readWorkflowDocsFromDb(),
     ]);
 
     const documents: DocumentDTO[] = docs.map((d) => ({
@@ -168,17 +179,112 @@ export async function getDocumentsAction() {
       role: session.user.role,
     };
 
-    return { documents, canManage, groups, groupDetails, students, currentUser };
+    return {
+      documents,
+      workflowDocuments,
+      canManage,
+      groups,
+      groupDetails,
+      students,
+      currentUser,
+    };
   } catch (error) {
     console.error("getDocumentsAction error:", error);
     return {
       documents: [],
+      workflowDocuments: [] as WorkflowDocument[],
       canManage: false,
       groups: [],
       groupDetails: [],
       students: [],
       currentUser: null,
     };
+  }
+}
+
+export async function getWorkflowDocumentsAction(): Promise<WorkflowDocument[]> {
+  noStore();
+  try {
+    const session = await auth();
+    if (!session?.user || session.user.role === "STUDENT") {
+      return [];
+    }
+    return await readWorkflowDocsFromDb();
+  } catch {
+    return [];
+  }
+}
+
+export async function upsertWorkflowDocumentAction(doc: WorkflowDocument) {
+  try {
+    const store = await readWorkflowStore();
+    const deletedIdsSet = new Set(store.deletedIds);
+    deletedIdsSet.delete(doc.id);
+
+    const idx = store.documents.findIndex((d) => d.id === doc.id);
+    const nextDocs =
+      idx >= 0
+        ? store.documents.map((d) => (d.id === doc.id ? doc : d))
+        : [doc, ...store.documents];
+
+    const updated = await writeWorkflowStore({
+      documents: nextDocs,
+      deletedIds: Array.from(deletedIdsSet),
+    });
+    revalidatePath("/dashboard/documents");
+    return { success: true, documents: updated };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Ошибка сохранения документа в БД",
+    };
+  }
+}
+
+export async function deleteWorkflowDocumentAction(docId: string) {
+  try {
+    const store = await readWorkflowStore();
+    const nextDeletedIds = Array.from(new Set([...store.deletedIds, docId]));
+    const nextDocs = store.documents.filter((d) => d.id !== docId);
+
+    const updated = await writeWorkflowStore({
+      documents: nextDocs,
+      deletedIds: nextDeletedIds,
+    });
+    revalidatePath("/dashboard/documents");
+    return { success: true, documents: updated };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Ошибка удаления документа из БД",
+    };
+  }
+}
+
+export async function syncLocalWorkflowDocumentsAction(localDocs: WorkflowDocument[]) {
+  try {
+    const store = await readWorkflowStore();
+    const deletedIdsSet = new Set(store.deletedIds);
+    const existingIds = new Set(store.documents.map((d) => d.id));
+    const validNewFromLocal = localDocs.filter(
+      (d) =>
+        d &&
+        typeof d.id === "string" &&
+        !d.id.startsWith("wf-seed-") &&
+        !deletedIdsSet.has(d.id) &&
+        !existingIds.has(d.id)
+    );
+    if (validNewFromLocal.length === 0) {
+      return { success: true, documents: store.documents };
+    }
+    const updated = await writeWorkflowStore({
+      documents: [...validNewFromLocal, ...store.documents],
+      deletedIds: store.deletedIds,
+    });
+    revalidatePath("/dashboard/documents");
+    return { success: true, documents: updated };
+  } catch {
+    return { success: false, documents: [] as WorkflowDocument[] };
   }
 }
 

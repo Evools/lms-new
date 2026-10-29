@@ -64,20 +64,20 @@ export function getDocumentStatusBadge(doc: WorkflowDocument) {
     const isSimple =
       doc.category === "CURATOR" || doc.docNumber.startsWith("ХАР");
     return {
-      label: isSimple ? "Сформирован" : "Утверждён педсоветом",
+      label: isSimple ? "Готов" : "Утверждён",
       bg: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
       text: "text-emerald-600",
-      icon: <CheckCircle2 className="h-3 w-3" />,
-      subtext: isSimple ? "Готов к печати и выдаче" : "Решение педсовета принято",
+      icon: <CheckCircle2 className="h-3 w-3 shrink-0" />,
+      subtext: isSimple ? "Готов к печати и выдаче" : "Одобрено администрацией",
     };
   }
   if (doc.status === "PENDING_APPROVAL") {
     return {
-      label: "Подан на педсовет",
+      label: "На рассмотрении",
       bg: "bg-primary/10 text-primary border-primary/20",
       text: "text-primary",
-      icon: <Send className="h-3 w-3" />,
-      subtext: "Ожидает решения педсовета",
+      icon: <Send className="h-3 w-3 shrink-0" />,
+      subtext: "Ожидает решения администрации",
     };
   }
   if (doc.status === "REJECTED") {
@@ -85,8 +85,8 @@ export function getDocumentStatusBadge(doc: WorkflowDocument) {
       label: "Отклонён",
       bg: "bg-destructive/10 text-destructive border-destructive/20",
       text: "text-destructive",
-      icon: <AlertCircle className="h-3 w-3" />,
-      subtext: "Возвращён куратору",
+      icon: <AlertCircle className="h-3 w-3 shrink-0" />,
+      subtext: "Возвращён на доработку",
     };
   }
   if (doc.status === "DRAFT") {
@@ -94,15 +94,15 @@ export function getDocumentStatusBadge(doc: WorkflowDocument) {
       label: "Черновик",
       bg: "bg-muted text-muted-foreground border-border",
       text: "text-muted-foreground",
-      icon: <Clock className="h-3 w-3" />,
-      subtext: "В процессе подготовки",
+      icon: <Clock className="h-3 w-3 shrink-0" />,
+      subtext: "В работе у автора",
     };
   }
   return {
     label: "В архиве",
     bg: "bg-muted text-muted-foreground border-border",
     text: "text-muted-foreground",
-    icon: <Archive className="h-3 w-3" />,
+    icon: <Archive className="h-3 w-3 shrink-0" />,
     subtext: "Архивное дело",
   };
 }

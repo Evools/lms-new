@@ -39,7 +39,7 @@ export function DocumentApprovalDialog({
         <DialogHeader className="place-items-start text-left gap-1">
           <DialogTitle className="text-sm font-bold flex items-center gap-1.5">
             <ShieldCheck className="h-4 w-4 text-primary" />
-            Решение педагогического совета / дирекции лицея
+            Решение администрации лицея
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
             {approvalDoc.title}
@@ -68,7 +68,7 @@ export function DocumentApprovalDialog({
             <Textarea
               value={approvalComment}
               onChange={(e) => setApprovalComment(e.target.value)}
-              placeholder="Например: Ходатайство рассмотрено на педсовете №4 от 18.10. Утвердить проект приказа об отчислении."
+              placeholder="Например: Рапорт рассмотрен администрацией лицея. Подготовить приказ об отчислении."
               rows={3}
               className="text-xs resize-none"
             />
