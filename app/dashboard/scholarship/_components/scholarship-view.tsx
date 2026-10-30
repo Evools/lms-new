@@ -726,13 +726,13 @@ export function ScholarshipView({
 
               <Button
                 size="xs"
-                variant="ghost"
+                variant="outline"
                 onClick={handleQuickFillDemo}
-                className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground border border-dashed"
-                title="Заполнить типовыми оценками"
+                className="h-6 px-2 text-[11px] font-medium text-primary border-primary/30 hover:bg-primary/10 gap-1"
+                title="Заполнить типовыми реалистичными оценками"
               >
-                <Sparkles className="h-3 w-3 mr-1 text-primary" />
-                Пример
+                <Sparkles className="h-3 w-3 text-primary" />
+                <span>Заполнить журнал</span>
               </Button>
               <Button
                 size="xs"
@@ -835,9 +835,9 @@ export function ScholarshipView({
           >
             <table className="w-full text-xs border-collapse text-left table-fixed">
               <colgroup>
-                <col style={{ width: "40px" }} />
-                <col style={{ width: "64px" }} />
-                <col style={{ width: "220px" }} />
+                <col style={{ width: "38px" }} />
+                <col style={{ width: "60px" }} />
+                <col style={{ width: "260px" }} />
                 {subjects.map((s) => (
                   <col key={s} style={{ width: "96px" }} />
                 ))}
@@ -851,12 +851,12 @@ export function ScholarshipView({
                     №
                   </th>
                   <th
-                    className="sticky left-10 z-40 bg-muted p-1 text-center border-r font-semibold"
+                    className="sticky left-[38px] z-40 bg-muted p-1 text-center border-r font-semibold"
                     title="Поименный номер студента"
                   >
                     П/Н
                   </th>
-                  <th className="sticky left-[104px] z-40 bg-muted p-2 text-left border-r font-semibold shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                  <th className="sticky left-[98px] z-40 bg-muted p-2 text-left border-r font-semibold shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                     Ф.И.О. учащихся
                   </th>
                   {subjects.map((subj) => (
@@ -902,17 +902,17 @@ export function ScholarshipView({
 
                         {/* Поименный номер (П/Н) - только показ, без ввода */}
                         <td
-                          className="sticky left-10 z-10 bg-card p-1 text-center font-mono text-xs text-foreground/80 border-r"
+                          className="sticky left-[38px] z-10 bg-card p-1 text-center font-mono text-xs text-foreground/80 border-r"
                           title="Поименный номер студента"
                         >
                           {row.rollNumber || rollNumbers[row.studentId] || "—"}
                         </td>
 
                         <td
-                          className="sticky left-[104px] z-10 bg-card p-2 font-medium text-foreground border-r truncate shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]"
+                          className="sticky left-[98px] z-10 bg-card p-2 font-medium text-foreground border-r truncate shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]"
                           title={row.studentName}
                         >
-                          <span className="font-semibold">{row.studentName}</span>
+                          <span className="font-semibold whitespace-nowrap">{row.studentName}</span>
                         </td>
 
                         {/* Subject cells: ZERO JITTER, clean standard inputs */}
