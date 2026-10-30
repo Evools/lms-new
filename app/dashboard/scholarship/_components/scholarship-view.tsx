@@ -888,7 +888,7 @@ export function ScholarshipView({
               isPending ? "opacity-30 pointer-events-none select-none" : ""
             }`}
           >
-            <table className="w-full text-xs border-collapse text-left table-fixed">
+            <table className="w-full text-xs border-separate border-spacing-0 text-left table-fixed">
               <colgroup>
                 <col style={{ width: "38px" }} />
                 <col style={{ width: "60px" }} />
@@ -900,46 +900,46 @@ export function ScholarshipView({
                 <col style={{ width: "64px" }} />
                 <col style={{ width: "140px" }} />
               </colgroup>
-              <thead className="sticky top-0 z-30 bg-muted/95 backdrop-blur-xs border-b">
+              <thead className="sticky top-0 z-30 bg-muted border-b border-border">
                 <tr className="h-9 text-[11px] text-muted-foreground">
-                  <th className="sticky left-0 z-40 bg-muted p-1 text-center border-r font-semibold">
+                  <th className="sticky left-0 z-40 bg-background p-1 text-center border-b border-r border-border font-semibold">
                     №
                   </th>
                   <th
-                    className="sticky left-[38px] z-40 bg-muted p-1 text-center border-r font-semibold"
+                    className="sticky left-[38px] z-40 bg-background p-1 text-center border-b border-r border-border font-semibold"
                     title="Поименный номер студента"
                   >
                     П/Н
                   </th>
-                  <th className="sticky left-[98px] z-40 bg-muted p-2 text-left border-r font-semibold shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                  <th className="sticky left-[98px] z-40 bg-background p-2 text-left border-b border-r-2 border-r-border border-b-border font-semibold">
                     Ф.И.О. учащихся
                   </th>
                   {subjects.map((subj) => (
                     <th
                       key={subj}
-                      className="p-1 text-center border-r font-semibold truncate"
+                      className="p-1 text-center border-b border-r border-border font-semibold truncate bg-muted"
                       title={subj}
                     >
                       {subj}
                     </th>
                   ))}
-                  <th className="p-1 text-center border-r font-semibold">
+                  <th className="p-1 text-center border-b border-r border-border font-semibold bg-muted">
                     Оценки (5/4/3/2)
                   </th>
-                  <th className="p-1 text-center border-r font-semibold">
+                  <th className="p-1 text-center border-b border-r border-border font-semibold bg-muted">
                     Ср. балл
                   </th>
-                  <th className="p-1 text-center font-semibold">
+                  <th className="p-1 text-center border-b border-border font-semibold bg-muted">
                     Статус стипендии
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y text-xs">
+              <tbody className="text-xs">
                 {filteredRows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={6 + subjects.length}
-                      className="p-8 text-center text-muted-foreground"
+                      className="p-8 text-center text-muted-foreground border-b border-border"
                     >
                       Студентов по выбранным условиям не найдено.
                     </td>
@@ -950,20 +950,20 @@ export function ScholarshipView({
                     return (
                       <tr
                         key={row.studentId}
-                        className={`transition-colors h-10 border-b ${
+                        className={`transition-colors h-10 ${
                           isRowActive ? "bg-primary/5" : "hover:bg-muted/10"
                         }`}
                       >
-                        <td className={`sticky left-0 z-10 p-1 text-center font-mono text-muted-foreground border-r transition-colors ${
-                          isRowActive ? "bg-primary/10 text-primary font-bold" : "bg-card"
+                        <td className={`sticky left-0 z-20 p-1 text-center font-mono text-muted-foreground border-b border-r border-border transition-colors ${
+                          isRowActive ? "bg-muted text-primary font-bold" : "bg-background"
                         }`}>
                           {idx + 1}
                         </td>
 
                         {/* Поименный номер (П/Н) - только показ, без ввода */}
                         <td
-                          className={`sticky left-[38px] z-10 p-1 text-center font-mono text-xs text-foreground/80 border-r transition-colors ${
-                            isRowActive ? "bg-primary/10 font-medium" : "bg-card"
+                          className={`sticky left-[38px] z-20 p-1 text-center font-mono text-xs text-foreground/80 border-b border-r border-border transition-colors ${
+                            isRowActive ? "bg-muted font-medium" : "bg-background"
                           }`}
                           title="Поименный номер студента"
                         >
@@ -971,8 +971,8 @@ export function ScholarshipView({
                         </td>
 
                         <td
-                          className={`sticky left-[98px] z-10 p-2 font-medium text-foreground border-r truncate shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] transition-colors ${
-                            isRowActive ? "bg-primary/10" : "bg-card"
+                          className={`sticky left-[98px] z-20 p-2 font-medium text-foreground border-b border-r-2 border-r-border border-b-border truncate transition-colors ${
+                            isRowActive ? "bg-muted" : "bg-background"
                           }`}
                           title={row.studentName}
                         >
@@ -1001,7 +1001,7 @@ export function ScholarshipView({
                           return (
                             <td
                               key={subj}
-                              className={`p-1 text-center border-r transition-colors ${
+                              className={`p-1 text-center border-b border-r border-border transition-colors ${
                                 isColActive && !isRowActive ? "bg-primary/5" : ""
                               }`}
                             >
@@ -1031,7 +1031,7 @@ export function ScholarshipView({
                         })}
 
                         {/* Grades counter breakdown */}
-                        <td className="p-1 text-center border-r font-mono text-[11px]">
+                        <td className="p-1 text-center border-b border-r border-border font-mono text-[11px]">
                           <div className="flex items-center justify-center gap-1 text-foreground">
                             <span title="Количество 5-к">{row.count5}</span>
                             <span className="text-muted-foreground">/</span>
@@ -1054,12 +1054,12 @@ export function ScholarshipView({
                         </td>
 
                         {/* Average Grade */}
-                        <td className="p-1 text-center font-mono font-bold text-foreground border-r">
+                        <td className="p-1 text-center font-mono font-bold text-foreground border-b border-r border-border">
                           {row.averageGrade > 0 ? row.averageGrade.toFixed(2) : "—"}
                         </td>
 
                         {/* Scholarship Status Badge */}
-                        <td className="p-1 text-center">
+                        <td className="p-1 text-center border-b border-border">
                           {row.status === "EXCELLENT" && (
                             <Badge
                               variant="outline"
