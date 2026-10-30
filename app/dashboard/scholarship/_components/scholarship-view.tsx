@@ -955,7 +955,7 @@ export function ScholarshipView({
                         }`}
                       >
                         <td className={`sticky left-0 z-20 p-1 text-center font-mono text-muted-foreground border-b border-r border-border transition-colors ${
-                          isRowActive ? "bg-muted text-primary font-bold" : "bg-background"
+                          isRowActive ? "bg-muted text-primary" : "bg-background"
                         }`}>
                           {idx + 1}
                         </td>
@@ -963,7 +963,7 @@ export function ScholarshipView({
                         {/* Поименный номер (П/Н) - только показ, без ввода */}
                         <td
                           className={`sticky left-[38px] z-20 p-1 text-center font-mono text-xs text-foreground/80 border-b border-r border-border transition-colors ${
-                            isRowActive ? "bg-muted font-medium" : "bg-background"
+                            isRowActive ? "bg-muted" : "bg-background"
                           }`}
                           title="Поименный номер студента"
                         >
@@ -976,7 +976,7 @@ export function ScholarshipView({
                           }`}
                           title={row.studentName}
                         >
-                          <span className={`whitespace-nowrap ${isRowActive ? "font-bold text-primary" : "font-semibold"}`}>
+                          <span className={`whitespace-nowrap font-medium ${isRowActive ? "text-primary" : "text-foreground"}`}>
                             {row.studentName}
                           </span>
                         </td>
