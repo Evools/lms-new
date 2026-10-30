@@ -11,11 +11,19 @@ export const metadata = {
 export default async function SubjectsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "ADMIN" && session.user.role !== "TEACHER") {
+  if (
+    session.user.role !== "ADMIN" &&
+    session.user.role !== "ADMINISTRATION" &&
+    session.user.role !== "TEACHER"
+  ) {
     redirect("/dashboard");
   }
 
   const data = await getSubjectsDataAction();
+  const canManage =
+    session.user.role === "ADMIN" ||
+    session.user.role === "ADMINISTRATION" ||
+    session.user.role === "TEACHER";
 
   return (
     <SubjectsView
@@ -23,7 +31,8 @@ export default async function SubjectsPage() {
       bindings={data.bindings}
       teachers={data.teachers}
       groups={data.groups}
-      isAdmin={session.user.role === "ADMIN"}
+      specialties={data.specialties}
+      isAdmin={canManage}
     />
   );
 }
