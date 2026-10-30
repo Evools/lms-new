@@ -971,12 +971,22 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
         const studentGrades = (monthRecord.gradesData as Record<string, any>)[user.id];
         if (studentGrades) {
           const status = studentGrades.status as "EXCELLENT" | "GOOD" | "NO_SCHOLARSHIP";
-          const statusLabel =
-            status === "EXCELLENT"
-              ? "Повышенная стипендия (на «5»)"
-              : status === "GOOD"
-              ? "Обычная стипендия (на «4» и «5»)"
-              : "Снят со стипендии (есть тройка)";
+          const count3 = Number(studentGrades.count3) || 0;
+          const count2 = Number(studentGrades.count2) || 0;
+          const statusReason = typeof studentGrades.statusReason === "string" ? studentGrades.statusReason : "";
+
+          let statusLabel = "Без стипендии";
+          if (status === "EXCELLENT") {
+            statusLabel = "Повышенная стипендия (на «5»)";
+          } else if (status === "GOOD") {
+            statusLabel = "Обычная стипендия (на «4» и «5»)";
+          } else if (count3 > 0 || count2 > 0) {
+            statusLabel = "Снят(а) со стипендии (есть оценка ниже 4)";
+          } else if (statusReason) {
+            statusLabel = statusReason;
+          } else {
+            statusLabel = "Стипендия не назначена";
+          }
           scholarshipInfo = {
             status,
             statusLabel,
