@@ -127,6 +127,9 @@ export function ScholarshipView({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | ScholarshipStatus>("ALL");
 
+  // Keyboard navigation & crosshair highlight
+  const [activeCell, setActiveCell] = useState<{ studentIdx: number; subjectIdx: number } | null>(null);
+
   // Save feedback state
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
@@ -302,7 +305,7 @@ export function ScholarshipView({
   };
 
   // Set grade string for student & subject (e.g. "54554")
-  const handleSetGrade = (studentId: string, subject: string, val: string) => {
+  const handleSetGrade = (studentId: string, subject: string, val: string, autoAdvance = false, studentIdx?: number, subjectIdx?: number) => {
     // Keep numbers 1-5, comma, space
     const cleaned = val.replace(/[^1-5, ]/g, "");
     setGradesData((prev) => {
@@ -318,6 +321,51 @@ export function ScholarshipView({
       };
     });
     setHasUnsavedChanges(true);
+
+    // Auto-advance cursor to next student down if requested
+    if (autoAdvance && typeof studentIdx === "number" && typeof subjectIdx === "number") {
+      const nextStudentIdx = studentIdx + 1;
+      const nextInput = document.getElementById(`cell-${nextStudentIdx}-${subjectIdx}`);
+      if (nextInput) {
+        (nextInput as HTMLInputElement).focus();
+        (nextInput as HTMLInputElement).select();
+        setActiveCell({ studentIdx: nextStudentIdx, subjectIdx });
+      }
+    }
+  };
+
+  const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, sIdx: number, subIdx: number) => {
+    let targetStudent = sIdx;
+    let targetSubject = subIdx;
+
+    if (e.key === "ArrowDown" || e.key === "Enter") {
+      e.preventDefault();
+      targetStudent = sIdx + 1;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      targetStudent = Math.max(0, sIdx - 1);
+    } else if (e.key === "ArrowRight") {
+      const input = e.currentTarget;
+      if (input.selectionStart === input.value.length) {
+        e.preventDefault();
+        targetSubject = Math.min(subjects.length - 1, subIdx + 1);
+      }
+    } else if (e.key === "ArrowLeft") {
+      const input = e.currentTarget;
+      if (input.selectionStart === 0) {
+        e.preventDefault();
+        targetSubject = Math.max(0, subIdx - 1);
+      }
+    }
+
+    if (targetStudent !== sIdx || targetSubject !== subIdx) {
+      const nextEl = document.getElementById(`cell-${targetStudent}-${targetSubject}`);
+      if (nextEl) {
+        (nextEl as HTMLInputElement).focus();
+        (nextEl as HTMLInputElement).select();
+        setActiveCell({ studentIdx: targetStudent, subjectIdx: targetSubject });
+      }
+    }
   };
 
   // Calculate full rows for all students in group
@@ -747,29 +795,36 @@ export function ScholarshipView({
             </div>
           </div>
 
-          {/* Row 3: Disciplines pill list */}
-          <div className="flex items-center justify-between gap-2 pt-1 border-t text-[11px]">
-            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {/* Row 3: Disciplines pill list (Clean Horizontal Scroll) */}
+          <div className="flex items-center justify-between gap-3 pt-1 border-t text-[11px]">
+            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar min-w-0 flex-1">
               <span className="font-semibold text-muted-foreground shrink-0 flex items-center gap-1">
                 <BookMarked className="h-3 w-3 text-primary" />
                 Предметы ({subjects.length}):
               </span>
-              {subjects.map((subj) => (
-                <div
-                  key={subj}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-background border border-border text-foreground text-[11px]"
-                >
-                  <span className="truncate max-w-[130px]">{subj}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSubject(subj)}
-                    className="text-muted-foreground hover:text-destructive"
-                    title={`Убрать ${subj}`}
+              {subjects.map((subj, sIdx) => {
+                const isColActive = activeCell?.subjectIdx === sIdx;
+                return (
+                  <div
+                    key={subj}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] shrink-0 transition-colors border ${
+                      isColActive
+                        ? "bg-primary/10 border-primary text-primary font-medium"
+                        : "bg-background border-border text-foreground"
+                    }`}
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+                    <span className="truncate max-w-[140px]">{subj}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSubject(subj)}
+                      className="text-muted-foreground hover:text-destructive"
+                      title={`Убрать ${subj}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
@@ -891,39 +946,54 @@ export function ScholarshipView({
                   </tr>
                 ) : (
                   filteredRows.map((row, idx) => {
+                    const isRowActive = activeCell?.studentIdx === idx;
                     return (
                       <tr
                         key={row.studentId}
-                        className="hover:bg-muted/10 transition-colors h-10 border-b"
+                        className={`transition-colors h-10 border-b ${
+                          isRowActive ? "bg-primary/5" : "hover:bg-muted/10"
+                        }`}
                       >
-                        <td className="sticky left-0 z-10 bg-card p-1 text-center font-mono text-muted-foreground border-r">
+                        <td className={`sticky left-0 z-10 p-1 text-center font-mono text-muted-foreground border-r transition-colors ${
+                          isRowActive ? "bg-primary/10 text-primary font-bold" : "bg-card"
+                        }`}>
                           {idx + 1}
                         </td>
 
                         {/* Поименный номер (П/Н) - только показ, без ввода */}
                         <td
-                          className="sticky left-[38px] z-10 bg-card p-1 text-center font-mono text-xs text-foreground/80 border-r"
+                          className={`sticky left-[38px] z-10 p-1 text-center font-mono text-xs text-foreground/80 border-r transition-colors ${
+                            isRowActive ? "bg-primary/10 font-medium" : "bg-card"
+                          }`}
                           title="Поименный номер студента"
                         >
                           {row.rollNumber || rollNumbers[row.studentId] || "—"}
                         </td>
 
                         <td
-                          className="sticky left-[98px] z-10 bg-card p-2 font-medium text-foreground border-r truncate shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]"
+                          className={`sticky left-[98px] z-10 p-2 font-medium text-foreground border-r truncate shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] transition-colors ${
+                            isRowActive ? "bg-primary/10" : "bg-card"
+                          }`}
                           title={row.studentName}
                         >
-                          <span className="font-semibold whitespace-nowrap">{row.studentName}</span>
+                          <span className={`whitespace-nowrap ${isRowActive ? "font-bold text-primary" : "font-semibold"}`}>
+                            {row.studentName}
+                          </span>
                         </td>
 
                         {/* Subject cells: ZERO JITTER, clean standard inputs */}
-                        {subjects.map((subj) => {
+                        {subjects.map((subj, subIdx) => {
                           const currentVal = row.grades[subj] || "";
                           const avg = row.subjectAverages[subj];
                           const hasBad = /[1-3]/.test(currentVal);
+                          const isColActive = activeCell?.subjectIdx === subIdx;
+                          const isCurrentCell = isRowActive && isColActive;
 
                           let inputClasses = "border-border bg-background text-foreground focus:border-primary";
                           if (hasBad) {
                             inputClasses = "border-destructive/30 bg-destructive/5 text-destructive font-medium focus:border-destructive";
+                          } else if (isCurrentCell) {
+                            inputClasses = "border-primary bg-primary/10 text-primary font-bold ring-1 ring-primary";
                           } else if (currentVal) {
                             inputClasses = "border-border bg-background text-foreground font-medium focus:border-primary";
                           }
@@ -931,16 +1001,26 @@ export function ScholarshipView({
                           return (
                             <td
                               key={subj}
-                              className="p-1 text-center border-r"
+                              className={`p-1 text-center border-r transition-colors ${
+                                isColActive && !isRowActive ? "bg-primary/5" : ""
+                              }`}
                             >
                               <div className="flex flex-col items-center justify-center h-full">
                                 <input
+                                  id={`cell-${idx}-${subIdx}`}
                                   type="text"
                                   value={currentVal}
-                                  onChange={(e) => handleSetGrade(row.studentId, subj, e.target.value)}
+                                  onFocus={() => setActiveCell({ studentIdx: idx, subjectIdx: subIdx })}
+                                  onKeyDown={(e) => handleCellKeyDown(e, idx, subIdx)}
+                                  onChange={(e) => {
+                                    const nextVal = e.target.value;
+                                    // If user entered a single grade (2..5), auto advance to next student down
+                                    const isSingleDigit = /^[2-5]$/.test(nextVal.trim());
+                                    handleSetGrade(row.studentId, subj, nextVal, isSingleDigit, idx, subIdx);
+                                  }}
                                   placeholder="—"
                                   className={`h-6 w-full px-1 text-center text-xs font-mono rounded border transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${inputClasses}`}
-                                  title={`Оценки по ${subj}. Вводите подряд: 54554 или 5`}
+                                  title={`Оценки по ${subj}. Вводите: 5, 4, 3 (Enter / Стрелки для перемещения)`}
                                 />
                                 <span className="text-[9px] font-mono leading-none h-3 mt-0.5 text-muted-foreground block truncate">
                                   {avg !== null ? `ср. ${avg}` : " "}
