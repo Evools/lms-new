@@ -305,7 +305,7 @@ export function ScholarshipView({
   };
 
   // Set grade string for student & subject (e.g. "54554")
-  const handleSetGrade = (studentId: string, subject: string, val: string, autoAdvance = false, studentIdx?: number, subjectIdx?: number) => {
+  const handleSetGrade = (studentId: string, subject: string, val: string) => {
     // Keep numbers 1-5, comma, space
     const cleaned = val.replace(/[^1-5, ]/g, "");
     setGradesData((prev) => {
@@ -321,17 +321,6 @@ export function ScholarshipView({
       };
     });
     setHasUnsavedChanges(true);
-
-    // Auto-advance cursor to next student down if requested
-    if (autoAdvance && typeof studentIdx === "number" && typeof subjectIdx === "number") {
-      const nextStudentIdx = studentIdx + 1;
-      const nextInput = document.getElementById(`cell-${nextStudentIdx}-${subjectIdx}`);
-      if (nextInput) {
-        (nextInput as HTMLInputElement).focus();
-        (nextInput as HTMLInputElement).select();
-        setActiveCell({ studentIdx: nextStudentIdx, subjectIdx });
-      }
-    }
   };
 
   const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, sIdx: number, subIdx: number) => {
@@ -1013,14 +1002,11 @@ export function ScholarshipView({
                                   onFocus={() => setActiveCell({ studentIdx: idx, subjectIdx: subIdx })}
                                   onKeyDown={(e) => handleCellKeyDown(e, idx, subIdx)}
                                   onChange={(e) => {
-                                    const nextVal = e.target.value;
-                                    // If user entered a single grade (2..5), auto advance to next student down
-                                    const isSingleDigit = /^[2-5]$/.test(nextVal.trim());
-                                    handleSetGrade(row.studentId, subj, nextVal, isSingleDigit, idx, subIdx);
+                                    handleSetGrade(row.studentId, subj, e.target.value);
                                   }}
                                   placeholder="—"
                                   className={`h-6 w-full px-1 text-center text-xs font-mono rounded border transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${inputClasses}`}
-                                  title={`Оценки по ${subj}. Вводите: 5, 4, 3 (Enter / Стрелки для перемещения)`}
+                                  title={`Оценки по ${subj} (Стрелки / Enter для перемещения)`}
                                 />
                                 <span className="text-[9px] font-mono leading-none h-3 mt-0.5 text-muted-foreground block truncate">
                                   {avg !== null ? `ср. ${avg}` : " "}
