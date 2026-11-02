@@ -626,6 +626,42 @@ export interface StudentResumeProfileDTO {
   updatedAt?: string;
 }
 
+export interface StudentDiarySubjectGrade {
+  subjectName: string;
+  rawGrade: string;
+  grades: number[];
+  averageGrade: number | null;
+  finalGrade?: number | null;
+  hasLowGrade: boolean;
+}
+
+export interface StudentDiaryMonthItem {
+  monthKey: string;
+  monthLabel: string;
+  averageGrade: number;
+  status: "EXCELLENT" | "GOOD" | "NO_SCHOLARSHIP" | "PENDING";
+  statusLabel: string;
+  statusReason: string;
+  count5: number;
+  count4: number;
+  count3: number;
+  count2: number;
+  totalGrades: number;
+  subjects: StudentDiarySubjectGrade[];
+}
+
+export interface StudentDiaryDTO {
+  availableMonths: Array<{ monthKey: string; monthLabel: string }>;
+  months: StudentDiaryMonthItem[];
+  allSubjects: string[];
+  cumulativeAverage: number;
+  totalGradesCount: number;
+  count5: number;
+  count4: number;
+  count3: number;
+  count2: number;
+}
+
 export interface StudentCardDTO {
   id: string;
   name: string;
@@ -678,6 +714,7 @@ export interface StudentCardDTO {
   };
   monthlyStats: StudentMonthlyStatItem[];
   subjectStats: StudentSubjectStatItem[];
+  diary: StudentDiaryDTO;
   achievements: StudentAchievementDTO[];
   resumeProfile: StudentResumeProfileDTO;
 }
@@ -1105,6 +1142,159 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
       };
     });
 
+    // 5. Online Diary (Дневник успеваемости из ведомостей стипендии)
+    const parseGradeNums = (val: string | null | undefined): number[] => {
+      if (!val) return [];
+      const chars = String(val).replace(/[^1-5]/g, "");
+      return chars.split("").map((c) => parseInt(c, 10));
+    };
+
+    const diaryMonths: StudentDiaryMonthItem[] = [];
+    const allSubjectsSet = new Set<string>();
+    let overallCount5 = 0;
+    let overallCount4 = 0;
+    let overallCount3 = 0;
+    let overallCount2 = 0;
+    let overallScoreSum = 0;
+    let overallGradesCount = 0;
+
+    scholarshipRecords.forEach((sr) => {
+      const monthKey = sr.month;
+      const monthLabel = sr.monthLabel || formatRuMonth(monthKey);
+      const recordSubjects: string[] = Array.isArray(sr.subjects) ? (sr.subjects as string[]) : [];
+      recordSubjects.forEach((s) => allSubjectsSet.add(s));
+
+      const gradesData = sr.gradesData as Record<string, any> | null;
+      const studentEntry = gradesData ? gradesData[user.id] : null;
+
+      let studentGradesMap: Record<string, string> = {};
+      if (studentEntry) {
+        if (studentEntry.grades && typeof studentEntry.grades === "object") {
+          studentGradesMap = studentEntry.grades;
+        } else if (typeof studentEntry === "object" && !studentEntry.status) {
+          studentGradesMap = studentEntry as Record<string, string>;
+        }
+      }
+
+      const subjectsGrades: StudentDiarySubjectGrade[] = [];
+      let mCount5 = 0;
+      let mCount4 = 0;
+      let mCount3 = 0;
+      let mCount2 = 0;
+      let mTotalScore = 0;
+      let mTotalGrades = 0;
+      const badSubjects: string[] = [];
+
+      recordSubjects.forEach((subj) => {
+        const rawVal = studentGradesMap[subj] || "";
+        const parsed = parseGradeNums(rawVal);
+        let subjSum = 0;
+        let hasBad = false;
+
+        parsed.forEach((g) => {
+          mTotalGrades++;
+          mTotalScore += g;
+          subjSum += g;
+          overallGradesCount++;
+          overallScoreSum += g;
+
+          if (g === 5) {
+            mCount5++;
+            overallCount5++;
+          } else if (g === 4) {
+            mCount4++;
+            overallCount4++;
+          } else if (g === 3) {
+            mCount3++;
+            overallCount3++;
+            hasBad = true;
+          } else if (g <= 2) {
+            mCount2++;
+            overallCount2++;
+            hasBad = true;
+          }
+        });
+
+        if (hasBad) {
+          badSubjects.push(subj);
+        }
+
+        const subjAvg = parsed.length > 0 ? Number((subjSum / parsed.length).toFixed(2)) : null;
+        const finalGrade = subjAvg !== null ? Math.round(subjAvg) : null;
+
+        subjectsGrades.push({
+          subjectName: subj,
+          rawGrade: rawVal,
+          grades: parsed,
+          averageGrade: subjAvg,
+          finalGrade,
+          hasLowGrade: hasBad,
+        });
+      });
+
+      const monthAvg = mTotalGrades > 0 ? Number((mTotalScore / mTotalGrades).toFixed(2)) : 0;
+
+      let status: "EXCELLENT" | "GOOD" | "NO_SCHOLARSHIP" | "PENDING" = "PENDING";
+      let statusReason = "Оценки пока не выставлены";
+      let statusLabel = "Стипендия не назначена";
+
+      if (mTotalGrades > 0) {
+        if (mCount3 > 0 || mCount2 > 0) {
+          status = "NO_SCHOLARSHIP";
+          statusLabel = "Без стипендии (есть оценка ниже 4)";
+          statusReason = `Снят(а) со стипендии: есть оценка ниже 4 [${badSubjects.join(", ")}]`;
+        } else if (mCount5 > 0 && mCount4 === 0) {
+          status = "EXCELLENT";
+          statusLabel = "Повышенная стипендия (на «5»)";
+          statusReason = "Отличник (только «5») — повышенная стипендия";
+        } else if (mCount4 > 0 && mCount3 === 0 && mCount2 === 0) {
+          status = "GOOD";
+          statusLabel = "Обычная стипендия (на «4» и «5»)";
+          statusReason = "Ударник («4» и «5») — обычная стипендия";
+        }
+      }
+
+      if (studentEntry?.status && studentEntry.status !== "PENDING") {
+        status = studentEntry.status;
+        if (status === "EXCELLENT") statusLabel = "Повышенная стипендия (на «5»)";
+        else if (status === "GOOD") statusLabel = "Обычная стипендия (на «4» и «5»)";
+        else if (status === "NO_SCHOLARSHIP") statusLabel = "Без стипендии (есть оценка ниже 4)";
+      }
+
+      diaryMonths.push({
+        monthKey,
+        monthLabel,
+        averageGrade: monthAvg,
+        status,
+        statusLabel,
+        statusReason,
+        count5: mCount5,
+        count4: mCount4,
+        count3: mCount3,
+        count2: mCount2,
+        totalGrades: mTotalGrades,
+        subjects: subjectsGrades,
+      });
+    });
+
+    const cumulativeAvg =
+      overallGradesCount > 0 ? Number((overallScoreSum / overallGradesCount).toFixed(2)) : 0;
+
+    const diary: StudentDiaryDTO = {
+      availableMonths: diaryMonths.map((m) => ({
+        monthKey: m.monthKey,
+        monthLabel: m.monthLabel,
+      })),
+      months: diaryMonths,
+      allSubjects: Array.from(allSubjectsSet).sort(),
+      cumulativeAverage: cumulativeAvg,
+      totalGradesCount: overallGradesCount,
+      count5: overallCount5,
+      count4: overallCount4,
+      count3: overallCount3,
+      count2: overallCount2,
+    };
+
     let resumeProfile: StudentResumeProfileDTO = buildDefaultStudentResumeProfile(
       group?.specialty?.name,
       group?.name
@@ -1161,6 +1351,7 @@ export async function getStudentCardDataAction(studentId: string): Promise<Stude
       },
       monthlyStats,
       subjectStats,
+      diary,
       achievements: rawAchievements.map((a) => ({
         id: a.id,
         studentId: a.studentId,

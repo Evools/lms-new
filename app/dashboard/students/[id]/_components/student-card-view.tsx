@@ -63,6 +63,7 @@ import {
 import { StudentCardDTO, resetPasswordAction } from "../../actions";
 import { updateStudentRollNumberInGroupAction } from "@/app/dashboard/groups/actions";
 import { StudentPortfolioTab } from "./student-portfolio-tab";
+import { StudentDiaryTab } from "./student-diary-tab";
 import { LANGUAGE_LEVEL_LABELS, SKILL_LEVEL_LABELS } from "./student-resume-dialog";
 
 interface StudentCardViewProps {
@@ -76,7 +77,7 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
     userRole === "ADMIN" || userRole === "TEACHER" || userRole === "ADMINISTRATION";
 
   // Active Main Tab
-  const [activeTab, setActiveTab] = useState<"overview" | "monthly" | "subjects" | "portfolio">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "diary" | "monthly" | "subjects" | "portfolio">("overview");
 
   // Selected Month filter ("ALL" or specific "YYYY-MM")
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>("ALL");
@@ -429,11 +430,11 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
       </div>
 
       {/* Main Tabs Navigation */}
-      <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-lg border text-xs">
+      <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-lg border text-xs overflow-x-auto no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors ${
+          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors shrink-0 ${
             activeTab === "overview"
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
@@ -445,8 +446,21 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
 
         <button
           type="button"
+          onClick={() => setActiveTab("diary")}
+          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors shrink-0 ${
+            activeTab === "diary"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <BookOpen className="h-3.5 w-3.5" />
+          <span>Онлайн-дневник ({student.diary?.months?.length || 0} мес.)</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab("monthly")}
-          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors ${
+          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors shrink-0 ${
             activeTab === "monthly"
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
@@ -459,7 +473,7 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
         <button
           type="button"
           onClick={() => setActiveTab("subjects")}
-          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors ${
+          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors shrink-0 ${
             activeTab === "subjects"
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
@@ -472,7 +486,7 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
         <button
           type="button"
           onClick={() => setActiveTab("portfolio")}
-          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors ${
+          className={`flex items-center gap-1.5 h-7 px-3 rounded-md font-medium transition-colors shrink-0 ${
             activeTab === "portfolio"
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:text-foreground"
@@ -480,8 +494,7 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
         >
           <Trophy className="h-3.5 w-3.5" />
           <span>
-            Резюме, языки и портфолио ({student.resumeProfile?.languages?.length || 0} яз. •{" "}
-            {student.resumeProfile?.hardSkills?.length || 0} нав.)
+            Резюме и портфолио
           </span>
         </button>
       </div>
@@ -573,16 +586,27 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
                 </div>
               </div>
 
-              {isAdminOrTeacher && (
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Button
-                  variant="outline"
                   size="xs"
-                  className="h-6 text-[10px] px-2 shrink-0 gap-1"
-                  render={<Link href="/dashboard/scholarship" />}
+                  className="h-6 text-[10px] px-2.5 gap-1 font-medium"
+                  onClick={() => setActiveTab("diary")}
                 >
-                  Ведомость стипендий
+                  <BookOpen className="h-3 w-3" />
+                  <span>Онлайн-дневник →</span>
                 </Button>
-              )}
+
+                {isAdminOrTeacher && (
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="h-6 text-[10px] px-2 shrink-0 gap-1"
+                    render={<Link href="/dashboard/scholarship" />}
+                  >
+                    Ведомость
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
@@ -1007,7 +1031,10 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
         </div>
       )}
 
-      {/* TAB 2: MONTHLY BREAKDOWN (ПО МЕСЯЦАМ) */}
+      {/* TAB 2: ONLINE DIARY (ОНЛАЙН-ДНЕВНИК ОЦЕНОК ИЗ СТИПЕНДИЙ) */}
+      {activeTab === "diary" && <StudentDiaryTab student={student} />}
+
+      {/* TAB 3: MONTHLY BREAKDOWN (ПО МЕСЯЦАМ) */}
       {activeTab === "monthly" && (
         <div className="space-y-4">
           <div className="p-4 rounded-xl border bg-card space-y-3">
