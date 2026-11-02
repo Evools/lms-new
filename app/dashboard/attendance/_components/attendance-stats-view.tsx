@@ -25,7 +25,8 @@ import {
   Loader2,
   Crown,
   ArrowUpDown,
-  FileSpreadsheet,
+  FileText,
+  Download,
   Layers,
   Sparkles,
 } from "lucide-react";
@@ -35,7 +36,7 @@ import {
   AttendancePeriodStatsDTO,
   getAttendancePeriodStatsAction,
 } from "../actions";
-import { exportToExcel } from "@/lib/excel-export";
+import { exportAttendanceDocx } from "../_lib/export-attendance-docx";
 import { toast } from "@/components/ui/toast";
 
 interface AttendanceStatsViewProps {
@@ -246,47 +247,44 @@ export function AttendanceStatsView({
     return list;
   }, [statsData, searchQuery, sortField]);
 
-  // Export Excel (.xlsx)
-  const handleExportExcel = () => {
+  // Export Word (.docx)
+  const [isExportingWord, setIsExportingWord] = useState(false);
+  const handleExportWord = async () => {
     if (!statsData || !currentGroupObj) return;
 
-    const selectedSubjectName =
-      selectedSubjectId === "all"
-        ? "Все дисциплины"
-        : subjects.find((s) => s.id === selectedSubjectId)?.subjectName || "Предмет";
+    try {
+      setIsExportingWord(true);
+      const selectedSubjectName =
+        selectedSubjectId === "all"
+          ? "Все дисциплины учебного плана"
+          : subjects.find((s) => s.id === selectedSubjectId)?.subjectName || "Предмет";
 
-    const titleRow = [`Сводная ведомость посещаемости: Группа ${currentGroupObj.name}`];
-    const periodRow = [`Период: ${dates.start} — ${dates.end}`];
-    const subjectRow = [`Дисциплина: ${selectedSubjectName}`];
-    const emptyRow: string[] = [];
+      await exportAttendanceDocx({
+        groupName: currentGroupObj.name,
+        startDate: dates.start,
+        endDate: dates.end,
+        periodLabel: getPresetLabel(preset),
+        subjectName: selectedSubjectName,
+        teacherName: selectedSubjectObj?.teacherName || null,
+        curatorName: statsData.curatorName,
+        monitorName: statsData.monitorName,
+        stats: statsData,
+        students: processedStudents,
+      });
 
-    const headers = [
-      "№",
-      "Студент",
-      "Всего занятий",
-      "Был",
-      "НБ (Неуваж.)",
-      "Опоздал",
-      "Уваж. (справка / отпрос)",
-      "% Посещаемости",
-    ];
-
-    const rows = processedStudents.map((s, idx) => [
-      idx + 1,
-      s.studentName,
-      s.totalLessons,
-      s.presentCount,
-      s.absentCount,
-      s.lateCount,
-      s.excusedCount,
-      `${s.attendanceRate}%`,
-    ]);
-
-    const data = [titleRow, periodRow, subjectRow, emptyRow, headers, ...rows];
-    const fileName = `Посещаемость_${currentGroupObj.name}_${dates.start}_${dates.end}.xlsx`;
-
-    exportToExcel(data, fileName, "Посещаемость");
-    toast.add({ title: "Файл Excel (.xlsx) успешно экспортирован!", type: "success" });
+      toast.add({
+        title: "Документ Word (.docx) успешно сформирован!",
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Docx export error:", error);
+      toast.add({
+        title: "Не удалось сформировать файл Word",
+        type: "error",
+      });
+    } finally {
+      setIsExportingWord(false);
+    }
   };
 
   const handlePrint = () => {
@@ -311,7 +309,7 @@ export function AttendanceStatsView({
         @media print {
           @page {
             size: A4 portrait;
-            margin: 15mm 15mm 15mm 15mm;
+            margin: 8mm 10mm 8mm 10mm;
           }
           body {
             background: #ffffff !important;
@@ -337,7 +335,7 @@ export function AttendanceStatsView({
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
-            padding: 4mm 8mm !important;
+            padding: 0 !important;
             margin: 0 auto !important;
             color: #000000 !important;
             background: #ffffff !important;
@@ -345,14 +343,13 @@ export function AttendanceStatsView({
           table {
             width: 100% !important;
             border-collapse: collapse !important;
-            page-break-inside: auto;
           }
           tr {
             page-break-inside: avoid;
-            page-break-after: auto;
           }
           th, td {
-            padding: 5px 8px !important;
+            padding: 2.5px 5px !important;
+            line-height: 1.15 !important;
           }
           thead {
             display: table-header-group;
@@ -363,17 +360,17 @@ export function AttendanceStatsView({
         }
       `}</style>
 
-      {/* Printable Document for Period Attendance Stats */}
-      <div id="printable-attendance-stats" className="attendance-printable-doc font-sans text-black space-y-4">
+      {/* Printable Document for Period Attendance Stats (Strict 1-Page Layout) */}
+      <div id="printable-attendance-stats" className="attendance-printable-doc font-sans text-black space-y-2">
         {/* Header */}
-        <div className="border-b-2 border-black pb-3 text-center space-y-1">
-          <div className="text-[10px] tracking-wider uppercase text-neutral-600 font-semibold">
+        <div className="border-b-2 border-black pb-1.5 text-center space-y-0.5">
+          <div className="text-[9px] tracking-wider uppercase text-neutral-600 font-semibold">
             Учебная часть • Информационная система учета посещаемости
           </div>
-          <h1 className="text-lg font-bold uppercase tracking-wide">
+          <h1 className="text-base font-bold uppercase tracking-wide">
             Сводная ведомость посещаемости занятий
           </h1>
-          <div className="text-xs font-semibold text-neutral-800">
+          <div className="text-[11px] font-semibold text-neutral-800">
             Группа: <strong>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Все группы"}</strong>
             {selectedSubjectObj ? (
               <> • Дисциплина: <strong>{selectedSubjectObj.subjectName}</strong> ({selectedSubjectObj.teacherName})</>
@@ -381,7 +378,7 @@ export function AttendanceStatsView({
               <> • Дисциплина: <strong>Все дисциплины учебного плана</strong></>
             )}
           </div>
-          <div className="text-[11px] text-neutral-600">
+          <div className="text-[10px] text-neutral-600">
             Период: <strong>{formatDateRu(dates.start)}</strong> — <strong>{formatDateRu(dates.end)}</strong>
             {" "}({getPresetLabel(preset)})
             {" • "}
@@ -390,78 +387,78 @@ export function AttendanceStatsView({
         </div>
 
         {!statsData ? (
-          <div className="py-12 text-center text-xs text-neutral-600 font-medium">
+          <div className="py-8 text-center text-xs text-neutral-600 font-medium">
             Загрузка сводных данных посещаемости...
           </div>
         ) : (
           <>
             {/* KPI Summary Block */}
-            <div className="grid grid-cols-6 gap-2 border border-black p-2 text-center text-xs bg-neutral-50/50">
+            <div className="grid grid-cols-6 gap-1 border border-black p-1 text-center text-[10px] bg-neutral-50/50">
               <div>
-                <div className="text-[10px] text-neutral-600">Всего занятий</div>
-                <div className="font-bold text-sm font-mono">{statsData.totalLessons}</div>
+                <div className="text-[9px] text-neutral-600">Всего занятий</div>
+                <div className="font-bold text-xs font-mono">{statsData.totalLessons}</div>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-600">Ср. посещаемость</div>
-                <div className="font-bold text-sm font-mono">{statsData.groupAttendanceRate}%</div>
+                <div className="text-[9px] text-neutral-600">Ср. посещаемость</div>
+                <div className="font-bold text-xs font-mono">{statsData.groupAttendanceRate}%</div>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-600">Присутствовали</div>
-                <div className="font-bold text-sm font-mono">{statsData.totalPresent}</div>
+                <div className="text-[9px] text-neutral-600">Присутствовали</div>
+                <div className="font-bold text-xs font-mono">{statsData.totalPresent}</div>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-600">Пропуски (Н/Б)</div>
-                <div className="font-bold text-sm font-mono">{statsData.totalAbsent}</div>
+                <div className="text-[9px] text-neutral-600">Пропуски (Н/Б)</div>
+                <div className="font-bold text-xs font-mono">{statsData.totalAbsent}</div>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-600">Опоздания</div>
-                <div className="font-bold text-sm font-mono">{statsData.totalLate}</div>
+                <div className="text-[9px] text-neutral-600">Опоздания</div>
+                <div className="font-bold text-xs font-mono">{statsData.totalLate}</div>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-600">Справки (уваж.)</div>
-                <div className="font-bold text-sm font-mono">{statsData.totalExcused}</div>
+                <div className="text-[9px] text-neutral-600">Справки (уваж.)</div>
+                <div className="font-bold text-xs font-mono">{statsData.totalExcused}</div>
               </div>
             </div>
 
             {/* Attendance Table */}
-            <table className="w-full border-collapse border border-black text-[11px]">
+            <table className="w-full border-collapse border border-black text-[10px]">
               <thead>
                 <tr className="bg-neutral-100 border-b border-black text-black">
-                  <th className="border border-black p-1.5 w-8 text-center font-bold">№</th>
-                  <th className="border border-black p-1.5 text-left font-bold">ФИО Студента</th>
-                  <th className="border border-black p-1.5 w-20 text-center font-bold">Всего пар</th>
-                  <th className="border border-black p-1.5 w-16 text-center font-bold">Был</th>
-                  <th className="border border-black p-1.5 w-20 text-center font-bold">Н/Б (неув.)</th>
-                  <th className="border border-black p-1.5 w-16 text-center font-bold">Опоздал</th>
-                  <th className="border border-black p-1.5 w-20 text-center font-bold">Уваж.</th>
-                  <th className="border border-black p-1.5 w-24 text-center font-bold">% Посещ.</th>
+                  <th className="border border-black p-1 w-7 text-center font-bold">№</th>
+                  <th className="border border-black p-1 text-left font-bold">ФИО Студента</th>
+                  <th className="border border-black p-1 w-16 text-center font-bold">Всего пар</th>
+                  <th className="border border-black p-1 w-14 text-center font-bold">Был</th>
+                  <th className="border border-black p-1 w-16 text-center font-bold">Н/Б (неув.)</th>
+                  <th className="border border-black p-1 w-14 text-center font-bold">Опоздал</th>
+                  <th className="border border-black p-1 w-16 text-center font-bold">Уваж.</th>
+                  <th className="border border-black p-1 w-16 text-center font-bold">% Посещ.</th>
                 </tr>
               </thead>
               <tbody>
                 {processedStudents.map((st, idx) => (
                   <tr key={st.studentId} className="border-b border-black">
-                    <td className="border border-black p-1.5 text-center font-mono">{idx + 1}</td>
-                    <td className="border border-black p-1.5 font-medium">
+                    <td className="border border-black p-0.5 text-center font-mono">{idx + 1}</td>
+                    <td className="border border-black p-0.5 font-medium leading-tight">
                       {st.studentName}
                       {st.isMonitor && (
-                        <span className="text-[10px] text-neutral-600 font-normal"> (староста)</span>
+                        <span className="text-[9px] text-neutral-600 font-normal"> (староста)</span>
                       )}
                     </td>
-                    <td className="border border-black p-1.5 text-center font-mono">{st.totalLessons}</td>
-                    <td className="border border-black p-1.5 text-center font-mono font-semibold">{st.presentCount}</td>
-                    <td className="border border-black p-1.5 text-center font-mono font-semibold">
+                    <td className="border border-black p-0.5 text-center font-mono">{st.totalLessons}</td>
+                    <td className="border border-black p-0.5 text-center font-mono font-semibold">{st.presentCount}</td>
+                    <td className="border border-black p-0.5 text-center font-mono font-semibold">
                       {st.absentCount > 0 ? st.absentCount : 0}
                     </td>
-                    <td className="border border-black p-1.5 text-center font-mono">{st.lateCount}</td>
-                    <td className="border border-black p-1.5 text-center font-mono">{st.excusedCount}</td>
-                    <td className="border border-black p-1.5 text-center font-mono font-bold">
+                    <td className="border border-black p-0.5 text-center font-mono">{st.lateCount}</td>
+                    <td className="border border-black p-0.5 text-center font-mono">{st.excusedCount}</td>
+                    <td className="border border-black p-0.5 text-center font-mono font-bold">
                       {st.attendanceRate}%
                     </td>
                   </tr>
                 ))}
                 {processedStudents.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="border border-black p-4 text-center text-neutral-500">
+                    <td colSpan={8} className="border border-black p-3 text-center text-neutral-500">
                       За выбранный период записей посещаемости не найдено
                     </td>
                   </tr>
@@ -470,25 +467,25 @@ export function AttendanceStatsView({
               {processedStudents.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-black bg-neutral-100 font-bold">
-                    <td colSpan={2} className="border border-black p-1.5 text-right font-bold">
+                    <td colSpan={2} className="border border-black p-1 text-right font-bold">
                       ИТОГО ПО ГРУППЕ:
                     </td>
-                    <td className="border border-black p-1.5 text-center font-mono">
+                    <td className="border border-black p-1 text-center font-mono">
                       {statsData.totalLessons}
                     </td>
-                    <td className="border border-black p-1.5 text-center font-mono">
+                    <td className="border border-black p-1 text-center font-mono">
                       {statsData.totalPresent}
                     </td>
-                    <td className="border border-black p-1.5 text-center font-mono">
+                    <td className="border border-black p-1 text-center font-mono">
                       {statsData.totalAbsent}
                     </td>
-                    <td className="border border-black p-1.5 text-center font-mono">
+                    <td className="border border-black p-1 text-center font-mono">
                       {statsData.totalLate}
                     </td>
-                    <td className="border border-black p-1.5 text-center font-mono">
+                    <td className="border border-black p-1 text-center font-mono">
                       {statsData.totalExcused}
                     </td>
-                    <td className="border border-black p-1.5 text-center font-mono font-bold">
+                    <td className="border border-black p-1 text-center font-mono font-bold">
                       {statsData.groupAttendanceRate}%
                     </td>
                   </tr>
@@ -496,32 +493,36 @@ export function AttendanceStatsView({
               )}
             </table>
 
-            {/* Signatures block */}
-            <div className="pt-6 space-y-4 text-xs">
-              <div className="grid grid-cols-3 gap-6">
-                <div className="space-y-6">
-                  <div className="font-semibold">Куратор группы:</div>
-                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
-                    (подпись / расшифровка)
+            {/* Signatures block with Master / Curator and Vice Director */}
+            <div className="pt-3 space-y-2 text-[11px] page-break-inside-avoid">
+              <div className="grid grid-cols-2 gap-8 max-w-xl mx-auto">
+                <div className="space-y-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-bold text-neutral-900">
+                      Мастер группы:
+                    </span>
+                    <span className="text-[11px] font-semibold text-neutral-800">
+                      {statsData.curatorName || "Вопольский В. В."}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-b border-black text-[9px] text-neutral-500 text-center">
+                    (роспись)
                   </div>
                 </div>
-                <div className="space-y-6">
-                  <div className="font-semibold">Староста группы:</div>
-                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
-                    (подпись / расшифровка)
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div className="font-semibold">Зам. директора по УВР:</div>
-                  <div className="border-b border-black text-[10px] text-neutral-500 pb-0.5">
-                    (подпись / расшифровка)
-                  </div>
-                </div>
-              </div>
 
-              <div className="flex justify-between items-center text-[10px] text-neutral-500 pt-3 border-t border-neutral-300">
-                <div>М.П. (Место для печати)</div>
-                <div>Дата выдачи: «___» _____________ 20___ г.</div>
+                <div className="space-y-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-bold text-neutral-900">
+                      Зам. директора по УВР:
+                    </span>
+                    <span className="text-[11px] font-semibold text-neutral-800">
+                      Бейшенова К. Ж.
+                    </span>
+                  </div>
+                  <div className="pt-2 border-b border-black text-[9px] text-neutral-500 text-center">
+                    (роспись)
+                  </div>
+                </div>
               </div>
             </div>
           </>
@@ -581,30 +582,34 @@ export function AttendanceStatsView({
             </Select>
           </div>
 
-          {/* Export & Print actions */}
+          {/* Export Word & PDF Print actions */}
           <div className="lg:col-span-4 flex items-center justify-end gap-1.5">
             <Button
               size="xs"
               variant="outline"
-              onClick={handleExportExcel}
-              disabled={!statsData || isPending}
+              onClick={handleExportWord}
+              disabled={!statsData || isPending || isExportingWord}
               className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 font-medium cursor-pointer"
-              title="Экспорт ведомости в формате Excel (.xlsx)"
+              title="Выгрузить официальную ведомость в Word (.docx)"
             >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span>Экспорт Excel</span>
+              {isExportingWord ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <FileText className="h-3.5 w-3.5" />
+              )}
+              <span>Word (.docx)</span>
             </Button>
 
             <Button
               size="xs"
               variant="outline"
               onClick={handlePrint}
-              disabled={!statsData}
-              className="h-8 text-xs gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
-              title="Распечатать ведомость"
+              disabled={!statsData || isPending}
+              className="h-8 text-xs gap-1 font-medium cursor-pointer"
+              title="Распечатать или сохранить в PDF (A4)"
             >
               <Printer className="h-3.5 w-3.5" />
-              <span>Печать</span>
+              <span>Печать / PDF</span>
             </Button>
           </div>
         </div>

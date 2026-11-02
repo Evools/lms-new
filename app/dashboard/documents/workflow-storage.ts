@@ -34,16 +34,16 @@ function cleanDocuments(
       ...d,
       approvalSteps: Array.isArray(d.approvalSteps)
         ? d.approvalSteps.map((step) => ({
-            ...step,
-            roleTitle:
-              step.roleTitle === "Зам. директора по УПР / Педсовет"
-                ? "Администрация лицея (Зам. директора по УПР)"
-                : step.roleTitle,
-            comment:
-              step.comment === "Решение утверждено педагогическим советом"
-                ? "Решение утверждено администрацией лицея"
-                : step.comment,
-          }))
+          ...step,
+          roleTitle:
+            step.roleTitle === "Зам. директора по УПР / Педсовет"
+              ? "Администрация лицея (Зам. директора по УПР)"
+              : step.roleTitle,
+          comment:
+            step.comment === "Решение утверждено педагогическим советом"
+              ? "Решение утверждено администрацией лицея"
+              : step.comment,
+        }))
         : [],
     });
   }
@@ -107,7 +107,7 @@ async function buildKylychbekovDocumentFromDb(): Promise<WorkflowDocument> {
         attendanceRate = Math.round((attended / total) * 100);
       }
     }
-  } catch {}
+  } catch { }
 
   return {
     id: KYLYCHBEKOV_DOC_ID,
@@ -184,7 +184,7 @@ export async function readWorkflowStore(): Promise<WorkflowStorePayload> {
         }
       }
     }
-  } catch {}
+  } catch { }
 
   const deletedIdsSet = new Set<string>([
     ...(memPayload?.deletedIds || []),

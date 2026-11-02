@@ -48,6 +48,8 @@ export interface AttendancePeriodStatsDTO {
   totalAbsent: number;
   totalLate: number;
   totalExcused: number;
+  curatorName?: string | null;
+  monitorName?: string | null;
   students: StudentPeriodStatsDTO[];
   lessonsByDate: Array<{
     date: string;
@@ -455,11 +457,13 @@ export async function getAttendancePeriodStatsAction(
     const endDateInclusive = new Date(endDate);
     endDateInclusive.setDate(endDate.getDate() + 1);
 
-    // 1. Fetch group students
+    // 1. Fetch group students & leadership
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        monitor: { select: { id: true } },
+        curator: { select: { id: true, name: true } },
+        classTeacher: { select: { id: true, name: true } },
+        monitor: { select: { id: true, name: true } },
         students: {
           include: {
             student: { select: { id: true, name: true } },
@@ -472,6 +476,9 @@ export async function getAttendancePeriodStatsAction(
     if (!group) {
       return { success: false, error: "Группа не найдена" };
     }
+
+    const curatorOrMasterName = group.curator?.name || group.classTeacher?.name || null;
+    const monitorStudentName = group.monitor?.name || null;
 
     const students = group.students.map((gs) => ({
       studentId: gs.student.id,
@@ -640,6 +647,8 @@ export async function getAttendancePeriodStatsAction(
       totalAbsent: totalGroupAbsent,
       totalLate: totalGroupLate,
       totalExcused: totalGroupExcused,
+      curatorName: curatorOrMasterName,
+      monitorName: monitorStudentName,
       students: studentResultList,
       lessonsByDate: Object.values(lessonsByDateMap).sort((a, b) => a.date.localeCompare(b.date)),
     };
