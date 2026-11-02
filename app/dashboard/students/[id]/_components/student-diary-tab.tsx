@@ -139,6 +139,27 @@ export function StudentDiaryTab({ student }: StudentDiaryTabProps) {
     });
   }, [diary, availableMonths]);
 
+  // Subjects data prepared for print output (never empty)
+  const printableSubjects = useMemo(() => {
+    if (currentMonthData && currentMonthData.subjects.length > 0) {
+      return currentMonthData.subjects;
+    }
+    return crossMonthMatrix.map((item) => {
+      const allGrades: number[] = [];
+      Object.values(item.monthGrades).forEach((mg) => {
+        allGrades.push(...mg.grades);
+      });
+      return {
+        subjectName: item.subjectName,
+        rawGrade: allGrades.join(""),
+        grades: allGrades,
+        averageGrade: item.overallAverage,
+        finalGrade: item.overallAverage !== null ? Math.round(item.overallAverage) : null,
+        hasLowGrade: allGrades.some((g) => g <= 3),
+      };
+    });
+  }, [currentMonthData, crossMonthMatrix]);
+
   // Color helper for single grade pill
   const getGradeBadgeClass = (grade: number) => {
     switch (grade) {
@@ -163,42 +184,71 @@ export function StudentDiaryTab({ student }: StudentDiaryTabProps) {
 
   return (
     <div className="space-y-3 text-xs">
-      {/* PRINT STYLES FOR OFFICIAL STUDENT GRADE REPORT */}
+      {/* PRINT STYLES FOR OFFICIAL STUDENT GRADE REPORT (STRICT 1-PAGE A4) */}
       <style jsx global>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm 12mm 10mm 12mm;
+            margin: 8mm 10mm 8mm 10mm;
+          }
+          html,
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
           }
           aside,
           header,
           nav,
           [data-sidebar="sidebar"],
           [data-slot="sidebar"],
+          [data-slot="sidebar-gap"],
+          [data-slot="sidebar-container"],
+          [data-slot="sidebar-rail"],
+          [data-slot="sidebar-trigger"],
           .screen-only-view,
-          button,
-          .no-print {
+          .print\:hidden,
+          .no-print,
+          button {
             display: none !important;
-          }
-          body,
-          main,
-          #root {
-            background: #ffffff !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
           }
           .diary-printable-sheet {
             display: block !important;
             width: 100% !important;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
             color: #000000 !important;
             background: #ffffff !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+          }
+          .diary-printable-sheet table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          .diary-printable-sheet tr {
+            page-break-inside: avoid !important;
+          }
+          .diary-printable-sheet th,
+          .diary-printable-sheet td {
+            padding: 3px 5px !important;
+            line-height: 1.15 !important;
+          }
+          .diary-printable-sheet thead {
+            display: table-header-group !important;
+          }
+          .diary-printable-sheet tfoot {
+            display: table-footer-group !important;
           }
         }
         @media screen {
           .diary-printable-sheet {
-            display: none;
+            display: none !important;
           }
         }
       `}</style>
@@ -743,47 +793,51 @@ export function StudentDiaryTab({ student }: StudentDiaryTabProps) {
       </div>
 
       {/* PRINTABLE OFFICIAL SHEET FOR STUDENT GRADE REPORT (VISIBLE ONLY IN WINDOW.PRINT) */}
-      <div className="diary-printable-sheet text-black space-y-4">
+      <div className="diary-printable-sheet text-black space-y-2">
         {/* Header */}
-        <div className="border-b-2 border-black pb-2 text-center space-y-1">
-          <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-600">
+        <div className="border-b-2 border-black pb-1.5 text-center space-y-0.5">
+          <div className="text-[9px] uppercase font-bold tracking-wider text-neutral-600">
             ПРОФЕССИОНАЛЬНЫЙ ЛИЦЕЙ • УЧЕБНАЯ ЧАСТЬ
           </div>
           <h1 className="text-base font-bold uppercase tracking-wide">
             Табель успеваемости (электронный дневник)
           </h1>
-          <div className="text-xs">
-            Период: <strong>{activeKPIs.label}</strong>
+          <div className="text-[11px] text-neutral-700">
+            Учебный период: <strong>{activeKPIs.label}</strong>
           </div>
         </div>
 
         {/* Student metadata */}
-        <div className="grid grid-cols-2 gap-2 text-xs border border-black p-2.5 bg-neutral-50/50">
+        <div className="grid grid-cols-2 gap-2 text-xs border border-black p-2 bg-neutral-50/50">
           <div>
             <div>Учащийся: <strong>{student.name}</strong></div>
             <div>Группа: <strong>{student.groupName}</strong> (Курс {student.course})</div>
-            {student.rollNumber && <div>Поименный номер: <strong>{student.rollNumber}</strong></div>}
+            {student.rollNumber && <div>Поименный номер (П/Н): <strong>{student.rollNumber}</strong></div>}
           </div>
           <div className="text-right">
             <div>Специальность: <strong>{student.specialtyName || "Основная программа"}</strong></div>
-            <div>Куратор / Мастер: <strong>{student.curatorName || "Вопольский В. В."}</strong></div>
+            <div>Мастер (куратор) группы: <strong>{student.curatorName || "Вопольский В. В."}</strong></div>
             <div>Дата формирования: <strong>{new Date().toLocaleDateString("ru-RU")}</strong></div>
           </div>
         </div>
 
         {/* KPI Strip */}
-        <div className="grid grid-cols-4 gap-2 border border-black p-2 text-center text-xs">
+        <div className="grid grid-cols-4 gap-1 border border-black p-1.5 text-center text-xs bg-neutral-50/50">
           <div>
             <div className="text-[10px] text-neutral-600">Средний балл</div>
-            <div className="font-bold text-sm">{activeKPIs.averageGrade.toFixed(2)}</div>
+            <div className="font-bold text-sm font-mono">
+              {activeKPIs.averageGrade > 0 ? activeKPIs.averageGrade.toFixed(2) : "—"}
+            </div>
           </div>
           <div>
             <div className="text-[10px] text-neutral-600">Всего оценок</div>
-            <div className="font-bold text-sm">{activeKPIs.totalGrades}</div>
+            <div className="font-bold text-sm font-mono">{activeKPIs.totalGrades}</div>
           </div>
           <div>
-            <div className="text-[10px] text-neutral-600">Отличных (5) / Хороших (4)</div>
-            <div className="font-bold text-sm">{activeKPIs.count5} / {activeKPIs.count4}</div>
+            <div className="text-[10px] text-neutral-600">Оценки (5 / 4 / 3 / 2)</div>
+            <div className="font-bold text-xs font-mono">
+              {activeKPIs.count5} / {activeKPIs.count4} / {activeKPIs.count3} / {activeKPIs.count2}
+            </div>
           </div>
           <div>
             <div className="text-[10px] text-neutral-600">Стипендиальный статус</div>
@@ -792,55 +846,96 @@ export function StudentDiaryTab({ student }: StudentDiaryTabProps) {
         </div>
 
         {/* Grades Table */}
-        <table className="w-full text-xs border-collapse border border-black">
+        <table className="w-full text-xs border-collapse border border-black table-fixed">
+          <colgroup>
+            <col style={{ width: "28px" }} />
+            <col style={{ width: "200px" }} />
+            <col />
+            <col style={{ width: "50px" }} />
+            <col style={{ width: "65px" }} />
+            <col style={{ width: "80px" }} />
+          </colgroup>
           <thead>
             <tr className="bg-neutral-100 border-b border-black text-[10px] font-bold uppercase">
-              <th className="border border-black p-1.5 w-8 text-center">№</th>
-              <th className="border border-black p-1.5 text-left">Дисциплина</th>
-              <th className="border border-black p-1.5 text-center">Оценки за период</th>
-              <th className="border border-black p-1.5 w-20 text-center">Ср. балл</th>
-              <th className="border border-black p-1.5 w-20 text-center">Итоговая</th>
+              <th className="border border-black p-1 text-center">№</th>
+              <th className="border border-black p-1 text-left">Учебная дисциплина</th>
+              <th className="border border-black p-1 text-center">Текущие оценки за период</th>
+              <th className="border border-black p-1 text-center">Кол-во</th>
+              <th className="border border-black p-1 text-center">Ср. балл</th>
+              <th className="border border-black p-1 text-center">Итоговая</th>
             </tr>
           </thead>
           <tbody>
-            {(currentMonthData?.subjects || []).map((subj, idx) => (
-              <tr key={subj.subjectName} className="border-b border-black">
-                <td className="border border-black p-1.5 text-center font-mono">{idx + 1}</td>
-                <td className="border border-black p-1.5 font-medium">{subj.subjectName}</td>
-                <td className="border border-black p-1.5 text-center font-mono">
-                  {subj.grades.length > 0 ? subj.grades.join(" ") : "—"}
-                </td>
-                <td className="border border-black p-1.5 text-center font-mono font-bold">
-                  {subj.averageGrade !== null ? subj.averageGrade.toFixed(2) : "—"}
-                </td>
-                <td className="border border-black p-1.5 text-center font-mono font-bold">
-                  {subj.finalGrade !== null && subj.finalGrade !== undefined
-                    ? `${subj.finalGrade} (${getQualitativeVerdict(subj.finalGrade)})`
-                    : "—"}
+            {printableSubjects.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="border border-black p-4 text-center text-neutral-600">
+                  Оценок за выбранный период не зафиксировано
                 </td>
               </tr>
-            ))}
+            ) : (
+              printableSubjects.map((subj, idx) => (
+                <tr key={subj.subjectName} className="border-b border-black">
+                  <td className="border border-black p-1 text-center font-mono text-[10px]">{idx + 1}</td>
+                  <td className="border border-black p-1 font-semibold truncate">{subj.subjectName}</td>
+                  <td className="border border-black p-1 text-center font-mono">
+                    {subj.grades.length > 0 ? (
+                      <span className="font-bold tracking-widest">{subj.grades.join("  ")}</span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="border border-black p-1 text-center font-mono text-[11px]">
+                    {subj.grades.length > 0 ? subj.grades.length : "—"}
+                  </td>
+                  <td className="border border-black p-1 text-center font-mono font-bold text-xs">
+                    {subj.averageGrade !== null ? subj.averageGrade.toFixed(2) : "—"}
+                  </td>
+                  <td className="border border-black p-1 text-center font-bold text-xs">
+                    {subj.finalGrade !== null && subj.finalGrade !== undefined
+                      ? `${subj.finalGrade} (${getQualitativeVerdict(subj.finalGrade)})`
+                      : "—"}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
+          <tfoot>
+            <tr className="bg-neutral-100 font-bold border-t-2 border-black text-xs">
+              <td colSpan={2} className="border border-black p-1 text-right font-bold">
+                ИТОГО ПО ТАБЕЛЮ:
+              </td>
+              <td className="border border-black p-1 text-center font-mono text-[10px]">
+                «5»: {activeKPIs.count5} | «4»: {activeKPIs.count4} | «3»: {activeKPIs.count3} | «2»: {activeKPIs.count2}
+              </td>
+              <td className="border border-black p-1 text-center font-mono">
+                {activeKPIs.totalGrades}
+              </td>
+              <td className="border border-black p-1 text-center font-mono font-bold">
+                {activeKPIs.averageGrade > 0 ? activeKPIs.averageGrade.toFixed(2) : "—"}
+              </td>
+              <td className="border border-black p-1 text-center font-bold">
+                {getQualitativeVerdict(activeKPIs.averageGrade > 0 ? activeKPIs.averageGrade : null)}
+              </td>
+            </tr>
+          </tfoot>
         </table>
 
-        {/* Signatures */}
-        <div className="pt-6 grid grid-cols-2 gap-8 text-xs">
+        {/* Signatures Block (2 columns: Master / Curator and Vice Director) */}
+        <div className="pt-4 grid grid-cols-2 gap-8 text-xs page-break-inside-avoid">
           <div className="space-y-1">
-            <div className="flex justify-between">
-              <span>Мастер (куратор) группы:</span>
-              <span>{student.curatorName || "Вопольский В. В."}</span>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-bold text-neutral-900">Мастер (куратор) группы:</span>
+              <span className="font-semibold text-neutral-800">{student.curatorName || "Вопольский В. В."}</span>
             </div>
-            <div className="border-b border-black pt-4" />
-            <div className="text-[9px] text-neutral-500 text-center">(подпись)</div>
+            <div className="pt-3 border-b border-black text-[9px] text-neutral-500 text-center">(роспись)</div>
           </div>
 
           <div className="space-y-1">
-            <div className="flex justify-between">
-              <span>Родитель / Законный представитель:</span>
-              <span>_______________________</span>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-bold text-neutral-900">Зам. директора по УВР:</span>
+              <span className="font-semibold text-neutral-800">Бейшенова К. Ж.</span>
             </div>
-            <div className="border-b border-black pt-4" />
-            <div className="text-[9px] text-neutral-500 text-center">(подпись)</div>
+            <div className="pt-3 border-b border-black text-[9px] text-neutral-500 text-center">(роспись)</div>
           </div>
         </div>
       </div>

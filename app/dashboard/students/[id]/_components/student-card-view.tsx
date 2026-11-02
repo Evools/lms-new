@@ -231,9 +231,11 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
     : `/dashboard/students`;
 
   return (
-    <div className="space-y-4 text-xs pb-12">
-      {/* Breadcrumb Navigation */}
-      <Breadcrumb className="text-xs">
+    <div className="space-y-4 text-xs pb-12 print:p-0 print:m-0 print:pb-0">
+      {/* Top Header, Profile Card & Tabs Bar (Hidden on print) */}
+      <div className="screen-only-view print:hidden space-y-4">
+        {/* Breadcrumb Navigation */}
+        <Breadcrumb className="text-xs">
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink href="/dashboard">Панель</BreadcrumbLink>
@@ -498,10 +500,11 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
           </span>
         </button>
       </div>
+      </div>
 
       {/* TAB 1: OVERVIEW & ATTENDANCE */}
       {activeTab === "overview" && (
-        <div className="space-y-4">
+        <div className="screen-only-view print:hidden space-y-4">
           {/* Quick Month Filter Bar */}
           <div className="p-3 rounded-xl border bg-card flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex items-center gap-2">
@@ -1036,7 +1039,7 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
 
       {/* TAB 3: MONTHLY BREAKDOWN (ПО МЕСЯЦАМ) */}
       {activeTab === "monthly" && (
-        <div className="space-y-4">
+        <div className="screen-only-view print:hidden space-y-4">
           <div className="p-4 rounded-xl border bg-card space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
               <div>
@@ -1184,9 +1187,9 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
         </div>
       )}
 
-      {/* TAB 3: SUBJECT BREAKDOWN (ПО ДИСЦИПЛИНАМ) */}
+      {/* TAB 4: SUBJECT BREAKDOWN (ПО ДИСЦИПЛИНАМ) */}
       {activeTab === "subjects" && (
-        <div className="space-y-4">
+        <div className="screen-only-view print:hidden space-y-4">
           <div className="p-4 rounded-xl border bg-card space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
               <div>
@@ -1300,12 +1303,14 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
         </div>
       )}
 
-      {/* TAB 4: PORTFOLIO & ACHIEVEMENTS */}
+      {/* TAB 5: PORTFOLIO & ACHIEVEMENTS */}
       {activeTab === "portfolio" && (
-        <StudentPortfolioTab
-          student={student}
-          userRole={userRole}
-        />
+        <div className="screen-only-view print:hidden">
+          <StudentPortfolioTab
+            student={student}
+            userRole={userRole}
+          />
+        </div>
       )}
 
       {/* Dialog for Quick Editing Student Roll Number (П/Н) */}
