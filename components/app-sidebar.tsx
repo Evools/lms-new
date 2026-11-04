@@ -29,6 +29,7 @@ import {
   CalendarDays,
   Building2,
   Award,
+  Keyboard,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -120,7 +121,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           ],
         },
         {
-          groupLabel: "Обучение (LMS)",
+          groupLabel: "Обучение",
           items: [
             {
               title: "Домашние задания",
@@ -146,6 +147,17 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Специальности",
               url: "/dashboard/specialties",
               icon: <GraduationCap className="h-4 w-4" />,
+            },
+          ],
+        },
+        {
+          groupLabel: "Интерактив",
+          items: [
+            {
+              title: "Тренажер печати",
+              url: "/dashboard/lms/typing",
+              icon: <Keyboard className="h-4 w-4" />,
+              badge: "NEW",
             },
           ],
         },
@@ -282,7 +294,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           ],
         },
         {
-          groupLabel: "Обучение (LMS)",
+          groupLabel: "Обучение",
           items: [
             {
               title: "Проверка заданий",
@@ -308,6 +320,17 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Специальности",
               url: "/dashboard/specialties",
               icon: <GraduationCap className="h-4 w-4" />,
+            },
+          ],
+        },
+        {
+          groupLabel: "Интерактив",
+          items: [
+            {
+              title: "Тренажер печати",
+              url: "/dashboard/lms/typing",
+              icon: <Keyboard className="h-4 w-4" />,
+              badge: "NEW",
             },
           ],
         },
@@ -369,6 +392,17 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             title: "Памятка по практике",
             url: "/dashboard/practice",
             icon: <FileText className="h-4 w-4" />,
+          },
+        ],
+      },
+      {
+        groupLabel: "Интерактив",
+        items: [
+          {
+            title: "Тренажер печати",
+            url: "/dashboard/lms/typing",
+            icon: <Keyboard className="h-4 w-4" />,
+            badge: "NEW",
           },
         ],
       },

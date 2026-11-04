@@ -240,14 +240,15 @@ export function NavMain({
                       </span>
                       <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
                       {item.badge && (
-                        <Badge
-                          variant={isDirectActive ? "default" : "secondary"}
-                          className={`ml-auto text-[9px] px-1.5 py-0 font-medium shrink-0 group-data-[collapsible=icon]:hidden ${
-                            isDirectActive ? "bg-primary text-primary-foreground" : ""
+                        <span
+                          className={`ml-auto inline-flex items-center text-[9px] font-semibold leading-none px-2 py-0.5 rounded-full border uppercase tracking-wider shrink-0 group-data-[collapsible=icon]:hidden transition-colors ${
+                            isDirectActive
+                              ? "bg-primary text-primary-foreground border-transparent"
+                              : "bg-primary/10 text-primary border-primary/20"
                           }`}
                         >
                           {item.badge}
-                        </Badge>
+                        </span>
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
