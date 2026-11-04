@@ -30,6 +30,7 @@ import {
   Building2,
   Award,
   Keyboard,
+  Code,
 } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -157,6 +158,12 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               title: "Тренажер печати",
               url: "/dashboard/lms/typing",
               icon: <Keyboard className="h-4 w-4" />,
+              badge: "NEW",
+            },
+            {
+              title: "Web-песочница",
+              url: "/dashboard/lms/playground",
+              icon: <Code className="h-4 w-4" />,
               badge: "NEW",
             },
           ],
@@ -332,6 +339,12 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               icon: <Keyboard className="h-4 w-4" />,
               badge: "NEW",
             },
+            {
+              title: "Web-песочница",
+              url: "/dashboard/lms/playground",
+              icon: <Code className="h-4 w-4" />,
+              badge: "NEW",
+            },
           ],
         },
         {
@@ -402,6 +415,12 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             title: "Тренажер печати",
             url: "/dashboard/lms/typing",
             icon: <Keyboard className="h-4 w-4" />,
+            badge: "NEW",
+          },
+          {
+            title: "Web-песочница",
+            url: "/dashboard/lms/playground",
+            icon: <Code className="h-4 w-4" />,
             badge: "NEW",
           },
         ],

@@ -26,6 +26,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",
     "@base-ui/react": "^1.6.0",
+    "@monaco-editor/react": "^4.7.0",
     "@prisma/client": "^6.4.1",
     "@types/jszip": "^3.4.0",
     "@types/prismjs": "^1.26.6",
@@ -33,6 +34,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "docx": "^9.9.0",
+    "emmet-monaco-es": "^5.7.0",
     "jszip": "^3.10.1",
     "lucide-react": "^1.28.0",
     "next": "16.2.6",
