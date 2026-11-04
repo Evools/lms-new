@@ -31,6 +31,7 @@ export default async function SettingsPage() {
       academicYears={data.academicYears}
       systemStats={data.systemStats}
       systemConfig={data.systemConfig}
+      featureModules={data.featureModules}
       role={data.role}
     />
   );

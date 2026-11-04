@@ -31,6 +31,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { parseStaffFile } from "@/lib/excel-import";
 import { exportToExcel } from "@/lib/excel-export";
 import Link from "next/link";
@@ -70,9 +71,19 @@ import {
   Palette,
   Compass,
   Play,
+  Layers,
+  Keyboard,
+  Code,
+  CalendarCheck,
+  Clock,
+  Briefcase,
+  FileCheck2,
+  Sparkles,
+  Phone,
 } from "lucide-react";
 import { startOnboardingTour } from "@/components/onboarding-tour";
 import { openTourHubModal } from "@/components/tour-hub-modal";
+import { DEFAULT_FEATURE_MODULES, type FeatureModulesDTO } from "@/lib/feature-modules";
 import type {
   UserProfileDTO,
   AcademicYearDTO,
@@ -80,6 +91,7 @@ import type {
   SystemConfigDTO,
 } from "../actions";
 import {
+  updateFeatureModulesAction,
   updateProfileAction,
   changePasswordAction,
   toggleUserActiveAction,
@@ -101,10 +113,11 @@ interface SettingsViewProps {
   academicYears: AcademicYearDTO[];
   systemStats: SystemStatsDTO | null;
   systemConfig: SystemConfigDTO;
+  featureModules?: FeatureModulesDTO;
   role: string;
 }
 
-type Tab = "appearance" | "system" | "users" | "academic";
+type Tab = "appearance" | "system" | "modules" | "users" | "academic";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Администратор",
@@ -120,12 +133,19 @@ const ROLE_COLORS: Record<string, string> = {
   STUDENT: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
 };
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 export function SettingsView({
   profile,
   allUsers,
   academicYears,
   systemStats,
   systemConfig,
+  featureModules = DEFAULT_FEATURE_MODULES,
   role,
 }: SettingsViewProps) {
   const router = useRouter();
@@ -133,6 +153,35 @@ export function SettingsView({
 
   const isAdmin = role === "ADMIN";
   const [activeTab, setActiveTab] = useState<Tab>(isAdmin ? "system" : "appearance");
+
+  // Feature Modules State
+  const [modulesState, setModulesState] = useState<FeatureModulesDTO>(
+    featureModules || DEFAULT_FEATURE_MODULES
+  );
+  const [updatingModule, setUpdatingModule] = useState<string | null>(null);
+
+  const handleToggleModule = async (key: keyof FeatureModulesDTO, value: boolean) => {
+    setModulesState((prev) => ({ ...prev, [key]: value }));
+    setUpdatingModule(key);
+    try {
+      const res = await updateFeatureModulesAction({ [key]: value });
+      if (!res.success) {
+        toast.add({ title: res.error || "Ошибка сохранения", type: "error" });
+        setModulesState((prev) => ({ ...prev, [key]: !value }));
+      } else {
+        toast.add({
+          title: value ? "Модуль включён в системе" : "Модуль временно скрыт",
+          type: "success",
+        });
+        router.refresh();
+      }
+    } catch {
+      toast.add({ title: "Ошибка обновления модуля", type: "error" });
+      setModulesState((prev) => ({ ...prev, [key]: !value }));
+    } finally {
+      setUpdatingModule(null);
+    }
+  };
 
   // Theme — use the global ThemeProvider
   const { theme, setTheme } = useTheme();
@@ -577,45 +626,48 @@ export function SettingsView({
   const TABS: { key: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { key: "appearance" as Tab, label: "Оформление", icon: <Sliders className="h-3.5 w-3.5" /> },
     { key: "system" as Tab, label: "Настройки системы", icon: <Globe className="h-3.5 w-3.5" />, adminOnly: true },
+    { key: "modules" as Tab, label: "Модули системы", icon: <Layers className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "users" as Tab, label: "Сотрудники и доступы", icon: <Users className="h-3.5 w-3.5" />, adminOnly: true },
     { key: "academic" as Tab, label: "Учебные годы", icon: <CalendarDays className="h-3.5 w-3.5" />, adminOnly: true },
   ].filter((t) => !t.adminOnly || isAdmin);
 
   return (
     <div className="space-y-3 w-full text-xs">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>Лицей LMS</span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-semibold">Настройки</span>
+      {/* Header & Tabs Navigation */}
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1 pt-0.5">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span>Лицей LMS</span>
+              <ChevronRight className="h-3 w-3" />
+              <span className="text-foreground font-medium">Настройки</span>
+            </div>
+            <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Settings className="h-4 w-4 text-primary" /> Настройки системы
+            </h1>
           </div>
-          <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <Settings className="h-4 w-4 text-primary" /> Настройки LMS
-          </h1>
+          <Badge variant="outline" className={`text-[10px] font-medium border ${ROLE_COLORS[profile.role] || ""}`}>
+            {ROLE_LABELS[profile.role] || profile.role}
+          </Badge>
         </div>
-        <Badge variant="outline" className={`text-[10px] font-semibold border ${ROLE_COLORS[profile.role] || ""}`}>
-          {ROLE_LABELS[profile.role] || profile.role}
-        </Badge>
-      </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-card border rounded-xl shadow-xs overflow-x-auto" data-tour="settings-tabs">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${activeTab === tab.key
-              ? "bg-primary text-primary-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+        {/* Navigation Tabs Bar */}
+        <div className="flex items-center gap-1 p-1 bg-card border rounded-xl overflow-x-auto shadow-2xs" data-tour="settings-tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${activeTab === tab.key
+                ? "bg-primary text-primary-foreground shadow-2xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab: Appearance (all roles) */}
@@ -1151,112 +1203,135 @@ export function SettingsView({
       {/* Tab: Users Management (Admin Only) */}
       {activeTab === "users" && isAdmin && (
         <div className="space-y-3">
-          <div className="p-3 border rounded-xl bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="space-y-0.5">
-              <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <UserCheck className="h-4 w-4 text-primary" /> Сотрудники и преподаватели лицея
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Управление аккаунтами педагогов и администраторов. Зачисление студентов производится в разделе{" "}
-                <Link href="/dashboard/students/new" className="text-primary font-semibold hover:underline">
-                  Зачисление студентов
-                </Link>
-                .
-              </p>
-            </div>
-            <Button size="xs" className="h-8 gap-1.5 font-medium shrink-0" onClick={() => setIsCreateUserOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Добавить преподавателя / сотрудника
-            </Button>
-          </div>
-
-          {/* Search & Filter Toolbar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          {/* Unified Compact Toolbar */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-card p-2 rounded-xl border shadow-2xs">
+            {/* Search Input */}
+            <div className="relative flex-1 md:max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Поиск по имени или email..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                className="h-8 text-xs bg-card pl-8"
+                className="h-8 text-xs bg-muted/30 border-border/60 pl-8 pr-7 focus:bg-background"
               />
+              {userSearch && (
+                <button
+                  type="button"
+                  onClick={() => setUserSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
 
             {/* Role Filter Tabs */}
-            <div className="flex items-center gap-1 p-1 bg-card border rounded-lg shadow-2xs overflow-x-auto text-xs">
-              <button
-                type="button"
-                onClick={() => setUserRoleFilter("STAFF")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "STAFF"
-                  ? "bg-primary text-primary-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+            <div className="flex items-center gap-1 p-0.5 bg-muted/50 rounded-lg border border-border/60 overflow-x-auto text-xs">
+              {[
+                { key: "STAFF", label: "Все", count: allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN" || u.role === "ADMINISTRATION").length },
+                { key: "ADMINISTRATION", label: "Руководство", count: allUsers.filter((u) => u.role === "ADMINISTRATION").length },
+                { key: "TEACHER", label: "Преподаватели", count: allUsers.filter((u) => u.role === "TEACHER").length },
+                { key: "ADMIN", label: "Админы", count: allUsers.filter((u) => u.role === "ADMIN").length },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setUserRoleFilter(f.key as any)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                    userRoleFilter === f.key
+                      ? "bg-background text-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
-              >
-                Все сотрудники ({allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN" || u.role === "ADMINISTRATION").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setUserRoleFilter("ADMINISTRATION")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "ADMINISTRATION"
-                  ? "bg-primary text-primary-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                  }`}
-              >
-                Администрация ({allUsers.filter((u) => u.role === "ADMINISTRATION").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setUserRoleFilter("TEACHER")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "TEACHER"
-                  ? "bg-primary text-primary-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                  }`}
-              >
-                Преподаватели ({allUsers.filter((u) => u.role === "TEACHER").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setUserRoleFilter("ADMIN")}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${userRoleFilter === "ADMIN"
-                  ? "bg-primary text-primary-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                  }`}
-              >
-                Администраторы ({allUsers.filter((u) => u.role === "ADMIN").length})
-              </button>
+                >
+                  <span>{f.label}</span>
+                  <span className={`text-[10px] px-1 py-0.2 rounded-full ${
+                    userRoleFilter === f.key ? "bg-muted text-foreground font-semibold" : "bg-muted/60 text-muted-foreground"
+                  }`}>
+                    {f.count}
+                  </span>
+                </button>
+              ))}
             </div>
+
+            {/* Action Button */}
+            <Button
+              size="xs"
+              className="h-8 gap-1.5 font-medium shrink-0"
+              onClick={() => setIsCreateUserOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Добавить сотрудника</span>
+            </Button>
           </div>
 
-          <div className="bg-card border rounded-xl overflow-hidden shadow-xs">
-            <div className="p-3.5 border-b flex items-center justify-between">
-              <h2 className="font-bold text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                {userRoleFilter === "STAFF" && "Все сотрудники и руководство"}
-                {userRoleFilter === "ADMINISTRATION" && "Администрация лицея"}
-                {userRoleFilter === "TEACHER" && "Преподавательский состав"}
-                {userRoleFilter === "ADMIN" && "Администраторы системы"}
-              </h2>
-              <span className="text-[11px] text-muted-foreground font-medium">{filteredUsers.length} чел.</span>
-            </div>
+          {/* Subtitle count & tip */}
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+            <span>
+              Показано сотрудников: <strong className="text-foreground">{filteredUsers.length}</strong>
+            </span>
+            <span className="hidden sm:inline">
+              Зачисление студентов выполняется в разделе{" "}
+              <Link href="/dashboard/students/new" className="text-primary hover:underline font-medium">
+                Студенты
+              </Link>
+            </span>
+          </div>
 
+          {/* Users Table */}
+          <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b bg-muted/30 text-muted-foreground">
-                    <th className="text-left py-2 px-3.5 font-medium">Имя</th>
-                    <th className="text-left py-2 px-2 font-medium">Email</th>
-                    <th className="text-center py-2 px-2 font-medium">Роль</th>
-                    <th className="text-center py-2 px-2 font-medium">Статус</th>
-                    <th className="text-right py-2 px-3.5 font-medium">Действия</th>
+                  <tr className="border-b bg-muted/40 text-muted-foreground">
+                    <th className="text-left py-2.5 px-3.5 font-medium">Сотрудник</th>
+                    <th className="text-left py-2.5 px-2 font-medium hidden md:table-cell">Телефон</th>
+                    <th className="text-center py-2.5 px-2 font-medium">Роль</th>
+                    <th className="text-center py-2.5 px-2 font-medium">Статус аккаунта</th>
+                    <th className="text-right py-2.5 px-3.5 font-medium">Действия</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-border/60">
                   {filteredUsers.map((u) => (
-                    <tr key={u.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="py-2.5 px-3.5 font-medium text-foreground">{u.name}</td>
-                      <td className="py-2.5 px-2 text-muted-foreground font-mono text-[10px]">{u.email}</td>
+                    <tr key={u.id} className="hover:bg-muted/20 transition-colors">
+                      {/* User (Avatar + Name + Email) */}
+                      <td className="py-2.5 px-3.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Avatar size="sm" className="h-7 w-7 shrink-0 text-[10px] font-semibold border border-border/80">
+                            {u.avatar && <AvatarImage src={u.avatar} alt={u.name} />}
+                            <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
+                              {getInitials(u.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-xs text-foreground truncate flex items-center gap-1.5">
+                              {u.name}
+                              {u.id === profile.id && (
+                                <span className="text-[9px] bg-primary/10 text-primary font-normal px-1 py-0.2 rounded border border-primary/20">
+                                  Вы
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground font-mono truncate">{u.email}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Phone */}
+                      <td className="py-2.5 px-2 text-muted-foreground font-mono text-[11px] hidden md:table-cell">
+                        {u.phone ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-muted-foreground/60" />
+                            {u.phone}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/40">—</span>
+                        )}
+                      </td>
+
+                      {/* Role */}
                       <td className="py-2.5 px-2 text-center">
                         {u.id === profile.id ? (
-                          <Badge variant="outline" className={`text-[9px] border ${ROLE_COLORS[u.role] || ""}`}>
+                          <Badge variant="outline" className={`text-[10px] font-medium border ${ROLE_COLORS[u.role] || ""}`}>
                             {ROLE_LABELS[u.role] || u.role}
                           </Badge>
                         ) : (
@@ -1265,7 +1340,7 @@ export function SettingsView({
                             onValueChange={(val) => handleChangeRole(u.id, val as "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION")}
                             disabled={isPending}
                           >
-                            <SelectTrigger className="h-6 text-[10px] px-2 border-primary/20 w-auto min-w-[110px]">
+                            <SelectTrigger className="h-6 text-[10px] font-medium px-2 border-border/60 hover:border-primary/50 bg-background/50 w-auto min-w-[105px] mx-auto">
                               <SelectValue>{ROLE_LABELS[u.role] || u.role}</SelectValue>
                             </SelectTrigger>
                             <SelectContent>
@@ -1276,42 +1351,56 @@ export function SettingsView({
                           </Select>
                         )}
                       </td>
+
+                      {/* Status */}
                       <td className="py-2.5 px-2 text-center">
-                        <Badge variant="outline" className={`text-[9px] border-0 ${u.isActive ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
-                          {u.isActive ? "Активен" : "Заблокирован"}
-                        </Badge>
+                        <div className="inline-flex items-center justify-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+                              u.isActive
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400"
+                                : "bg-muted text-muted-foreground border-border/60"
+                            }`}
+                          >
+                            <span className={`h-1.5 w-1.5 rounded-full ${u.isActive ? "bg-emerald-500" : "bg-muted-foreground/60"}`} />
+                            {u.isActive ? "Активен" : "Отключен"}
+                          </span>
+                          {u.id !== profile.id && (
+                            <Switch
+                              checked={u.isActive}
+                              disabled={isPending}
+                              onCheckedChange={(checked) => handleToggleUser(u.id, checked)}
+                              className="scale-75"
+                              title={u.isActive ? "Заблокировать" : "Активировать"}
+                            />
+                          )}
+                        </div>
                       </td>
+
+                      {/* Actions */}
                       <td className="py-2.5 px-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
                           <Button
                             type="button"
                             variant="ghost"
                             size="xs"
                             onClick={() => openEditUser(u)}
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-primary cursor-pointer"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
                             title="Редактировать сотрудника"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           {u.id !== profile.id && (
-                            <>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => setDeleteUserTarget(u)}
-                                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
-                                title="Удалить сотрудника"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                              <Switch
-                                checked={u.isActive}
-                                disabled={isPending}
-                                onCheckedChange={(checked) => handleToggleUser(u.id, checked)}
-                                title={u.isActive ? "Заблокировать" : "Активировать"}
-                              />
-                            </>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => setDeleteUserTarget(u)}
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              title="Удалить сотрудника"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           )}
                         </div>
                       </td>
@@ -1319,8 +1408,12 @@ export function SettingsView({
                   ))}
                   {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-10 text-center text-muted-foreground italic">
-                        Пользователи не найдены
+                      <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                        <div className="space-y-1">
+                          <UserCheck className="h-7 w-7 mx-auto text-muted-foreground/40" />
+                          <div className="font-medium text-xs text-foreground">Сотрудники не найдены</div>
+                          <div className="text-[11px] text-muted-foreground">Попробуйте изменить запрос поиска или сбросить фильтр ролей</div>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -1398,6 +1491,527 @@ export function SettingsView({
                   Учебные годы не добавлены
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: System Feature Modules (Admin Only) */}
+      {activeTab === "modules" && isAdmin && (
+        <div className="space-y-3">
+          {/* Top Status Strip */}
+          <div className="bg-card p-3 rounded-xl border shadow-2xs flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+                <Layers className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold text-foreground">Управление функциональными модулями LMS</h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Включение и скрытие разделов системы. Данные в базе сохраняются, разделы скрываются из меню и навигации.
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[10px] font-medium bg-primary/10 text-primary border-primary/20">
+              {Object.values(modulesState).filter(Boolean).length} из {Object.keys(modulesState).length} модулей активно
+            </Badge>
+          </div>
+
+          {/* Group 1: Интерактив и тренажеры (Unified Grouped Card) */}
+          <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+            <div className="bg-muted/30 px-3.5 py-2 border-b flex items-center justify-between">
+              <div className="font-bold text-xs text-foreground flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span>Интерактивная среда и тренажёры</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground font-medium">2 инструмента</span>
+            </div>
+
+            <div className="divide-y divide-border/60">
+              {/* Master Toggle Row */}
+              <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 bg-primary/5 hover:bg-primary/10 transition-colors">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                      modulesState.feature_interactive
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border"
+                    }`}
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-xs text-foreground">
+                        Раздел «Интерактив» (Мастер-переключатель)
+                      </span>
+                      <span className="text-[9px] bg-primary/15 text-primary font-medium px-1.5 py-0.2 rounded border border-primary/20">
+                        Главный тумблер
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground line-clamp-1">
+                      При отключении скрывает всю группу «Интерактив» в боковом меню у всех ролей
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-[10px] font-medium hidden sm:inline-block ${
+                      modulesState.feature_interactive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                    }`}
+                  >
+                    {modulesState.feature_interactive ? "Включен" : "Отключен"}
+                  </span>
+                  <Switch
+                    checked={modulesState.feature_interactive}
+                    disabled={updatingModule === "feature_interactive"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_interactive", checked)}
+                    className="scale-90"
+                  />
+                </div>
+              </div>
+
+              {/* Sub-item: Typing */}
+              <div
+                className={`px-3.5 py-2.5 flex items-center justify-between gap-3 transition-colors ${
+                  !modulesState.feature_interactive ? "opacity-50 pointer-events-none" : "hover:bg-muted/20"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                      modulesState.feature_typing && modulesState.feature_interactive
+                        ? "bg-primary/10 text-primary border-primary/20"
+                        : "bg-muted/60 text-muted-foreground border-border/60"
+                    }`}
+                  >
+                    <Keyboard className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium text-xs text-foreground">Тренажер печати</span>
+                      <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                        /lms/typing
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground line-clamp-1">
+                      Интерактивная 10-пальцевая слепая печать кода и текста с метриками скорости WPM
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-[10px] font-medium hidden sm:inline-block ${
+                      modulesState.feature_typing && modulesState.feature_interactive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                    }`}
+                  >
+                    {modulesState.feature_typing && modulesState.feature_interactive ? "Включен" : "Отключен"}
+                  </span>
+                  <Switch
+                    checked={modulesState.feature_typing}
+                    disabled={updatingModule === "feature_typing" || !modulesState.feature_interactive}
+                    onCheckedChange={(checked) => handleToggleModule("feature_typing", checked)}
+                    className="scale-90"
+                  />
+                </div>
+              </div>
+
+              {/* Sub-item: Playground */}
+              <div
+                className={`px-3.5 py-2.5 flex items-center justify-between gap-3 transition-colors ${
+                  !modulesState.feature_interactive ? "opacity-50 pointer-events-none" : "hover:bg-muted/20"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                      modulesState.feature_playground && modulesState.feature_interactive
+                        ? "bg-primary/10 text-primary border-primary/20"
+                        : "bg-muted/60 text-muted-foreground border-border/60"
+                    }`}
+                  >
+                    <Code className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium text-xs text-foreground">Web-песочница (VS Code Monaco)</span>
+                      <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                        /lms/playground
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground line-clamp-1">
+                      Встроенный редактор кода с Emmet, автозапуском, шаблонами лицея и живой консолью
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-[10px] font-medium hidden sm:inline-block ${
+                      modulesState.feature_playground && modulesState.feature_interactive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                    }`}
+                  >
+                    {modulesState.feature_playground && modulesState.feature_interactive ? "Включен" : "Отключен"}
+                  </span>
+                  <Switch
+                    checked={modulesState.feature_playground}
+                    disabled={updatingModule === "feature_playground" || !modulesState.feature_interactive}
+                    onCheckedChange={(checked) => handleToggleModule("feature_playground", checked)}
+                    className="scale-90"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-Column Grid for Academic Process & LMS Learning */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* Group 2: Учебный процесс и группы */}
+            <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+              <div className="bg-muted/30 px-3.5 py-2 border-b flex items-center justify-between">
+                <div className="font-bold text-xs text-foreground flex items-center gap-2">
+                  <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                  <span>Учебный процесс и группы</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground font-medium">5 модулей</span>
+              </div>
+
+              <div className="divide-y divide-border/60">
+                {/* Schedule */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_schedule
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <CalendarDays className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">Расписание занятий</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /schedule
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Сетка учебных пар, предметов и аудиторий
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_schedule}
+                    disabled={updatingModule === "feature_schedule"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_schedule", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
+                {/* Attendance */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_attendance
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <CalendarCheck className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">Журнал посещаемости</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /attendance
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Учёт пропусков, отметки посещений и статистика
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_attendance}
+                    disabled={updatingModule === "feature_attendance"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_attendance", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
+                {/* Duty */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_duty
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">График дежурств</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /duty
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Дежурства групп по кабинетам и корпусам
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_duty}
+                    disabled={updatingModule === "feature_duty"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_duty", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
+                {/* Practice */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_practice
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <Briefcase className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">База практики</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /practice
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Договоры, предприятия и распределение практики
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_practice}
+                    disabled={updatingModule === "feature_practice"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_practice", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
+                {/* Scholarship */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_scholarship
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <Award className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">Стипендиальный калькулятор</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /scholarship
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Расчет академических и социальных стипендий
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_scholarship}
+                    disabled={updatingModule === "feature_scholarship"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_scholarship", checked)}
+                    className="scale-90"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Group 3: Обучение и LMS */}
+            <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+              <div className="bg-muted/30 px-3.5 py-2 border-b flex items-center justify-between">
+                <div className="font-bold text-xs text-foreground flex items-center gap-2">
+                  <BookOpen className="h-3.5 w-3.5 text-primary" />
+                  <span>Обучение и LMS (Материалы, Задания, Тесты)</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground font-medium">5 модулей</span>
+              </div>
+
+              <div className="divide-y divide-border/60">
+                {/* Assignments */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_assignments
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <ClipboardList className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">Домашние задания</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /assignments
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Выдача заданий, отправка решений и оценка
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_assignments}
+                    disabled={updatingModule === "feature_assignments"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_assignments", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
+                {/* Materials */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_materials
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">Учебные материалы</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /lms/materials
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Электронная библиотека учебных пособий и лекций
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_materials}
+                    disabled={updatingModule === "feature_materials"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_materials", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
+                {/* Tests */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_tests
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <FileCheck2 className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">Тесты & Опросы</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /lms/tests
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Конструктор тестов с таймером и автопроверкой
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_tests}
+                    disabled={updatingModule === "feature_tests"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_tests", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
+                {/* Subjects */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_subjects
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">Предметы и дисциплины</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /subjects
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Каталог предметов лицея и учебных планов
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_subjects}
+                    disabled={updatingModule === "feature_subjects"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_subjects", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
+                {/* Specialties */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_specialties
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <GraduationCap className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-xs text-foreground">Специальности лицея</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /specialties
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Справочник специальностей и образовательных программ
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_specialties}
+                    disabled={updatingModule === "feature_specialties"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_specialties", checked)}
+                    className="scale-90"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>

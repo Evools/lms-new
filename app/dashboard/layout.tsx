@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { OnboardingTour } from "@/components/onboarding-tour";
 import { TourHubModal } from "@/components/tour-hub-modal";
 import { prisma } from "@/lib/prisma";
+import { getFeatureModulesAction } from "@/app/dashboard/settings/actions";
 
 export default async function DashboardLayout({
   children,
@@ -24,7 +25,7 @@ export default async function DashboardLayout({
 
   const { id: userId, name, email, role, avatar } = session.user;
 
-  const [enrollment, unreadNotificationsCount, rawNotifications] = await Promise.all([
+  const [enrollment, unreadNotificationsCount, rawNotifications, featureModules] = await Promise.all([
     role === "STUDENT" && userId
       ? prisma.groupStudent.findFirst({
           where: { studentId: userId },
@@ -52,6 +53,7 @@ export default async function DashboardLayout({
           },
         })
       : Promise.resolve([]),
+    getFeatureModulesAction(),
   ]);
 
   const studentGroupName = enrollment?.group?.name ?? null;
@@ -75,6 +77,7 @@ export default async function DashboardLayout({
           role: role ?? "STUDENT",
           avatar: avatar ?? null,
         }}
+        featureModules={featureModules}
         className="print:hidden"
       />
       <SidebarInset className="flex min-h-screen flex-col bg-background min-w-0 max-w-full overflow-x-clip print:min-h-0 print:overflow-visible print:p-0 print:m-0 print:border-none print:shadow-none">

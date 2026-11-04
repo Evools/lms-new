@@ -32,6 +32,7 @@ import {
   Keyboard,
   Code,
 } from "lucide-react";
+import { DEFAULT_FEATURE_MODULES, type FeatureModulesDTO } from "@/lib/feature-modules";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: {
@@ -41,9 +42,42 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
     avatar?: string | null;
   };
+  featureModules?: FeatureModulesDTO;
 }
 
-export function AppSidebar({ user, ...props }: AppSidebarProps) {
+function applyModuleFilters(section: NavMainSection, mods: FeatureModulesDTO): NavMainSection | null {
+  // If entire interactive group is disabled
+  if (section.groupLabel === "Интерактив" && !mods.feature_interactive) {
+    return null;
+  }
+
+  const items = section.items.filter((item) => {
+    // Интерактив
+    if (item.url === "/dashboard/lms/typing") return mods.feature_interactive && mods.feature_typing;
+    if (item.url === "/dashboard/lms/playground") return mods.feature_interactive && mods.feature_playground;
+
+    // Учебный процесс
+    if (item.url === "/dashboard/schedule") return mods.feature_schedule;
+    if (item.url === "/dashboard/attendance") return mods.feature_attendance;
+    if (item.url === "/dashboard/duty") return mods.feature_duty;
+    if (item.url === "/dashboard/practice") return mods.feature_practice;
+    if (item.url === "/dashboard/scholarship") return mods.feature_scholarship;
+
+    // Обучение
+    if (item.url === "/dashboard/assignments") return mods.feature_assignments;
+    if (item.url === "/dashboard/lms/materials") return mods.feature_materials;
+    if (item.url === "/dashboard/lms/tests") return mods.feature_tests;
+    if (item.url === "/dashboard/subjects") return mods.feature_subjects;
+    if (item.url === "/dashboard/specialties") return mods.feature_specialties;
+
+    return true;
+  });
+
+  if (items.length === 0) return null;
+  return { ...section, items };
+}
+
+export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...props }: AppSidebarProps) {
   const role = user.role || "STUDENT";
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -62,7 +96,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     },
   ];
 
-  const getNavSections = (): NavMainSection[] => {
+  const getRawNavSections = (): NavMainSection[] => {
     // 1. ADMINISTRATOR ROLE
     if (role === "ADMIN") {
       return [
@@ -451,6 +485,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         ],
       },
     ];
+  };
+
+  const getNavSections = (): NavMainSection[] => {
+    const rawSections = getRawNavSections();
+    const mods = featureModules || DEFAULT_FEATURE_MODULES;
+    return rawSections
+      .map((sec) => applyModuleFilters(sec, mods))
+      .filter((sec): sec is NavMainSection => sec !== null);
   };
 
   return (

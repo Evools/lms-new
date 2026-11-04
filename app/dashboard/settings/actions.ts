@@ -52,6 +52,8 @@ export interface SystemConfigDTO {
   showGlobalNotice: boolean;
 }
 
+import { DEFAULT_FEATURE_MODULES, type FeatureModulesDTO } from "@/lib/feature-modules";
+
 const DEFAULT_CONFIG: SystemConfigDTO = {
   institutionName: "Лицей LMS",
   supportEmail: "support@lyceum.ru",
@@ -178,17 +180,95 @@ export async function getSettingsDataAction() {
       };
     }
 
+    const featureModules: FeatureModulesDTO = {
+      feature_interactive: getBool("feature_interactive", DEFAULT_FEATURE_MODULES.feature_interactive),
+      feature_typing: getBool("feature_typing", DEFAULT_FEATURE_MODULES.feature_typing),
+      feature_playground: getBool("feature_playground", DEFAULT_FEATURE_MODULES.feature_playground),
+
+      feature_schedule: getBool("feature_schedule", DEFAULT_FEATURE_MODULES.feature_schedule),
+      feature_attendance: getBool("feature_attendance", DEFAULT_FEATURE_MODULES.feature_attendance),
+      feature_duty: getBool("feature_duty", DEFAULT_FEATURE_MODULES.feature_duty),
+      feature_practice: getBool("feature_practice", DEFAULT_FEATURE_MODULES.feature_practice),
+      feature_scholarship: getBool("feature_scholarship", DEFAULT_FEATURE_MODULES.feature_scholarship),
+
+      feature_assignments: getBool("feature_assignments", DEFAULT_FEATURE_MODULES.feature_assignments),
+      feature_materials: getBool("feature_materials", DEFAULT_FEATURE_MODULES.feature_materials),
+      feature_tests: getBool("feature_tests", DEFAULT_FEATURE_MODULES.feature_tests),
+      feature_subjects: getBool("feature_subjects", DEFAULT_FEATURE_MODULES.feature_subjects),
+      feature_specialties: getBool("feature_specialties", DEFAULT_FEATURE_MODULES.feature_specialties),
+    };
+
     return {
       profile,
       allUsers,
       academicYears,
       systemStats,
       systemConfig,
+      featureModules,
       role: session.user.role as string,
     };
   } catch (error) {
     console.error("getSettingsDataAction error:", error);
     return null;
+  }
+}
+
+/** Global: Get currently active feature modules for layout and routing */
+export async function getFeatureModulesAction(): Promise<FeatureModulesDTO> {
+  try {
+    const list = await prisma.systemSetting.findMany({
+      where: { key: { startsWith: "feature_" } },
+    });
+    const map = new Map(list.map((s) => [s.key, s.value]));
+    const getBool = (key: string, fallback: boolean) =>
+      map.has(key) ? map.get(key) === "true" : fallback;
+
+    return {
+      feature_interactive: getBool("feature_interactive", DEFAULT_FEATURE_MODULES.feature_interactive),
+      feature_typing: getBool("feature_typing", DEFAULT_FEATURE_MODULES.feature_typing),
+      feature_playground: getBool("feature_playground", DEFAULT_FEATURE_MODULES.feature_playground),
+
+      feature_schedule: getBool("feature_schedule", DEFAULT_FEATURE_MODULES.feature_schedule),
+      feature_attendance: getBool("feature_attendance", DEFAULT_FEATURE_MODULES.feature_attendance),
+      feature_duty: getBool("feature_duty", DEFAULT_FEATURE_MODULES.feature_duty),
+      feature_practice: getBool("feature_practice", DEFAULT_FEATURE_MODULES.feature_practice),
+      feature_scholarship: getBool("feature_scholarship", DEFAULT_FEATURE_MODULES.feature_scholarship),
+
+      feature_assignments: getBool("feature_assignments", DEFAULT_FEATURE_MODULES.feature_assignments),
+      feature_materials: getBool("feature_materials", DEFAULT_FEATURE_MODULES.feature_materials),
+      feature_tests: getBool("feature_tests", DEFAULT_FEATURE_MODULES.feature_tests),
+      feature_subjects: getBool("feature_subjects", DEFAULT_FEATURE_MODULES.feature_subjects),
+      feature_specialties: getBool("feature_specialties", DEFAULT_FEATURE_MODULES.feature_specialties),
+    };
+  } catch {
+    return { ...DEFAULT_FEATURE_MODULES };
+  }
+}
+
+/** Admin: Update enabled/disabled status of feature modules */
+export async function updateFeatureModulesAction(data: Partial<FeatureModulesDTO>) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор может изменять активность модулей" };
+  }
+
+  try {
+    const entries = Object.entries(data);
+    for (const [key, val] of entries) {
+      if (val !== undefined) {
+        await prisma.systemSetting.upsert({
+          where: { key },
+          update: { value: String(val) },
+          create: { key, value: String(val) },
+        });
+      }
+    }
+
+    revalidatePath("/", "layout");
+    revalidatePath("/dashboard/settings");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Ошибка сохранения модулей" };
   }
 }
 
