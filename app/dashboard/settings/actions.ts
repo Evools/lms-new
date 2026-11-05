@@ -184,6 +184,7 @@ export async function getSettingsDataAction() {
       feature_interactive: getBool("feature_interactive", DEFAULT_FEATURE_MODULES.feature_interactive),
       feature_typing: getBool("feature_typing", DEFAULT_FEATURE_MODULES.feature_typing),
       feature_playground: getBool("feature_playground", DEFAULT_FEATURE_MODULES.feature_playground),
+      feature_git: getBool("feature_git", DEFAULT_FEATURE_MODULES.feature_git),
 
       feature_schedule: getBool("feature_schedule", DEFAULT_FEATURE_MODULES.feature_schedule),
       feature_attendance: getBool("feature_attendance", DEFAULT_FEATURE_MODULES.feature_attendance),
@@ -227,6 +228,7 @@ export async function getFeatureModulesAction(): Promise<FeatureModulesDTO> {
       feature_interactive: getBool("feature_interactive", DEFAULT_FEATURE_MODULES.feature_interactive),
       feature_typing: getBool("feature_typing", DEFAULT_FEATURE_MODULES.feature_typing),
       feature_playground: getBool("feature_playground", DEFAULT_FEATURE_MODULES.feature_playground),
+      feature_git: getBool("feature_git", DEFAULT_FEATURE_MODULES.feature_git),
 
       feature_schedule: getBool("feature_schedule", DEFAULT_FEATURE_MODULES.feature_schedule),
       feature_attendance: getBool("feature_attendance", DEFAULT_FEATURE_MODULES.feature_attendance),

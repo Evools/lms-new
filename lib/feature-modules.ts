@@ -3,6 +3,7 @@ export interface FeatureModulesDTO {
   feature_interactive: boolean;
   feature_typing: boolean;
   feature_playground: boolean;
+  feature_git: boolean;
 
   // Учебный процесс
   feature_schedule: boolean;
@@ -23,6 +24,7 @@ export const DEFAULT_FEATURE_MODULES: FeatureModulesDTO = {
   feature_interactive: true,
   feature_typing: true,
   feature_playground: true,
+  feature_git: true,
 
   feature_schedule: true,
   feature_attendance: true,

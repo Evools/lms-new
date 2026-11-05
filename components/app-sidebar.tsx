@@ -56,7 +56,7 @@ function applyModuleFilters(section: NavMainSection, mods: FeatureModulesDTO): N
     // Интерактив
     if (item.url === "/dashboard/lms/typing") return mods.feature_interactive && mods.feature_typing;
     if (item.url === "/dashboard/lms/playground") return mods.feature_interactive && mods.feature_playground;
-    if (item.url === "/dashboard/lms/git") return mods.feature_interactive;
+    if (item.url === "/dashboard/lms/git") return mods.feature_interactive && mods.feature_git;
 
     // Учебный процесс
     if (item.url === "/dashboard/schedule") return mods.feature_schedule;
@@ -194,19 +194,16 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Тренажер печати",
               url: "/dashboard/lms/typing",
               icon: <Keyboard className="h-4 w-4" />,
-              badge: "NEW",
             },
             {
               title: "Web-песочница",
               url: "/dashboard/lms/playground",
               icon: <Code className="h-4 w-4" />,
-              badge: "NEW",
             },
             {
               title: "Git-симулятор",
               url: "/dashboard/lms/git",
               icon: <GitBranch className="h-4 w-4" />,
-              badge: "NEW",
             },
           ],
         },
@@ -379,19 +376,16 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Тренажер печати",
               url: "/dashboard/lms/typing",
               icon: <Keyboard className="h-4 w-4" />,
-              badge: "NEW",
             },
             {
               title: "Web-песочница",
               url: "/dashboard/lms/playground",
               icon: <Code className="h-4 w-4" />,
-              badge: "NEW",
             },
             {
               title: "Git-симулятор",
               url: "/dashboard/lms/git",
               icon: <GitBranch className="h-4 w-4" />,
-              badge: "NEW",
             },
           ],
         },
@@ -463,19 +457,16 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
             title: "Тренажер печати",
             url: "/dashboard/lms/typing",
             icon: <Keyboard className="h-4 w-4" />,
-            badge: "NEW",
           },
           {
             title: "Web-песочница",
             url: "/dashboard/lms/playground",
             icon: <Code className="h-4 w-4" />,
-            badge: "NEW",
           },
           {
             title: "Git-симулятор",
             url: "/dashboard/lms/git",
             icon: <GitBranch className="h-4 w-4" />,
-            badge: "NEW",
           },
         ],
       },

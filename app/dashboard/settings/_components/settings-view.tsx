@@ -74,6 +74,7 @@ import {
   Layers,
   Keyboard,
   Code,
+  GitBranch,
   CalendarCheck,
   Clock,
   Briefcase,
@@ -1659,6 +1660,52 @@ export function SettingsView({
                     checked={modulesState.feature_playground}
                     disabled={updatingModule === "feature_playground" || !modulesState.feature_interactive}
                     onCheckedChange={(checked) => handleToggleModule("feature_playground", checked)}
+                    className="scale-90"
+                  />
+                </div>
+              </div>
+
+              {/* Sub-item: Git Simulator */}
+              <div
+                className={`px-3.5 py-2.5 flex items-center justify-between gap-3 transition-colors ${
+                  !modulesState.feature_interactive ? "opacity-50 pointer-events-none" : "hover:bg-muted/20"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                      modulesState.feature_git && modulesState.feature_interactive
+                        ? "bg-primary/10 text-primary border-primary/20"
+                        : "bg-muted/60 text-muted-foreground border-border/60"
+                    }`}
+                  >
+                    <GitBranch className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium text-xs text-foreground">Git-симулятор</span>
+                      <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                        /lms/git
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground line-clamp-1">
+                      Интерактивный тренажёр ветвления Git с живым деревом графа, терминалом и пошаговыми уроками
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-[10px] font-medium hidden sm:inline-block ${
+                      modulesState.feature_git && modulesState.feature_interactive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                    }`}
+                  >
+                    {modulesState.feature_git && modulesState.feature_interactive ? "Включен" : "Отключен"}
+                  </span>
+                  <Switch
+                    checked={modulesState.feature_git}
+                    disabled={updatingModule === "feature_git" || !modulesState.feature_interactive}
+                    onCheckedChange={(checked) => handleToggleModule("feature_git", checked)}
                     className="scale-90"
                   />
                 </div>
