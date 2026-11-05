@@ -87,15 +87,7 @@ export function ScholarshipView({
   // Roll numbers state (Поименный номер): Record<studentId, string>
   const [rollNumbers, setRollNumbers] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    // 1. Populate from students permanent profile in DB
-    groups.forEach((g) => {
-      g.students.forEach((s) => {
-        if (s.rollNumber) {
-          initial[s.id] = String(s.rollNumber);
-        }
-      });
-    });
-    // 2. Also merge from current saved record
+    // 1. First fallback from current saved record
     if (initialRecord?.gradesData) {
       Object.entries(initialRecord.gradesData).forEach(([studentId, item]) => {
         if (item?.rollNumber) {
@@ -103,6 +95,14 @@ export function ScholarshipView({
         }
       });
     }
+    // 2. Official student profile in User table ALWAYS has the highest priority and overrides stale record data
+    groups.forEach((g) => {
+      g.students.forEach((s) => {
+        if (s.rollNumber) {
+          initial[s.id] = String(s.rollNumber);
+        }
+      });
+    });
     return initial;
   });
 
@@ -163,7 +163,18 @@ export function ScholarshipView({
         if (draft && draft.gradesData && Object.keys(draft.gradesData).length > 0) {
           setGradesData(draft.gradesData);
           if (draft.rollNumbers) {
-            setRollNumbers((prev) => ({ ...prev, ...draft.rollNumbers }));
+            setRollNumbers((prev) => {
+              const merged = { ...prev, ...draft.rollNumbers };
+              // Ensure official DB roll numbers are never clobbered by a stale local draft
+              groups.forEach((g) => {
+                g.students.forEach((s) => {
+                  if (s.rollNumber) {
+                    merged[s.id] = String(s.rollNumber);
+                  }
+                });
+              });
+              return merged;
+            });
           }
           if (draft.subjects && Array.isArray(draft.subjects) && draft.subjects.length > 0) {
             setSubjects(draft.subjects);

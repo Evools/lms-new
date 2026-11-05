@@ -154,6 +154,24 @@ export async function saveScholarshipRecordAction(data: {
 
   const monthLabel = data.monthLabel || formatMonthKeyToLabel(data.month);
 
+  // Guarantee that roll numbers in gradesData always match the official User.rollNumber from DB
+  const sanitizedGradesData = { ...data.gradesData };
+  const studentIds = Object.keys(sanitizedGradesData);
+  if (studentIds.length > 0) {
+    const students = await prisma.user.findMany({
+      where: { id: { in: studentIds } },
+      select: { id: true, rollNumber: true },
+    });
+    const userRollMap = new Map(students.map((s) => [s.id, s.rollNumber]));
+
+    for (const [stId, val] of Object.entries(sanitizedGradesData)) {
+      const official = userRollMap.get(stId);
+      if (official && val && typeof val === "object") {
+        (val as any).rollNumber = official;
+      }
+    }
+  }
+
   // 1. Single instant upsert query to database (1 query)
   const upserted = await prisma.scholarshipRecord.upsert({
     where: {
@@ -165,14 +183,14 @@ export async function saveScholarshipRecordAction(data: {
     update: {
       monthLabel,
       subjects: data.subjects,
-      gradesData: data.gradesData,
+      gradesData: sanitizedGradesData,
     },
     create: {
       groupId: data.groupId,
       month: data.month,
       monthLabel,
       subjects: data.subjects,
-      gradesData: data.gradesData,
+      gradesData: sanitizedGradesData,
     },
   });
 

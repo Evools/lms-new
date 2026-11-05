@@ -31,6 +31,7 @@ import {
   Award,
   Keyboard,
   Code,
+  Layout,
 } from "lucide-react";
 import { DEFAULT_FEATURE_MODULES, type FeatureModulesDTO } from "@/lib/feature-modules";
 
@@ -55,6 +56,7 @@ function applyModuleFilters(section: NavMainSection, mods: FeatureModulesDTO): N
     // Интерактив
     if (item.url === "/dashboard/lms/typing") return mods.feature_interactive && mods.feature_typing;
     if (item.url === "/dashboard/lms/playground") return mods.feature_interactive && mods.feature_playground;
+    if (item.url === "/dashboard/lms/flexbox") return mods.feature_interactive;
 
     // Учебный процесс
     if (item.url === "/dashboard/schedule") return mods.feature_schedule;
@@ -198,6 +200,12 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Web-песочница",
               url: "/dashboard/lms/playground",
               icon: <Code className="h-4 w-4" />,
+              badge: "NEW",
+            },
+            {
+              title: "CSS Лаборатория",
+              url: "/dashboard/lms/flexbox",
+              icon: <Layout className="h-4 w-4" />,
               badge: "NEW",
             },
           ],
@@ -379,6 +387,12 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               icon: <Code className="h-4 w-4" />,
               badge: "NEW",
             },
+            {
+              title: "CSS Лаборатория",
+              url: "/dashboard/lms/flexbox",
+              icon: <Layout className="h-4 w-4" />,
+              badge: "NEW",
+            },
           ],
         },
         {
@@ -455,6 +469,12 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
             title: "Web-песочница",
             url: "/dashboard/lms/playground",
             icon: <Code className="h-4 w-4" />,
+            badge: "NEW",
+          },
+          {
+            title: "CSS Лаборатория",
+            url: "/dashboard/lms/flexbox",
+            icon: <Layout className="h-4 w-4" />,
             badge: "NEW",
           },
         ],
