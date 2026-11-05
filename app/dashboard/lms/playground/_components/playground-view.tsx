@@ -73,6 +73,107 @@ const WEB_COLOR_PALETTE = [
   { name: "White", hex: "#ffffff", desc: "Белый" },
 ];
 
+function buildSandboxedHtml(html: string, css: string, js: string): string {
+  const consoleInterceptor = `
+    <script>
+      (function() {
+        // Safe clipboard helper for sandboxed iframe
+        window.__copyToClipboard = function(text) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text).catch(function() {
+              return fallbackCopy(text);
+            });
+          }
+          return fallbackCopy(text);
+          function fallbackCopy(str) {
+            var ta = document.createElement('textarea');
+            ta.value = str;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch(e) {}
+            document.body.removeChild(ta);
+            return Promise.resolve();
+          }
+        };
+
+        function sendToParent(type, args) {
+          try {
+            var formatted = Array.prototype.slice.call(args).map(function(arg) {
+              if (typeof arg === 'object' && arg !== null) {
+                try { return JSON.stringify(arg); } catch(e) { return String(arg); }
+              }
+              return String(arg);
+            }).join(' ');
+
+            window.parent.postMessage({
+              type: 'PLAYGROUND_CONSOLE',
+              level: type,
+              message: formatted,
+              time: new Date().toLocaleTimeString()
+            }, '*');
+          } catch(e) {}
+        }
+
+        var originalLog = console.log;
+        var originalWarn = console.warn;
+        var originalError = console.error;
+        var originalInfo = console.info;
+
+        console.log = function() {
+          sendToParent('log', arguments);
+          if (originalLog) originalLog.apply(console, arguments);
+        };
+        console.warn = function() {
+          sendToParent('warn', arguments);
+          if (originalWarn) originalWarn.apply(console, arguments);
+        };
+        console.error = function() {
+          sendToParent('error', arguments);
+          if (originalError) originalError.apply(console, arguments);
+        };
+        console.info = function() {
+          sendToParent('info', arguments);
+          if (originalInfo) originalInfo.apply(console, arguments);
+        };
+
+        window.onerror = function(msg, url, line) {
+          sendToParent('error', ['[Ошибка JS, строка ' + line + ']: ' + msg]);
+          return false;
+        };
+      })();
+    </script>
+  `;
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body {
+      background-color: #09090b;
+      color: #f4f4f5;
+    }
+    ${css}
+  </style>
+  ${consoleInterceptor}
+</head>
+<body>
+  ${html}
+  <script>
+    try {
+      ${js}
+    } catch (err) {
+      console.error(err.message);
+    }
+  </script>
+</body>
+</html>`;
+}
+
 export function PlaygroundView() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("counter");
   const [activeTab, setActiveTab] = useState<"html" | "css" | "js">("html");
@@ -111,14 +212,48 @@ export function PlaygroundView() {
         setSelectedThemeId(savedTheme);
       }
 
-      const saved = localStorage.getItem("lms_web_playground_code_v1");
+      const saved =
+        localStorage.getItem("lms_web_playground_code_v2") ||
+        localStorage.getItem("lms_web_playground_code_v1");
+
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.html !== undefined && parsed.css !== undefined && parsed.js !== undefined) {
+          // Auto-heal if the cached template is the old broken version of "todo"
+          const isBrokenTodo =
+            parsed.templateId === "todo" &&
+            (parsed.html.includes('id="taskInput"') ||
+              parsed.html.includes('id="clearCompleted"') ||
+              (parsed.js && !parsed.js.includes("handleAddTask")));
+
+          if (isBrokenTodo) {
+            const freshTodo = PLAYGROUND_TEMPLATES.find((t) => t.id === "todo");
+            if (freshTodo) {
+              setSelectedTemplateId("todo");
+              setHtmlCode(freshTodo.html);
+              setCssCode(freshTodo.css);
+              setJsCode(freshTodo.js);
+              setSrcDoc(buildSandboxedHtml(freshTodo.html, freshTodo.css, freshTodo.js));
+              try {
+                localStorage.setItem(
+                  "lms_web_playground_code_v2",
+                  JSON.stringify({
+                    templateId: "todo",
+                    html: freshTodo.html,
+                    css: freshTodo.css,
+                    js: freshTodo.js,
+                  })
+                );
+              } catch {}
+              return;
+            }
+          }
+
           setHtmlCode(parsed.html);
           setCssCode(parsed.css);
           setJsCode(parsed.js);
           if (parsed.templateId) setSelectedTemplateId(parsed.templateId);
+          setSrcDoc(buildSandboxedHtml(parsed.html, parsed.css, parsed.js));
           return;
         }
       }
@@ -130,6 +265,7 @@ export function PlaygroundView() {
     setHtmlCode(defaultTpl.html);
     setCssCode(defaultTpl.css);
     setJsCode(defaultTpl.js);
+    setSrcDoc(buildSandboxedHtml(defaultTpl.html, defaultTpl.css, defaultTpl.js));
   }, []);
 
   // Save changes to localStorage
@@ -137,7 +273,7 @@ export function PlaygroundView() {
     if (!htmlCode && !cssCode && !jsCode) return;
     try {
       localStorage.setItem(
-        "lms_web_playground_code_v1",
+        "lms_web_playground_code_v2",
         JSON.stringify({
           templateId: selectedTemplateId,
           html: htmlCode,
@@ -250,91 +386,17 @@ export function PlaygroundView() {
     setHtmlCode(template.html);
     setCssCode(template.css);
     setJsCode(template.js);
+    setActiveTab("html");
     setLogs([]);
     setShowTemplateSelector(false);
+    setSrcDoc(buildSandboxedHtml(template.html, template.css, template.js));
   };
-
-  // Build sandboxed HTML document
-  const generateSrcDoc = useCallback(() => {
-    const consoleInterceptor = `
-      <script>
-        (function() {
-          function sendToParent(type, args) {
-            try {
-              var formatted = Array.prototype.slice.call(args).map(function(arg) {
-                if (typeof arg === 'object' && arg !== null) {
-                  try { return JSON.stringify(arg); } catch(e) { return String(arg); }
-                }
-                return String(arg);
-              }).join(' ');
-
-              window.parent.postMessage({
-                type: 'PLAYGROUND_CONSOLE',
-                level: type,
-                message: formatted,
-                time: new Date().toLocaleTimeString()
-              }, '*');
-            } catch(e) {}
-          }
-
-          var originalLog = console.log;
-          var originalWarn = console.warn;
-          var originalError = console.error;
-          var originalInfo = console.info;
-
-          console.log = function() {
-            sendToParent('log', arguments);
-            if (originalLog) originalLog.apply(console, arguments);
-          };
-          console.warn = function() {
-            sendToParent('warn', arguments);
-            if (originalWarn) originalWarn.apply(console, arguments);
-          };
-          console.error = function() {
-            sendToParent('error', arguments);
-            if (originalError) originalError.apply(console, arguments);
-          };
-          console.info = function() {
-            sendToParent('info', arguments);
-            if (originalInfo) originalInfo.apply(console, arguments);
-          };
-
-          window.onerror = function(msg, url, line) {
-            sendToParent('error', ['[Ошибка JS, строка ' + line + ']: ' + msg]);
-            return false;
-          };
-        })();
-      <\/script>
-    `;
-
-    return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    ${cssCode}
-  </style>
-  ${consoleInterceptor}
-</head>
-<body>
-  ${htmlCode}
-  <script>
-    try {
-      ${jsCode}
-    } catch (err) {
-      console.error(err.message);
-    }
-  <\/script>
-</body>
-</html>`;
-  }, [htmlCode, cssCode, jsCode]);
 
   const [srcDoc, setSrcDoc] = useState<string>("");
 
   const refreshPreview = useCallback(() => {
-    setSrcDoc(generateSrcDoc());
-  }, [generateSrcDoc]);
+    setSrcDoc(buildSandboxedHtml(htmlCode, cssCode, jsCode));
+  }, [htmlCode, cssCode, jsCode]);
 
   // Debounced auto-run
   useEffect(() => {
@@ -396,7 +458,7 @@ export function PlaygroundView() {
 
   // Download complete single HTML project file
   const handleDownloadHtml = () => {
-    const blob = new Blob([generateSrcDoc()], { type: "text/html;charset=utf-8" });
+    const blob = new Blob([buildSandboxedHtml(htmlCode, cssCode, jsCode)], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -450,8 +512,20 @@ export function PlaygroundView() {
           : ""
       }`}
     >
+      {/* Click-outside backdrop for open popovers */}
+      {(showTemplateSelector || showThemeSelector || showColorPalette) && (
+        <div
+          className="fixed inset-0 z-40 bg-transparent"
+          onClick={() => {
+            setShowTemplateSelector(false);
+            setShowThemeSelector(false);
+            setShowColorPalette(false);
+          }}
+        />
+      )}
+
       {/* Sleek, Single-Row Professional IDE Header Bar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border bg-card shrink-0 h-11 text-xs">
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border bg-card shrink-0 h-11 text-xs relative z-40">
         {/* LEFT: Project / Template Selector with clean breadcrumb style */}
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex items-center gap-1.5 shrink-0 text-primary font-bold text-xs">
@@ -479,7 +553,7 @@ export function PlaygroundView() {
             </button>
 
             {showTemplateSelector && (
-              <div className="absolute left-0 mt-1 w-72 rounded-xl border bg-popover p-1.5 shadow-md z-50 text-xs animate-in fade-in-50 zoom-in-95">
+              <div className="absolute left-0 mt-1 w-80 rounded-xl border border-border bg-popover p-1.5 z-50 text-xs animate-in fade-in-50 zoom-in-95">
                 <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Учебные шаблоны лицея
                 </div>
@@ -587,7 +661,7 @@ export function PlaygroundView() {
             </button>
 
             {showThemeSelector && (
-              <div className="absolute right-0 mt-1 w-48 rounded-xl border bg-popover p-1.5 shadow-md z-50 text-xs animate-in fade-in-50 zoom-in-95">
+              <div className="absolute right-0 mt-1 w-48 rounded-xl border border-border bg-popover p-1.5 z-50 text-xs animate-in fade-in-50 zoom-in-95">
                 <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Тема редактора
                 </div>
@@ -633,7 +707,7 @@ export function PlaygroundView() {
             </Button>
 
             {showColorPalette && (
-              <div className="absolute right-0 mt-1 w-60 rounded-xl border bg-popover p-2 shadow-md z-50 text-xs animate-in fade-in-50 zoom-in-95">
+              <div className="absolute right-0 mt-1 w-60 rounded-xl border border-border bg-popover p-2 z-50 text-xs animate-in fade-in-50 zoom-in-95">
                 <div className="px-1 py-0.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
                   <span>CSS Цвета (HEX)</span>
                   <span className="text-[9px] text-muted-foreground font-normal">клик — копировать</span>
@@ -887,13 +961,13 @@ export function PlaygroundView() {
             </div>
 
             {/* Sandboxed iframe */}
-            <div className="relative flex-1 bg-white overflow-hidden">
+            <div className="relative flex-1 bg-[#09090b] overflow-hidden">
               <iframe
                 ref={iframeRef}
                 srcDoc={srcDoc}
                 title="Playground Live Preview"
-                sandbox="allow-scripts allow-modals"
-                className="w-full h-full border-0 bg-white"
+                sandbox="allow-scripts allow-modals allow-forms"
+                className="w-full h-full border-0 bg-[#09090b]"
               />
             </div>
 
