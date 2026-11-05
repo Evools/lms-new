@@ -771,21 +771,33 @@ export function LayoutLabView() {
             </div>
 
             {/* Item Selector Pills */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1">
-              {items.map((it) => (
-                <button
-                  key={it.id}
-                  type="button"
-                  onClick={() => setSelectedItemId(it.id)}
-                  className={`h-6 px-2 rounded-md font-medium text-[11px] border shrink-0 transition-colors ${
-                    selectedItemId === it.id
-                      ? "bg-primary/10 text-primary border-primary"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {it.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              {items.map((it) => {
+                const dotColor =
+                  it.colorScheme === "emerald"
+                    ? "bg-emerald-500"
+                    : it.colorScheme === "sky"
+                    ? "bg-sky-500"
+                    : it.colorScheme === "violet"
+                    ? "bg-purple-500"
+                    : "bg-amber-500";
+
+                return (
+                  <button
+                    key={it.id}
+                    type="button"
+                    onClick={() => setSelectedItemId(it.id)}
+                    className={`h-6 px-2.5 rounded-md font-medium text-[11px] border shrink-0 transition-colors flex items-center gap-1.5 ${
+                      selectedItemId === it.id
+                        ? "bg-primary/10 text-primary border-primary"
+                        : "border-border text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
+                    <span>{it.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Selected item specific controls */}
@@ -927,20 +939,20 @@ export function LayoutLabView() {
           </div>
 
           {/* Interactive Stage Box */}
-          <div className="relative flex-1 min-h-[460px] rounded-xl border border-dashed border-border/80 bg-zinc-950/60 p-4 overflow-hidden flex flex-col shadow-inner">
+          <div className="relative flex-1 min-h-[480px] rounded-xl border border-border bg-slate-100/70 dark:bg-zinc-900/60 p-4 overflow-hidden flex flex-col justify-between">
             {/* Background Blueprint Grid Lines */}
             <div
-              className="absolute inset-0 opacity-10 pointer-events-none"
+              className="absolute inset-0 opacity-20 pointer-events-none"
               style={{
                 backgroundImage:
-                  "radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)",
-                backgroundSize: "24px 24px",
+                  "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
+                backgroundSize: "20px 20px",
               }}
             />
 
             {/* Container Stage Element */}
             <div
-              className="w-full flex-1 rounded-lg border border-primary/20 bg-primary/[0.02] p-3 transition-all duration-300 relative"
+              className="w-full flex-1 rounded-xl border-2 border-dashed border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-4 transition-all duration-300 shadow-sm min-h-[390px] relative z-1"
               style={
                 displayMode === "flex"
                   ? {
@@ -962,13 +974,38 @@ export function LayoutLabView() {
               {items.map((it) => {
                 const isSelected = selectedItemId === it.id;
 
-                // Color themes for blocks
-                const colorMap = {
-                  emerald: "bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:border-emerald-400",
-                  sky: "bg-sky-500/10 border-sky-500/40 text-sky-400 hover:border-sky-400",
-                  violet: "bg-violet-500/10 border-violet-500/40 text-violet-400 hover:border-violet-400",
-                  amber: "bg-amber-500/10 border-amber-500/40 text-amber-400 hover:border-amber-400",
+                // Solid, high-contrast, vibrant themes for blocks
+                const colorThemes: Record<
+                  FlexItem["colorScheme"],
+                  {
+                    bg: string;
+                    border: string;
+                    tag: string;
+                  }
+                > = {
+                  emerald: {
+                    bg: "bg-emerald-600 dark:bg-emerald-600 text-white shadow-sm",
+                    border: "border-emerald-700 dark:border-emerald-500",
+                    tag: "bg-black/20 text-emerald-50",
+                  },
+                  sky: {
+                    bg: "bg-sky-600 dark:bg-sky-600 text-white shadow-sm",
+                    border: "border-sky-700 dark:border-sky-500",
+                    tag: "bg-black/20 text-sky-50",
+                  },
+                  violet: {
+                    bg: "bg-purple-600 dark:bg-purple-600 text-white shadow-sm",
+                    border: "border-purple-700 dark:border-purple-500",
+                    tag: "bg-black/20 text-purple-50",
+                  },
+                  amber: {
+                    bg: "bg-amber-600 dark:bg-amber-600 text-white shadow-sm",
+                    border: "border-amber-700 dark:border-amber-500",
+                    tag: "bg-black/20 text-amber-50",
+                  },
                 };
+
+                const theme = colorThemes[it.colorScheme];
 
                 return (
                   <div
@@ -980,27 +1017,50 @@ export function LayoutLabView() {
                       flexShrink: it.flexShrink,
                       flexBasis: it.flexBasis !== "auto" ? it.flexBasis : undefined,
                       alignSelf: it.alignSelf !== "auto" ? it.alignSelf : undefined,
-                      minWidth: "80px",
-                      minHeight: "72px",
-                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      minWidth: "90px",
+                      minHeight: "76px",
+                      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                     }}
-                    className={`p-3 rounded-lg border cursor-pointer select-none flex flex-col justify-between relative group ${
-                      colorMap[it.colorScheme]
-                    } ${isSelected ? "border-primary ring-1 ring-primary bg-primary/20" : ""}`}
+                    className={`p-3 rounded-lg border-2 cursor-pointer select-none flex flex-col justify-between transition-all group hover:brightness-105 active:scale-[0.99] ${
+                      theme.bg
+                    } ${theme.border} ${
+                      isSelected
+                        ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-[1.01]"
+                        : "opacity-95 hover:opacity-100"
+                    }`}
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold text-xs">{it.label}</span>
-                      {isSelected && (
-                        <span className="text-[9px] px-1 py-0.2 rounded bg-primary text-primary-foreground font-semibold">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="font-bold text-xs tracking-wide">{it.label}</span>
+                      {isSelected ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white text-zinc-900 font-bold shadow-xs">
                           Активен
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 text-white/90 font-medium">
+                          #{it.id}
                         </span>
                       )}
                     </div>
 
-                    <div className="font-mono text-[9px] opacity-70 mt-2 space-y-0.5">
-                      {it.flexGrow > 0 && <div>grow: {it.flexGrow}</div>}
-                      {it.alignSelf !== "auto" && <div>self: {it.alignSelf}</div>}
-                      {it.order !== 0 && <div>order: {it.order}</div>}
+                    <div className="font-mono text-[10px] mt-2 space-y-1">
+                      {it.flexGrow > 0 && (
+                        <div className={`px-1.5 py-0.5 rounded text-[10px] ${theme.tag}`}>
+                          grow: {it.flexGrow}
+                        </div>
+                      )}
+                      {it.alignSelf !== "auto" && (
+                        <div className={`px-1.5 py-0.5 rounded text-[10px] ${theme.tag}`}>
+                          self: {it.alignSelf}
+                        </div>
+                      )}
+                      {it.order !== 0 && (
+                        <div className={`px-1.5 py-0.5 rounded text-[10px] ${theme.tag}`}>
+                          order: {it.order}
+                        </div>
+                      )}
+                      {it.flexGrow === 0 && it.alignSelf === "auto" && it.order === 0 && (
+                        <div className="text-[9px] text-white/70 italic">кликните для свойств</div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1008,11 +1068,13 @@ export function LayoutLabView() {
             </div>
 
             {/* Stage bottom info bar */}
-            <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground border-t pt-2 border-border/40">
-              <span className="font-mono">
+            <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground border-t pt-2 border-border/80">
+              <span className="font-mono font-medium text-foreground">
                 {displayMode === "flex" ? `display: flex; gap: ${gap}px;` : `display: grid; gap: ${gap}px;`}
               </span>
-              <span className="italic text-[10px]">Кликните на любой блок на сцене для настройки</span>
+              <span className="text-[11px] text-muted-foreground">
+                Контейнер <code className="text-primary font-mono font-semibold">.container</code> • Нажмите на любой блок для настройки
+              </span>
             </div>
           </div>
         </div>
