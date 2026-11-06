@@ -196,7 +196,7 @@ export function AdminGroupPerformanceChart({ data = [] }: GroupPerfProps) {
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[0, 100]} />
         <Tooltip
           content={<ChartTooltipContent />}
-          cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+          cursor={{ fill: "var(--muted)", fillOpacity: 0.3 }}
           wrapperStyle={{ zIndex: 1000, pointerEvents: "none" }}
           allowEscapeViewBox={{ x: true, y: true }}
         />
@@ -221,7 +221,7 @@ const teacherWeeklyConfig: ChartConfig = {
   },
   checked: {
     label: "Проверено",
-    color: "#0ea5e9",
+    color: "var(--chart-2)",
   },
 };
 
@@ -250,12 +250,12 @@ export function TeacherOverviewChart({ data = [] }: TeacherOverviewProps) {
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} allowDecimals={false} />
         <Tooltip
           content={<ChartTooltipContent />}
-          cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+          cursor={{ fill: "var(--muted)", fillOpacity: 0.3 }}
           wrapperStyle={{ zIndex: 1000, pointerEvents: "none" }}
           allowEscapeViewBox={{ x: true, y: true }}
         />
         <Bar dataKey="total" fill="var(--primary)" radius={[4, 4, 0, 0]} name="Сдано работ" />
-        <Bar dataKey="checked" fill="#0ea5e9" radius={[4, 4, 0, 0]} name="Проверено" />
+        <Bar dataKey="checked" fill="var(--chart-2)" radius={[4, 4, 0, 0]} name="Проверено" />
       </BarChart>
     </ChartContainer>
   );
@@ -288,9 +288,9 @@ export function TeacherGradeDistributionChart({ accepted = 0, revision = 0, pend
   }
 
   const data = [
-    { name: "Принято", label: `Принято (${accepted})`, value: accepted, color: "hsl(var(--primary))" },
-    { name: "На доработке", label: `На доработке (${revision})`, value: revision, color: "#f59e0b" },
-    { name: "На проверке", label: `На проверке (${pending})`, value: pending, color: "#0ea5e9" },
+    { name: "Принято", label: `Принято (${accepted})`, value: accepted, color: "var(--primary)" },
+    { name: "На доработке", label: `На доработке (${revision})`, value: revision, color: "var(--destructive)" },
+    { name: "На проверке", label: `На проверке (${pending})`, value: pending, color: "var(--chart-2)" },
   ].filter((d) => d.value > 0);
 
   const activeItem = hoveredIndex !== null && data[hoveredIndex] ? data[hoveredIndex] : null;
@@ -406,7 +406,7 @@ export function StudentProgressChart({ data = [] }: StudentProgressProps) {
         <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} domain={[0, 5]} />
         <Tooltip
           content={<ChartTooltipContent indicator="dot" />}
-          cursor={{ stroke: "hsl(var(--muted-foreground)/0.3)", strokeWidth: 1 }}
+          cursor={{ stroke: "var(--muted-foreground)", strokeOpacity: 0.3, strokeWidth: 1 }}
           wrapperStyle={{ zIndex: 1000, pointerEvents: "none" }}
           allowEscapeViewBox={{ x: true, y: true }}
         />
