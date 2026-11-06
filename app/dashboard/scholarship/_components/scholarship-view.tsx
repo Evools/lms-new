@@ -974,11 +974,17 @@ export function ScholarshipView({
                           className={`sticky left-[98px] z-20 p-2 font-medium text-foreground border-b border-r-2 border-r-border border-b-border truncate transition-colors ${
                             isRowActive ? "bg-muted" : "bg-background"
                           }`}
-                          title={row.studentName}
+                          title={`Нажмите для открытия экспресс-карточки ${row.studentName}`}
                         >
-                          <span className={`whitespace-nowrap font-medium ${isRowActive ? "text-primary" : "text-foreground"}`}>
+                          <button
+                            type="button"
+                            data-student-id={row.studentId}
+                            className={`whitespace-nowrap font-medium text-left hover:underline hover:text-primary transition-colors cursor-pointer outline-none ${
+                              isRowActive ? "text-primary" : "text-foreground"
+                            }`}
+                          >
                             {row.studentName}
-                          </span>
+                          </button>
                         </td>
 
                         {/* Subject cells: ZERO JITTER, clean standard inputs */}

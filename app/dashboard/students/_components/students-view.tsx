@@ -482,9 +482,14 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <Link href={`/dashboard/students/${st.id}`} className="font-semibold text-xs text-foreground hover:underline hover:text-primary transition-colors block truncate" title="Личная карточка студента">
+                        <button
+                          type="button"
+                          data-student-id={st.id}
+                          className="font-semibold text-xs text-foreground hover:underline hover:text-primary transition-colors block truncate text-left cursor-pointer"
+                          title="Открыть экспресс-карточку студента"
+                        >
                           {st.name}
-                        </Link>
+                        </button>
                         <div className="text-[10px] text-muted-foreground font-mono truncate">{st.email}</div>
                       </div>
                     </div>
@@ -564,6 +569,9 @@ export function StudentsView({ userRole, initialStudents = [], dbGroups = [] }: 
                               <DropdownMenuLabel>Управление аккаунтом</DropdownMenuLabel>
                             </DropdownMenuGroup>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}`} />}>
+                              <Eye className="h-3.5 w-3.5 mr-2 text-primary" /> Полный профиль
+                            </DropdownMenuItem>
                             <DropdownMenuItem render={<Link href={`/dashboard/students/${st.id}/edit`} />}>
                               <Edit className="h-3.5 w-3.5 mr-2 text-primary" /> Редактировать данные
                             </DropdownMenuItem>

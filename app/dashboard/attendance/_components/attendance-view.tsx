@@ -1559,7 +1559,14 @@ export function AttendanceView({
                           {st.studentName.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="truncate text-foreground text-xs">{st.studentName}</span>
+                      <button
+                        type="button"
+                        data-student-id={st.studentId}
+                        className="truncate text-foreground text-xs hover:underline hover:text-primary transition-colors cursor-pointer text-left font-medium outline-none"
+                        title="Открыть экспресс-карточку студента"
+                      >
+                        {st.studentName}
+                      </button>
                       {st.rollNumber && (
                         <Badge
                           variant="outline"
@@ -1756,9 +1763,14 @@ export function AttendanceView({
                         </Avatar>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-foreground text-xs leading-snug break-words">
+                            <button
+                              type="button"
+                              data-student-id={st.studentId}
+                              className="font-semibold text-foreground text-xs leading-snug break-words text-left hover:underline hover:text-primary transition-colors cursor-pointer outline-none"
+                              title="Открыть экспресс-карточку студента"
+                            >
                               {st.studentName}
-                            </span>
+                            </button>
                             {st.rollNumber && (
                               <Badge
                                 variant="outline"
