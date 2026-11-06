@@ -17,6 +17,7 @@ export interface SubjectExtraMeta {
   hoursTotal: number;
   assessmentType: SubjectAssessmentType;
   specialtyId?: string | null;
+  isLmsActive?: boolean;
 }
 
 export interface SubjectDTO {
@@ -32,6 +33,7 @@ export interface SubjectDTO {
   groupsCount: number;
   materialsCount: number;
   assignmentsCount: number;
+  isLmsActive: boolean;
   createdAt: string;
 }
 
@@ -234,6 +236,11 @@ export async function getSubjectsDataAction() {
         assignmentsCount += gs._count.assignments;
       }
 
+      const isLmsActive =
+        savedMeta?.isLmsActive !== undefined
+          ? Boolean(savedMeta.isLmsActive)
+          : materialsCount > 0;
+
       return {
         id: s.id,
         name: s.name,
@@ -247,6 +254,7 @@ export async function getSubjectsDataAction() {
         groupsCount: s.groupSubjects.length,
         materialsCount,
         assignmentsCount,
+        isLmsActive,
         createdAt: s.createdAt.toISOString(),
       };
     });
@@ -304,6 +312,7 @@ export async function createSubjectAction(data: {
   hoursTotal?: number;
   assessmentType?: SubjectAssessmentType;
   specialtyId?: string | null;
+  isLmsActive?: boolean;
 }) {
   const session = await auth();
   if (!session?.user || !canManageSubjects(session.user.role)) {
@@ -340,10 +349,13 @@ export async function createSubjectAction(data: {
       assessmentType: data.assessmentType || fallback.assessmentType,
       specialtyId:
         data.specialtyId && data.specialtyId !== "ALL" ? data.specialtyId : null,
+      isLmsActive: Boolean(data.isLmsActive),
     };
     await writeSubjectsMetaMap(metaMap);
 
     revalidatePath("/dashboard/subjects");
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms");
     revalidatePath("/dashboard/schedule");
     revalidatePath("/dashboard/groups");
     return { success: true };
@@ -367,6 +379,7 @@ export async function updateSubjectAction(
     hoursTotal?: number;
     assessmentType?: SubjectAssessmentType;
     specialtyId?: string | null;
+    isLmsActive?: boolean;
   }
 ) {
   const session = await auth();
@@ -420,10 +433,16 @@ export async function updateSubjectAction(
           : data.specialtyId && data.specialtyId !== "ALL"
             ? data.specialtyId
             : null,
+      isLmsActive:
+        data.isLmsActive !== undefined
+          ? data.isLmsActive
+          : Boolean(prev.isLmsActive),
     };
     await writeSubjectsMetaMap(metaMap);
 
     revalidatePath("/dashboard/subjects");
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms");
     revalidatePath("/dashboard/schedule");
     revalidatePath("/dashboard/groups");
     return { success: true };
@@ -433,6 +452,39 @@ export async function updateSubjectAction(
       success: false,
       error: error instanceof Error ? error.message : "Произошла ошибка",
     };
+  }
+}
+
+/** Quick 1-click toggle for LMS materials visibility */
+export async function toggleSubjectLmsAction(
+  subjectId: string,
+  isLmsActive: boolean
+) {
+  const session = await auth();
+  if (!session?.user || !canManageSubjects(session.user.role)) {
+    return { success: false, error: "Недостаточно прав" };
+  }
+
+  try {
+    const metaMap = await readSubjectsMetaMap();
+    const prev = metaMap[subjectId] || {
+      category: "PROFESSIONAL",
+      hoursTotal: 72,
+      assessmentType: "DIFF_CREDIT",
+    };
+    metaMap[subjectId] = {
+      ...prev,
+      isLmsActive,
+    };
+    await writeSubjectsMetaMap(metaMap);
+
+    revalidatePath("/dashboard/subjects");
+    revalidatePath("/dashboard/lms/materials");
+    revalidatePath("/dashboard/lms");
+    return { success: true, isLmsActive };
+  } catch (error) {
+    console.error("toggleSubjectLmsAction error:", error);
+    return { success: false, error: "Ошибка при изменении статуса LMS" };
   }
 }
 

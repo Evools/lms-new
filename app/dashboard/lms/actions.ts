@@ -12,10 +12,12 @@ export interface GroupItemDTO {
 
 export interface GroupSubjectDTO {
   id: string;
+  subjectId?: string;
   subjectName: string;
   teacherName: string;
   topicsCount?: number;
   materialsCount?: number;
+  isLmsActive?: boolean;
 }
 
 export interface MaterialDTO {
@@ -454,8 +456,43 @@ export async function createTopicAction(data: {
       },
     });
 
+    // Auto-activate subject in LMS when a topic is created
+    try {
+      const gs = await prisma.groupSubject.findUnique({
+        where: { id: data.groupSubjectId },
+        select: { subjectId: true },
+      });
+      if (gs?.subjectId) {
+        const setting = await prisma.systemSetting.findUnique({
+          where: { key: "lms_subjects_meta_v1" },
+        });
+        let metaMap: Record<string, any> = {};
+        if (setting?.value) {
+          try {
+            metaMap = JSON.parse(setting.value);
+          } catch {}
+        }
+        if (!metaMap[gs.subjectId]?.isLmsActive) {
+          metaMap[gs.subjectId] = {
+            ...(metaMap[gs.subjectId] || {}),
+            isLmsActive: true,
+          };
+          await prisma.systemSetting.upsert({
+            where: { key: "lms_subjects_meta_v1" },
+            update: { value: JSON.stringify(metaMap) },
+            create: {
+              key: "lms_subjects_meta_v1",
+              value: JSON.stringify(metaMap),
+            },
+          });
+        }
+      }
+    } catch {}
+
     revalidatePath("/dashboard/lms/topics");
+    revalidatePath("/dashboard/lms/materials");
     revalidatePath("/dashboard/lms");
+    revalidatePath("/dashboard/subjects");
     return { success: true };
   } catch (err) {
     console.error("createTopicAction error:", err);
@@ -539,7 +576,7 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
     const groupSubjects = await prisma.groupSubject.findMany({
       where: groupSubjectWhere,
       include: {
-        subject: { select: { name: true } },
+        subject: { select: { id: true, name: true } },
         teacher: { select: { name: true } },
         topics: {
           include: {
@@ -552,16 +589,52 @@ export async function getMaterialsDataAction(groupId?: string, topicId?: string,
       },
     });
 
-    const subjects: GroupSubjectDTO[] = groupSubjects.map((gs) => ({
-      id: gs.id,
-      subjectName: gs.subject.name,
-      teacherName: gs.teacher.name,
-      topicsCount: gs.topics.length,
-      materialsCount: gs.topics.reduce((acc, t) => acc + t.materials.length, 0),
-    }));
+    // Read subjects extra metadata map (for manual LMS publishing status)
+    const subjectsMetaSetting = await prisma.systemSetting.findUnique({
+      where: { key: "lms_subjects_meta_v1" },
+    });
+    let subjectsMetaMap: Record<string, { isLmsActive?: boolean }> = {};
+    if (subjectsMetaSetting?.value) {
+      try {
+        subjectsMetaMap = JSON.parse(subjectsMetaSetting.value);
+      } catch {}
+    }
+
+    // Strict manual mode:
+    // If isLmsActive is explicitly configured: obey it.
+    // Otherwise (legacy): show if it has existing topics/materials.
+    const activeGroupSubjects = groupSubjects.filter((gs) => {
+      const meta = subjectsMetaMap[gs.subjectId];
+      if (meta?.isLmsActive === true) return true;
+      if (meta?.isLmsActive === false) return false;
+      return gs.topics.length > 0;
+    });
+
+    const targetGroupSubjects =
+      role === "STUDENT" ? activeGroupSubjects : groupSubjects;
+
+    const subjects: GroupSubjectDTO[] = targetGroupSubjects.map((gs) => {
+      const meta = subjectsMetaMap[gs.subjectId];
+      const isLmsActive =
+        meta?.isLmsActive !== undefined
+          ? Boolean(meta.isLmsActive)
+          : gs.topics.length > 0;
+
+      return {
+        id: gs.id,
+        subjectId: gs.subjectId,
+        subjectName: gs.subject.name,
+        teacherName: gs.teacher.name,
+        topicsCount: gs.topics.length,
+        materialsCount: gs.topics.reduce((acc, t) => acc + t.materials.length, 0),
+        isLmsActive,
+      };
+    });
 
     const dbTopics = await prisma.topic.findMany({
-      where: { groupSubjectId: { in: groupSubjects.map((gs) => gs.id) } },
+      where: {
+        groupSubjectId: { in: targetGroupSubjects.map((gs) => gs.id) },
+      },
       orderBy: { order: "asc" },
       include: {
         groupSubject: {

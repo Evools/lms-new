@@ -72,6 +72,7 @@ import {
   assignSubjectToGroupAction,
   updateGroupSubjectBindingAction,
   removeSubjectFromGroupAction,
+  toggleSubjectLmsAction,
 } from "../actions";
 
 interface SubjectsViewProps {
@@ -143,6 +144,7 @@ export function SubjectsView({
   const [formAssessment, setFormAssessment] =
     useState<SubjectAssessmentType>("DIFF_CREDIT");
   const [formSpecialtyId, setFormSpecialtyId] = useState<string>("ALL");
+  const [formIsLmsActive, setFormIsLmsActive] = useState<boolean>(false);
 
   const [deleteTarget, setDeleteTarget] = useState<SubjectDTO | null>(null);
 
@@ -179,6 +181,7 @@ export function SubjectsView({
     setFormHours(72);
     setFormAssessment("DIFF_CREDIT");
     setFormSpecialtyId("ALL");
+    setFormIsLmsActive(false);
     setIsSubjectDialogOpen(true);
   };
 
@@ -191,7 +194,24 @@ export function SubjectsView({
     setFormHours(s.hoursTotal || 72);
     setFormAssessment(s.assessmentType || "DIFF_CREDIT");
     setFormSpecialtyId(s.specialtyId || "ALL");
+    setFormIsLmsActive(Boolean(s.isLmsActive));
     setIsSubjectDialogOpen(true);
+  };
+
+  const handleToggleSubjectLms = (subjectId: string, newState: boolean) => {
+    startTransition(async () => {
+      const res = await toggleSubjectLmsAction(subjectId, newState);
+      if (res.success) {
+        showSuccess(
+          newState
+            ? "Дисциплина включена в Материалы (LMS)"
+            : "Дисциплина скрыта из Материалов (LMS)"
+        );
+        router.refresh();
+      } else {
+        showError(res.error || "Не удалось изменить статус LMS");
+      }
+    });
   };
 
   const openEditBindingModal = (b: GroupSubjectBindingDTO) => {
@@ -217,6 +237,7 @@ export function SubjectsView({
           hoursTotal: Number(formHours) || 72,
           assessmentType: formAssessment,
           specialtyId: formSpecialtyId === "ALL" ? null : formSpecialtyId,
+          isLmsActive: formIsLmsActive,
         });
         if (res.success) {
           setIsSubjectDialogOpen(false);
@@ -235,6 +256,7 @@ export function SubjectsView({
           hoursTotal: Number(formHours) || 72,
           assessmentType: formAssessment,
           specialtyId: formSpecialtyId === "ALL" ? null : formSpecialtyId,
+          isLmsActive: formIsLmsActive,
         });
         if (res.success) {
           setIsSubjectDialogOpen(false);
@@ -815,6 +837,36 @@ export function SubjectsView({
                           </span>
                         )}
                       </div>
+
+                      {/* LMS Status Quick Toggle */}
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <button
+                          type="button"
+                          disabled={!isAdmin || isPending}
+                          onClick={() => handleToggleSubjectLms(s.id, !s.isLmsActive)}
+                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10.5px] font-medium transition-colors ${
+                            s.isLmsActive
+                              ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 cursor-pointer"
+                              : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground cursor-pointer"
+                          }`}
+                          title={
+                            isAdmin
+                              ? s.isLmsActive
+                                ? "Курс опубликован в Материалах. Нажмите, чтобы скрыть"
+                                : "Курс скрыт из Материалов. Нажмите, чтобы опубликовать"
+                              : undefined
+                          }
+                        >
+                          <BookMarked className="h-3 w-3 shrink-0" />
+                          <span>{s.isLmsActive ? "Материалы в LMS: Вкл" : "Материалы в LMS: Выкл"}</span>
+                        </button>
+
+                        {s.isLmsActive && s.materialsCount > 0 ? (
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {s.materialsCount} тем
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
 
                     {/* Assigned Groups & Teachers List */}
@@ -980,6 +1032,14 @@ export function SubjectsView({
                                         {b.subjectCode}
                                       </span>
                                     )}
+                                    {subjObj?.isLmsActive ? (
+                                      <span
+                                        className="text-[9px] font-medium text-primary bg-primary/10 border border-primary/20 px-1 py-0.2 rounded"
+                                        title="Курс опубликован в Материалах LMS"
+                                      >
+                                        LMS
+                                      </span>
+                                    ) : null}
                                     <span
                                       className="font-semibold text-foreground truncate cursor-pointer hover:text-primary"
                                       onClick={() =>
@@ -1221,6 +1281,46 @@ export function SubjectsView({
                 onChange={(e) => setFormDesc(e.target.value)}
                 className="h-8 text-xs bg-background"
               />
+            </div>
+
+            {/* Manual LMS Materials Toggle */}
+            <div className="p-2.5 rounded-lg border bg-muted/20 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                    <BookMarked className="h-3.5 w-3.5 text-primary" />
+                    <span>Отображать в Материалах (LMS)</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-normal">
+                    Включайте только если преподаватель ведёт электронный курс. По умолчанию скрыто, чтобы не путать студентов пустыми карточками.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setFormIsLmsActive(false)}
+                    className={`h-6 px-2.5 rounded-md text-[11px] font-medium transition-colors ${
+                      !formIsLmsActive
+                        ? "bg-background text-foreground shadow-2xs border border-border"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Скрыто
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormIsLmsActive(true)}
+                    className={`h-6 px-2.5 rounded-md text-[11px] font-medium transition-colors ${
+                      formIsLmsActive
+                        ? "bg-primary text-primary-foreground shadow-2xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Включено
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

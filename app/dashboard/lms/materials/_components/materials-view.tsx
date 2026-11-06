@@ -1039,9 +1039,23 @@ export function MaterialsView({
                     <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                       <BookMarked className="h-5 w-5" />
                     </div>
-                    <Badge variant="outline" className="text-[10px] bg-muted font-medium">
-                      {subj.topicsCount ?? 0} тем
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      {canCreate && subj.isLmsActive !== undefined && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[9.5px] px-1.5 py-0 font-medium ${
+                            subj.isLmsActive
+                              ? "bg-primary/10 text-primary border-primary/30"
+                              : "bg-muted text-muted-foreground border-border"
+                          }`}
+                        >
+                          {subj.isLmsActive ? "LMS: Вкл" : "LMS: Скрыт"}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-[10px] bg-muted font-medium">
+                        {subj.topicsCount ?? 0} тем
+                      </Badge>
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -1063,8 +1077,12 @@ export function MaterialsView({
               {subjects.length === 0 && !isPending && (
                 <div className="col-span-full p-12 border rounded-xl bg-card text-center space-y-2 text-muted-foreground">
                   <BookMarked className="h-8 w-8 text-muted-foreground/30 mx-auto" />
-                  <p className="font-semibold text-foreground text-xs">Дисциплины не назначены</p>
-                  <p className="text-[11px]">У этой группы пока нет добавленных предметов</p>
+                  <p className="font-semibold text-foreground text-xs">Нет доступных материалов</p>
+                  <p className="text-[11px] max-w-sm mx-auto leading-relaxed">
+                    {canCreate
+                      ? "В этой группе пока нет опубликованных дисциплин. Включите отображение предметов в разделе «Дисциплины» или добавьте первую тему."
+                      : "Преподаватели ещё не опубликовали учебные материалы для этой группы."}
+                  </p>
                 </div>
               )}
             </div>

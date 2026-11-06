@@ -11,7 +11,6 @@ import { OnboardingTour } from "@/components/onboarding-tour";
 import { TourHubModal } from "@/components/tour-hub-modal";
 import { prisma } from "@/lib/prisma";
 import { getFeatureModulesAction } from "@/app/dashboard/settings/actions";
-import { HeaderScheduleInformer } from "@/components/header-schedule-informer";
 import { StudentQuickSheetProvider } from "@/components/student-quick-sheet";
 
 export default async function DashboardLayout({
@@ -94,7 +93,6 @@ export default async function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-1.5">
-              <HeaderScheduleInformer />
               {studentGroupName && (
                 <span className="text-xs font-mono text-muted-foreground border border-border px-2 py-0.5 rounded-md bg-muted/40 font-medium hidden sm:inline-block">
                   {studentGroupName}
