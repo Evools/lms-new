@@ -15,6 +15,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
   Search,
   CheckCircle2,
   Clock,
@@ -28,6 +34,7 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Download,
 } from "lucide-react";
 import { AssignmentDTO, SubmissionDTO, reviewSubmissionAction } from "../actions";
@@ -50,10 +57,31 @@ interface TeacherReviewDialogProps {
 type ReviewStatusFilter = "ALL" | "SUBMITTED" | "ACCEPTED" | "NEED_REVISION";
 
 const PRESET_FEEDBACKS = [
-  "Зачтено! Отличная работа.",
-  "Всё выполнено корректно и аккуратно.",
-  "Требуется исправить замечания и пересдать.",
-  "Не удаётся открыть ссылку. Пожалуйста, проверьте права доступа.",
+  {
+    badge: "Отлично",
+    label: "Зачтено! Отличная работа",
+    text: "Зачтено! Отличная работа, всё выполнено верно и в полном объёме.",
+  },
+  {
+    badge: "Всё верно",
+    label: "Корректно и аккуратно",
+    text: "Всё выполнено корректно и аккуратно. Задание принято.",
+  },
+  {
+    badge: "На доработку",
+    label: "Требуются исправления",
+    text: "Требуется исправить замечания и прислать решение на повторную проверку.",
+  },
+  {
+    badge: "Нет доступа",
+    label: "Проблема с доступом к ссылке",
+    text: "Не удаётся открыть ссылку/файл. Пожалуйста, откройте права доступа.",
+  },
+  {
+    badge: "Неполное",
+    label: "Неполное решение",
+    text: "Решение неполное. Пожалуйста, выполните все пункты технического задания.",
+  },
 ];
 
 export function TeacherReviewDialog({
@@ -399,7 +427,7 @@ export function TeacherReviewDialog({
             </div>
 
             {/* Right Panel: Focused Active Student Card */}
-            <div className="md:col-span-8 lg:col-span-9 border rounded-xl p-3.5 bg-card flex flex-col justify-between h-full min-h-0 overflow-y-auto">
+            <div className="md:col-span-8 lg:col-span-9 border rounded-xl bg-card flex flex-col h-full min-h-0 overflow-hidden">
               {(() => {
                 const activeSub =
                   filteredSubmissions.find((s) => s.id === activeSubmissionId) ||
@@ -410,7 +438,7 @@ export function TeacherReviewDialog({
 
                 if (!activeSub) {
                   return (
-                    <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center text-muted-foreground text-xs space-y-2 my-auto">
+                    <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center text-muted-foreground text-xs space-y-2 my-auto p-4">
                       <CheckCheck className="h-10 w-10 text-primary/40 mx-auto" />
                       <p className="font-bold text-foreground">
                         В этой категории все работы проверены!
@@ -424,29 +452,29 @@ export function TeacherReviewDialog({
 
                 return (
                   <>
-                    <div className="space-y-3">
-                      {/* Active Student Header Bar */}
-                      <div className="flex items-center justify-between gap-2 border-b pb-2.5">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                            {activeSub.studentName
-                              ? activeSub.studentName[0].toUpperCase()
-                              : "С"}
+                    {/* Fixed Active Student Header Bar */}
+                    <div className="flex items-center justify-between gap-2 p-3 border-b bg-card shrink-0">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                          {activeSub.studentName
+                            ? activeSub.studentName[0].toUpperCase()
+                            : "С"}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-foreground text-xs truncate">
+                            {activeSub.studentName}
                           </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-foreground text-xs truncate">
-                              {activeSub.studentName}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                              <Clock className="h-3 w-3 text-muted-foreground" />
-                              <span>
-                                Сдано:{" "}
-                                {new Date(activeSub.submittedAt).toLocaleString("ru-RU")}
-                              </span>
-                            </div>
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            <span>
+                              Сдано:{" "}
+                              {new Date(activeSub.submittedAt).toLocaleString("ru-RU")}
+                            </span>
                           </div>
                         </div>
+                      </div>
 
+                      <div className="flex items-center gap-2 shrink-0">
                         <Badge
                           variant="outline"
                           className={`text-[10px] font-semibold border px-2 py-0.5 ${
@@ -463,8 +491,44 @@ export function TeacherReviewDialog({
                               ? "На доработке"
                               : "На проверке"}
                         </Badge>
-                      </div>
 
+                        {/* Quick Stepper in Header */}
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground pl-2 border-l">
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            disabled={activeIdx <= 0}
+                            onClick={() => {
+                              if (activeIdx > 0)
+                                setActiveSubmissionId(filteredSubmissions[activeIdx - 1].id);
+                            }}
+                            className="h-6 w-6 p-0"
+                            title="Предыдущий студент"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="font-mono text-[10px] px-1">
+                            {activeIdx + 1}/{filteredSubmissions.length}
+                          </span>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            disabled={activeIdx >= filteredSubmissions.length - 1}
+                            onClick={() => {
+                              if (activeIdx < filteredSubmissions.length - 1)
+                                setActiveSubmissionId(filteredSubmissions[activeIdx + 1].id);
+                            }}
+                            className="h-6 w-6 p-0"
+                            title="Следующий студент"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Scrollable Middle Solution Area */}
+                    <div className="p-3.5 space-y-3 flex-1 min-h-0 overflow-y-auto">
                       {/* Submitted Link / File Box */}
                       {activeSub.fileUrl && (() => {
                         const meta = getResourceMeta(activeSub.fileUrl);
@@ -522,84 +586,131 @@ export function TeacherReviewDialog({
 
                       {/* Multi-File Code / Solution Display */}
                       <SubmissionContentDisplay submission={activeSub} />
+                    </div>
 
-                      {/* Quick Preset Feedback Chips */}
-                      <div className="space-y-1.5 pt-1">
-                        <label className="text-[10px] text-muted-foreground font-medium">
-                          Быстрые шаблоны ответов:
-                        </label>
-                        <div className="flex flex-wrap gap-1">
-                          {PRESET_FEEDBACKS.map((chipText, cIdx) => (
-                            <button
-                              key={cIdx}
-                              type="button"
-                              onClick={() =>
-                                setReviewTeacherCommentMap((prev) => ({
-                                  ...prev,
-                                  [activeSub.id]: chipText,
-                                }))
-                              }
-                              className="text-[10px] bg-muted/60 hover:bg-primary/10 hover:text-primary px-2 py-0.5 rounded-md border text-muted-foreground transition-colors font-medium cursor-pointer"
-                            >
-                              {chipText}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Grade Selector */}
-                      <div className="space-y-1.5 pt-1">
-                        <label className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
-                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> Оценка
-                          (1–5):
-                        </label>
-                        <div className="flex items-center gap-1">
-                          {[1, 2, 3, 4, 5].map((g) => {
-                            const selected = reviewGradeMap[activeSub.id] === g;
-                            return (
+                    {/* Fixed Dedicated Review & Grading Bar (Always in view!) */}
+                    <div className="p-3 border-t bg-muted/20 shrink-0 space-y-2.5">
+                      {/* Top Row: Star Grade (left) + Preset Templates (right) */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        {/* Grade Selector (1–5) */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs font-medium text-foreground flex items-center gap-1">
+                            <Star className="h-3.5 w-3.5 fill-primary text-primary" /> Оценка:
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((g) => {
+                              const selected = reviewGradeMap[activeSub.id] === g;
+                              return (
+                                <button
+                                  key={g}
+                                  type="button"
+                                  onClick={() =>
+                                    setReviewGradeMap((prev) => ({
+                                      ...prev,
+                                      [activeSub.id]: selected ? null : g,
+                                    }))
+                                  }
+                                  className={`h-7 w-7 rounded-md text-xs font-bold border transition-all cursor-pointer ${
+                                    selected
+                                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                      : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                                  }`}
+                                >
+                                  {g}
+                                </button>
+                              );
+                            })}
+                            {reviewGradeMap[activeSub.id] != null && (
                               <button
-                                key={g}
                                 type="button"
                                 onClick={() =>
                                   setReviewGradeMap((prev) => ({
                                     ...prev,
-                                    [activeSub.id]: selected ? null : g,
+                                    [activeSub.id]: null,
                                   }))
                                 }
-                                className={`h-8 w-8 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                                  selected
-                                    ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                                    : "bg-muted/60 text-muted-foreground border-border hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300"
-                                }`}
+                                className="text-[11px] text-muted-foreground hover:text-destructive px-1 cursor-pointer ml-0.5"
                               >
-                                {g}
+                                сбросить
                               </button>
-                            );
-                          })}
-                          {reviewGradeMap[activeSub.id] != null && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setReviewGradeMap((prev) => ({
-                                  ...prev,
-                                  [activeSub.id]: null,
-                                }))
-                              }
-                              className="text-[10px] text-muted-foreground hover:text-destructive ml-1 cursor-pointer"
-                            >
-                              сбросить
-                            </button>
-                          )}
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quick Preset Feedback Templates */}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+                            Шаблоны:
+                          </span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {PRESET_FEEDBACKS.slice(0, 3).map((tmpl, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() =>
+                                  setReviewTeacherCommentMap((prev) => ({
+                                    ...prev,
+                                    [activeSub.id]: tmpl.text,
+                                  }))
+                                }
+                                className="text-[11px] bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 px-2 py-0.5 rounded-md border border-border text-foreground transition-colors font-medium cursor-pointer"
+                                title={tmpl.text}
+                              >
+                                {tmpl.badge}
+                              </button>
+                            ))}
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="outline"
+                                    className="h-6 px-2 text-[11px] gap-1 font-medium border-border hover:bg-muted/60"
+                                  />
+                                }
+                              >
+                                <span>Ещё...</span>
+                                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-80 text-xs p-1">
+                                <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                  Готовые шаблоны рецензий
+                                </div>
+                                {PRESET_FEEDBACKS.map((tmpl, idx) => (
+                                  <DropdownMenuItem
+                                    key={idx}
+                                    onClick={() =>
+                                      setReviewTeacherCommentMap((prev) => ({
+                                        ...prev,
+                                        [activeSub.id]: tmpl.text,
+                                      }))
+                                    }
+                                    className="py-1.5 px-2 cursor-pointer flex flex-col items-start gap-0.5 rounded-md"
+                                  >
+                                    <div className="flex items-center justify-between w-full">
+                                      <span className="font-medium text-foreground text-xs">{tmpl.label}</span>
+                                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                        {tmpl.badge}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                                      {tmpl.text}
+                                    </span>
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Teacher Comment Textarea */}
-                      <div className="space-y-1 pt-1">
-                        <label className="text-[10px] font-semibold text-foreground">
-                          Замечание / Рецензия преподавателя:
-                        </label>
+                      {/* Middle: Comfortable Multi-line Textarea */}
+                      <div>
                         <Textarea
-                          placeholder="Напишите комментарий для студента..."
+                          rows={2}
+                          placeholder="Напишите замечание или рецензию для студента (или выберите шаблон выше)..."
                           value={reviewTeacherCommentMap[activeSub.id] || ""}
                           onChange={(e) =>
                             setReviewTeacherCommentMap((prev) => ({
@@ -607,114 +718,84 @@ export function TeacherReviewDialog({
                               [activeSub.id]: e.target.value,
                             }))
                           }
-                          className="text-xs bg-background min-h-[50px]"
+                          className="w-full text-xs bg-background min-h-[58px] max-h-[120px] resize-y p-2.5 rounded-lg border border-border focus-visible:border-primary"
                         />
                       </div>
-                    </div>
 
-                    {/* Action Footer & Stepper Controls */}
-                    <div className="pt-3 border-t flex flex-col sm:flex-row items-center justify-between gap-2">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          disabled={activeIdx <= 0}
-                          onClick={() => {
-                            if (activeIdx > 0)
-                              setActiveSubmissionId(filteredSubmissions[activeIdx - 1].id);
-                          }}
-                          className="h-7 w-7 p-0"
-                        >
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <span>
-                          {activeIdx + 1} из {filteredSubmissions.length}
-                        </span>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          disabled={activeIdx >= filteredSubmissions.length - 1}
-                          onClick={() => {
-                            if (activeIdx < filteredSubmissions.length - 1)
-                              setActiveSubmissionId(filteredSubmissions[activeIdx + 1].id);
-                          }}
-                          className="h-7 w-7 p-0"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      {/* Bottom Row: Status Indicator & Action Buttons */}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <div className="text-[11px] text-muted-foreground">
+                          {reviewGradeMap[activeSub.id] ? (
+                            <span className="text-primary font-medium">
+                              Оценка: {reviewGradeMap[activeSub.id]}
+                            </span>
+                          ) : (
+                            <span>Без оценки</span>
+                          )}
+                        </div>
 
-                      {activeSub.status === SubmissionStatus.ACCEPTED ? (
-                        /* Accepted — can still edit grade/comment */
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="flex items-center gap-1.5 text-[11px] text-primary font-medium">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            <span>Принято</span>
-                            {activeSub.reviewedAt && (
-                              <span className="text-muted-foreground font-normal">
-                                {new Date(activeSub.reviewedAt).toLocaleDateString("ru-RU")}
-                              </span>
-                            )}
+                        {activeSub.status === SubmissionStatus.ACCEPTED ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              disabled={isPending}
+                              onClick={() =>
+                                handleReviewSubmission(
+                                  activeSub.id,
+                                  SubmissionStatus.NEED_REVISION
+                                )
+                              }
+                              className="h-8 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium px-3"
+                            >
+                              <XCircle className="h-3.5 w-3.5" /> На доработку
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              disabled={isPending}
+                              onClick={() =>
+                                handleReviewSubmission(activeSub.id, SubmissionStatus.ACCEPTED)
+                              }
+                              className="h-8 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-3"
+                            >
+                              <Check className="h-3.5 w-3.5" /> Обновить
+                            </Button>
                           </div>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={isPending}
-                            onClick={() =>
-                              handleReviewSubmission(activeSub.id, SubmissionStatus.ACCEPTED)
-                            }
-                            className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 ml-auto"
-                          >
-                            <Check className="h-3.5 w-3.5" /> Обновить
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={isPending}
-                            onClick={() =>
-                              handleReviewSubmission(
-                                activeSub.id,
-                                SubmissionStatus.NEED_REVISION
-                              )
-                            }
-                            className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium"
-                          >
-                            <XCircle className="h-3.5 w-3.5" /> На доработку
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={isPending}
-                            onClick={() =>
-                              handleReviewSubmission(
-                                activeSub.id,
-                                SubmissionStatus.NEED_REVISION
-                              )
-                            }
-                            className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium"
-                          >
-                            <XCircle className="h-3.5 w-3.5" /> На доработку
-                          </Button>
+                        ) : (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              disabled={isPending}
+                              onClick={() =>
+                                handleReviewSubmission(
+                                  activeSub.id,
+                                  SubmissionStatus.NEED_REVISION
+                                )
+                              }
+                              className="h-8 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium px-3"
+                            >
+                              <XCircle className="h-3.5 w-3.5" /> На доработку
+                            </Button>
 
-                          <Button
-                            size="xs"
-                            disabled={isPending}
-                            onClick={() =>
-                              handleReviewSubmission(
-                                activeSub.id,
-                                SubmissionStatus.ACCEPTED
-                              )
-                            }
-                            className="h-7 text-xs gap-1.5 font-medium px-3 shadow-xs"
-                          >
-                            <Check className="h-3.5 w-3.5" /> Принять и дальше{" "}
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      )}
+                            <Button
+                              size="xs"
+                              disabled={isPending}
+                              onClick={() =>
+                                handleReviewSubmission(
+                                  activeSub.id,
+                                  SubmissionStatus.ACCEPTED
+                                )
+                              }
+                              className="h-8 text-xs gap-1.5 font-medium px-3.5 shadow-xs"
+                            >
+                              <Check className="h-3.5 w-3.5" /> Принять и дальше{" "}
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </>
                 );

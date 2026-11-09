@@ -16,6 +16,13 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   ClipboardList,
   Plus,
   Search,
@@ -38,6 +45,7 @@ import {
   EyeOff,
   Star,
   Pencil,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -635,64 +643,84 @@ export function AssignmentsView({
 
                       {/* Actions */}
                       <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1.5">
                           {canCreate ? (
                             <>
                               <Button
                                 size="xs"
                                 variant="outline"
                                 onClick={() => setReviewTargetAssignmentId(assignment.id)}
-                                className="h-7 text-xs gap-1 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2"
+                                className="h-7 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2.5"
                                 title="Проверить работы студентов"
                               >
                                 <FileCheck className="h-3.5 w-3.5" />
-                                <span className="hidden md:inline">Проверить</span>
+                                <span>Проверить</span>
                               </Button>
 
-                              <Link href={`/dashboard/assignments/${assignment.id}/edit?group=${currentGroupId}`}>
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-                                  title="Редактировать задание"
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  render={
+                                    <Button
+                                      size="xs"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                                      title="Действия с заданием"
+                                    />
+                                  }
                                 >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                              </Link>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48 text-xs">
+                                  <DropdownMenuItem
+                                    onClick={() => setViewTargetAssignmentId(assignment.id)}
+                                    className="gap-2 cursor-pointer"
+                                  >
+                                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span>Просмотреть</span>
+                                  </DropdownMenuItem>
 
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() =>
-                                  handleTogglePublish(assignment.id, assignment.isPublished)
-                                }
-                                className={`h-7 w-7 p-0 ${
-                                  assignment.isPublished
-                                    ? "text-muted-foreground hover:text-primary"
-                                    : "text-muted-foreground hover:text-foreground bg-muted/40"
-                                }`}
-                                title={
-                                  assignment.isPublished
-                                    ? "Снять с публикации (в черновик)"
-                                    : "Опубликовать задание"
-                                }
-                              >
-                                {assignment.isPublished ? (
-                                  <Eye className="h-3.5 w-3.5" />
-                                ) : (
-                                  <EyeOff className="h-3.5 w-3.5" />
-                                )}
-                              </Button>
+                                  <DropdownMenuItem
+                                    render={
+                                      <Link
+                                        href={`/dashboard/assignments/${assignment.id}/edit?group=${currentGroupId}`}
+                                        className="flex items-center gap-2 cursor-pointer w-full"
+                                      />
+                                    }
+                                  >
+                                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span>Редактировать</span>
+                                  </DropdownMenuItem>
 
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => setDeleteTargetAssignmentId(assignment.id)}
-                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive border-transparent hover:border-destructive/30"
-                                title="Удалить задание"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleTogglePublish(assignment.id, assignment.isPublished)
+                                    }
+                                    className="gap-2 cursor-pointer"
+                                  >
+                                    {assignment.isPublished ? (
+                                      <>
+                                        <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span>Снять с публикации</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Eye className="h-3.5 w-3.5 text-primary" />
+                                        <span>Опубликовать</span>
+                                      </>
+                                    )}
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuSeparator />
+
+                                  <DropdownMenuItem
+                                    onClick={() => setDeleteTargetAssignmentId(assignment.id)}
+                                    className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    <span>Удалить задание</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </>
                           ) : (
                             <>

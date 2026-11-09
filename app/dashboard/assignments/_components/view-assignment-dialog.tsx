@@ -55,7 +55,7 @@ export function ViewAssignmentDialog({
   return (
     <Dialog open={assignment !== null} onOpenChange={(open) => !open && onClose()}>
       {assignment && (
-        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[620px] max-h-[85vh] flex flex-col">
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[860px] md:max-w-[920px] w-[95vw] max-h-[88vh] flex flex-col">
           <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left shrink-0">
             <div className="flex items-center gap-2">
               <Badge
