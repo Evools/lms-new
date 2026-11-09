@@ -31,9 +31,6 @@ import {
   ArrowRight,
   CheckCheck,
   Star,
-  ClipboardList,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Download,
 } from "lucide-react";
@@ -93,7 +90,6 @@ export function TeacherReviewDialog({
   const [isPending, startTransition] = useTransition();
   const [submissions, setSubmissions] = useState<SubmissionDTO[]>([]);
   const [reviewFilter, setReviewFilter] = useState<ReviewStatusFilter>("SUBMITTED");
-  const [reviewViewMode, setReviewViewMode] = useState<"focus" | "list">("focus");
   const [submissionSearch, setSubmissionSearch] = useState<string>("");
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
   const [reviewTeacherCommentMap, setReviewTeacherCommentMap] = useState<Record<string, string>>({});
@@ -322,57 +318,29 @@ export function TeacherReviewDialog({
             </button>
           </div>
 
-          {/* View Switcher & Progress Bar */}
-          <div className="flex items-center gap-3 shrink-0 pt-1 sm:pt-0">
-            {/* Focus / List View Switcher */}
-            <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border">
-              <button
-                type="button"
-                onClick={() => setReviewViewMode("focus")}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-medium border transition-colors cursor-pointer ${
-                  reviewViewMode === "focus"
-                    ? "bg-background text-primary border-border shadow-xs"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Поочередная проверка
-              </button>
-              <button
-                type="button"
-                onClick={() => setReviewViewMode("list")}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-medium border transition-colors cursor-pointer ${
-                  reviewViewMode === "list"
-                    ? "bg-background text-primary border-border shadow-xs"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Список работ
-              </button>
-            </div>
-
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
-              <span>
-                {acceptedCount}/{submissions.length}
-              </span>
-              <div className="w-16 bg-muted/80 h-2 rounded-full overflow-hidden border">
-                <div
-                  className="bg-primary h-full transition-all duration-300"
-                  style={{
-                    width: `${
-                      submissions.length > 0
-                        ? Math.round((acceptedCount / submissions.length) * 100)
-                        : 0
-                    }%`,
-                  }}
-                />
-              </div>
+          {/* Progress Bar */}
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium shrink-0 pt-1 sm:pt-0">
+            <span>Проверено:</span>
+            <span className="font-semibold text-foreground">
+              {acceptedCount}/{submissions.length}
+            </span>
+            <div className="w-20 bg-muted/80 h-2 rounded-full overflow-hidden border ml-1">
+              <div
+                className="bg-primary h-full transition-all duration-300"
+                style={{
+                  width: `${
+                    submissions.length > 0
+                      ? Math.round((acceptedCount / submissions.length) * 100)
+                      : 0
+                  }%`,
+                }}
+              />
             </div>
           </div>
         </div>
 
-        {/* FOCUS CONVEYOR WORKFLOW (Master-Detail Mode) */}
-        {reviewViewMode === "focus" ? (
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 py-1 flex-1 min-h-0 overflow-hidden">
+        {/* Conveyor Workflow (Queue on Left, Workspace on Right) */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 py-1 flex-1 min-h-0 overflow-hidden">
             {/* Left Sidebar: Queue of Students */}
             <div className="md:col-span-4 lg:col-span-3 border rounded-xl p-2.5 bg-muted/20 flex flex-col h-full min-h-0 space-y-2">
               <div className="relative shrink-0">
@@ -491,39 +459,6 @@ export function TeacherReviewDialog({
                               ? "На доработке"
                               : "На проверке"}
                         </Badge>
-
-                        {/* Quick Stepper in Header */}
-                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground pl-2 border-l">
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={activeIdx <= 0}
-                            onClick={() => {
-                              if (activeIdx > 0)
-                                setActiveSubmissionId(filteredSubmissions[activeIdx - 1].id);
-                            }}
-                            className="h-6 w-6 p-0"
-                            title="Предыдущий студент"
-                          >
-                            <ChevronLeft className="h-3.5 w-3.5" />
-                          </Button>
-                          <span className="font-mono text-[10px] px-1">
-                            {activeIdx + 1}/{filteredSubmissions.length}
-                          </span>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={activeIdx >= filteredSubmissions.length - 1}
-                            onClick={() => {
-                              if (activeIdx < filteredSubmissions.length - 1)
-                                setActiveSubmissionId(filteredSubmissions[activeIdx + 1].id);
-                            }}
-                            className="h-6 w-6 p-0"
-                            title="Следующий студент"
-                          >
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
                       </div>
                     </div>
 
@@ -802,225 +737,6 @@ export function TeacherReviewDialog({
               })()}
             </div>
           </div>
-        ) : (
-          /* LIST VIEW MODE (All cards stacked) */
-          <div className="space-y-2.5 py-1 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
-            {filteredSubmissions.map((sub: SubmissionDTO) => (
-              <div
-                key={sub.id}
-                className="p-3 rounded-xl border bg-card hover:border-primary/40 transition-colors space-y-2 shadow-xs"
-              >
-                <div className="flex items-center justify-between gap-2 border-b pb-1.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                      {sub.studentName ? sub.studentName[0].toUpperCase() : "С"}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-bold text-foreground text-xs truncate">
-                        {sub.studentName}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-muted-foreground" />
-                        <span>{new Date(sub.submittedAt).toLocaleString("ru-RU")}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-semibold border px-2 py-0.5 ${
-                      sub.status === SubmissionStatus.ACCEPTED
-                        ? "bg-primary/15 text-primary border-primary/30"
-                        : sub.status === SubmissionStatus.NEED_REVISION
-                          ? "bg-destructive/10 text-destructive border-destructive/30"
-                          : "bg-muted/60 text-muted-foreground border-border/50"
-                    }`}
-                  >
-                    {sub.status === SubmissionStatus.ACCEPTED
-                      ? "Принято"
-                      : sub.status === SubmissionStatus.NEED_REVISION
-                        ? "На доработке"
-                        : "На проверке"}
-                  </Badge>
-                </div>
-
-                {/* Submitted Link & Code Solution */}
-                <div className="space-y-2 text-xs">
-                  {sub.fileUrl && (() => {
-                    const meta = getResourceMeta(sub.fileUrl);
-                    return (
-                      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/20 border">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <div className="p-1 rounded-md bg-muted text-primary shrink-0">
-                            {meta.icon}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="font-semibold text-foreground text-xs truncate" title={meta.title}>
-                                {meta.title}
-                              </span>
-                              <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal shrink-0">
-                                {meta.badge}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                        <a
-                          href={sub.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-primary hover:underline text-xs shrink-0 font-medium"
-                        >
-                          {meta.isDownloadable ? (
-                            <>
-                              <Download className="h-3.5 w-3.5" />
-                              <span>Скачать</span>
-                            </>
-                          ) : (
-                            <>
-                              <ExternalLink className="h-3.5 w-3.5" />
-                              <span>Открыть</span>
-                            </>
-                          )}
-                        </a>
-                      </div>
-                    );
-                  })()}
-
-                  <SubmissionContentDisplay submission={sub} />
-                </div>
-
-                {/* Teacher Feedback & Action Buttons */}
-                <div className="pt-1.5 border-t space-y-2">
-                  {/* Grade selector */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground font-medium shrink-0 flex items-center gap-1">
-                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> Оценка:
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((g) => {
-                        const selected = reviewGradeMap[sub.id] === g;
-                        return (
-                          <button
-                            key={g}
-                            type="button"
-                            onClick={() =>
-                              setReviewGradeMap((prev) => ({
-                                ...prev,
-                                [sub.id]: selected ? null : g,
-                              }))
-                            }
-                            className={`h-6 w-6 rounded-md text-[10px] font-bold border transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer ${
-                              selected
-                                ? "bg-amber-500 text-white border-amber-500"
-                                : "bg-muted/60 text-muted-foreground border-border hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300"
-                            }`}
-                          >
-                            {g}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground">
-                      Комментарий преподавателя:
-                    </label>
-                    <Input
-                      placeholder="Замечания или похвала студенту..."
-                      value={reviewTeacherCommentMap[sub.id] || ""}
-                      onChange={(e) =>
-                        setReviewTeacherCommentMap((prev) => ({
-                          ...prev,
-                          [sub.id]: e.target.value,
-                        }))
-                      }
-                      className="h-7 text-xs bg-background"
-                    />
-                  </div>
-
-                  {sub.status === SubmissionStatus.ACCEPTED ? (
-                    /* Accepted — editable, with Update button */
-                    <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
-                      <div className="flex items-center gap-1.5 text-[11px] text-primary font-medium">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>Принято</span>
-                        {sub.grade != null && (
-                          <span className="inline-flex items-center gap-0.5 text-amber-600 font-bold">
-                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />{" "}
-                            {sub.grade}
-                          </span>
-                        )}
-                        {sub.reviewedAt && (
-                          <span className="text-muted-foreground font-normal">
-                            {new Date(sub.reviewedAt).toLocaleDateString("ru-RU")}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          disabled={isPending}
-                          onClick={() =>
-                            handleReviewSubmission(sub.id, SubmissionStatus.NEED_REVISION)
-                          }
-                          className="h-6 text-[10px] gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
-                        >
-                          <XCircle className="h-3 w-3" /> На доработку
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          disabled={isPending}
-                          onClick={() =>
-                            handleReviewSubmission(sub.id, SubmissionStatus.ACCEPTED)
-                          }
-                          className="h-6 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                        >
-                          <Check className="h-3 w-3" /> Обновить
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        disabled={isPending}
-                        onClick={() =>
-                          handleReviewSubmission(sub.id, SubmissionStatus.NEED_REVISION)
-                        }
-                        className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 font-medium"
-                      >
-                        <XCircle className="h-3.5 w-3.5" /> На доработку
-                      </Button>
-
-                      <Button
-                        size="xs"
-                        disabled={isPending}
-                        onClick={() =>
-                          handleReviewSubmission(sub.id, SubmissionStatus.ACCEPTED)
-                        }
-                        className="h-7 text-xs gap-1 font-medium px-3"
-                      >
-                        <Check className="h-3.5 w-3.5" /> Принять работу
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {filteredSubmissions.length === 0 && (
-              <div className="py-8 text-center text-muted-foreground text-xs space-y-1 bg-muted/20 border rounded-xl">
-                <ClipboardList className="h-7 w-7 text-muted-foreground/30 mx-auto" />
-                <p className="font-semibold text-foreground">Работы по данному фильтру не найдены</p>
-              </div>
-            )}
-          </div>
-        )}
 
         <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
           <Button size="xs" variant="outline" onClick={onClose}>
