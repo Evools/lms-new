@@ -709,7 +709,7 @@ export function TeacherReviewDialog({
                       {/* Middle: Comfortable Multi-line Textarea */}
                       <div>
                         <Textarea
-                          rows={2}
+                          rows={4}
                           placeholder="Напишите замечание или рецензию для студента (или выберите шаблон выше)..."
                           value={reviewTeacherCommentMap[activeSub.id] || ""}
                           onChange={(e) =>
@@ -718,7 +718,7 @@ export function TeacherReviewDialog({
                               [activeSub.id]: e.target.value,
                             }))
                           }
-                          className="w-full text-xs bg-background min-h-[58px] max-h-[120px] resize-y p-2.5 rounded-lg border border-border focus-visible:border-primary"
+                          className="w-full text-xs bg-background min-h-[110px] max-h-[220px] resize-y p-3 rounded-lg border border-border focus-visible:border-primary leading-relaxed"
                         />
                       </div>
 
