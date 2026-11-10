@@ -121,6 +121,7 @@ model Group {
   id              String   @id @default(cuid())
   name            String   @unique // e.g., "ИС-1-25"
   course          Int      @default(1)
+  studyDays       Int      @default(6) // 5 = пятидневка, 6 = шестидневка
   specialtyId     String?
   academicYearId  String
   curatorId       String?

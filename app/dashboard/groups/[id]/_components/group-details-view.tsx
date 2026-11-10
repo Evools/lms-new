@@ -496,6 +496,9 @@ ${student.phone ? `Телефон:        ${student.phone}\n` : ""}
                 <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 font-medium">
                   {group.course} Курс
                 </Badge>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium border-border">
+                  {group.studyDays === 5 ? "5-дневка (Пн–Пт)" : "6-дневка (Пн–Сб)"}
+                </Badge>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {group.specialtyCode && (

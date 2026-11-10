@@ -606,18 +606,41 @@ export async function getAttendancePeriodStatsAction(
       }
     });
 
-    // Calculate calendar working days according to СКУД logic
-    // (6-day study week: Monday to Saturday, excluding Sundays)
+    // Check if group is 5-day week (from group settings: studyDays === 5; fallback to group name if not specified)
+    const groupNameUpper = (group.name || "").toUpperCase();
+    const isFiveDayWeek =
+      group.studyDays === 5 ||
+      (group.studyDays == null &&
+        (groupNameUpper.includes("-К") ||
+          groupNameUpper.includes("-K") ||
+          groupNameUpper.includes("СИТ")));
+
+    // Calculate calendar working days according to group study schedule:
+    // - 5-day contract groups (СИТ-К): Mon-Fri (plus any Saturdays where classes were held/recorded) -> typically 22 or 24 days in October
+    // - 6-day budget groups (ВР-1-26, ВР-2-26): Mon-Sat -> 27 days in October
     const scudWorkingDays: string[] = [];
     const [startYear, startMonth, startDay] = startDateStr.split("-").map(Number);
     const [endYear, endMonth, endDay] = endDateStr.split("-").map(Number);
     const currDate = new Date(Date.UTC(startYear, startMonth - 1, startDay, 12, 0, 0));
     const lastDate = new Date(Date.UTC(endYear, endMonth - 1, endDay, 12, 0, 0));
 
+    // Dates that already have recorded entries in the database
+    const recordedDates = new Set(Object.values(lessonsByDateMap).map((l) => l.date));
+
     while (currDate <= lastDate) {
-      if (currDate.getUTCDay() !== 0) {
-        // 0 is Sunday
-        scudWorkingDays.push(currDate.toISOString().split("T")[0]);
+      const dayOfWeek = currDate.getUTCDay(); // 0 is Sunday, 6 is Saturday
+      const dateStr = currDate.toISOString().split("T")[0];
+
+      if (dayOfWeek !== 0) {
+        if (!isFiveDayWeek) {
+          // 6-day schedule: Mon-Sat
+          scudWorkingDays.push(dateStr);
+        } else {
+          // 5-day schedule: Mon-Fri are standard; Saturday only if classes were recorded
+          if (dayOfWeek !== 6 || recordedDates.has(dateStr)) {
+            scudWorkingDays.push(dateStr);
+          }
+        }
       }
       currDate.setUTCDate(currDate.getUTCDate() + 1);
     }

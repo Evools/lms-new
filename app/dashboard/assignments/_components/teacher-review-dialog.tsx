@@ -400,9 +400,6 @@ export function TeacherReviewDialog({
                 const activeSub =
                   filteredSubmissions.find((s) => s.id === activeSubmissionId) ||
                   filteredSubmissions[0];
-                const activeIdx = filteredSubmissions.findIndex(
-                  (s) => s.id === activeSubmissionId
-                );
 
                 if (!activeSub) {
                   return (

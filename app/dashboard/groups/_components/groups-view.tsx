@@ -384,6 +384,9 @@ export function GroupsView({ userRole, initialGroups = [] }: GroupsViewProps) {
                       <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal shrink-0">
                         {group.course} курс
                       </Badge>
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal shrink-0">
+                        {group.studyDays === 5 ? "5-дневка" : "6-дневка"}
+                      </Badge>
                     </div>
                     <p className="text-[11px] text-muted-foreground truncate mt-0.5 flex items-center gap-1">
                       {group.specialtyCode && (

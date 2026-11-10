@@ -87,6 +87,7 @@ export function GroupCreationForm({
 
   const [groupName, setGroupName] = useState("");
   const [course, setCourse] = useState("1");
+  const [studyDays, setStudyDays] = useState<number>(6);
   const [specialties, setSpecialties] = useState<SpecialtyOption[]>(specialtiesList);
   const [specialtyId, setSpecialtyId] = useState<string>(
     specialtiesList[0]?.id || "unassigned"
@@ -171,6 +172,7 @@ export function GroupCreationForm({
     const res = await createGroupAction({
       name: groupName.trim(),
       course: parseInt(course, 10) || 1,
+      studyDays,
       curatorId: !curatorId || curatorId === "unassigned" || curatorId === "none" ? undefined : curatorId,
       classTeacherId: !classTeacherId || classTeacherId === "unassigned" || classTeacherId === "none" ? undefined : classTeacherId,
       additionalTeacherIds: additionalTeacherIds,
@@ -319,6 +321,43 @@ export function GroupCreationForm({
                       )}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Study Days: 5-day or 6-day week */}
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                    <span>Учебная неделя (график посещаемости)</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      {studyDays === 5 ? "5-дневка (Пн–Пт, субботы выходные)" : "6-дневка (Пн–Сб, 6 рабочих дней по СКУД)"}
+                    </span>
+                  </Label>
+                  <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setStudyDays(6)}
+                      className={`h-7 px-3 rounded-md text-xs font-medium transition-colors cursor-pointer border ${
+                        studyDays === 6
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      6-дневка (Пн–Сб / Бюджет)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStudyDays(5)}
+                      className={`h-7 px-3 rounded-md text-xs font-medium transition-colors cursor-pointer border ${
+                        studyDays === 5
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      5-дневка (Пн–Пт / Контракт)
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Определяет расчет пропусков в сводке посещаемости: для 5-дневки субботы исключаются из обязательных рабочих дней.
+                  </p>
                 </div>
 
                 <div className="space-y-1 md:col-span-2">

@@ -16,6 +16,7 @@ export interface GroupDTO {
   id: string;
   name: string;
   course: number;
+  studyDays?: number;
   specialty: string;
   specialtyId?: string;
   specialtyCode?: string;
@@ -159,6 +160,7 @@ export async function getGroupsAction(): Promise<GroupDTO[]> {
         monitorName: item.monitor?.name || undefined,
         deputyMonitorName: item.deputyMonitor?.name || undefined,
         academicYear: item.academicYear.name,
+        studyDays: item.studyDays ?? 6,
         isDutyEnabled: item.isDutyEnabled ?? true,
         createdAt: new Date(item.createdAt).toLocaleDateString("ru-RU"),
       };
@@ -213,6 +215,7 @@ export async function getSpecialtiesListAction() {
 export async function createGroupAction(data: {
   name: string;
   course?: number;
+  studyDays?: number;
   curatorId?: string;
   classTeacherId?: string;
   additionalTeacherIds?: string[];
@@ -267,6 +270,7 @@ export async function createGroupAction(data: {
       data: {
         name: data.name.trim(),
         course: data.course ?? 1,
+        studyDays: data.studyDays ?? 6,
         academicYearId: academicYear.id,
         curatorId: cleanCuratorId,
         classTeacherId: cleanClassTeacherId,
@@ -295,6 +299,7 @@ export async function updateGroupAction(
   data: {
     name: string;
     course?: number;
+    studyDays?: number;
     curatorId?: string;
     classTeacherId?: string;
     additionalTeacherIds?: string[];
@@ -357,6 +362,7 @@ export async function updateGroupAction(
         data: {
           name: data.name.trim(),
           ...(data.course !== undefined ? { course: data.course } : {}),
+          ...(data.studyDays !== undefined ? { studyDays: data.studyDays } : {}),
           curatorId: cleanCuratorId,
           classTeacherId: cleanClassTeacherId,
           specialtyId: cleanSpecialtyId,
@@ -580,6 +586,7 @@ export async function getGroupByIdAction(groupId: string): Promise<GroupDetailsD
       monitorName: item.monitor?.name || undefined,
       deputyMonitorName: item.deputyMonitor?.name || undefined,
       academicYear: item.academicYear.name,
+      studyDays: item.studyDays ?? 6,
       isDutyEnabled: item.isDutyEnabled ?? true,
       createdAt: new Date(item.createdAt).toLocaleDateString("ru-RU"),
       studentsList,
