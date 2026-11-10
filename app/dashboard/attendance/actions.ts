@@ -606,8 +606,43 @@ export async function getAttendancePeriodStatsAction(
       }
     });
 
-    // Max lessons recorded for any student or total unique lessons in period
-    const totalRecordedLessons = Object.keys(lessonsByDateMap).length;
+    // Calculate calendar working days according to СКУД logic
+    // (6-day study week: Monday to Saturday, excluding Sundays)
+    const scudWorkingDays: string[] = [];
+    const [startYear, startMonth, startDay] = startDateStr.split("-").map(Number);
+    const [endYear, endMonth, endDay] = endDateStr.split("-").map(Number);
+    const currDate = new Date(Date.UTC(startYear, startMonth - 1, startDay, 12, 0, 0));
+    const lastDate = new Date(Date.UTC(endYear, endMonth - 1, endDay, 12, 0, 0));
+
+    while (currDate <= lastDate) {
+      if (currDate.getUTCDay() !== 0) {
+        // 0 is Sunday
+        scudWorkingDays.push(currDate.toISOString().split("T")[0]);
+      }
+      currDate.setUTCDate(currDate.getUTCDate() + 1);
+    }
+
+    const calendarWorkingDaysCount = scudWorkingDays.length;
+    // Align with СКУД calendar days (e.g. 27 days for full month of October)
+    const totalRecordedLessons = Math.max(
+      calendarWorkingDaysCount,
+      Object.keys(lessonsByDateMap).length
+    );
+
+    // Ensure all SCUD working days are represented in lessonsByDate
+    scudWorkingDays.forEach((dateStr) => {
+      const exists = Object.values(lessonsByDateMap).some((l) => l.date === dateStr);
+      if (!exists) {
+        lessonsByDateMap[`${dateStr}_scud`] = {
+          date: dateStr,
+          subjectName: "Учебный день (СКУД)",
+          presentCount: 0,
+          absentCount: students.length,
+          lateCount: 0,
+          excusedCount: 0,
+        };
+      }
+    });
 
     const studentResultList: StudentPeriodStatsDTO[] = students.map((st) => {
       const s = studentStatsMap[st.studentId] || {
@@ -619,24 +654,32 @@ export async function getAttendancePeriodStatsAction(
       };
 
       const attendedScore = s.present + s.late + s.excused;
-      const rate = s.total > 0 ? Math.round((attendedScore / s.total) * 100) : 100;
+      const totalForStudent = Math.max(totalRecordedLessons, s.total);
+      // In SCUD logic, unrecorded or missed days out of the total working days count as absent
+      const absentCount = Math.max(s.absent, totalForStudent - attendedScore);
+      const rate = totalForStudent > 0 ? Math.round((attendedScore / totalForStudent) * 100) : 100;
 
       return {
         studentId: st.studentId,
         studentName: st.studentName,
         isMonitor: st.isMonitor,
-        totalLessons: s.total,
+        totalLessons: totalForStudent,
         presentCount: s.present,
-        absentCount: s.absent,
+        absentCount: absentCount,
         lateCount: s.late,
         excusedCount: s.excused,
         attendanceRate: rate,
       };
     });
 
-    const allEntries = totalGroupPresent + totalGroupAbsent + totalGroupLate + totalGroupExcused;
-    const groupAttended = totalGroupPresent + totalGroupLate + totalGroupExcused;
-    const groupRate = allEntries > 0 ? Math.round((groupAttended / allEntries) * 100) : 100;
+    const totalGroupPossible = students.length * totalRecordedLessons;
+    const totalGroupAttended = totalGroupPresent + totalGroupLate + totalGroupExcused;
+    const totalGroupAbsentAdjusted = Math.max(
+      totalGroupAbsent,
+      totalGroupPossible - totalGroupAttended
+    );
+    const groupRate =
+      totalGroupPossible > 0 ? Math.round((totalGroupAttended / totalGroupPossible) * 100) : 100;
 
     const statsDto: AttendancePeriodStatsDTO = {
       startDate: startDateStr,
@@ -644,7 +687,7 @@ export async function getAttendancePeriodStatsAction(
       totalLessons: totalRecordedLessons,
       groupAttendanceRate: groupRate,
       totalPresent: totalGroupPresent,
-      totalAbsent: totalGroupAbsent,
+      totalAbsent: totalGroupAbsentAdjusted,
       totalLate: totalGroupLate,
       totalExcused: totalGroupExcused,
       curatorName: curatorOrMasterName,
