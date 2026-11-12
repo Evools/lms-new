@@ -40,6 +40,7 @@ import {
   StudentProgressChart,
   StudentAttendancePieChart,
 } from "./_components/dashboard-charts";
+import { HolidayBanner } from "@/components/holiday/holiday-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -429,6 +430,9 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* New Year Holiday Banner */}
+      <HolidayBanner />
 
       {/* ------------------------------------------------------------- */}
       {/* 1. ADMINISTRATOR / ADMINISTRATION DASHBOARD VIEW */}

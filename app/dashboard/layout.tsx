@@ -12,6 +12,9 @@ import { TourHubModal } from "@/components/tour-hub-modal";
 import { prisma } from "@/lib/prisma";
 import { getFeatureModulesAction } from "@/app/dashboard/settings/actions";
 import { StudentQuickSheetProvider } from "@/components/student-quick-sheet";
+import { HolidayProvider } from "@/components/holiday/holiday-provider";
+import { HolidayGarland } from "@/components/holiday/holiday-garland";
+import { SnowToggle } from "@/components/holiday/snow-toggle";
 
 export default async function DashboardLayout({
   children,
@@ -69,56 +72,60 @@ export default async function DashboardLayout({
   }));
 
   return (
-    <StudentQuickSheetProvider>
-      <SidebarProvider defaultOpen={true}>
-        <AppSidebar
-          user={{
-            id: userId,
-            name: name ?? "Пользователь",
-            email: email ?? "",
-            role: role ?? "STUDENT",
-            avatar: avatar ?? null,
-          }}
-          featureModules={featureModules}
-          className="print:hidden"
-        />
-        <SidebarInset className="flex min-h-screen flex-col bg-background min-w-0 max-w-full overflow-x-clip print:min-h-0 print:overflow-visible print:p-0 print:m-0 print:border-none print:shadow-none">
-          <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b bg-background px-4 print:hidden">
-            <div className="flex items-center gap-3">
-              <SidebarTrigger className="rounded-md" />
-              <Separator orientation="vertical" className="h-4" />
-              <div data-tour="header-breadcrumbs">
-                <AppHeaderBreadcrumbs />
+    <HolidayProvider>
+      <StudentQuickSheetProvider>
+        <SidebarProvider defaultOpen={true}>
+          <AppSidebar
+            user={{
+              id: userId,
+              name: name ?? "Пользователь",
+              email: email ?? "",
+              role: role ?? "STUDENT",
+              avatar: avatar ?? null,
+            }}
+            featureModules={featureModules}
+            className="print:hidden"
+          />
+          <SidebarInset className="flex min-h-screen flex-col bg-background min-w-0 max-w-full overflow-x-clip print:min-h-0 print:overflow-visible print:p-0 print:m-0 print:border-none print:shadow-none">
+            <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b bg-background px-4 print:hidden relative">
+              <HolidayGarland />
+              <div className="flex items-center gap-3">
+                <SidebarTrigger className="rounded-md" />
+                <Separator orientation="vertical" className="h-4" />
+                <div data-tour="header-breadcrumbs">
+                  <AppHeaderBreadcrumbs />
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-1.5">
-              {studentGroupName && (
-                <span className="text-xs font-mono text-muted-foreground border border-border px-2 py-0.5 rounded-md bg-muted/40 font-medium hidden sm:inline-block">
-                  {studentGroupName}
-                </span>
-              )}
-              <ThemeToggle />
-              <div data-tour="header-notifications">
-                <NotificationsPopover
-                  initialUnreadCount={unreadNotificationsCount}
-                  initialNotifications={initialNotifications}
-                />
+              <div className="flex items-center gap-1.5">
+                {studentGroupName && (
+                  <span className="text-xs font-mono text-muted-foreground border border-border px-2 py-0.5 rounded-md bg-muted/40 font-medium hidden sm:inline-block">
+                    {studentGroupName}
+                  </span>
+                )}
+                <SnowToggle />
+                <ThemeToggle />
+                <div data-tour="header-notifications">
+                  <NotificationsPopover
+                    initialUnreadCount={unreadNotificationsCount}
+                    initialNotifications={initialNotifications}
+                  />
+                </div>
+                <TourTriggerButton />
               </div>
-              <TourTriggerButton />
-            </div>
-          </header>
+            </header>
 
-          <div className="flex-1 p-4 sm:p-6 min-w-0 max-w-full overflow-x-clip print:p-0 print:m-0 print:overflow-visible" data-tour="dashboard-content">
-            {children}
+            <div className="flex-1 p-4 sm:p-6 min-w-0 max-w-full overflow-x-clip print:p-0 print:m-0 print:overflow-visible" data-tour="dashboard-content">
+              {children}
+            </div>
+          </SidebarInset>
+
+          <div className="print:hidden">
+            <OnboardingTour />
+            <TourHubModal userRole={role ?? "STUDENT"} />
           </div>
-        </SidebarInset>
-
-        <div className="print:hidden">
-          <OnboardingTour />
-          <TourHubModal userRole={role ?? "STUDENT"} />
-        </div>
-      </SidebarProvider>
-    </StudentQuickSheetProvider>
+        </SidebarProvider>
+      </StudentQuickSheetProvider>
+    </HolidayProvider>
   );
 }
