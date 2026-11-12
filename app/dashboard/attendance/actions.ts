@@ -606,66 +606,8 @@ export async function getAttendancePeriodStatsAction(
       }
     });
 
-    // Check if group is 5-day week (from group settings: studyDays === 5; fallback to group name if not specified)
-    const groupNameUpper = (group.name || "").toUpperCase();
-    const isFiveDayWeek =
-      group.studyDays === 5 ||
-      (group.studyDays == null &&
-        (groupNameUpper.includes("-К") ||
-          groupNameUpper.includes("-K") ||
-          groupNameUpper.includes("СИТ")));
-
-    // Calculate calendar working days according to group study schedule:
-    // - 5-day contract groups (СИТ-К): Mon-Fri (plus any Saturdays where classes were held/recorded) -> typically 22 or 24 days in October
-    // - 6-day budget groups (ВР-1-26, ВР-2-26): Mon-Sat -> 27 days in October
-    const scudWorkingDays: string[] = [];
-    const [startYear, startMonth, startDay] = startDateStr.split("-").map(Number);
-    const [endYear, endMonth, endDay] = endDateStr.split("-").map(Number);
-    const currDate = new Date(Date.UTC(startYear, startMonth - 1, startDay, 12, 0, 0));
-    const lastDate = new Date(Date.UTC(endYear, endMonth - 1, endDay, 12, 0, 0));
-
-    // Dates that already have recorded entries in the database
-    const recordedDates = new Set(Object.values(lessonsByDateMap).map((l) => l.date));
-
-    while (currDate <= lastDate) {
-      const dayOfWeek = currDate.getUTCDay(); // 0 is Sunday, 6 is Saturday
-      const dateStr = currDate.toISOString().split("T")[0];
-
-      if (dayOfWeek !== 0) {
-        if (!isFiveDayWeek) {
-          // 6-day schedule: Mon-Sat
-          scudWorkingDays.push(dateStr);
-        } else {
-          // 5-day schedule: Mon-Fri are standard; Saturday only if classes were recorded
-          if (dayOfWeek !== 6 || recordedDates.has(dateStr)) {
-            scudWorkingDays.push(dateStr);
-          }
-        }
-      }
-      currDate.setUTCDate(currDate.getUTCDate() + 1);
-    }
-
-    const calendarWorkingDaysCount = scudWorkingDays.length;
-    // Align with СКУД calendar days (e.g. 27 days for full month of October)
-    const totalRecordedLessons = Math.max(
-      calendarWorkingDaysCount,
-      Object.keys(lessonsByDateMap).length
-    );
-
-    // Ensure all SCUD working days are represented in lessonsByDate
-    scudWorkingDays.forEach((dateStr) => {
-      const exists = Object.values(lessonsByDateMap).some((l) => l.date === dateStr);
-      if (!exists) {
-        lessonsByDateMap[`${dateStr}_scud`] = {
-          date: dateStr,
-          subjectName: "Учебный день (СКУД)",
-          presentCount: 0,
-          absentCount: students.length,
-          lateCount: 0,
-          excusedCount: 0,
-        };
-      }
-    });
+    // 5. Calculate real attendance statistics based strictly on recorded lessons
+    const totalRecordedLessons = Object.keys(lessonsByDateMap).length;
 
     const studentResultList: StudentPeriodStatsDTO[] = students.map((st) => {
       const s = studentStatsMap[st.studentId] || {
@@ -677,32 +619,27 @@ export async function getAttendancePeriodStatsAction(
       };
 
       const attendedScore = s.present + s.late + s.excused;
-      const totalForStudent = Math.max(totalRecordedLessons, s.total);
-      // In SCUD logic, unrecorded or missed days out of the total working days count as absent
-      const absentCount = Math.max(s.absent, totalForStudent - attendedScore);
-      const rate = totalForStudent > 0 ? Math.round((attendedScore / totalForStudent) * 100) : 100;
+      const studentTotal = s.total > 0 ? s.total : totalRecordedLessons;
+      const rate = studentTotal > 0 ? Math.round((attendedScore / studentTotal) * 100) : 100;
 
       return {
         studentId: st.studentId,
         studentName: st.studentName,
         isMonitor: st.isMonitor,
-        totalLessons: totalForStudent,
+        totalLessons: s.total,
         presentCount: s.present,
-        absentCount: absentCount,
+        absentCount: s.absent,
         lateCount: s.late,
         excusedCount: s.excused,
         attendanceRate: rate,
       };
     });
 
-    const totalGroupPossible = students.length * totalRecordedLessons;
+    const totalGroupRecords =
+      totalGroupPresent + totalGroupAbsent + totalGroupLate + totalGroupExcused;
     const totalGroupAttended = totalGroupPresent + totalGroupLate + totalGroupExcused;
-    const totalGroupAbsentAdjusted = Math.max(
-      totalGroupAbsent,
-      totalGroupPossible - totalGroupAttended
-    );
     const groupRate =
-      totalGroupPossible > 0 ? Math.round((totalGroupAttended / totalGroupPossible) * 100) : 100;
+      totalGroupRecords > 0 ? Math.round((totalGroupAttended / totalGroupRecords) * 100) : 100;
 
     const statsDto: AttendancePeriodStatsDTO = {
       startDate: startDateStr,
@@ -710,7 +647,7 @@ export async function getAttendancePeriodStatsAction(
       totalLessons: totalRecordedLessons,
       groupAttendanceRate: groupRate,
       totalPresent: totalGroupPresent,
-      totalAbsent: totalGroupAbsentAdjusted,
+      totalAbsent: totalGroupAbsent,
       totalLate: totalGroupLate,
       totalExcused: totalGroupExcused,
       curatorName: curatorOrMasterName,
