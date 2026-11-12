@@ -280,12 +280,12 @@ export function HolidayBanner() {
 
             <span className="text-foreground/60 font-bold text-xs">:</span>
 
-            {/* Seconds Card (Solid white with primary border accent) */}
-            <div className="flex flex-col items-center justify-center min-w-[52px] sm:min-w-[60px] px-2 py-2 rounded-lg border border-primary bg-white dark:bg-card">
-              <div className="font-mono text-base sm:text-lg font-bold text-primary animate-pulse">
+            {/* Seconds Card */}
+            <div className="flex flex-col items-center justify-center min-w-[52px] sm:min-w-[60px] px-2 py-2 rounded-lg border border-border bg-white dark:bg-card">
+              <div className="font-mono text-base sm:text-lg font-bold text-foreground">
                 {String(timeLeft.seconds).padStart(2, "0")}
               </div>
-              <div className="text-[9px] font-medium uppercase tracking-wider text-primary">
+              <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                 секунд
               </div>
             </div>
