@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useHoliday } from "./holiday-provider";
+import { RollingNumber } from "./rolling-digit";
 
 interface TimeRemaining {
   days: number;
@@ -247,7 +248,7 @@ export function HolidayBanner() {
             {/* Days Card */}
             <div className="flex flex-col items-center justify-center min-w-[52px] sm:min-w-[60px] px-2 py-2 rounded-lg border border-border bg-white dark:bg-card">
               <div className="font-mono text-base sm:text-lg font-bold text-foreground">
-                {timeLeft.days}
+                <RollingNumber value={timeLeft.days} />
               </div>
               <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                 дней
@@ -259,7 +260,7 @@ export function HolidayBanner() {
             {/* Hours Card */}
             <div className="flex flex-col items-center justify-center min-w-[52px] sm:min-w-[60px] px-2 py-2 rounded-lg border border-border bg-white dark:bg-card">
               <div className="font-mono text-base sm:text-lg font-bold text-foreground">
-                {String(timeLeft.hours).padStart(2, "0")}
+                <RollingNumber value={timeLeft.hours} minDigits={2} />
               </div>
               <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                 часов
@@ -271,7 +272,7 @@ export function HolidayBanner() {
             {/* Minutes Card */}
             <div className="flex flex-col items-center justify-center min-w-[52px] sm:min-w-[60px] px-2 py-2 rounded-lg border border-border bg-white dark:bg-card">
               <div className="font-mono text-base sm:text-lg font-bold text-foreground">
-                {String(timeLeft.minutes).padStart(2, "0")}
+                <RollingNumber value={timeLeft.minutes} minDigits={2} />
               </div>
               <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                 минут
@@ -283,7 +284,7 @@ export function HolidayBanner() {
             {/* Seconds Card */}
             <div className="flex flex-col items-center justify-center min-w-[52px] sm:min-w-[60px] px-2 py-2 rounded-lg border border-border bg-white dark:bg-card">
               <div className="font-mono text-base sm:text-lg font-bold text-foreground">
-                {String(timeLeft.seconds).padStart(2, "0")}
+                <RollingNumber value={timeLeft.seconds} minDigits={2} />
               </div>
               <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                 секунд
