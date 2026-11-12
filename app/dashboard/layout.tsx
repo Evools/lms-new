@@ -72,7 +72,10 @@ export default async function DashboardLayout({
   }));
 
   return (
-    <HolidayProvider>
+    <HolidayProvider
+      isHolidayEnabled={featureModules.feature_holiday}
+      isAdmin={role === "ADMIN"}
+    >
       <StudentQuickSheetProvider>
         <SidebarProvider defaultOpen={true}>
           <AppSidebar
@@ -88,7 +91,7 @@ export default async function DashboardLayout({
           />
           <SidebarInset className="flex min-h-screen flex-col bg-background min-w-0 max-w-full overflow-x-clip print:min-h-0 print:overflow-visible print:p-0 print:m-0 print:border-none print:shadow-none">
             <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b bg-background px-4 print:hidden relative">
-              <HolidayGarland />
+              {featureModules.feature_holiday && <HolidayGarland />}
               <div className="flex items-center gap-3">
                 <SidebarTrigger className="rounded-md" />
                 <Separator orientation="vertical" className="h-4" />
@@ -103,7 +106,7 @@ export default async function DashboardLayout({
                     {studentGroupName}
                   </span>
                 )}
-                <SnowToggle />
+                {featureModules.feature_holiday && <SnowToggle />}
                 <ThemeToggle />
                 <div data-tour="header-notifications">
                   <NotificationsPopover

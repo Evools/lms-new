@@ -1064,6 +1064,41 @@ export function SettingsView({
               <Check className="h-3.5 w-3.5" /> Сохранить
             </Button>
           </div>
+
+          {/* Holiday Theme Card (Admin only) */}
+          {isAdmin && (
+            <div className="bg-card border rounded-xl p-4 space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between pb-3 border-b">
+                <div className="space-y-0.5">
+                  <h2 className="font-bold text-foreground text-xs flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" /> Праздничное оформление (Новогодний режим)
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground">
+                    Глобальное управление новогодней атмосферой в системе
+                  </p>
+                </div>
+                <Badge variant="outline" className={`text-[10px] font-medium ${modulesState.feature_holiday ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground"}`}>
+                  {modulesState.feature_holiday ? "Включено" : "Выключено"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/80 bg-muted/20">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-semibold text-foreground">
+                    Новогодний вайб на всей платформе
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Показывать праздничный баннер на главной, гирлянду в шапке и снегопад для всех пользователей
+                  </div>
+                </div>
+                <Switch
+                  checked={modulesState.feature_holiday}
+                  disabled={updatingModule === "feature_holiday"}
+                  onCheckedChange={(checked) => handleToggleModule("feature_holiday", checked)}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1516,6 +1551,54 @@ export function SettingsView({
             <Badge variant="outline" className="text-[10px] font-medium bg-primary/10 text-primary border-primary/20">
               {Object.values(modulesState).filter(Boolean).length} из {Object.keys(modulesState).length} модулей активно
             </Badge>
+          </div>
+
+          {/* Group 0: Праздничный новогодний режим */}
+          <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+            <div className="bg-muted/30 px-3.5 py-2 border-b flex items-center justify-between">
+              <div className="font-bold text-xs text-foreground flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span>Праздничный режим (Новогодний вайб)</span>
+              </div>
+              <Badge variant="outline" className={`text-[10px] font-medium ${modulesState.feature_holiday ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground"}`}>
+                {modulesState.feature_holiday ? "Активен" : "Отключен"}
+              </Badge>
+            </div>
+
+            <div className="p-3.5 flex items-center justify-between gap-3 bg-primary/5 hover:bg-primary/10 transition-colors">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                    modulesState.feature_holiday
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted text-muted-foreground border-border"
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-xs text-foreground">
+                      Новогоднее оформление для всей платформы
+                    </span>
+                    <span className="text-[9px] bg-primary/15 text-primary font-medium px-1.5 py-0.2 rounded border border-primary/20">
+                      Сезонный
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">
+                    Включает новогодний баннер с гномиком на дашборде, гирлянду в шапке и снегопад у всех пользователей
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Switch
+                  checked={modulesState.feature_holiday}
+                  disabled={updatingModule === "feature_holiday"}
+                  onCheckedChange={(checked) => handleToggleModule("feature_holiday", checked)}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Group 1: Интерактив и тренажеры (Unified Grouped Card) */}

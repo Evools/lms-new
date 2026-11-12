@@ -181,6 +181,7 @@ export async function getSettingsDataAction() {
     }
 
     const featureModules: FeatureModulesDTO = {
+      feature_holiday: getBool("feature_holiday", DEFAULT_FEATURE_MODULES.feature_holiday),
       feature_interactive: getBool("feature_interactive", DEFAULT_FEATURE_MODULES.feature_interactive),
       feature_typing: getBool("feature_typing", DEFAULT_FEATURE_MODULES.feature_typing),
       feature_playground: getBool("feature_playground", DEFAULT_FEATURE_MODULES.feature_playground),
@@ -225,6 +226,7 @@ export async function getFeatureModulesAction(): Promise<FeatureModulesDTO> {
       map.has(key) ? map.get(key) === "true" : fallback;
 
     return {
+      feature_holiday: getBool("feature_holiday", DEFAULT_FEATURE_MODULES.feature_holiday),
       feature_interactive: getBool("feature_interactive", DEFAULT_FEATURE_MODULES.feature_interactive),
       feature_typing: getBool("feature_typing", DEFAULT_FEATURE_MODULES.feature_typing),
       feature_playground: getBool("feature_playground", DEFAULT_FEATURE_MODULES.feature_playground),
@@ -268,10 +270,16 @@ export async function updateFeatureModulesAction(data: Partial<FeatureModulesDTO
 
     revalidatePath("/", "layout");
     revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Ошибка сохранения модулей" };
   }
+}
+
+/** Admin: Toggle global holiday vibe (banner, garland, snow) for all users */
+export async function toggleHolidayFeatureAction(enabled: boolean) {
+  return updateFeatureModulesAction({ feature_holiday: enabled });
 }
 
 /** Admin: Update system configuration */

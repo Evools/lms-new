@@ -32,7 +32,12 @@ const HOLIDAY_WISHES = [
 ];
 
 export function HolidayBanner() {
-  const { isBannerDismissed, dismissBanner, restoreBanner } = useHoliday();
+  const {
+    isHolidayEnabled,
+    isBannerDismissed,
+    dismissBanner,
+    restoreBanner,
+  } = useHoliday();
   const [timeLeft, setTimeLeft] = useState<TimeRemaining>({
     days: 0,
     hours: 0,
@@ -98,7 +103,7 @@ export function HolidayBanner() {
     }
   };
 
-  if (!mounted) {
+  if (!mounted || !isHolidayEnabled) {
     return null;
   }
 

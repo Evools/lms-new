@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { SnowCanvas } from "./snow-canvas";
 
 interface HolidayContextType {
+  isHolidayEnabled: boolean;
+  isAdmin: boolean;
   isSnowEnabled: boolean;
   toggleSnow: () => void;
   isBannerDismissed: boolean;
@@ -13,6 +15,8 @@ interface HolidayContextType {
 }
 
 const HolidayContext = createContext<HolidayContextType>({
+  isHolidayEnabled: true,
+  isAdmin: false,
   isSnowEnabled: true,
   toggleSnow: () => {},
   isBannerDismissed: false,
@@ -21,7 +25,15 @@ const HolidayContext = createContext<HolidayContextType>({
   toggleBanner: () => {},
 });
 
-export function HolidayProvider({ children }: { children: React.ReactNode }) {
+export function HolidayProvider({
+  children,
+  isHolidayEnabled = true,
+  isAdmin = false,
+}: {
+  children: React.ReactNode;
+  isHolidayEnabled?: boolean;
+  isAdmin?: boolean;
+}) {
   const [isSnowEnabled, setIsSnowEnabled] = useState(true);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -71,6 +83,8 @@ export function HolidayProvider({ children }: { children: React.ReactNode }) {
   return (
     <HolidayContext.Provider
       value={{
+        isHolidayEnabled,
+        isAdmin,
         isSnowEnabled,
         toggleSnow,
         isBannerDismissed,
@@ -80,7 +94,7 @@ export function HolidayProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
-      {mounted && isSnowEnabled && <SnowCanvas />}
+      {mounted && isHolidayEnabled && isSnowEnabled && <SnowCanvas />}
     </HolidayContext.Provider>
   );
 }
