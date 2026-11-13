@@ -21,6 +21,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   CalendarDays,
   MapPin,
   ChevronRight,
@@ -28,6 +38,7 @@ import {
   Plus,
   Edit2,
   Trash2,
+  AlertTriangle,
   FileSpreadsheet,
   Search,
   Check,
@@ -446,9 +457,38 @@ export function ScheduleView({
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [importSuccess, setImportSuccess] = useState<boolean>(false);
 
+  // Clear Schedule Dialog State
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState<boolean>(false);
+  const [clearScope, setClearScope] = useState<"group" | "all">("group");
+
   const currentGroup = useMemo(() => {
     return scheduleData.find((g) => g.groupId === selectedGroupId) || scheduleData[0];
   }, [scheduleData, selectedGroupId]);
+
+  const handleClearSchedule = () => {
+    const updated = scheduleData.map((g) => {
+      if (clearScope === "group" && g.groupId !== selectedGroupId) {
+        return g;
+      }
+      return {
+        ...g,
+        days: g.days.map((d) => ({
+          ...d,
+          holidayNote: undefined,
+          lessons: [],
+        })),
+      };
+    });
+    persistSchedule(updated);
+    setIsClearDialogOpen(false);
+    toast.add({
+      title:
+        clearScope === "all"
+          ? "Расписание полностью очищено для всех групп"
+          : `Расписание группы ${currentGroup?.groupName || ""} очищено`,
+      type: "success",
+    });
+  };
 
   // Open Day Note Dialog
   const handleOpenDayNoteDialog = (dayIndex: number) => {
@@ -535,7 +575,7 @@ export function ScheduleView({
     setFormPairNum(pNum);
     setFormTime(initialTime);
     setFormSubject("");
-    setFormRoom("каб. 201");
+    setFormRoom("");
     setFormTeacher(currentGroup.curator);
     setFormNote("");
     setFormIsSpecial(false);
@@ -614,7 +654,7 @@ export function ScheduleView({
     for (const d of currentGroup.days) {
       const match = d.lessons.find((l) => l.subject === subj);
       if (match) {
-        if (!formRoom || formRoom === "каб. 201") setFormRoom(match.room);
+        if (!formRoom) setFormRoom(match.room);
         if (!formTeacher || formTeacher === currentGroup.curator) {
           setFormTeacher(match.teacher || "");
         }
@@ -633,7 +673,7 @@ export function ScheduleView({
       pairNumber: formPairNum,
       time,
       subject: formSubject.trim(),
-      room: formRoom.trim() || "каб. 201",
+      room: formRoom.trim(),
       teacher: formTeacher.trim() || undefined,
       note: formNote.trim() || undefined,
       isSpecialEvent: formIsSpecial,
@@ -646,7 +686,7 @@ export function ScheduleView({
             pairNumber: formPairNum + 1,
             time: getTimeSlotForShift(formShift, formPairNum + 1),
             subject: formSubject.trim(),
-            room: formRoom.trim() || "каб. 201",
+            room: formRoom.trim(),
             teacher: formTeacher.trim() || undefined,
             note: formNote.trim() || undefined,
             isSpecialEvent: formIsSpecial,
@@ -731,7 +771,7 @@ export function ScheduleView({
   // Drag & Drop Builder States
   const [showBuilderPalette, setShowBuilderPalette] = useState<boolean>(true);
   const [dragActionMode, setDragActionMode] = useState<"move" | "copy">("move");
-  const [quickDefaultRoom, setQuickDefaultRoom] = useState<string>("каб. 201");
+  const [quickDefaultRoom, setQuickDefaultRoom] = useState<string>("");
   const [dragPayload, setDragPayload] = useState<
     | {
         type: "cell";
@@ -829,7 +869,7 @@ export function ScheduleView({
     if (dragPayload.type === "palette") {
       const subj = dragPayload.subject;
       // Find existing room & teacher for this subject in current group if any
-      let room = quickDefaultRoom.trim() || "каб. 201";
+      let room = quickDefaultRoom.trim();
       let teacher = currentGroup.curator;
 
       for (const d of currentGroup.days) {
@@ -1121,6 +1161,21 @@ export function ScheduleView({
                 <UploadCloud className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Импорт Excel</span>
               </Button>
+
+              {/* Admin Clear Schedule Action */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setClearScope("group");
+                  setIsClearDialogOpen(true);
+                }}
+                className="h-8 px-3 rounded-md text-xs gap-1.5 font-medium border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                title="Очистить расписание"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Очистить</span>
+              </Button>
             </>
           )}
         </div>
@@ -1215,7 +1270,7 @@ export function ScheduleView({
                 <Input
                   value={quickDefaultRoom}
                   onChange={(e) => setQuickDefaultRoom(e.target.value)}
-                  placeholder="каб. 201"
+                  placeholder="Кабинет..."
                   className="h-7 w-[92px] text-xs px-2 rounded-md bg-background"
                 />
               </div>
@@ -1650,12 +1705,14 @@ export function ScheduleView({
                               </div>
 
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/70 text-foreground border border-border/60">
-                                  <MapPin className="h-2.5 w-2.5 text-primary shrink-0" />
-                                  <span className="truncate">
-                                    {lesson.room}
+                                {lesson.room && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/70 text-foreground border border-border/60">
+                                    <MapPin className="h-2.5 w-2.5 text-primary shrink-0" />
+                                    <span className="truncate">
+                                      {lesson.room}
+                                    </span>
                                   </span>
-                                </span>
+                                )}
                                 {lesson.note && (
                                   <span
                                     className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded truncate max-w-full"
@@ -1865,10 +1922,12 @@ export function ScheduleView({
                         </h4>
 
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5 flex-wrap">
-                          <div className="flex items-center gap-1 font-medium text-foreground">
-                            <MapPin className="h-3.5 w-3.5 text-primary" />
-                            <span>{lesson.room}</span>
-                          </div>
+                          {lesson.room && (
+                            <div className="flex items-center gap-1 font-medium text-foreground">
+                              <MapPin className="h-3.5 w-3.5 text-primary" />
+                              <span>{lesson.room}</span>
+                            </div>
+                          )}
                           {lesson.teacher && (
                             <div className="flex items-center gap-1">
                               <User className="h-3.5 w-3.5 text-muted-foreground" />
@@ -2135,7 +2194,7 @@ export function ScheduleView({
                   <Input
                     value={formRoom}
                     onChange={(e) => setFormRoom(e.target.value)}
-                    placeholder="каб. 201, Лаб. 1..."
+                    placeholder="Укажите аудиторию..."
                     className="h-8 text-xs bg-background"
                   />
                 </div>
@@ -2365,6 +2424,60 @@ export function ScheduleView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog 4: Clear Schedule Confirmation Modal */}
+      <AlertDialog open={isClearDialogOpen} onOpenChange={setIsClearDialogOpen}>
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="place-items-start text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+              Очистить расписание
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Выберите область очистки. Все пары и заметки дней будут удалены без возможности восстановления.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border border-border text-xs">
+            <button
+              type="button"
+              onClick={() => setClearScope("group")}
+              className={`px-2.5 py-1.5 rounded-md font-medium transition-colors cursor-pointer truncate ${
+                clearScope === "group"
+                  ? "bg-background text-primary border border-primary"
+                  : "text-muted-foreground hover:text-foreground border border-transparent"
+              }`}
+            >
+              Группа {currentGroup?.groupName || ""}
+            </button>
+            <button
+              type="button"
+              onClick={() => setClearScope("all")}
+              className={`px-2.5 py-1.5 rounded-md font-medium transition-colors cursor-pointer truncate ${
+                clearScope === "all"
+                  ? "bg-background text-destructive border border-destructive"
+                  : "text-muted-foreground hover:text-foreground border border-transparent"
+              }`}
+            >
+              Все группы ({scheduleData.length})
+            </button>
+          </div>
+
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <AlertDialogCancel size="xs" className="h-6 px-2.5 text-xs font-medium cursor-pointer">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              size="xs"
+              variant="destructive"
+              onClick={handleClearSchedule}
+              className="h-6 px-2.5 text-xs font-medium cursor-pointer"
+            >
+              Очистить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

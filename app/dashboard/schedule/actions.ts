@@ -163,7 +163,7 @@ export async function getSchedulePageDataAction() {
             pairNumber: p + 1,
             time: times[p],
             subject: item.subject,
-            room: `каб. ${201 + ((dIdx + p) % 12)}`,
+            room: "",
             teacher: item.teacher,
           });
         }
