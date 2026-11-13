@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import sharp from "sharp";
 import { ImageVisibility } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -148,13 +147,14 @@ export async function uploadImageService(params: {
         ? "PRIVATE"
         : params.visibility || "PUBLIC";
 
-  let optimizedBuffer: Buffer;
-  let finalMimeType = "image/webp";
-  let ext = "webp";
+  let optimizedBuffer: Buffer = buffer;
+  let finalMimeType = mimeType || `image/${detectedFormat === "jpeg" ? "jpeg" : detectedFormat}`;
+  let ext: string = detectedFormat === "jpeg" ? "jpg" : detectedFormat;
   let width: number | null = null;
   let height: number | null = null;
 
   try {
+    const { default: sharp } = await import("sharp");
     const metadata = await sharp(buffer, { animated: detectedFormat === "gif" }).metadata();
     const isAnimatedGif = detectedFormat === "gif" && (metadata.pages || 1) > 1;
 
@@ -177,15 +177,13 @@ export async function uploadImageService(params: {
         .toBuffer({ resolveWithObject: true });
 
       optimizedBuffer = processed.data;
+      finalMimeType = "image/webp";
+      ext = "webp";
       width = processed.info.width ?? null;
       height = processed.info.height ?? null;
     }
-  } catch {
-    return {
-      success: false,
-      error: "Не удалось обработать изображение. Возможно, файл поврежден.",
-      status: 400,
-    };
+  } catch (err) {
+    console.warn("Sharp optimization unavailable, storing validated original image:", err);
   }
 
   const quota = await getUserImageQuotaUsage(uploadedById, userRole);
