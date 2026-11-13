@@ -403,6 +403,7 @@ export function ScheduleView({
   const [viewMode, setViewMode] = useState<"all" | "group">(canEdit ? "all" : "group");
   const [masterDayFilter, setMasterDayFilter] = useState<number | "all">("all");
   const [masterCourseFilter, setMasterCourseFilter] = useState<number | "all">("all");
+  const [masterShiftFilter, setMasterShiftFilter] = useState<"all" | ShiftType>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const persistSchedule = (updated: GroupScheduleData[]) => {
@@ -1075,9 +1076,26 @@ export function ScheduleView({
   }, [scheduleData]);
 
   const masterFilteredGroups = useMemo(() => {
-    if (masterCourseFilter === "all") return scheduleData;
-    return scheduleData.filter((g) => g.course === masterCourseFilter);
-  }, [scheduleData, masterCourseFilter]);
+    return scheduleData.filter((g) => {
+      if (masterCourseFilter !== "all" && g.course !== masterCourseFilter) {
+        return false;
+      }
+      if (masterShiftFilter !== "all" && normalizeShiftType(g.shift) !== masterShiftFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [scheduleData, masterCourseFilter, masterShiftFilter]);
+
+  const masterShiftPresence = useMemo(() => {
+    const hasShift1 = masterFilteredGroups.some(
+      (g) => normalizeShiftType(g.shift) === "1-я смена"
+    );
+    const hasShift2 = masterFilteredGroups.some(
+      (g) => normalizeShiftType(g.shift) === "2-я смена"
+    );
+    return { hasShift1, hasShift2 };
+  }, [masterFilteredGroups]);
 
   const masterDayIndices = useMemo(() => {
     const totalDays = currentGroup?.days?.length || 6;
@@ -1262,6 +1280,30 @@ export function ScheduleView({
                   ))}
                 </div>
               )}
+
+              {/* Shift Filter Pills */}
+              <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border">
+                {(
+                  [
+                    { value: "all", label: "Все смены" },
+                    { value: "1-я смена", label: "1 см." },
+                    { value: "2-я смена", label: "2 см." },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setMasterShiftFilter(item.value)}
+                    className={`h-6 px-2 rounded-md text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                      masterShiftFilter === item.value
+                        ? "bg-background text-primary border border-border"
+                        : "text-muted-foreground hover:text-foreground border border-transparent"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </>
           ) : (
             <>
@@ -1545,7 +1587,15 @@ export function ScheduleView({
 
                         {/* Pair Rows for this Day */}
                         {dayPairs.map((pairNum) => {
-                          const defaultSlot = calculatePairSlotsFromStart("08:00")[pairNum] || "";
+                          const slot1 = calculatePairSlotsFromStart("08:00")[pairNum] || "";
+                          const slot2 = calculatePairSlotsFromStart("14:20")[pairNum] || "";
+                          const showBothShifts =
+                            masterShiftPresence.hasShift1 && masterShiftPresence.hasShift2;
+                          const singleSlot =
+                            masterShiftFilter === "2-я смена" ||
+                            (!masterShiftPresence.hasShift1 && masterShiftPresence.hasShift2)
+                              ? slot2
+                              : slot1;
                           return (
                             <tr
                               key={`master-day-${dayIdx}-pair-${pairNum}`}
@@ -1556,10 +1606,23 @@ export function ScheduleView({
                                 <div className="font-medium text-foreground text-xs">
                                   {pairNum} пара
                                 </div>
-                                <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                                  <Clock className="h-2.5 w-2.5 shrink-0" />
-                                  <span>{defaultSlot}</span>
-                                </div>
+                                {showBothShifts ? (
+                                  <div className="text-[10px] text-muted-foreground mt-0.5 space-y-0.5 tabular-nums">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-primary font-medium">1с:</span>
+                                      <span>{slot1}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-foreground/70 font-medium">2с:</span>
+                                      <span>{slot2}</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 tabular-nums">
+                                    <Clock className="h-2.5 w-2.5 shrink-0" />
+                                    <span>{singleSlot}</span>
+                                  </div>
+                                )}
                               </td>
 
                               {/* Group Cells */}
@@ -2394,316 +2457,542 @@ export function ScheduleView({
 
       {/* Dialog 1: Add / Edit Lesson Modal */}
       <Dialog open={isLessonDialogOpen} onOpenChange={setIsLessonDialogOpen}>
-        <DialogContent className="p-6 gap-4 text-xs sm:max-w-[860px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="place-items-start text-left gap-1 pb-2 border-b">
-            <div className="flex items-center justify-between w-full">
-              <DialogTitle className="text-base font-bold flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-primary" />
-                {editingLesson?.lesson ? "Редактировать пару" : "Добавить пару в расписание"}
-              </DialogTitle>
-              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30 font-medium">
-                Группа {(scheduleData.find((g) => g.groupId === editingLesson?.groupId) || currentGroup).groupName} ({formShift})
-              </Badge>
-            </div>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Заполните параметры пары или нажмите на подсказки для быстрого автозаполнения.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="p-5 gap-4 text-xs sm:max-w-[1040px] w-[96vw] max-h-[90vh] overflow-y-auto">
+          {(() => {
+            const modalGroup =
+              scheduleData.find((g) => g.groupId === editingLesson?.groupId) || currentGroup;
+            const occupiedSlotLesson = modalGroup.days[formDayIndex]?.lessons.find(
+              (l) => l.pairNumber === formPairNum
+            );
+            const filteredSubjects = formSubject.trim()
+              ? suggestions.subjects.filter((s) =>
+                  s.toLowerCase().includes(formSubject.trim().toLowerCase())
+                )
+              : suggestions.subjects;
+            const subjectChips =
+              filteredSubjects.length > 0 ? filteredSubjects : suggestions.subjects;
+            const filteredTeachers = suggestions.teachers
+              .filter((t) => t && t !== "Не назначен")
+              .filter((t) =>
+                formTeacher.trim()
+                  ? t.toLowerCase().includes(formTeacher.trim().toLowerCase())
+                  : true
+              )
+              .slice(0, 10);
+            const filteredRooms = suggestions.rooms
+              .filter((r) =>
+                formRoom.trim()
+                  ? r.toLowerCase().includes(formRoom.trim().toLowerCase())
+                  : true
+              )
+              .slice(0, 10);
 
-          {/* 2-Column Spacious Body */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 py-1">
-            {/* Left Column (5 of 12 cols): Time, Day, Shift, Pair */}
-            <div className="md:col-span-5 space-y-3.5">
-              <div className="bg-muted/30 border rounded-xl p-3.5 space-y-3.5">
-                {/* 1. Day of Week */}
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5 text-primary" /> День недели
-                  </label>
-                  <div className="grid grid-cols-6 gap-1">
-                    {currentGroup.days.map((d, idx) => {
-                      const isActive = formDayIndex === idx;
-                      return (
-                        <button
-                          key={d.dateStr}
-                          type="button"
-                          onClick={() => setFormDayIndex(idx)}
-                          className={`py-1.5 px-0.5 rounded-lg border font-medium text-center transition-colors ${
-                            isActive
-                              ? "bg-primary text-primary-foreground border-primary shadow-2xs"
-                              : "bg-background border-border text-foreground hover:bg-muted"
-                          }`}
+            return (
+              <>
+                <DialogHeader className="place-items-start text-left gap-1 pb-3 border-b border-border pr-8">
+                  <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+                    <DialogTitle className="text-sm font-bold flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-primary" />
+                      {editingLesson?.lesson
+                        ? "Редактировать пару"
+                        : "Добавить пару в расписание"}
+                    </DialogTitle>
+
+                    <div className="flex items-center gap-2">
+                      {!editingLesson?.lesson && scheduleData.length > 1 ? (
+                        <Select
+                          value={modalGroup.groupId}
+                          onValueChange={(val) => {
+                            if (!val) return;
+                            const nextGroup = scheduleData.find((g) => g.groupId === val);
+                            setEditingLesson((prev) =>
+                              prev ? { ...prev, groupId: val } : { groupId: val, dayIndex: formDayIndex }
+                            );
+                            if (nextGroup) {
+                              const nextShift = normalizeShiftType(nextGroup.shift);
+                              const nextStart = extractShiftStartTime(nextGroup.shift);
+                              const nextSlots = calculatePairSlotsFromStart(nextStart);
+                              setFormShift(nextShift);
+                              setFormStartTime(nextStart);
+                              setFormTime(nextSlots[formPairNum] || formTime);
+                            }
+                          }}
                         >
-                          <div className="font-bold text-[11px]">{d.dayOfWeek.slice(0, 2)}</div>
-                          <div className={`text-[9px] ${isActive ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                            {d.dateStr.slice(0, 5)}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 2. Shift Selection & Start Time Presets */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5 text-primary" /> Смена звонков
-                    </label>
-                    <span className="text-[10px] text-muted-foreground font-mono">Старт: {formStartTime}</span>
-                  </div>
-
-                  {/* Shift toggle */}
-                  <div className="grid grid-cols-2 gap-1 bg-muted/60 p-1 rounded-lg border">
-                    <button
-                      type="button"
-                      onClick={() => handleModalShiftChange("1-я смена")}
-                      className={`h-7 rounded-md text-[11px] font-medium transition-colors ${
-                        formShift === "1-я смена"
-                          ? "bg-background text-foreground shadow-2xs border"
-                          : "text-muted-foreground hover:text-foreground border-transparent border"
-                      }`}
-                    >
-                      1-я смена
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleModalShiftChange("2-я смена")}
-                      className={`h-7 rounded-md text-[11px] font-medium transition-colors ${
-                        formShift === "2-я смена"
-                          ? "bg-background text-foreground shadow-2xs border"
-                          : "text-muted-foreground hover:text-foreground border-transparent border"
-                      }`}
-                    >
-                      2-я смена
-                    </button>
-                  </div>
-
-                  {/* Start time presets for current shift */}
-                  <div className="space-y-1 pt-0.5">
-                    <div className="text-[10px] text-muted-foreground font-medium flex items-center justify-between">
-                      <span>Время старта 1-й пары:</span>
+                          <SelectTrigger className="h-7 text-xs bg-background min-w-[145px] rounded-md font-medium">
+                            <SelectValue>
+                              Группа {modalGroup.groupName}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {scheduleData.map((g) => (
+                              <SelectItem key={g.groupId} value={g.groupId} className="text-xs">
+                                Группа {g.groupName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-primary/10 text-primary border-primary/30 font-medium"
+                        >
+                          Группа {modalGroup.groupName}
+                        </Badge>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className="text-[11px] bg-muted/40 text-muted-foreground border-border font-medium"
+                      >
+                        {formShift}
+                      </Badge>
                     </div>
-                    <div className="flex flex-wrap gap-1">
-                      {SHIFT_PRESET_STARTS[formShift].map((preset) => {
-                        const isSelected = formStartTime === preset;
-                        return (
+                  </div>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Выберите день и пару слева, затем введите или выберите дисциплину, аудиторию и преподавателя справа.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {/* 2-Column Spacious Body */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 py-1">
+                  {/* Left Column (5 of 12 cols): Day, Shift, Pair, Time */}
+                  <div className="lg:col-span-5 space-y-3">
+                    <div className="bg-muted/25 border border-border rounded-xl p-3.5 space-y-3.5">
+                      {/* 1. Day of Week */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                          <CalendarDays className="h-3.5 w-3.5 text-primary" /> День недели
+                        </label>
+                        <div className="grid grid-cols-6 gap-1.5">
+                          {modalGroup.days.map((d, idx) => {
+                            const isActive = formDayIndex === idx;
+                            const shortDay =
+                              ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"][idx] ||
+                              d.dayOfWeek.slice(0, 2);
+                            const lessonsCount = d.lessons.length;
+                            return (
+                              <button
+                                key={d.dateStr}
+                                type="button"
+                                onClick={() => setFormDayIndex(idx)}
+                                className={`py-1.5 px-1 rounded-lg border font-medium text-center transition-colors cursor-pointer ${
+                                  isActive
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background border-border text-foreground hover:border-primary/40 hover:bg-muted/40"
+                                }`}
+                                title={`${d.dayOfWeek} (${d.fullDateRu}) — пар: ${lessonsCount}`}
+                              >
+                                <div className="text-[11px] leading-tight">{shortDay}</div>
+                                <div
+                                  className={`text-[9px] mt-0.5 ${
+                                    isActive
+                                      ? "text-primary-foreground/80"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {d.dateStr.slice(0, 5)}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2. Shift Selection & Start Time Presets */}
+                      <div className="space-y-2 pt-1 border-t border-border">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-primary" /> Смена звонков
+                          </label>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            Старт: {formStartTime}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1 bg-muted/60 p-1 rounded-lg border border-border">
                           <button
-                            key={preset}
                             type="button"
-                            onClick={() => handleModalStartTimeChange(preset)}
-                            className={`text-[10px] px-2 py-0.5 rounded-md border font-medium transition-colors ${
-                              isSelected
-                                ? "bg-primary text-primary-foreground border-primary shadow-2xs"
-                                : "bg-background hover:bg-muted text-muted-foreground border-border hover:text-foreground"
+                            onClick={() => handleModalShiftChange("1-я смена")}
+                            className={`h-7 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                              formShift === "1-я смена"
+                                ? "bg-background text-primary border border-border"
+                                : "text-muted-foreground hover:text-foreground border border-transparent"
                             }`}
                           >
-                            {preset} {preset === SHIFT_DEFAULT_START[formShift] ? "(стандарт)" : ""}
+                            1-я смена
                           </button>
-                        );
-                      })}
+                          <button
+                            type="button"
+                            onClick={() => handleModalShiftChange("2-я смена")}
+                            className={`h-7 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                              formShift === "2-я смена"
+                                ? "bg-background text-primary border border-border"
+                                : "text-muted-foreground hover:text-foreground border border-transparent"
+                            }`}
+                          >
+                            2-я смена
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                          <span className="text-[10px] text-muted-foreground">
+                            Старт 1-й пары:
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {SHIFT_PRESET_STARTS[formShift].map((preset) => {
+                              const isSelected = formStartTime === preset;
+                              return (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() => handleModalStartTimeChange(preset)}
+                                  className={`text-[10px] px-2 py-0.5 rounded-md border font-medium transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-background hover:bg-muted text-muted-foreground border-border hover:text-foreground"
+                                  }`}
+                                >
+                                  {preset}{" "}
+                                  {preset === SHIFT_DEFAULT_START[formShift]
+                                    ? "(стандарт)"
+                                    : ""}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. Pair Number Selector */}
+                      <div className="space-y-1.5 pt-1 border-t border-border">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-medium text-foreground">
+                            Номер пары (1–6)
+                          </label>
+                          <span className="text-[10px] text-primary font-medium">
+                            80 мин + 10 мин перерыв
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-6 gap-1.5">
+                          {[1, 2, 3, 4, 5, 6].map((num) => {
+                            const isActive = formPairNum === num;
+                            const slotTime = dynamicPairSlots[num] || "08:00 – 09:20";
+                            const startPart = slotTime.split("–")[0]?.trim();
+                            const existingOnDay = modalGroup.days[
+                              formDayIndex
+                            ]?.lessons.find((l) => l.pairNumber === num);
+                            return (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => handleModalPairChange(num)}
+                                className={`relative h-12 rounded-lg border font-medium text-xs transition-colors flex flex-col items-center justify-center p-1 cursor-pointer ${
+                                  isActive
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : existingOnDay
+                                    ? "bg-muted/60 border-primary/40 text-foreground hover:border-primary"
+                                    : "bg-background border-border text-foreground hover:border-primary/40"
+                                }`}
+                                title={
+                                  existingOnDay
+                                    ? `Пара ${num} (${slotTime}): занята — ${existingOnDay.subject}`
+                                    : `Пара ${num} (${slotTime}): свободна`
+                                }
+                              >
+                                {existingOnDay && (
+                                  <span
+                                    className={`absolute top-1 right-1 h-1.5 w-1.5 rounded-full ${
+                                      isActive ? "bg-primary-foreground" : "bg-primary"
+                                    }`}
+                                    title={`Занята: ${existingOnDay.subject}`}
+                                  />
+                                )}
+                                <span className="text-[11px] leading-tight">
+                                  {num} пара
+                                </span>
+                                <span
+                                  className={`text-[9px] leading-tight font-mono mt-0.5 ${
+                                    isActive
+                                      ? "text-primary-foreground/85"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {startPart}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {!editingLesson?.lesson && occupiedSlotLesson && (
+                          <div className="flex items-center gap-1.5 text-[10px] text-primary bg-primary/10 border border-primary/25 rounded-md px-2 py-1">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            <span className="truncate">
+                              Слот занят ({occupiedSlotLesson.subject}) — при сохранении будет заменён
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. Editable Time Slot */}
+                      <div className="space-y-1.5 pt-1 border-t border-border">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-medium text-muted-foreground">
+                            Время пары:
+                          </label>
+                          <span className="text-[10px] font-mono text-foreground font-medium">
+                            {formTime}
+                          </span>
+                        </div>
+                        <Input
+                          value={formTime}
+                          onChange={(e) => handleManualTimeChange(e.target.value)}
+                          placeholder="например, 14:20 – 15:40"
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                        <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground leading-relaxed bg-primary/5 p-2 rounded-md border border-primary/20">
+                          <Sparkles className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+                          <span>
+                            <span className="font-medium text-foreground">
+                              Авто-подстройка:
+                            </span>{" "}
+                            при изменении времени 1-й пары все следующие пары ({formShift}) автоматически смещаются.
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Double pair checkbox */}
+                      {!editingLesson?.lesson && formPairNum < 5 && (
+                        <div className="flex items-center gap-2 pt-1 border-t border-border">
+                          <Checkbox
+                            id="isDoublePair"
+                            checked={formIsDoublePair}
+                            onCheckedChange={(checked) => setFormIsDoublePair(!!checked)}
+                          />
+                          <label
+                            htmlFor="isDoublePair"
+                            className="text-[11px] font-medium cursor-pointer select-none text-muted-foreground hover:text-foreground"
+                          >
+                            Сдвоенная пара (добавить сразу на {formPairNum}-ю и{" "}
+                            {formPairNum + 1}-ю)
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column (7 of 12 cols): Subject, Room, Teacher, Notes */}
+                  <div className="lg:col-span-7 space-y-3">
+                    {/* Block: Subject */}
+                    <div className="bg-muted/25 border border-border rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                          <BookOpen className="h-3.5 w-3.5 text-primary" /> Дисциплина (Предмет)
+                        </label>
+                        <span className="text-[10px] text-muted-foreground">
+                          Введите или выберите ниже
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <Input
+                          value={formSubject}
+                          onChange={(e) => setFormSubject(e.target.value)}
+                          placeholder="например, Веб-программирование, Физика, Базы данных..."
+                          className="h-8 text-xs font-medium bg-background pr-7"
+                          autoFocus
+                        />
+                        {formSubject && (
+                          <button
+                            type="button"
+                            onClick={() => setFormSubject("")}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                            title="Очистить"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      {subjectChips.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-[10px] text-muted-foreground font-medium">
+                            Быстрый выбор предмета:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                            {subjectChips.map((subj) => (
+                              <button
+                                key={subj}
+                                type="button"
+                                onClick={() => handleSelectSubjectSuggestion(subj)}
+                                className={`text-[11px] px-2.5 py-1 rounded-md border font-medium transition-colors cursor-pointer ${
+                                  formSubject === subj
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 border-border text-foreground/85"
+                                }`}
+                              >
+                                {subj}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Block: Room and Teacher */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Room */}
+                      <div className="bg-muted/25 border border-border rounded-xl p-3 space-y-2">
+                        <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-primary" /> Аудитория
+                        </label>
+                        <div className="relative">
+                          <Input
+                            value={formRoom}
+                            onChange={(e) => setFormRoom(e.target.value)}
+                            placeholder="Укажите аудиторию..."
+                            className="h-8 text-xs bg-background pr-7"
+                          />
+                          {formRoom && (
+                            <button
+                              type="button"
+                              onClick={() => setFormRoom("")}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                              title="Очистить"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {filteredRooms.length > 0 && (
+                          <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                            {filteredRooms.map((rm) => (
+                              <button
+                                key={rm}
+                                type="button"
+                                onClick={() => setFormRoom(rm)}
+                                className={`text-[10px] px-2 py-0.5 rounded-md border font-medium transition-colors cursor-pointer ${
+                                  formRoom === rm
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 border-border text-muted-foreground"
+                                }`}
+                              >
+                                {rm}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Teacher */}
+                      <div className="bg-muted/25 border border-border rounded-xl p-3 space-y-2">
+                        <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-primary" /> Преподаватель
+                        </label>
+                        <div className="relative">
+                          <Input
+                            value={formTeacher}
+                            onChange={(e) => setFormTeacher(e.target.value)}
+                            placeholder="ФИО преподавателя"
+                            className="h-8 text-xs bg-background pr-7"
+                          />
+                          {formTeacher && (
+                            <button
+                              type="button"
+                              onClick={() => setFormTeacher("")}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                              title="Очистить"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {filteredTeachers.length > 0 && (
+                          <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                            {filteredTeachers.map((tch) => (
+                              <button
+                                key={tch}
+                                type="button"
+                                onClick={() => setFormTeacher(tch)}
+                                className={`text-[10px] px-2 py-0.5 rounded-md border font-medium transition-colors cursor-pointer truncate max-w-full ${
+                                  formTeacher === tch
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 border-border text-muted-foreground"
+                                }`}
+                              >
+                                {tch}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Block: Notes & Highlighting */}
+                    <div className="bg-muted/25 border border-border rounded-xl p-3 space-y-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-foreground">
+                          Примечание (необязательно)
+                        </label>
+                        <Input
+                          value={formNote}
+                          onChange={(e) => setFormNote(e.target.value)}
+                          placeholder="например, Лабораторная работа, Зачёт или Тема занятия"
+                          className="h-8 text-xs bg-background"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1.5 border-t border-border">
+                        <Checkbox
+                          id="isSpecial"
+                          checked={formIsSpecial}
+                          onCheckedChange={(checked) => setFormIsSpecial(!!checked)}
+                        />
+                        <label
+                          htmlFor="isSpecial"
+                          className="text-xs font-medium cursor-pointer select-none text-muted-foreground hover:text-foreground"
+                        >
+                          Выделить карточку в расписании (Гостевая лекция / Праздник / Важное событие)
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* 3. Pair Number Selector (auto-calculated time on each button + occupied indicator) */}
-                <div className="space-y-1.5 pt-1 border-t">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold text-foreground">Номер пары (1–6)</label>
-                    <span className="text-[9px] text-primary font-medium">80 мин + 10 мин перерыв</span>
+                <DialogFooter className="flex flex-row items-center justify-between gap-2 pt-3 border-t border-border mt-1">
+                  <div className="text-[11px] text-muted-foreground hidden sm:block">
+                    {modalGroup.groupName} • {modalGroup.days[formDayIndex]?.dayOfWeek} •{" "}
+                    {formPairNum} пара ({formTime})
                   </div>
-                  <div className="grid grid-cols-6 gap-1">
-                    {[1, 2, 3, 4, 5, 6].map((num) => {
-                      const isActive = formPairNum === num;
-                      const slotTime = dynamicPairSlots[num] || "08:00 – 09:20";
-                      const startPart = slotTime.split("–")[0]?.trim();
-                      const existingOnDay = currentGroup.days[formDayIndex]?.lessons.find(
-                        (l) => l.pairNumber === num
-                      );
-                      return (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => handleModalPairChange(num)}
-                          className={`relative h-12 rounded-lg border font-medium text-xs transition-colors flex flex-col items-center justify-center p-1 ${
-                            isActive
-                              ? "bg-primary/10 border-primary text-primary"
-                              : existingOnDay
-                              ? "bg-muted/60 border-primary/30 text-foreground hover:bg-muted"
-                              : "bg-background border-border text-foreground hover:bg-muted"
-                          }`}
-                          title={
-                            existingOnDay
-                              ? `Пара ${num} (${slotTime}): занята — ${existingOnDay.subject}`
-                              : `Пара ${num} (${slotTime}): свободна`
-                          }
-                        >
-                          {existingOnDay && (
-                            <span
-                              className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary"
-                              title={`Занята: ${existingOnDay.subject}`}
-                            />
-                          )}
-                          <span className="font-bold text-[11px]">{num} пара</span>
-                          <span className="text-[9px] text-muted-foreground leading-tight font-mono">
-                            {startPart}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 4. Editable Time Slot & Auto-Sync Notification */}
-                <div className="space-y-1.5 pt-1 border-t">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-medium text-muted-foreground">Время пары:</label>
-                    <span className="text-[10px] font-mono text-foreground font-semibold">{formTime}</span>
-                  </div>
-                  <Input
-                    value={formTime}
-                    onChange={(e) => handleManualTimeChange(e.target.value)}
-                    placeholder="например, 14:20 – 15:40"
-                    className="h-8 text-xs font-mono bg-background"
-                  />
-                  <div className="text-[9px] text-muted-foreground leading-relaxed bg-background/60 p-1.5 rounded border">
-                    ⚡ <span className="font-medium text-foreground">Авто-подстройка:</span> при изменении времени 1-й пары все следующие пары ({formShift}) автоматически смещаются.
-                  </div>
-                </div>
-
-                {/* Double pair checkbox */}
-                {!editingLesson?.lesson && formPairNum < 5 && (
-                  <div className="flex items-center gap-2 pt-1 border-t">
-                    <Checkbox
-                      id="isDoublePair"
-                      checked={formIsDoublePair}
-                      onCheckedChange={(checked) => setFormIsDoublePair(!!checked)}
-                    />
-                    <label htmlFor="isDoublePair" className="text-[11px] font-medium cursor-pointer select-none text-muted-foreground hover:text-foreground">
-                      Сдвоенная пара (добавить сразу на {formPairNum}-ю и {formPairNum + 1}-ю)
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right Column (7 of 12 cols): Subject, Room, Teacher, Notes */}
-            <div className="md:col-span-7 space-y-3.5">
-              {/* Block: Subject */}
-              <div className="bg-muted/30 border rounded-xl p-3.5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                    <BookOpen className="h-3.5 w-3.5 text-primary" /> Дисциплина (Предмет)
-                  </label>
-                  <span className="text-[10px] text-muted-foreground">Свободный ввод</span>
-                </div>
-                <Input
-                  value={formSubject}
-                  onChange={(e) => setFormSubject(e.target.value)}
-                  placeholder="например, Веб-программирование, Физика, Базы данных..."
-                  className="h-8 text-xs font-medium bg-background"
-                  autoFocus
-                />
-                <div className="space-y-1 pt-1">
-                  <span className="text-[10px] text-muted-foreground font-medium">Частые предметы (нажмите для выбора):</span>
-                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
-                    {suggestions.subjects.map((subj) => (
-                      <button
-                        key={subj}
-                        type="button"
-                        onClick={() => handleSelectSubjectSuggestion(subj)}
-                        className={`text-[10px] px-2 py-0.5 rounded-md border font-medium transition-colors ${
-                          formSubject === subj
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 border-border text-foreground/80"
-                        }`}
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setIsLessonDialogOpen(false)}
+                    >
+                      Отмена
+                    </Button>
+                    {!editingLesson?.lesson && formPairNum < 6 && (
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        onClick={() => handleSaveLesson(true)}
+                        disabled={!formSubject.trim()}
+                        className="px-3 font-medium gap-1"
                       >
-                        {subj}
-                      </button>
-                    ))}
+                        <Plus className="h-3 w-3" /> Сохранить и +1 пару
+                      </Button>
+                    )}
+                    <Button
+                      size="xs"
+                      onClick={() => handleSaveLesson(false)}
+                      disabled={!formSubject.trim()}
+                      className="px-4 font-medium"
+                    >
+                      Сохранить пару
+                    </Button>
                   </div>
-                </div>
-              </div>
-
-              {/* Block: Room and Teacher (Manual Input only) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Room */}
-                <div className="bg-muted/30 border rounded-xl p-3 space-y-1.5">
-                  <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-primary" /> Аудитория
-                  </label>
-                  <Input
-                    value={formRoom}
-                    onChange={(e) => setFormRoom(e.target.value)}
-                    placeholder="Укажите аудиторию..."
-                    className="h-8 text-xs bg-background"
-                  />
-                </div>
-
-                {/* Teacher */}
-                <div className="bg-muted/30 border rounded-xl p-3 space-y-1.5">
-                  <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                    <User className="h-3.5 w-3.5 text-primary" /> Преподаватель
-                  </label>
-                  <Input
-                    value={formTeacher}
-                    onChange={(e) => setFormTeacher(e.target.value)}
-                    placeholder="ФИО преподавателя"
-                    className="h-8 text-xs bg-background"
-                  />
-                </div>
-              </div>
-
-              {/* Block: Notes & Highlighting */}
-              <div className="bg-muted/30 border rounded-xl p-3 space-y-2.5">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-foreground">Примечание (необязательно)</label>
-                  <Input
-                    value={formNote}
-                    onChange={(e) => setFormNote(e.target.value)}
-                    placeholder="например, Лабораторная работа, Зачёт или Тема занятия"
-                    className="h-8 text-xs bg-background"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-1 border-t">
-                  <Checkbox
-                    id="isSpecial"
-                    checked={formIsSpecial}
-                    onCheckedChange={(checked) => setFormIsSpecial(!!checked)}
-                  />
-                  <label htmlFor="isSpecial" className="text-xs font-medium cursor-pointer select-none text-muted-foreground hover:text-foreground">
-                    Выделить карточку в расписании (Гостевая лекция / Праздник / Важное событие)
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="flex flex-row items-center justify-between gap-2 pt-3 border-t mt-1">
-            <div className="text-[11px] text-muted-foreground hidden sm:block">
-              {currentGroup.days[formDayIndex]?.dayOfWeek} • {formPairNum} пара ({formTime})
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="xs" variant="outline" onClick={() => setIsLessonDialogOpen(false)}>
-                Отмена
-              </Button>
-              {!editingLesson?.lesson && formPairNum < 6 && (
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  onClick={() => handleSaveLesson(true)}
-                  disabled={!formSubject.trim()}
-                  className="px-3 font-medium gap-1"
-                >
-                  <Plus className="h-3 w-3" /> Сохранить и +1 пару
-                </Button>
-              )}
-              <Button size="xs" onClick={() => handleSaveLesson(false)} disabled={!formSubject.trim()} className="px-4 font-medium">
-                Сохранить пару
-              </Button>
-            </div>
-          </DialogFooter>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
