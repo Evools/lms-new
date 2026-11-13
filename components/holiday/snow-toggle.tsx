@@ -136,17 +136,6 @@ export function SnowToggle() {
               ))}
             </div>
           </div>
-
-          {/* Snowdrifts */}
-          <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border">
-            <span className="text-[11px] text-muted-foreground font-medium">
-              Сугробы внизу
-            </span>
-            <Switch
-              checked={snowSettings.drifts}
-              onCheckedChange={(checked) => updateSnowSettings({ drifts: checked })}
-            />
-          </div>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

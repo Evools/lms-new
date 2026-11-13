@@ -11,14 +11,12 @@ export interface SnowSettings {
   density: SnowDensity;
   speed: SnowSpeed;
   style: SnowStyle;
-  drifts: boolean;
 }
 
 const DEFAULT_SNOW_SETTINGS: SnowSettings = {
   density: "medium",
   speed: "normal",
   style: "soft",
-  drifts: true,
 };
 
 interface HolidayContextType {
