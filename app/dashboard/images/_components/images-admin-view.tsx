@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertCircle,
   Check,
   Copy,
   Eye,
@@ -14,6 +15,7 @@ import {
   Upload,
 } from "lucide-react";
 import type { ImageQuotaUsage, StoredImageDTO } from "@/lib/images/service";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -92,9 +94,15 @@ interface ImagesAdminViewProps {
   initialImages: StoredImageDTO[];
   initialQuota: ImageQuotaUsage;
   userRole: string;
+  initialError?: string | null;
 }
 
-export function ImagesAdminView({ initialImages, initialQuota, userRole }: ImagesAdminViewProps) {
+export function ImagesAdminView({
+  initialImages,
+  initialQuota,
+  userRole,
+  initialError = null,
+}: ImagesAdminViewProps) {
   const isAdmin = userRole === "ADMIN";
   const [images, setImages] = useState<StoredImageDTO[]>(initialImages);
   const [quota, setQuota] = useState<ImageQuotaUsage>(initialQuota);
@@ -390,6 +398,16 @@ export function ImagesAdminView({ initialImages, initialQuota, userRole }: Image
           </Badge>
         </div>
       </div>
+
+      {initialError && (
+        <Alert variant="destructive" className="rounded-lg p-3 text-xs">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle className="text-xs font-bold">
+            Ошибка загрузки библиотеки изображений
+          </AlertTitle>
+          <AlertDescription className="text-xs">{initialError}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Панель фильтров и загрузки */}
       <Card size="sm" className="py-3">
