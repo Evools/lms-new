@@ -17,6 +17,7 @@ import type { ImageQuotaUsage, StoredImageDTO } from "@/lib/images/service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -109,6 +110,9 @@ export function ImagesAdminView({ initialImages, initialQuota, userRole }: Image
   const [previewImage, setPreviewImage] = useState<StoredImageDTO | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StoredImageDTO | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isFirstRender = useRef(true);
@@ -246,10 +250,17 @@ export function ImagesAdminView({ initialImages, initialQuota, userRole }: Image
       }
       toast.add({ title: "Изображение удалено", type: "success" });
       setImages((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+      setSelectedIds((prev) => {
+        if (!prev.has(deleteTarget.id)) return prev;
+        const next = new Set(prev);
+        next.delete(deleteTarget.id);
+        return next;
+      });
       if (previewImage?.id === deleteTarget.id) {
         setPreviewImage(null);
       }
       setDeleteTarget(null);
+      await fetchImages(query, category, visibility);
     } catch (err) {
       toast.add({
         title: err instanceof Error ? err.message : "Ошибка удаления",
@@ -257,6 +268,85 @@ export function ImagesAdminView({ initialImages, initialQuota, userRole }: Image
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const toggleSelect = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const allVisibleSelected =
+    images.length > 0 && images.every((item) => selectedIds.has(item.id));
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(images.map((item) => item.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    setIsBulkDeleting(true);
+    let deletedCount = 0;
+    let firstError: string | null = null;
+    const deletedSet = new Set<string>();
+
+    try {
+      for (const id of ids) {
+        try {
+          const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
+          const data = (await res.json()) as { success?: boolean; error?: string };
+          if (res.ok) {
+            deletedCount += 1;
+            deletedSet.add(id);
+          } else if (!firstError) {
+            firstError = data.error ?? "Не удалось удалить часть изображений";
+          }
+        } catch {
+          if (!firstError) {
+            firstError = "Ошибка сети при удалении";
+          }
+        }
+      }
+
+      if (deletedCount > 0) {
+        toast.add({
+          title: `Удалено изображений: ${deletedCount}`,
+          type: "success",
+        });
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          deletedSet.forEach((id) => next.delete(id));
+          return next;
+        });
+        if (previewImage && deletedSet.has(previewImage.id)) {
+          setPreviewImage(null);
+        }
+        await fetchImages(query, category, visibility);
+      }
+
+      if (firstError) {
+        toast.add({
+          title: firstError,
+          type: "error",
+        });
+      }
+
+      setBulkDeleteOpen(false);
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -421,6 +511,55 @@ export function ImagesAdminView({ initialImages, initialQuota, userRole }: Image
         </CardContent>
       </Card>
 
+      {/* Панель массового выделения */}
+      {images.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 min-h-[46px] rounded-lg border border-border bg-card px-3 py-2 text-xs">
+          <div className="flex items-center gap-2 h-7">
+            <Checkbox
+              checked={allVisibleSelected}
+              onCheckedChange={() => toggleSelectAll()}
+              aria-label="Выбрать все изображения"
+            />
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer"
+            >
+              {allVisibleSelected ? "Снять выделение" : "Выбрать все"}
+            </button>
+            {selectedIds.size > 0 && (
+              <Badge variant="outline" className="text-xs font-medium border-primary/40 text-primary">
+                Выбрано: {selectedIds.size}
+              </Badge>
+            )}
+          </div>
+
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-xs font-medium"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                Отменить выбор
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-7 px-2.5 text-xs font-medium gap-1.5"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Удалить выбранные ({selectedIds.size})
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Сетка изображений */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -447,23 +586,40 @@ export function ImagesAdminView({ initialImages, initialQuota, userRole }: Image
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {images.map((item) => {
             const isCopied = copiedId === item.id;
+            const isSelected = selectedIds.has(item.id);
             return (
-              <Card key={item.id} size="sm" className="gap-0 py-0">
-                <button
-                  type="button"
-                  onClick={() => setPreviewImage(item)}
-                  className="relative aspect-[4/3] w-full bg-muted/40 overflow-hidden border-b border-border group text-left cursor-pointer"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.url}
-                    alt={item.title}
-                    loading="lazy"
-                    className="h-full w-full object-contain p-1.5 transition-transform duration-200 group-hover:scale-[1.02]"
-                  />
+              <Card
+                key={item.id}
+                size="sm"
+                className={`gap-0 py-0 transition-colors ${isSelected ? "border-primary" : ""}`}
+              >
+                <div className="relative aspect-[4/3] w-full bg-muted/40 overflow-hidden border-b border-border group">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage(item)}
+                    className="h-full w-full text-left cursor-pointer"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.url}
+                      alt={item.title}
+                      loading="lazy"
+                      className="h-full w-full object-contain p-1.5 transition-transform duration-200 group-hover:scale-[1.02]"
+                    />
+                  </button>
+                  <div
+                    className="absolute top-1.5 left-1.5 z-10 flex items-center justify-center rounded-md border border-border bg-background/90 p-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={(checked) => toggleSelect(item.id, Boolean(checked))}
+                      aria-label={`Выбрать ${item.title}`}
+                    />
+                  </div>
                   <Badge
                     variant="outline"
-                    className="absolute top-1.5 right-1.5 h-5 px-1.5 text-[10px] font-medium border-border bg-background/90 gap-1"
+                    className="absolute top-1.5 right-1.5 h-5 px-1.5 text-[10px] font-medium border-border bg-background/90 gap-1 pointer-events-none"
                   >
                     {item.visibility === "PUBLIC" ? (
                       <>
@@ -477,7 +633,7 @@ export function ImagesAdminView({ initialImages, initialQuota, userRole }: Image
                       </>
                     )}
                   </Badge>
-                </button>
+                </div>
 
                 <CardContent className="p-2.5 flex-1 flex flex-col justify-between gap-2 text-xs">
                   <div className="space-y-1">
@@ -635,6 +791,42 @@ export function ImagesAdminView({ initialImages, initialQuota, userRole }: Image
               className="h-6 px-2.5 text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isDeleting ? "Удаление..." : "Удалить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Подтверждение массового удаления */}
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => !open && !isBulkDeleting && setBulkDeleteOpen(false)}
+      >
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="place-items-start text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold">
+              Удалить выбранные ({selectedIds.size})?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Выбранные файлы будут удалены из хранилища и базы данных. Изображения, которые
+              используются в материалах или профилях, не будут удалены.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <AlertDialogCancel
+              disabled={isBulkDeleting}
+              className="h-6 px-2.5 text-xs font-medium mt-0"
+            >
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isBulkDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleBulkDelete();
+              }}
+              className="h-6 px-2.5 text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBulkDeleting ? "Удаление..." : "Удалить"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
