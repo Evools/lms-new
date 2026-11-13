@@ -25,11 +25,11 @@ interface TimeRemaining {
 }
 
 const getHolidayWishes = (nextYear: number) => [
-  "Пусть все тесты проходят с первого раза и без багов!",
-  "Только отличных оценок и автоматов на зимней сессии!",
-  `Чистого кода, быстрого билда и стабильного деплоя в ${nextYear} году!`,
-  "Новых амбициозных проектов и высоких достижений в IT!",
-  "Уютных зимних каникул, ярких впечатлений и праздничного вдохновения!",
+  `Пусть ${nextYear} год принесёт сильные проекты, уверенный рост и вдохновение каждый день!`,
+  "Лёгкой сессии, высоких результатов и только зелёных галочек в проверках!",
+  "Пусть сложные задачи решаются красиво, а идеи быстро превращаются в рабочие продукты!",
+  `Здоровья, тепла, крутой команды и новых побед в наступающем ${nextYear} году!`,
+  "Продуктивного завершения семестра и по-настоящему уютных зимних каникул!",
 ];
 
 export function HolidayBanner() {
@@ -52,19 +52,6 @@ export function HolidayBanner() {
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const nextYear = currentYear + 1;
   const holidayWishes = useMemo(() => getHolidayWishes(nextYear), [nextYear]);
-
-  // Calculate percentage of 2026 elapsed
-  const yearProgress = useMemo(() => {
-    const now = new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
-    const endOfYear = new Date(now.getFullYear() + 1, 0, 1).getTime();
-    const current = now.getTime();
-    const progress = Math.min(
-      100,
-      Math.max(0, Math.round(((current - startOfYear) / (endOfYear - startOfYear)) * 100))
-    );
-    return progress;
-  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -168,7 +155,7 @@ export function HolidayBanner() {
       {/* Christmas Gnome Illustration (anchored to bottom-left corner) */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-0 left-0 sm:left-1 md:left-3 z-10 select-none flex items-end"
+        className="pointer-events-none absolute bottom-0 left-0 sm:left-1 md:left-2 z-10 select-none flex items-end"
       >
         <Image
           src="/images/christmas/knitted.png"
@@ -182,16 +169,16 @@ export function HolidayBanner() {
 
       <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4 lg:gap-5">
         {/* Left Side: Main Story */}
-        <div className="space-y-1.5 min-w-0 max-w-2xl pl-0 md:pl-28 lg:pl-36 pr-8 sm:pr-10 lg:pr-0">
+        <div className="space-y-1.5 min-w-0 max-w-2xl pl-0 md:pl-28 lg:pl-48 pr-8 sm:pr-10 lg:pr-0">
           {/* Badges Bar */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
-              <Sparkles className="size-3 text-primary animate-pulse" />
-              Новогодний сезон
+              <Sparkles className="size-3 text-primary" />
+              Новогоднее настроение
             </span>
             <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
               <Flame className="size-3 text-primary" />
-              Финал семестра {currentYear}
+              Зимний семестр {currentYear}
             </span>
             <span className="hidden md:inline-flex items-center gap-1 rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
               <Trophy className="size-3 text-primary" />
@@ -208,11 +195,11 @@ export function HolidayBanner() {
           </h2>
 
           {/* Inspiring Wish Bar with interactive switcher */}
-          <div className="flex items-center gap-2 pt-0.5">
-            <div className="text-[11px] sm:text-xs text-muted-foreground leading-snug sm:leading-relaxed flex items-center gap-1.5 min-w-0">
-              <Gift className="size-3.5 text-primary shrink-0" />
-              <span className="italic font-medium text-foreground/90 line-clamp-2 sm:line-clamp-none">
-                «{holidayWishes[wishIndex]}»
+          <div className="flex items-start sm:items-center gap-2 pt-0.5">
+            <div className="text-[11px] sm:text-xs text-muted-foreground leading-snug sm:leading-relaxed flex items-start sm:items-center gap-1.5 min-w-0">
+              <Gift className="size-3.5 text-primary shrink-0 mt-0.5 sm:mt-0" />
+              <span className="font-medium text-foreground/90 line-clamp-2 sm:line-clamp-none">
+                {holidayWishes[wishIndex]}
               </span>
             </div>
             <Button
@@ -227,22 +214,10 @@ export function HolidayBanner() {
               <span className="sr-only">Другое пожелание</span>
             </Button>
           </div>
-
-          {/* Year Progress Bar */}
-          <div className="pt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="font-medium shrink-0">{currentYear} год:</span>
-            <div className="h-1.5 w-24 sm:w-36 rounded-full bg-muted overflow-hidden border border-border/50">
-              <div
-                className="h-full bg-primary rounded-full transition-all duration-500"
-                style={{ width: `${yearProgress}%` }}
-              />
-            </div>
-            <span className="font-mono font-medium text-primary">{yearProgress}%</span>
-          </div>
         </div>
 
         {/* Right Side: Solid White Countdown Cards */}
-        <div className="flex flex-col items-end self-end lg:self-auto gap-1 sm:gap-1.5 shrink-0 z-10 pl-16 sm:pl-24 lg:pl-0">
+        <div className="flex flex-col items-end self-end lg:self-auto gap-1 sm:gap-1.5 shrink-0 z-10 pl-16 sm:pl-24 lg:pl-0 lg:pr-7">
           <div className="flex items-center gap-1.5 px-1.5 sm:px-2 py-0.5 rounded-md bg-white/95 dark:bg-card/95 border border-border/80 text-[9px] sm:text-[10px] font-medium text-foreground uppercase tracking-wider">
             <Clock className="size-3 text-primary" />
             <span>До 1 января {nextYear}:</span>
