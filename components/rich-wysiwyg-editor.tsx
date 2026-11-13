@@ -87,7 +87,24 @@ export function RichWysiwygEditor({
   const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cursorPosRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+  const latestValueRef = useRef(value);
+  latestValueRef.current = value;
+
+  const cursorPosRef = useRef<{
+    start: number;
+    end: number;
+    scrollTop: number;
+    windowScrollX: number;
+    windowScrollY: number;
+    snapshotValue: string;
+  }>({
+    start: 0,
+    end: 0,
+    scrollTop: 0,
+    windowScrollX: 0,
+    windowScrollY: 0,
+    snapshotValue: value,
+  });
 
   // Image insertion & context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -99,33 +116,87 @@ export function RichWysiwygEditor({
 
   const captureCursorPosition = () => {
     const textarea = textareaRef.current;
+    const currentValue = latestValueRef.current;
+    const windowScrollX = typeof window !== "undefined" ? window.scrollX : 0;
+    const windowScrollY = typeof window !== "undefined" ? window.scrollY : 0;
+
     if (textarea) {
       cursorPosRef.current = {
-        start: textarea.selectionStart,
-        end: textarea.selectionEnd,
+        start: textarea.selectionStart ?? currentValue.length,
+        end: textarea.selectionEnd ?? currentValue.length,
+        scrollTop: textarea.scrollTop,
+        windowScrollX,
+        windowScrollY,
+        snapshotValue: currentValue,
       };
     } else {
-      cursorPosRef.current = { start: value.length, end: value.length };
+      cursorPosRef.current = {
+        start: currentValue.length,
+        end: currentValue.length,
+        scrollTop: 0,
+        windowScrollX,
+        windowScrollY,
+        snapshotValue: currentValue,
+      };
     }
   };
 
   const insertTextAtSavedCursor = (textToInsert: string) => {
-    const textarea = textareaRef.current;
-    const start = Math.min(cursorPosRef.current.start, value.length);
-    const end = Math.min(cursorPosRef.current.end, value.length);
+    const currentValue = latestValueRef.current;
+    const saved = cursorPosRef.current;
 
-    const newText = value.substring(0, start) + textToInsert + value.substring(end);
+    let start = Math.min(saved.start, currentValue.length);
+    let end = Math.min(saved.end, currentValue.length);
+
+    // Adjust saved offsets if the user edited text before the saved cursor during async upload
+    if (saved.snapshotValue !== currentValue) {
+      const oldText = saved.snapshotValue;
+      let commonPrefix = 0;
+      const minLen = Math.min(oldText.length, currentValue.length);
+      while (commonPrefix < minLen && oldText[commonPrefix] === currentValue[commonPrefix]) {
+        commonPrefix++;
+      }
+      if (commonPrefix < saved.start) {
+        const delta = currentValue.length - oldText.length;
+        start = Math.max(0, Math.min(currentValue.length, saved.start + delta));
+        end = Math.max(start, Math.min(currentValue.length, saved.end + delta));
+      }
+    }
+
+    const newText = currentValue.substring(0, start) + textToInsert + currentValue.substring(end);
+    latestValueRef.current = newText;
     onChange(newText);
 
     const nextCursor = start + textToInsert.length;
-    cursorPosRef.current = { start: nextCursor, end: nextCursor };
+    const targetScrollTop = textareaRef.current ? textareaRef.current.scrollTop : saved.scrollTop;
+    const targetWindowX = typeof window !== "undefined" ? window.scrollX : saved.windowScrollX;
+    const targetWindowY = typeof window !== "undefined" ? window.scrollY : saved.windowScrollY;
 
-    setTimeout(() => {
-      if (textarea) {
-        textarea.focus();
-        textarea.setSelectionRange(nextCursor, nextCursor);
+    cursorPosRef.current = {
+      start: nextCursor,
+      end: nextCursor,
+      scrollTop: targetScrollTop,
+      windowScrollX: targetWindowX,
+      windowScrollY: targetWindowY,
+      snapshotValue: newText,
+    };
+
+    const restoreFocusAndScroll = () => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus({ preventScroll: true });
+        el.setSelectionRange(nextCursor, nextCursor);
+        el.scrollTop = targetScrollTop;
       }
-    }, 0);
+      if (typeof window !== "undefined") {
+        window.scrollTo({ left: targetWindowX, top: targetWindowY, behavior: "instant" as ScrollBehavior });
+      }
+    };
+
+    requestAnimationFrame(() => {
+      restoreFocusAndScroll();
+      requestAnimationFrame(restoreFocusAndScroll);
+    });
   };
 
   const handleUploadAndInsertImage = async (file: File) => {
@@ -654,6 +725,11 @@ export function RichWysiwygEditor({
               value={value}
               onChange={(e) => onChange(e.target.value)}
               onKeyDown={handleKeyDown}
+              onMouseDown={(e) => {
+                if (e.button === 2) {
+                  captureCursorPosition();
+                }
+              }}
               onContextMenu={(e) => {
                 e.preventDefault();
                 captureCursorPosition();
