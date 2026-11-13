@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 function isImageUrl(url?: string): boolean {
   if (!url) return false;
   const trimmed = url.trim();
-  if (trimmed.startsWith("data:image/")) return true;
+  if (trimmed.startsWith("data:image/") || trimmed.startsWith("/api/images/")) return true;
   try {
     const parsed = new URL(trimmed);
     const host = parsed.hostname.toLowerCase();

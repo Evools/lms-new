@@ -86,6 +86,7 @@ model User {
   testSubmissions TestSubmission[]
   notifications   Notification[]
   achievements    StudentAchievement[]
+  uploadedImages  StoredImage[]
 
   @@map("users")
 }
@@ -609,5 +610,35 @@ model StudentAchievement {
   @@index([studentId])
   @@index([category])
   @@map("student_achievements")
+}
+
+enum ImageVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+model StoredImage {
+  id           String          @id @default(cuid())
+  title        String
+  originalName String
+  fileName     String          @unique
+  storageKey   String
+  mimeType     String
+  size         Int
+  width        Int?
+  height       Int?
+  visibility   ImageVisibility @default(PUBLIC)
+  category     String          @default("material")
+  isR2         Boolean         @default(false)
+  externalUrl  String?
+  uploadedById String
+  uploadedBy   User            @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([uploadedById])
+  @@index([visibility, category])
+  @@index([createdAt])
+  @@map("stored_images")
 }
 

@@ -32,6 +32,7 @@ import {
   Keyboard,
   Code,
   GitBranch,
+  Image as ImageIcon,
 } from "lucide-react";
 import { DEFAULT_FEATURE_MODULES, type FeatureModulesDTO } from "@/lib/feature-modules";
 
@@ -219,6 +220,11 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Документы лицея",
               url: "/dashboard/documents",
               icon: <FileText className="h-4 w-4" />,
+            },
+            {
+              title: "Библиотека изображений",
+              url: "/dashboard/images",
+              icon: <ImageIcon className="h-4 w-4" />,
             },
           ],
         },
