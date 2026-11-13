@@ -5,22 +5,24 @@ import { ImagesAdminView } from "./_components/images-admin-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminImagesPage() {
+const ALLOWED_ROLES = new Set(["ADMIN", "TEACHER", "ADMINISTRATION"]);
+
+export default async function ImagesLibraryPage() {
   const session = await auth();
   if (!session?.user) {
     redirect("/login");
   }
 
-  if (session.user.role !== "ADMIN") {
+  const role = session.user.role || "STUDENT";
+  if (!ALLOWED_ROLES.has(role)) {
     redirect("/dashboard");
   }
 
   const initialImages = await listImagesService({
     userId: session.user.id,
-    userRole: "ADMIN",
+    userRole: role,
     limit: 100,
   });
 
-  return <ImagesAdminView initialImages={initialImages} />;
+  return <ImagesAdminView initialImages={initialImages} userRole={role} />;
 }
-

@@ -248,6 +248,11 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               icon: <FileText className="h-4 w-4" />,
             },
             {
+              title: "Библиотека изображений",
+              url: "/dashboard/images",
+              icon: <ImageIcon className="h-4 w-4" />,
+            },
+            {
               title: "Объявления",
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
@@ -357,6 +362,11 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Учебные материалы",
               url: "/dashboard/lms/materials",
               icon: <BookOpen className="h-4 w-4" />,
+            },
+            {
+              title: "Библиотека изображений",
+              url: "/dashboard/images",
+              icon: <ImageIcon className="h-4 w-4" />,
             },
             {
               title: "Тесты и опросы",

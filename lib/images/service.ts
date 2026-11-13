@@ -205,28 +205,18 @@ export async function listImagesService(params: {
   limit?: number;
 }): Promise<StoredImageDTO[]> {
   const { userId, userRole, query, category, visibility, limit = 60 } = params;
-  const isStaff = userRole === "ADMIN" || userRole === "TEACHER";
 
   const whereClauses: Record<string, unknown>[] = [];
 
-  // Access control filter
-  if (userRole === "ADMIN") {
-    if (visibility && visibility !== "ALL") {
-      whereClauses.push({ visibility });
-    }
-  } else if (isStaff) {
-    if (visibility === "PRIVATE") {
-      whereClauses.push({ visibility: "PRIVATE", uploadedById: userId });
-    } else if (visibility === "PUBLIC") {
-      whereClauses.push({ visibility: "PUBLIC" });
-    } else {
-      whereClauses.push({
-        OR: [{ visibility: "PUBLIC" }, { uploadedById: userId }],
-      });
-    }
-  } else {
-    // Students only see their own uploaded images
+  // Role-based access control:
+  // - ADMIN sees all platform images
+  // - TEACHER / ADMINISTRATION / other users see only their own uploaded images
+  if (userRole !== "ADMIN") {
     whereClauses.push({ uploadedById: userId });
+  }
+
+  if (visibility && visibility !== "ALL") {
+    whereClauses.push({ visibility });
   }
 
   if (category && category !== "ALL") {
@@ -278,7 +268,6 @@ export async function getImageForServingService(params: {
     }
     const isAllowed =
       params.userRole === "ADMIN" ||
-      params.userRole === "TEACHER" ||
       record.uploadedById === params.userId;
     if (!isAllowed) {
       return { success: false, status: 403, error: "Нет доступа к приватному изображению" };

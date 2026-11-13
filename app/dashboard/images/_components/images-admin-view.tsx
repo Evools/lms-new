@@ -87,9 +87,11 @@ function formatDate(iso: string): string {
 
 interface ImagesAdminViewProps {
   initialImages: StoredImageDTO[];
+  userRole: string;
 }
 
-export function ImagesAdminView({ initialImages }: ImagesAdminViewProps) {
+export function ImagesAdminView({ initialImages, userRole }: ImagesAdminViewProps) {
+  const isAdmin = userRole === "ADMIN";
   const [images, setImages] = useState<StoredImageDTO[]>(initialImages);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("ALL");
@@ -256,7 +258,9 @@ export function ImagesAdminView({ initialImages }: ImagesAdminViewProps) {
             Библиотека изображений
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Централизованное хранилище WebP-изображений платформы (доступно только суперадминистратору).
+            {isAdmin
+              ? "Централизованное хранилище WebP-изображений всех пользователей платформы."
+              : "Ваша личная библиотека изображений: загрузка, поиск, повторное использование и удаление."}
           </p>
         </div>
 
