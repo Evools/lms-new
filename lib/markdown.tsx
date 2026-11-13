@@ -6,7 +6,56 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { Highlight, themes } from "prism-react-renderer";
-import { Check, Copy, ExternalLink, ChevronRight } from "lucide-react";
+import { Check, Copy, ExternalLink, ChevronRight, Image as ImageIcon, ZoomIn } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+
+/** Check whether a URL points to an image (including ChatGPT/OpenAI inline image URLs) */
+function isImageUrl(url?: string): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (trimmed.startsWith("data:image/")) return true;
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === "images.openai.com" ||
+      host.endsWith(".oaidalleapiprodscus.blob.core.windows.net") ||
+      parsed.searchParams.get("purpose") === "inline"
+    ) {
+      return true;
+    }
+    const pathname = parsed.pathname.toLowerCase();
+    return /\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(pathname);
+  } catch {
+    return /\.(png|jpe?g|webp|gif|svg|avif|bmp)(\?.*)?$/i.test(trimmed);
+  }
+}
+
+/**
+ * Convert standalone ChatGPT-style image links `[alt](https://images.openai.com/...)`
+ * into Markdown image syntax `![alt](...)`, skipping fenced code blocks.
+ */
+function normalizeChatGptImages(content: string): string {
+  const lines = content.split("\n");
+  let inFence = false;
+  const standaloneLinkRe = /^\s*\[((?:\\.|[^\]])*)\]\((https?:\/\/[^\s)]+)\)\s*$/;
+
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      const match = line.match(standaloneLinkRe);
+      if (match && isImageUrl(match[2])) {
+        return `![${match[1]}](${match[2]})`;
+      }
+      return line;
+    })
+    .join("\n");
+}
 
 /** Safe sanitize schema allowing details/summary and standard formatting while preventing arbitrary unsafe HTML (scripts, iframes, on* handlers) */
 const markdownSanitizeSchema = {
@@ -29,6 +78,7 @@ const markdownSanitizeSchema = {
     span: [...(defaultSchema.attributes?.span || []), "className"],
     div: [...(defaultSchema.attributes?.div || []), "className"],
     a: [...(defaultSchema.attributes?.a || []), "target", "rel", "className"],
+    img: [...(defaultSchema.attributes?.img || []), "src", "alt", "title", "width", "height", "loading", "className"],
   },
 };
 
@@ -241,6 +291,96 @@ function MarkdownAccordion({
   );
 }
 
+/** Safe inline/block image renderer with click-to-zoom lightbox and graceful fallback */
+function MarkdownImage({
+  src,
+  alt,
+}: {
+  src?: string;
+  alt?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
+  if (!src) return null;
+
+  const cleanAlt = alt?.replace(/\\([\[\]])/g, "$1").trim() || "";
+
+  if (failed) {
+    return (
+      <a
+        href={src}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 my-1.5 rounded-lg border border-border bg-muted/30 text-primary hover:bg-primary/5 text-xs font-medium"
+      >
+        <ImageIcon className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate max-w-[320px]">{cleanAlt || "Открыть изображение"}</span>
+        <ExternalLink className="h-3 w-3 shrink-0" />
+      </a>
+    );
+  }
+
+  return (
+    <span className="block my-2.5">
+      <button
+        type="button"
+        onClick={() => setZoomOpen(true)}
+        title="Нажмите, чтобы увеличить"
+        className="relative inline-block max-w-full group cursor-zoom-in text-left"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={cleanAlt}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+          className="max-h-[420px] w-auto max-w-full rounded-lg border border-border bg-muted/20 object-contain transition-colors group-hover:border-primary/50"
+        />
+        <span className="absolute bottom-2 right-2 p-1.5 rounded-md bg-background/85 border border-border text-foreground opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <ZoomIn className="h-3.5 w-3.5 text-primary" />
+        </span>
+      </button>
+      {cleanAlt && cleanAlt.toLowerCase() !== "image" && (
+        <span className="block text-[11px] text-muted-foreground mt-1 leading-snug">
+          {cleanAlt}
+        </span>
+      )}
+
+      <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
+        <DialogContent className="p-3 gap-2 sm:max-w-[90vw] w-fit max-w-[95vw] max-h-[92vh] flex flex-col border border-border">
+          <DialogTitle className="sr-only">
+            {cleanAlt || "Просмотр изображения"}
+          </DialogTitle>
+          <div className="flex items-center justify-center overflow-auto min-h-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={cleanAlt}
+              referrerPolicy="no-referrer"
+              className="max-h-[80vh] max-w-[86vw] w-auto h-auto rounded-md object-contain"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 pt-1.5 border-t border-border text-[11px] text-muted-foreground">
+            <span className="truncate max-w-[60vw]">
+              {cleanAlt && cleanAlt.toLowerCase() !== "image" ? cleanAlt : "Изображение"}
+            </span>
+            <a
+              href={src}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline font-medium inline-flex items-center gap-1 shrink-0"
+            >
+              <span>Оригинал</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </span>
+  );
+}
+
 export interface MarkdownViewerProps {
   content: string;
   className?: string;
@@ -252,6 +392,7 @@ export function MarkdownViewer({
   className = "",
 }: MarkdownViewerProps) {
   if (!content) return null;
+  const normalizedContent = normalizeChatGptImages(content);
 
   return (
     <div className={`text-xs leading-relaxed text-foreground space-y-2 select-text ${className}`}>
@@ -308,17 +449,33 @@ export function MarkdownViewer({
           ),
           li: ({ children }) => <li className="text-xs leading-relaxed">{children}</li>,
           hr: () => <hr className="my-3 border-border/60" />,
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline font-medium inline-flex items-center gap-0.5"
-            >
-              <span>{children}</span>
-              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-            </a>
+          img: ({ src, alt }) => (
+            <MarkdownImage
+              src={typeof src === "string" ? src : undefined}
+              alt={typeof alt === "string" ? alt : undefined}
+            />
           ),
+          a: ({ href, children }) => {
+            if (isImageUrl(href)) {
+              return (
+                <MarkdownImage
+                  src={href}
+                  alt={typeof children === "string" ? children : undefined}
+                />
+              );
+            }
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-medium inline-flex items-center gap-0.5"
+              >
+                <span>{children}</span>
+                <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+              </a>
+            );
+          },
           details: ({ children, open, className }) => (
             <MarkdownAccordion open={open as boolean | string | undefined} className={className}>
               {children}
@@ -393,7 +550,7 @@ export function MarkdownViewer({
           },
         }}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );
