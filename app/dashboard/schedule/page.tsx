@@ -13,6 +13,7 @@ export default async function SchedulePage() {
   return (
     <ScheduleView
       canEdit={data.canEdit}
+      canViewAllGroups={data.canViewAllGroups}
       initialSchedules={data.schedules}
       initialGroupId={data.defaultGroupId}
       dbSubjectNames={data.dbSubjectNames}

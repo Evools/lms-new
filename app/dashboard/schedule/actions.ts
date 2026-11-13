@@ -185,27 +185,44 @@ export async function getSchedulePageDataAction() {
     };
   });
 
+  const isAdminRole = role === "ADMIN" || role === "ADMINISTRATION";
+  const canViewAllGroups = isAdminRole || role === "TEACHER";
+
+  let visibleSchedules = mergedSchedules;
+  if (role === "STUDENT") {
+    visibleSchedules = studentEnrollment?.groupId
+      ? mergedSchedules.filter((s) => s.groupId === studentEnrollment.groupId)
+      : [];
+  }
+
+  const curatedGroupId =
+    role === "TEACHER" && userId
+      ? dbGroups.find((g) => g.curatorId === userId)?.id
+      : undefined;
+
   const dbSubjectNames = dbSubjects.map((s) => s.name);
   const dbTeacherNames = dbTeachers.map((t) => t.name);
 
   return {
-    schedules: mergedSchedules,
+    schedules: visibleSchedules,
     dbSubjectNames,
     dbTeacherNames,
     defaultGroupId:
-      studentEnrollment?.groupId || mergedSchedules[0]?.groupId || "",
-    canEdit:
-      role === "ADMIN" || role === "TEACHER" || role === "ADMINISTRATION",
+      studentEnrollment?.groupId ||
+      curatedGroupId ||
+      visibleSchedules[0]?.groupId ||
+      "",
+    canEdit: isAdminRole || role === "TEACHER",
+    canViewAllGroups,
   };
 }
 
 export async function saveScheduleDataAction(schedules: GroupScheduleData[]) {
   const session = await auth();
+  const role = session?.user?.role;
   if (
     !session?.user ||
-    (session.user.role !== "ADMIN" &&
-      session.user.role !== "TEACHER" &&
-      session.user.role !== "ADMINISTRATION")
+    (role !== "ADMIN" && role !== "TEACHER" && role !== "ADMINISTRATION")
   ) {
     return { success: false, error: "Недостаточно прав для сохранения расписания" };
   }

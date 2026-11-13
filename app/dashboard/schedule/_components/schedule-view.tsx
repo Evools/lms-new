@@ -381,6 +381,7 @@ const INITIAL_SCHEDULE_DATA: GroupScheduleData[] = [
 
 export interface ScheduleViewProps {
   canEdit?: boolean;
+  canViewAllGroups?: boolean;
   initialSchedules?: GroupScheduleData[];
   initialGroupId?: string;
   dbSubjectNames?: string[];
@@ -389,18 +390,25 @@ export interface ScheduleViewProps {
 
 export function ScheduleView({
   canEdit = false,
+  canViewAllGroups = false,
   initialSchedules = [],
   initialGroupId = "",
   dbSubjectNames = [],
   dbTeacherNames = [],
 }: ScheduleViewProps) {
   const starterData =
-    initialSchedules.length > 0 ? initialSchedules : INITIAL_SCHEDULE_DATA;
+    initialSchedules.length > 0
+      ? initialSchedules
+      : canViewAllGroups
+      ? INITIAL_SCHEDULE_DATA
+      : [];
   const [scheduleData, setScheduleData] = useState<GroupScheduleData[]>(starterData);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
-    initialGroupId || starterData[0]?.groupId || "vr-1-26"
+    initialGroupId || starterData[0]?.groupId || ""
   );
-  const [viewMode, setViewMode] = useState<"all" | "group">(canEdit ? "all" : "group");
+  const [viewMode, setViewMode] = useState<"all" | "group">(
+    canEdit && canViewAllGroups ? "all" : "group"
+  );
   const [masterDayFilter, setMasterDayFilter] = useState<number | "all">("all");
   const [masterCourseFilter, setMasterCourseFilter] = useState<number | "all">("all");
   const [masterShiftFilter, setMasterShiftFilter] = useState<"all" | ShiftType>("all");
@@ -1116,6 +1124,22 @@ export function ScheduleView({
     return occupied.length > 0 ? occupied : [1, 2, 3];
   };
 
+  if (scheduleData.length === 0 || !currentGroup) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-6 text-center space-y-1.5">
+        <div className="flex justify-center">
+          <CalendarDays className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <h2 className="text-sm font-bold text-foreground">
+          Расписание недоступно
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Для вашей учётной записи пока не назначена учебная группа.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 w-full text-xs">
       {/* Top Header (Light & Consistent Across Both Views) */}
@@ -1140,33 +1164,35 @@ export function ScheduleView({
 
         {/* Primary Header Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-xs">
-            <button
-              type="button"
-              onClick={() => setViewMode("all")}
-              className={`h-7 px-2.5 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
-                viewMode === "all"
-                  ? "bg-background text-primary border border-border"
-                  : "text-muted-foreground hover:text-foreground border border-transparent"
-              }`}
-            >
-              <LayoutGrid className="h-3 w-3" />
-              <span>Вся сетка</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("group")}
-              className={`h-7 px-2.5 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
-                viewMode === "group"
-                  ? "bg-background text-primary border border-border"
-                  : "text-muted-foreground hover:text-foreground border border-transparent"
-              }`}
-            >
-              <CalendarDays className="h-3 w-3" />
-              <span>По группе</span>
-            </button>
-          </div>
+          {/* View Mode Toggle (only when user can view all groups) */}
+          {canViewAllGroups && (
+            <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("all")}
+                className={`h-7 px-2.5 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  viewMode === "all"
+                    ? "bg-background text-primary border border-border"
+                    : "text-muted-foreground hover:text-foreground border border-transparent"
+                }`}
+              >
+                <LayoutGrid className="h-3 w-3" />
+                <span>Вся сетка</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("group")}
+                className={`h-7 px-2.5 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  viewMode === "group"
+                    ? "bg-background text-primary border border-border"
+                    : "text-muted-foreground hover:text-foreground border border-transparent"
+                }`}
+              >
+                <CalendarDays className="h-3 w-3" />
+                <span>По группе</span>
+              </button>
+            </div>
+          )}
 
           {canEdit && (
             <>
@@ -1308,28 +1334,34 @@ export function ScheduleView({
           ) : (
             <>
               {/* Group Selector */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground text-[11px] hidden sm:inline">Группа:</span>
-                <Select
-                  value={selectedGroupId}
-                  onValueChange={(val) => {
-                    if (val) setSelectedGroupId(val);
-                  }}
-                >
-                  <SelectTrigger className="h-7 text-xs bg-background min-w-[140px] rounded-md font-medium">
-                    <SelectValue placeholder="Выберите группу">
-                      {currentGroup ? `Группа ${currentGroup.groupName}` : "Выберите группу"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {scheduleData.map((g) => (
-                      <SelectItem key={g.groupId} value={g.groupId} className="text-xs">
-                        Группа {g.groupName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {scheduleData.length > 1 ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground text-[11px] hidden sm:inline">Группа:</span>
+                  <Select
+                    value={selectedGroupId}
+                    onValueChange={(val) => {
+                      if (val) setSelectedGroupId(val);
+                    }}
+                  >
+                    <SelectTrigger className="h-7 text-xs bg-background min-w-[140px] rounded-md font-medium">
+                      <SelectValue placeholder="Выберите группу">
+                        {currentGroup ? `Группа ${currentGroup.groupName}` : "Выберите группу"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scheduleData.map((g) => (
+                        <SelectItem key={g.groupId} value={g.groupId} className="text-xs">
+                          Группа {g.groupName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-2.5 h-7 rounded-md border border-border bg-muted/40 text-xs font-medium text-foreground">
+                  <span>Группа {currentGroup.groupName}</span>
+                </div>
+              )}
 
               {/* Shift Switcher for Selected Group */}
               {canEdit && (
