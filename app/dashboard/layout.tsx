@@ -14,7 +14,6 @@ import { getFeatureModulesAction } from "@/app/dashboard/settings/actions";
 import { StudentQuickSheetProvider } from "@/components/student-quick-sheet";
 import { HolidayProvider } from "@/components/holiday/holiday-provider";
 import { HolidayGarland } from "@/components/holiday/holiday-garland";
-import { SnowToggle } from "@/components/holiday/snow-toggle";
 
 export default async function DashboardLayout({
   children,
@@ -106,7 +105,6 @@ export default async function DashboardLayout({
                     {studentGroupName}
                   </span>
                 )}
-                {featureModules.feature_holiday && <SnowToggle />}
                 <ThemeToggle />
                 <div data-tour="header-notifications">
                   <NotificationsPopover
