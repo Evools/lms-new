@@ -248,11 +248,6 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               icon: <FileText className="h-4 w-4" />,
             },
             {
-              title: "Библиотека изображений",
-              url: "/dashboard/images",
-              icon: <ImageIcon className="h-4 w-4" />,
-            },
-            {
               title: "Объявления",
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
@@ -291,6 +286,16 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Стипендия",
               url: "/dashboard/scholarship",
               icon: <Award className="h-4 w-4" />,
+            },
+          ],
+        },
+        {
+          groupLabel: "Управление",
+          items: [
+            {
+              title: "Библиотека изображений",
+              url: "/dashboard/images",
+              icon: <ImageIcon className="h-4 w-4" />,
             },
           ],
         },
@@ -364,11 +369,6 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               icon: <BookOpen className="h-4 w-4" />,
             },
             {
-              title: "Библиотека изображений",
-              url: "/dashboard/images",
-              icon: <ImageIcon className="h-4 w-4" />,
-            },
-            {
               title: "Тесты и опросы",
               url: "/dashboard/lms/tests",
               icon: <FileCheck2 className="h-4 w-4" />,
@@ -412,6 +412,11 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Документы лицея",
               url: "/dashboard/documents",
               icon: <FileText className="h-4 w-4" />,
+            },
+            {
+              title: "Библиотека изображений",
+              url: "/dashboard/images",
+              icon: <ImageIcon className="h-4 w-4" />,
             },
           ],
         },

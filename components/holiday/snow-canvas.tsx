@@ -7,11 +7,11 @@ interface SnowflakeParticle {
   x: number;
   y: number;
   radius: number;
-  speedY: number;
-  speedX: number;
+  speedY: number; // pixels per second
+  speedX: number; // pixels per second
   opacity: number;
   rotation: number;
-  rotationSpeed: number;
+  rotationSpeed: number; // radians per second
 }
 
 const DENSITY_COUNT = {
@@ -41,6 +41,8 @@ export function SnowCanvas({
     if (!ctx) return;
 
     let animationFrameId = 0;
+    let isCancelled = false;
+    let lastTime = performance.now();
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
 
@@ -50,7 +52,14 @@ export function SnowCanvas({
       height = canvas.height = window.innerHeight;
     };
 
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        lastTime = performance.now();
+      }
+    };
+
     window.addEventListener("resize", handleResize);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     const count = DENSITY_COUNT[settings.density] ?? 70;
     const speedMult = SPEED_MULTIPLIER[settings.speed] ?? 1;
@@ -59,11 +68,11 @@ export function SnowCanvas({
       x: Math.random() * width,
       y: Math.random() * height,
       radius: settings.style === "flakes" ? 3 + Math.random() * 4 : 1.5 + Math.random() * 2.5,
-      speedY: (0.4 + Math.random() * 0.9) * speedMult,
-      speedX: (Math.random() - 0.5) * 0.5 * speedMult,
+      speedY: (24 + Math.random() * 48) * speedMult,
+      speedX: (Math.random() - 0.5) * 24 * speedMult,
       opacity: 0.35 + Math.random() * 0.55,
       rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * 0.02,
+      rotationSpeed: (Math.random() - 0.5) * 1.2,
     }));
 
     const drawFlake = (p: SnowflakeParticle) => {
@@ -82,38 +91,48 @@ export function SnowCanvas({
       ctx.restore();
     };
 
-    const render = () => {
-      ctx.clearRect(0, 0, width, height);
+    const render = (now: number) => {
+      if (isCancelled) return;
 
-      for (const p of particles) {
-        p.y += p.speedY;
-        p.x += p.speedX;
-        p.rotation += p.rotationSpeed;
+      // Clamp delta time to max 50ms so returning from another tab never causes a speed spike
+      const dt = Math.min(Math.max((now - lastTime) / 1000, 0), 0.05);
+      lastTime = now;
 
-        if (p.y > height + 10) {
-          p.y = -10;
-          p.x = Math.random() * width;
-        }
-        if (p.x > width + 10) p.x = -10;
-        if (p.x < -10) p.x = width + 10;
+      if (!document.hidden) {
+        ctx.clearRect(0, 0, width, height);
 
-        if (settings.style === "flakes") {
-          drawFlake(p);
-        } else {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(225, 238, 255, ${p.opacity})`;
-          ctx.fill();
+        for (const p of particles) {
+          p.y += p.speedY * dt;
+          p.x += p.speedX * dt;
+          p.rotation += p.rotationSpeed * dt;
+
+          if (p.y > height + 10) {
+            p.y = -10;
+            p.x = Math.random() * width;
+          }
+          if (p.x > width + 10) p.x = -10;
+          if (p.x < -10) p.x = width + 10;
+
+          if (settings.style === "flakes") {
+            drawFlake(p);
+          } else {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(225, 238, 255, ${p.opacity})`;
+            ctx.fill();
+          }
         }
       }
 
       animationFrameId = window.requestAnimationFrame(render);
     };
 
-    render();
+    animationFrameId = window.requestAnimationFrame(render);
 
     return () => {
+      isCancelled = true;
       window.removeEventListener("resize", handleResize);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.cancelAnimationFrame(animationFrameId);
     };
   }, [settings.density, settings.speed, settings.style]);
@@ -126,4 +145,3 @@ export function SnowCanvas({
     />
   );
 }
-
