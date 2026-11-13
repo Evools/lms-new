@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { loginAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,8 @@ export default function LoginPage() {
   const [showHelp, setShowHelp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSlide, setActiveSlide] = useState(0);
+  const identifierRef = useRef<HTMLInputElement | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
 
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -60,7 +62,8 @@ export default function LoginPage() {
     setMounted(true);
     try {
       const savedLogin = localStorage.getItem("remembered_login");
-      if (savedLogin) {
+      // Do not overwrite if the browser already autofilled the field
+      if (savedLogin && !identifierRef.current?.value) {
         setIdentifier(savedLogin);
         setRememberMe(true);
       }
@@ -85,13 +88,30 @@ export default function LoginPage() {
     setIsCapsLockOn(e.getModifierState("CapsLock"));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
+    // Read directly from DOM/FormData as fallback for browser autofill that may not fire React onChange
+    const domFormData = new FormData(e.currentTarget);
+    const effectiveIdentifier = (
+      (domFormData.get("identifier") as string) ||
+      identifierRef.current?.value ||
+      identifier
+    ).trim();
+    const effectivePassword =
+      (domFormData.get("password") as string) ||
+      passwordRef.current?.value ||
+      password;
+
+    if (!effectiveIdentifier || !effectivePassword) {
+      setError("Заполните логин и пароль");
+      return;
+    }
+
     try {
-      if (rememberMe && identifier.trim()) {
-        localStorage.setItem("remembered_login", identifier.trim());
+      if (rememberMe && effectiveIdentifier) {
+        localStorage.setItem("remembered_login", effectiveIdentifier);
       } else {
         localStorage.removeItem("remembered_login");
       }
@@ -100,8 +120,8 @@ export default function LoginPage() {
     }
 
     const formData = new FormData();
-    formData.append("identifier", identifier.trim());
-    formData.append("password", password);
+    formData.append("identifier", effectiveIdentifier);
+    formData.append("password", effectivePassword);
 
     startTransition(async () => {
       try {
@@ -309,7 +329,9 @@ export default function LoginPage() {
                       )}
                     </div>
                     <Input
+                      ref={identifierRef}
                       id="identifier"
+                      name="identifier"
                       type="text"
                       placeholder="name@lyceum.edu или +996..."
                       required
@@ -343,7 +365,9 @@ export default function LoginPage() {
                       <Lock className="size-3.5" />
                     </div>
                     <Input
+                      ref={passwordRef}
                       id="password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       required
