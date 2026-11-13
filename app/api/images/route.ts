@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ImageVisibility } from "@prisma/client";
 import { auth } from "@/lib/auth";
-import { listImagesService, uploadImageService } from "@/lib/images/service";
+import {
+  getUserImageQuotaUsage,
+  listImagesService,
+  uploadImageService,
+} from "@/lib/images/service";
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,16 +25,20 @@ export async function GET(req: NextRequest) {
         ? visibilityParam
         : undefined;
 
-    const images = await listImagesService({
-      userId: session.user.id,
-      userRole: session.user.role || "STUDENT",
-      query,
-      category,
-      visibility,
-      limit: Number.isFinite(limitParam) ? limitParam : 60,
-    });
+    const role = session.user.role || "STUDENT";
+    const [images, quota] = await Promise.all([
+      listImagesService({
+        userId: session.user.id,
+        userRole: role,
+        query,
+        category,
+        visibility,
+        limit: Number.isFinite(limitParam) ? limitParam : 60,
+      }),
+      getUserImageQuotaUsage(session.user.id, role),
+    ]);
 
-    return NextResponse.json({ images });
+    return NextResponse.json({ images, quota });
   } catch (error) {
     console.error("GET /api/images error:", error);
     return NextResponse.json(

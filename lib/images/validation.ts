@@ -1,4 +1,25 @@
-export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB per uploaded file
+
+export interface ImageQuotaLimit {
+  maxBytes: number | null;
+  maxFiles: number | null;
+}
+
+export function getImageQuotaForRole(role: string): ImageQuotaLimit {
+  if (role === "ADMIN") {
+    return { maxBytes: null, maxFiles: null };
+  }
+  if (role === "TEACHER" || role === "ADMINISTRATION") {
+    return {
+      maxBytes: 100 * 1024 * 1024, // 100 MB per teacher/master
+      maxFiles: 300,
+    };
+  }
+  return {
+    maxBytes: 20 * 1024 * 1024, // 20 MB per student
+    maxFiles: 30,
+  };
+}
 
 export const ALLOWED_IMAGE_MIMES = new Set([
   "image/jpeg",

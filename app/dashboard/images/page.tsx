@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { listImagesService } from "@/lib/images/service";
+import { getUserImageQuotaUsage, listImagesService } from "@/lib/images/service";
 import { ImagesAdminView } from "./_components/images-admin-view";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +18,20 @@ export default async function ImagesLibraryPage() {
     redirect("/dashboard");
   }
 
-  const initialImages = await listImagesService({
-    userId: session.user.id,
-    userRole: role,
-    limit: 100,
-  });
+  const [initialImages, initialQuota] = await Promise.all([
+    listImagesService({
+      userId: session.user.id,
+      userRole: role,
+      limit: 100,
+    }),
+    getUserImageQuotaUsage(session.user.id, role),
+  ]);
 
-  return <ImagesAdminView initialImages={initialImages} userRole={role} />;
+  return (
+    <ImagesAdminView
+      initialImages={initialImages}
+      initialQuota={initialQuota}
+      userRole={role}
+    />
+  );
 }

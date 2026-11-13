@@ -7,6 +7,7 @@ import {
   MAX_IMAGE_SIZE_BYTES,
   ImageCategory,
   detectImageFormatFromBuffer,
+  getImageQuotaForRole,
   normalizeImageCategory,
   sanitizeImageTitle,
 } from "./validation";
@@ -15,6 +16,32 @@ import {
   readImageFromStorage,
   saveImageToStorage,
 } from "./storage";
+
+export interface ImageQuotaUsage {
+  usedBytes: number;
+  usedFiles: number;
+  maxBytes: number | null;
+  maxFiles: number | null;
+}
+
+export async function getUserImageQuotaUsage(
+  userId: string,
+  userRole: string
+): Promise<ImageQuotaUsage> {
+  const limits = getImageQuotaForRole(userRole);
+  const agg = await prisma.storedImage.aggregate({
+    where: { uploadedById: userId },
+    _sum: { size: true },
+    _count: { id: true },
+  });
+
+  return {
+    usedBytes: agg._sum.size ?? 0,
+    usedFiles: agg._count.id ?? 0,
+    maxBytes: limits.maxBytes,
+    maxFiles: limits.maxFiles,
+  };
+}
 
 export interface StoredImageDTO {
   id: string;
@@ -89,7 +116,7 @@ export async function uploadImageService(params: {
   if (buffer.length > MAX_IMAGE_SIZE_BYTES) {
     return {
       success: false,
-      error: `Размер изображения (${(buffer.length / (1024 * 1024)).toFixed(1)} МБ) превышает лимит 10 МБ`,
+      error: `Размер файла (${(buffer.length / (1024 * 1024)).toFixed(1)} МБ) превышает лимит 5 МБ`,
       status: 400,
     };
   }
@@ -141,12 +168,12 @@ export async function uploadImageService(params: {
       const processed = await sharp(buffer)
         .rotate() // Auto-orient based on EXIF and strip EXIF metadata
         .resize({
-          width: 1920,
-          height: 1920,
+          width: 1600,
+          height: 1600,
           fit: "inside",
           withoutEnlargement: true,
         })
-        .webp({ quality: 84, effort: 4 })
+        .webp({ quality: 80, effort: 5 })
         .toBuffer({ resolveWithObject: true });
 
       optimizedBuffer = processed.data;
@@ -158,6 +185,23 @@ export async function uploadImageService(params: {
       success: false,
       error: "Не удалось обработать изображение. Возможно, файл поврежден.",
       status: 400,
+    };
+  }
+
+  const quota = await getUserImageQuotaUsage(uploadedById, userRole);
+  if (quota.maxFiles !== null && quota.usedFiles >= quota.maxFiles) {
+    return {
+      success: false,
+      error: `Достигнут лимит количества изображений (${quota.maxFiles} шт.). Удалите неиспользуемые файлы.`,
+      status: 413,
+    };
+  }
+  if (quota.maxBytes !== null && quota.usedBytes + optimizedBuffer.length > quota.maxBytes) {
+    const maxMb = Math.round(quota.maxBytes / (1024 * 1024));
+    return {
+      success: false,
+      error: `Превышена квота хранилища (${maxMb} МБ). Удалите неиспользуемые изображения.`,
+      status: 413,
     };
   }
 

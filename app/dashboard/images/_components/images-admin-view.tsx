@@ -13,7 +13,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import type { StoredImageDTO } from "@/lib/images/service";
+import type { ImageQuotaUsage, StoredImageDTO } from "@/lib/images/service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -51,11 +51,13 @@ type VisibilityFilter = "ALL" | "PUBLIC" | "PRIVATE";
 
 const CATEGORY_OPTIONS = [
   { value: "ALL", label: "Все категории" },
-  { value: "general", label: "Общие" },
-  { value: "materials", label: "Материалы" },
-  { value: "avatars", label: "Аватары" },
-  { value: "students", label: "Студенты" },
-  { value: "covers", label: "Обложки" },
+  { value: "material", label: "Материалы" },
+  { value: "assignment", label: "Задания" },
+  { value: "cover", label: "Обложки" },
+  { value: "avatar", label: "Аватары" },
+  { value: "student_photo", label: "Студенты" },
+  { value: "profile", label: "Профили" },
+  { value: "other", label: "Прочее" },
 ] as const;
 
 const VISIBILITY_OPTIONS = [
@@ -87,16 +89,18 @@ function formatDate(iso: string): string {
 
 interface ImagesAdminViewProps {
   initialImages: StoredImageDTO[];
+  initialQuota: ImageQuotaUsage;
   userRole: string;
 }
 
-export function ImagesAdminView({ initialImages, userRole }: ImagesAdminViewProps) {
+export function ImagesAdminView({ initialImages, initialQuota, userRole }: ImagesAdminViewProps) {
   const isAdmin = userRole === "ADMIN";
   const [images, setImages] = useState<StoredImageDTO[]>(initialImages);
+  const [quota, setQuota] = useState<ImageQuotaUsage>(initialQuota);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("ALL");
   const [visibility, setVisibility] = useState<VisibilityFilter>("ALL");
-  const [uploadCategory, setUploadCategory] = useState<string>("materials");
+  const [uploadCategory, setUploadCategory] = useState<string>("material");
   const [uploadVisibility, setUploadVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
@@ -120,11 +124,18 @@ export function ImagesAdminView({ initialImages, userRole }: ImagesAdminViewProp
         params.set("limit", "100");
 
         const res = await fetch(`/api/images?${params.toString()}`);
-        const data = (await res.json()) as { images?: StoredImageDTO[]; error?: string };
+        const data = (await res.json()) as {
+          images?: StoredImageDTO[];
+          quota?: ImageQuotaUsage;
+          error?: string;
+        };
         if (!res.ok) {
           throw new Error(data.error ?? "Не удалось загрузить список изображений");
         }
         setImages(data.images ?? []);
+        if (data.quota) {
+          setQuota(data.quota);
+        }
       } catch (err) {
         toast.add({
           title: err instanceof Error ? err.message : "Ошибка загрузки",
@@ -275,7 +286,17 @@ export function ImagesAdminView({ initialImages, userRole }: ImagesAdminViewProp
             Приватных: {stats.privateCount}
           </Badge>
           <Badge variant="outline" className="text-xs font-medium border-primary/40 text-primary">
-            Объём: {formatBytes(stats.totalSize)}
+            {quota.maxBytes !== null
+              ? `Квота: ${formatBytes(quota.usedBytes)} / ${formatBytes(quota.maxBytes)}`
+              : `Объём: ${formatBytes(stats.totalSize)}`}
+          </Badge>
+          {quota.maxFiles !== null && (
+            <Badge variant="outline" className="text-xs font-medium border-border">
+              Файлов: {quota.usedFiles} / {quota.maxFiles}
+            </Badge>
+          )}
+          <Badge variant="outline" className="text-xs font-medium border-border">
+            До 5 МБ / файл
           </Badge>
         </div>
       </div>
