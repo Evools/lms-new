@@ -4,7 +4,7 @@ import { getDutyScheduleAction } from "./actions";
 import { DutyScheduleView } from "./_components/duty-schedule-view";
 
 interface PageProps {
-  searchParams: Promise<{ group?: string }>;
+  searchParams: Promise<{ group?: string; week?: string }>;
 }
 
 export default async function DutySchedulePage({ searchParams }: PageProps) {
@@ -14,7 +14,11 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
     redirect("/login");
   }
 
-  const { group } = await searchParams;
+  const { group, week } = await searchParams;
+  const parsedWeek = Number(week);
+  const weekOffset = Number.isFinite(parsedWeek)
+    ? Math.max(-12, Math.min(12, Math.trunc(parsedWeek)))
+    : 0;
   const role = session.user.role || "STUDENT";
 
   const {
@@ -26,7 +30,7 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
     selectedGroupId,
     canManageDuty,
     groupDutySettings,
-  } = await getDutyScheduleAction(group);
+  } = await getDutyScheduleAction(group, weekOffset);
   const targetGroupId = selectedGroupId || group || groups[0]?.id || "";
 
   return (
@@ -38,6 +42,7 @@ export default async function DutySchedulePage({ searchParams }: PageProps) {
       groupStudents={groupStudents}
       groupDutyStats={groupDutyStats}
       selectedGroupId={targetGroupId}
+      weekOffset={weekOffset}
       isDutyEnabled={isDutyEnabled}
       initialDutySettings={groupDutySettings}
     />

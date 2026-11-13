@@ -53,6 +53,8 @@ export interface GroupStudentWithDutyInfo {
   recentDutyNote?: string;
   isDutyExempt?: boolean;
   dutyExemptReason?: string | null;
+  /** YYYY-MM-DD dates in the viewed week where this student has ABSENT/EXCUSED in Attendance */
+  absentDates?: string[];
 }
 
 /** Format Date to YYYY-MM-DD in local time */
@@ -77,12 +79,12 @@ function parseDateToUtc(dateInput: string | Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
 }
 
-/** Get Monday of current week as local date */
-function getMondayOfCurrentWeek(): Date {
+/** Get Monday of target week (offset in weeks from current week) as local date */
+function getMondayOfCurrentWeek(weekOffset: number = 0): Date {
   const now = new Date();
   const day = now.getDay();
   const distance = day === 0 ? -6 : 1 - day;
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + distance, 0, 0, 0, 0);
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + distance + weekOffset * 7, 0, 0, 0, 0);
 }
 
 /** Check if current user is authorized to edit/manage duty schedule for given groupId */
@@ -101,7 +103,10 @@ export async function checkDutyPermission(groupId: string): Promise<boolean> {
   return group.monitorId === session.user.id || group.deputyMonitorId === session.user.id;
 }
 
-export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
+export async function getDutyScheduleAction(
+  selectedGroupId?: string,
+  weekOffset: number = 0
+): Promise<{
   groups: { id: string; name: string; isDutyEnabled: boolean }[];
   weeklyDays: DayDutyGroupDTO[];
   allSchedules: DutyItemDTO[];
@@ -171,7 +176,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
     }
 
     const now = new Date();
-    const monday = getMondayOfCurrentWeek();
+    const monday = getMondayOfCurrentWeek(weekOffset);
     const dayNames = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 
     const startDate = parseDateToUtc(monday);
@@ -232,9 +237,9 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
     let dbSchedules = initialWeekSchedules;
     let allHistoricalDuties = initialHistoricalDuties;
 
-    // AUTO-ROTATION ON VIEW: Check if schedule exists for this week.
-    // If not, and duty is enabled for this group, automatically generate fair weekly rotation
-    if (targetGroupIsDutyEnabled && dbSchedules.length === 0) {
+    // AUTO-ROTATION ON VIEW: Only auto-generate for current week (weekOffset === 0)
+    // if duty is enabled for this group and no schedule exists yet.
+    if (weekOffset === 0 && targetGroupIsDutyEnabled && dbSchedules.length === 0) {
       try {
         await internalGenerateWeeklyDuty(targetGroupId, groupDutySettings);
         // Re-fetch week schedules & historical duties after generating
@@ -395,6 +400,7 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
       string,
       { status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED"; comment: string | null }
     >();
+    const absentDatesByStudent: Record<string, Set<string>> = {};
     weekAttendances.forEach((att) => {
       const attDateStr = formatLocalDateString(new Date(att.date));
       const key = `${att.studentId}_${attDateStr}`;
@@ -411,7 +417,18 @@ export async function getDutyScheduleAction(selectedGroupId?: string): Promise<{
           comment: att.comment,
         });
       }
+      if (att.status === "ABSENT" || att.status === "EXCUSED") {
+        if (!absentDatesByStudent[att.studentId]) {
+          absentDatesByStudent[att.studentId] = new Set();
+        }
+        absentDatesByStudent[att.studentId].add(attDateStr);
+      }
     });
+
+    groupStudents = groupStudents.map((s) => ({
+      ...s,
+      absentDates: absentDatesByStudent[s.id] ? Array.from(absentDatesByStudent[s.id]) : [],
+    }));
 
     const weeklyDays: DayDutyGroupDTO[] = [];
 
@@ -531,20 +548,21 @@ export async function addDutyStudentAction(
     const dayStart = targetDate;
     const dayEnd = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
 
-    const weekMonday = getMondayOfCurrentWeek();
-    const weekStart = parseDateToUtc(weekMonday);
-    const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+    // Check if targetDate belongs to the current week; only auto-generate if current week is empty
+    const currentWeekStart = parseDateToUtc(getMondayOfCurrentWeek(0));
+    const currentWeekEnd = new Date(currentWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (targetDate >= currentWeekStart && targetDate < currentWeekEnd) {
+      const existingWeekRecords = await prisma.dutySchedule.count({
+        where: {
+          groupId,
+          date: { gte: currentWeekStart, lt: currentWeekEnd },
+        },
+      });
 
-    const existingWeekRecords = await prisma.dutySchedule.count({
-      where: {
-        groupId,
-        date: { gte: weekStart, lt: weekEnd },
-      },
-    });
-
-    if (existingWeekRecords === 0) {
-      // Auto-generate week first with proper FAIR queue
-      await generateWeeklyDutyAction(groupId);
+      if (existingWeekRecords === 0) {
+        // Auto-generate current week first with proper FAIR queue
+        await generateWeeklyDutyAction(groupId);
+      }
     }
 
     // Check not already assigned on this exact day as regular duty student
@@ -621,20 +639,21 @@ export async function removeDutyStudentAction(
     const dayStart = targetDate;
     const dayEnd = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
 
-    const weekMonday = getMondayOfCurrentWeek();
-    const weekStart = parseDateToUtc(weekMonday);
-    const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+    // Check if targetDate belongs to the current week; only auto-generate if current week is empty
+    const currentWeekStart = parseDateToUtc(getMondayOfCurrentWeek(0));
+    const currentWeekEnd = new Date(currentWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (targetDate >= currentWeekStart && targetDate < currentWeekEnd) {
+      const existingWeekRecords = await prisma.dutySchedule.count({
+        where: {
+          groupId,
+          date: { gte: currentWeekStart, lt: currentWeekEnd },
+        },
+      });
 
-    const existingWeekRecords = await prisma.dutySchedule.count({
-      where: {
-        groupId,
-        date: { gte: weekStart, lt: weekEnd },
-      },
-    });
-
-    if (existingWeekRecords === 0) {
-      // Auto-generate week first with proper FAIR queue
-      await generateWeeklyDutyAction(groupId);
+      if (existingWeekRecords === 0) {
+        // Auto-generate current week first with proper FAIR queue
+        await generateWeeklyDutyAction(groupId);
+      }
     }
 
     await prisma.dutySchedule.deleteMany({
@@ -672,6 +691,8 @@ export interface StudentDutyStatDTO {
   isDeputyMonitor?: boolean;
   isDutyExempt?: boolean;
   dutyExemptReason?: string | null;
+  /** YYYY-MM-DD dates in the viewed week where this student has ABSENT/EXCUSED in Attendance */
+  absentDates?: string[];
 }
 
 /** Fetch today's duty roster for ALL groups in the school */
@@ -1061,7 +1082,8 @@ export async function saveGroupDutySettingsAction(
 
 export async function internalGenerateWeeklyDuty(
   groupId: string,
-  options?: DutySettingsOptions
+  options?: DutySettingsOptions,
+  weekOffset: number = 0
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Merge with persisted group settings from DB
@@ -1071,7 +1093,7 @@ export async function internalGenerateWeeklyDuty(
       ...(options || {}),
     };
 
-    const monday = getMondayOfCurrentWeek();
+    const monday = getMondayOfCurrentWeek(weekOffset);
     const startDate = parseDateToUtc(monday);
     const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -1345,7 +1367,8 @@ export async function internalGenerateWeeklyDuty(
 
 export async function generateWeeklyDutyAction(
   groupId: string,
-  options?: number | DutySettingsOptions
+  options?: number | DutySettingsOptions,
+  weekOffset: number = 0
 ) {
   const isAllowed = await checkDutyPermission(groupId);
   if (!isAllowed) {
@@ -1353,7 +1376,7 @@ export async function generateWeeklyDutyAction(
   }
 
   const opts: DutySettingsOptions = typeof options === "number" ? { perDay: options } : (options || {});
-  const res = await internalGenerateWeeklyDuty(groupId, opts);
+  const res = await internalGenerateWeeklyDuty(groupId, opts, weekOffset);
   if (res.success) {
     revalidatePath("/dashboard/duty");
     revalidatePath(`/dashboard/groups/${groupId}`);
@@ -1370,20 +1393,27 @@ export async function markDutyAbsentAction(
   return { success: true };
 }
 
-/** Clear duty schedule */
-export async function clearDutyScheduleAction(groupId?: string) {
+/** Clear duty schedule (for a specific group/week, or globally for ADMIN only) */
+export async function clearDutyScheduleAction(groupId?: string, weekOffset?: number) {
   if (groupId) {
     const isAllowed = await checkDutyPermission(groupId);
     if (!isAllowed) return { success: false, error: "Недостаточно прав для очистки дежурств" };
   } else {
     const session = await auth();
-    if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "TEACHER")) {
-      return { success: false, error: "Недостаточно прав для очистки дежурств" };
+    if (!session?.user || session.user.role !== "ADMIN") {
+      return { success: false, error: "Только администратор может очистить график всех групп" };
     }
   }
 
   try {
-    if (groupId) {
+    if (groupId && weekOffset !== undefined) {
+      const monday = getMondayOfCurrentWeek(weekOffset);
+      const startDate = parseDateToUtc(monday);
+      const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+      await prisma.dutySchedule.deleteMany({
+        where: { groupId, date: { gte: startDate, lt: endDate } },
+      });
+    } else if (groupId) {
       await prisma.dutySchedule.deleteMany({
         where: { groupId },
       });

@@ -50,6 +50,7 @@ import {
   UserCheck,
   UserPlus,
   ChevronLeft,
+  ChevronRight,
   X,
   Printer,
   Search,
@@ -96,6 +97,7 @@ interface DutyScheduleViewProps {
   groupStudents: GroupStudentWithDutyInfo[];
   groupDutyStats: StudentDutyStatDTO[];
   selectedGroupId?: string;
+  weekOffset?: number;
   isDutyEnabled?: boolean;
   initialDutySettings?: DutySettingsOptions;
   embedded?: boolean;
@@ -116,6 +118,7 @@ export function DutyScheduleView({
   groupStudents = [],
   groupDutyStats = [],
   selectedGroupId,
+  weekOffset = 0,
   isDutyEnabled = true,
   initialDutySettings,
   embedded = false,
@@ -126,7 +129,12 @@ export function DutyScheduleView({
   const [currentGroupId, setCurrentGroupId] = useState<string>(
     selectedGroupId || (groupsList[0]?.id || "")
   );
+  const [currentWeekOffset, setCurrentWeekOffset] = useState<number>(weekOffset);
   const [isChangingGroup, setIsChangingGroup] = useState(false);
+
+  useEffect(() => {
+    setCurrentWeekOffset(weekOffset);
+  }, [weekOffset]);
 
   useEffect(() => {
     if (selectedGroupId) {
@@ -357,7 +365,25 @@ export function DutyScheduleView({
     setCurrentGroupId(groupId);
     setIsChangingGroup(true);
     startTransition(() => {
-      router.push(`/dashboard/duty?group=${groupId}`);
+      const params = new URLSearchParams();
+      params.set("group", groupId);
+      if (currentWeekOffset !== 0) params.set("week", String(currentWeekOffset));
+      router.push(`/dashboard/duty?${params.toString()}`);
+    });
+  };
+
+  // Week Switcher
+  const handleWeekChange = (nextOffset: number) => {
+    const clamped = Math.max(-12, Math.min(12, nextOffset));
+    if (clamped === currentWeekOffset) return;
+    setCurrentWeekOffset(clamped);
+    setIsChangingGroup(true);
+    startTransition(() => {
+      const params = new URLSearchParams();
+      if (currentGroupId) params.set("group", currentGroupId);
+      if (clamped !== 0) params.set("week", String(clamped));
+      const qs = params.toString();
+      router.push(qs ? `/dashboard/duty?${qs}` : "/dashboard/duty");
     });
   };
 
@@ -366,16 +392,20 @@ export function DutyScheduleView({
     if (!currentGroupId) return;
     startTransition(async () => {
       const effectivePerDay = dutyPerDaySetting > 0 ? dutyPerDaySetting : (dutyCountPerDay === "auto" ? undefined : Number(dutyCountPerDay));
-      const res = await generateWeeklyDutyAction(currentGroupId, {
-        isDutyEnabled: dutyEnabledLocal,
-        perDay: effectivePerDay,
-        activeDays: activeDutyDays,
-        includeLeader: responsibleMode !== "NONE",
-        responsibleMode,
-        customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
-        algorithm: dutyAlgorithm,
-        excludedStudentIds,
-      });
+      const res = await generateWeeklyDutyAction(
+        currentGroupId,
+        {
+          isDutyEnabled: dutyEnabledLocal,
+          perDay: effectivePerDay,
+          activeDays: activeDutyDays,
+          includeLeader: responsibleMode !== "NONE",
+          responsibleMode,
+          customResponsibleStudentId: responsibleMode === "CUSTOM" ? customResponsibleStudentId : undefined,
+          algorithm: dutyAlgorithm,
+          excludedStudentIds,
+        },
+        currentWeekOffset
+      );
       if (res.success) {
         toast.add({ title: "Честная авто-ротация успешно сформирована!", type: "success" });
         router.refresh();
@@ -424,7 +454,7 @@ export function DutyScheduleView({
     toast.add({ title: `Расписание дежурств группы ${currentGroupObj?.name || ""} очищено`, type: "success" });
 
     startTransition(async () => {
-      const res = await clearDutyScheduleAction(currentGroupId);
+      const res = await clearDutyScheduleAction(currentGroupId, currentWeekOffset);
       if (!res.success) {
         setDaysList(prevDays);
         toast.add({ title: res.error || "Ошибка при очистке дежурств", type: "error" });
@@ -444,20 +474,32 @@ export function DutyScheduleView({
     const { fullDate, absentStudentId } = replaceTarget;
     const prevDays = daysList;
 
-    // Instant optimistic swap
+    // Instant optimistic swap in-place
     setDaysList((current) =>
       current.map((day) =>
         day.fullDate === fullDate
           ? {
             ...day,
-            dutyStudents: [
-              ...day.dutyStudents.filter((s) => s.id !== absentStudentId),
-              { id: repStudent.id, name: repStudent.name, isLeader: false },
-            ],
+            dutyStudents: day.dutyStudents.some((s) => s.id === absentStudentId)
+              ? day.dutyStudents.map((s) =>
+                  s.id === absentStudentId
+                    ? { id: repStudent.id, name: repStudent.name, isLeader: false }
+                    : s
+                )
+              : [
+                  ...day.dutyStudents,
+                  { id: repStudent.id, name: repStudent.name, isLeader: false },
+                ],
           }
           : day
       )
     );
+    setAbsentMap((prev) => {
+      if (!prev[`${absentStudentId}_${fullDate}`]) return prev;
+      const next = { ...prev };
+      delete next[`${absentStudentId}_${fullDate}`];
+      return next;
+    });
 
     setReplaceTarget(null);
     setReplacementStudentId("");
@@ -489,8 +531,20 @@ export function DutyScheduleView({
     studentName: string;
     existingIds: string[];
   }) => {
+    const dayObj = daysList.find((d) => d.fullDate === a.fullDate);
+    const currentDayIds = dayObj ? dayObj.dutyStudents.map((s) => s.id) : a.existingIds;
+    const leaderId = dayObj?.leaderStudent?.id;
+
     const available = sortStudentsByDutyPriority(
-      groupStudents.filter((s) => !a.existingIds.includes(s.id) && s.id !== a.studentId && !s.isDutyExempt)
+      groupStudents.filter(
+        (s) =>
+          !currentDayIds.includes(s.id) &&
+          s.id !== leaderId &&
+          s.id !== a.studentId &&
+          !s.isDutyExempt &&
+          !s.absentDates?.includes(a.fullDate) &&
+          !absentMap[`${s.id}_${a.fullDate}`]
+      )
     );
 
     if (available.length === 0) {
@@ -502,20 +556,32 @@ export function DutyScheduleView({
     const { fullDate, studentId: absentStudentId } = a;
     const prevDays = daysList;
 
-    // Optimistic swap
+    // Optimistic swap in-place
     setDaysList((current) =>
       current.map((day) =>
         day.fullDate === fullDate
           ? {
               ...day,
-              dutyStudents: [
-                ...day.dutyStudents.filter((s) => s.id !== absentStudentId),
-                { id: repStudent.id, name: repStudent.name, isLeader: false },
-              ],
+              dutyStudents: day.dutyStudents.some((s) => s.id === absentStudentId)
+                ? day.dutyStudents.map((s) =>
+                    s.id === absentStudentId
+                      ? { id: repStudent.id, name: repStudent.name, isLeader: false }
+                      : s
+                  )
+                : [
+                    ...day.dutyStudents,
+                    { id: repStudent.id, name: repStudent.name, isLeader: false },
+                  ],
             }
           : day
       )
     );
+    setAbsentMap((prev) => {
+      if (!prev[`${absentStudentId}_${fullDate}`]) return prev;
+      const next = { ...prev };
+      delete next[`${absentStudentId}_${fullDate}`];
+      return next;
+    });
 
     toast.add({
       title: `Автозамена выполнена: ${a.studentName} → ${repStudent.name} (по очереди)`,
@@ -538,11 +604,102 @@ export function DutyScheduleView({
     });
   };
 
-  // 1-click auto-replace all absent duty students
+  // 1-click auto-replace all absent duty students (sequentially without duplicate picks)
   const handleAutoReplaceAll = () => {
     if (absentDutyAlerts.length === 0) return;
-    absentDutyAlerts.forEach((a) => {
-      handleAutoReplace(a);
+
+    const prevDays = daysList;
+    const pickedPerDay: Record<string, Set<string>> = {};
+    const replacements: {
+      fullDate: string;
+      absentStudentId: string;
+      repStudent: GroupStudentWithDutyInfo;
+    }[] = [];
+
+    for (const a of absentDutyAlerts) {
+      const dayObj = daysList.find((d) => d.fullDate === a.fullDate);
+      const currentDayIds = new Set(dayObj ? dayObj.dutyStudents.map((s) => s.id) : a.existingIds);
+      const leaderId = dayObj?.leaderStudent?.id;
+      const alreadyPicked = pickedPerDay[a.fullDate] || new Set<string>();
+
+      const available = sortStudentsByDutyPriority(
+        groupStudents.filter(
+          (s) =>
+            !currentDayIds.has(s.id) &&
+            !alreadyPicked.has(s.id) &&
+            s.id !== leaderId &&
+            s.id !== a.studentId &&
+            !s.isDutyExempt &&
+            !s.absentDates?.includes(a.fullDate) &&
+            !absentMap[`${s.id}_${a.fullDate}`]
+        )
+      );
+
+      if (available.length > 0) {
+        const repStudent = available[0];
+        alreadyPicked.add(repStudent.id);
+        pickedPerDay[a.fullDate] = alreadyPicked;
+        replacements.push({
+          fullDate: a.fullDate,
+          absentStudentId: a.studentId,
+          repStudent,
+        });
+      }
+    }
+
+    if (replacements.length === 0) {
+      toast.add({ title: "Нет доступных студентов для замены в группе", type: "error" });
+      return;
+    }
+
+    // Apply all optimistic swaps atomically in-place
+    setDaysList((current) =>
+      current.map((day) => {
+        const dayReps = replacements.filter((r) => r.fullDate === day.fullDate);
+        if (dayReps.length === 0) return day;
+        return {
+          ...day,
+          dutyStudents: day.dutyStudents.map((s) => {
+            const rep = dayReps.find((r) => r.absentStudentId === s.id);
+            return rep
+              ? { id: rep.repStudent.id, name: rep.repStudent.name, isLeader: false }
+              : s;
+          }),
+        };
+      })
+    );
+
+    setAbsentMap((prev) => {
+      const next = { ...prev };
+      replacements.forEach((r) => {
+        delete next[`${r.absentStudentId}_${r.fullDate}`];
+      });
+      return next;
+    });
+
+    toast.add({
+      title: `Автозамена выполнена для ${replacements.length} дежурных`,
+      type: "success",
+    });
+
+    startTransition(async () => {
+      let hasError = false;
+      for (const r of replacements) {
+        const res = await replaceDutyStudentAction(
+          currentGroupId,
+          r.absentStudentId,
+          r.repStudent.id,
+          r.fullDate
+        );
+        if (!res.success) {
+          hasError = true;
+          toast.add({ title: res.error || "Ошибка при автозамене", type: "error" });
+        }
+      }
+      if (hasError) {
+        setDaysList(prevDays);
+      }
+      router.refresh();
     });
   };
 
@@ -846,7 +1003,7 @@ export function DutyScheduleView({
         <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 flex-wrap sm:flex-nowrap" data-tour="duty-header-actions">
           {/* Group Selector Dropdown */}
           {!embedded && groupsList.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs shadow-2xs flex-1 sm:flex-initial min-w-[140px]">
+            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1 text-xs flex-1 sm:flex-initial min-w-[140px]">
               {isGroupLoading ? (
                 <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
               ) : (
@@ -872,7 +1029,7 @@ export function DutyScheduleView({
               size="xs"
               onClick={handleAutoRotation}
               disabled={isPending || !currentGroupId}
-              className="h-8 text-xs px-3 gap-1.5 font-medium flex-1 sm:flex-initial justify-center cursor-pointer shadow-xs"
+              className="h-8 text-xs px-3 gap-1.5 font-medium flex-1 sm:flex-initial justify-center cursor-pointer"
               title="Сформировать честную автоматическую ротацию на неделю"
             >
               <Sparkles className="h-3.5 w-3.5" />
@@ -975,7 +1132,7 @@ export function DutyScheduleView({
             type="button"
             onClick={() => setActiveTab("WEEKLY")}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0 ${activeTab === "WEEKLY"
-              ? "bg-background text-foreground shadow-2xs border"
+              ? "bg-background text-foreground border"
               : "text-muted-foreground hover:text-foreground"
               }`}
           >
@@ -992,7 +1149,7 @@ export function DutyScheduleView({
             type="button"
             onClick={() => setActiveTab("STATS")}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0 ${activeTab === "STATS"
-              ? "bg-background text-foreground shadow-2xs border"
+              ? "bg-background text-foreground border"
               : "text-muted-foreground hover:text-foreground"
               }`}
           >
@@ -1009,7 +1166,7 @@ export function DutyScheduleView({
               type="button"
               onClick={() => setActiveTab("SETTINGS")}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap shrink-0 ${activeTab === "SETTINGS"
-                ? "bg-background text-foreground shadow-2xs border"
+                ? "bg-background text-foreground border"
                 : "text-muted-foreground hover:text-foreground"
                 }`}
             >
@@ -1024,14 +1181,60 @@ export function DutyScheduleView({
         </div>
 
         {activeTab === "WEEKLY" && (
-          <div className="relative w-full sm:w-64">
-            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Поиск по фамилии..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 text-xs pl-8 bg-background"
-            />
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
+            {!embedded && (
+              <div className="inline-flex items-center gap-0.5 bg-muted/60 p-0.5 rounded-lg border border-border text-xs shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => handleWeekChange(currentWeekOffset - 1)}
+                  disabled={isGroupLoading || currentWeekOffset <= -12}
+                  className="h-7 w-7 p-0 cursor-pointer"
+                  title="Предыдущая неделя"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => handleWeekChange(0)}
+                  disabled={isGroupLoading || currentWeekOffset === 0}
+                  className={`px-2.5 h-7 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap ${
+                    currentWeekOffset === 0
+                      ? "bg-background text-foreground border border-border"
+                      : "text-primary hover:bg-background/80 cursor-pointer"
+                  }`}
+                  title={currentWeekOffset === 0 ? "Текущая неделя" : "Вернуться на текущую неделю"}
+                >
+                  {daysList.length >= 2
+                    ? `${daysList[0].dateStr} – ${daysList[daysList.length - 1].dateStr}`
+                    : currentWeekOffset === 0
+                      ? "Текущая неделя"
+                      : `Неделя ${currentWeekOffset > 0 ? `+${currentWeekOffset}` : currentWeekOffset}`}
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => handleWeekChange(currentWeekOffset + 1)}
+                  disabled={isGroupLoading || currentWeekOffset >= 12}
+                  className="h-7 w-7 p-0 cursor-pointer"
+                  title="Следующая неделя"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
+            <div className="relative flex-1 sm:w-56">
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Поиск по фамилии..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 text-xs pl-8 bg-background"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -1065,7 +1268,7 @@ export function DutyScheduleView({
             {absentDutyAlerts.map((a, idx) => (
               <div
                 key={idx}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-destructive/20 text-foreground text-xs shadow-2xs"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-destructive/20 text-foreground text-xs"
               >
                 <div className="min-w-0">
                   <div className="font-semibold truncate">{a.studentName}</div>
@@ -1079,7 +1282,7 @@ export function DutyScheduleView({
                       size="xs"
                       variant="default"
                       title="Автоматически выбрать следующего по очереди студента и назначить в 1 клик"
-                      className="h-6 px-2 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground gap-1 font-medium shadow-2xs cursor-pointer flex-1 sm:flex-initial justify-center"
+                      className="h-6 px-2 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground gap-1 font-medium cursor-pointer flex-1 sm:flex-initial justify-center"
                       onClick={() => handleAutoReplace(a)}
                     >
                       <Zap className="h-3 w-3" /> Автозамена
@@ -1117,7 +1320,7 @@ export function DutyScheduleView({
           {/* Loading Overlay */}
           {isGroupLoading && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-all">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border text-xs text-foreground font-medium">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                 <span>Загрузка графика группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}...</span>
               </div>
@@ -1439,7 +1642,7 @@ export function DutyScheduleView({
           {/* Loading Overlay */}
           {isGroupLoading && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-all">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border text-xs text-foreground font-medium">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                 <span>Загрузка статистики группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}...</span>
               </div>
@@ -1527,11 +1730,11 @@ export function DutyScheduleView({
 
       {/* TAB 3: DUTY ROTATION SETTINGS */}
       {activeTab === "SETTINGS" && (
-        <Card className="relative print:hidden p-4 space-y-4 text-xs bg-card border shadow-xs">
+        <Card className="relative print:hidden p-4 space-y-4 text-xs bg-card border">
           {/* Loading Overlay */}
           {isGroupLoading && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-all rounded-xl">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border shadow-xs text-xs text-foreground font-medium">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border text-xs text-foreground font-medium">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                 <span>Загрузка настроек группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}...</span>
               </div>
@@ -1575,7 +1778,7 @@ export function DutyScheduleView({
                     onClick={() => handleToggleDutyStatus(true)}
                     disabled={isPending || !currentGroupId}
                     className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 font-medium ${dutyEnabledLocal
-                      ? "bg-background text-emerald-600 dark:text-emerald-400 border border-border shadow-2xs"
+                      ? "bg-background text-emerald-600 dark:text-emerald-400 border border-border"
                       : "text-muted-foreground hover:text-foreground"
                       }`}
                   >
@@ -1587,7 +1790,7 @@ export function DutyScheduleView({
                     onClick={() => handleToggleDutyStatus(false)}
                     disabled={isPending || !currentGroupId}
                     className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 font-medium ${!dutyEnabledLocal
-                      ? "bg-background text-destructive border border-border shadow-2xs"
+                      ? "bg-background text-destructive border border-border"
                       : "text-muted-foreground hover:text-foreground"
                       }`}
                   >
@@ -1626,7 +1829,7 @@ export function DutyScheduleView({
                           setDutyCountPerDay(item.value === 0 ? "auto" : String(item.value));
                         }}
                         className={`py-1.5 rounded-md transition-colors font-medium text-xs ${dutyPerDaySetting === item.value
-                          ? "bg-background border border-border text-primary shadow-2xs"
+                          ? "bg-background border border-border text-primary"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
                       >
@@ -1686,7 +1889,7 @@ export function DutyScheduleView({
                         type="button"
                         onClick={() => setDutyAlgorithm(alg.id)}
                         className={`py-1.5 px-1 rounded-md transition-colors text-xs truncate font-medium ${dutyAlgorithm === alg.id
-                          ? "bg-background border border-border text-primary shadow-2xs"
+                          ? "bg-background border border-border text-primary"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
                       >
@@ -1719,7 +1922,7 @@ export function DutyScheduleView({
                         type="button"
                         onClick={() => setResponsibleMode(mode.id)}
                         className={`py-1.5 px-1 rounded-md transition-colors text-[11px] truncate font-medium ${responsibleMode === mode.id
-                          ? "bg-background border border-border text-primary shadow-2xs"
+                          ? "bg-background border border-border text-primary"
                           : "text-muted-foreground hover:text-foreground"
                           }`}
                       >
