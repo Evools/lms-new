@@ -482,14 +482,14 @@ export function DutyScheduleView({
             ...day,
             dutyStudents: day.dutyStudents.some((s) => s.id === absentStudentId)
               ? day.dutyStudents.map((s) =>
-                  s.id === absentStudentId
-                    ? { id: repStudent.id, name: repStudent.name, isLeader: false }
-                    : s
-                )
+                s.id === absentStudentId
+                  ? { id: repStudent.id, name: repStudent.name, isLeader: false }
+                  : s
+              )
               : [
-                  ...day.dutyStudents,
-                  { id: repStudent.id, name: repStudent.name, isLeader: false },
-                ],
+                ...day.dutyStudents,
+                { id: repStudent.id, name: repStudent.name, isLeader: false },
+              ],
           }
           : day
       )
@@ -561,18 +561,18 @@ export function DutyScheduleView({
       current.map((day) =>
         day.fullDate === fullDate
           ? {
-              ...day,
-              dutyStudents: day.dutyStudents.some((s) => s.id === absentStudentId)
-                ? day.dutyStudents.map((s) =>
-                    s.id === absentStudentId
-                      ? { id: repStudent.id, name: repStudent.name, isLeader: false }
-                      : s
-                  )
-                : [
-                    ...day.dutyStudents,
-                    { id: repStudent.id, name: repStudent.name, isLeader: false },
-                  ],
-            }
+            ...day,
+            dutyStudents: day.dutyStudents.some((s) => s.id === absentStudentId)
+              ? day.dutyStudents.map((s) =>
+                s.id === absentStudentId
+                  ? { id: repStudent.id, name: repStudent.name, isLeader: false }
+                  : s
+              )
+              : [
+                ...day.dutyStudents,
+                { id: repStudent.id, name: repStudent.name, isLeader: false },
+              ],
+          }
           : day
       )
     );
@@ -1199,11 +1199,10 @@ export function DutyScheduleView({
                   type="button"
                   onClick={() => handleWeekChange(0)}
                   disabled={isGroupLoading || currentWeekOffset === 0}
-                  className={`px-2.5 h-7 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap ${
-                    currentWeekOffset === 0
+                  className={`px-2.5 h-7 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap ${currentWeekOffset === 0
                       ? "bg-background text-foreground border border-border"
                       : "text-primary hover:bg-background/80 cursor-pointer"
-                  }`}
+                    }`}
                   title={currentWeekOffset === 0 ? "Текущая неделя" : "Вернуться на текущую неделю"}
                 >
                   {daysList.length >= 2
@@ -1316,7 +1315,7 @@ export function DutyScheduleView({
 
       {/* TAB 1: WEEKLY GROUP SCHEDULE */}
       {activeTab === "WEEKLY" && (
-        <Card className="relative print:hidden p-0 border overflow-hidden" data-tour="duty-roster">
+        <Card className="relative print:hidden p-0 gap-0 border overflow-hidden" data-tour="duty-roster">
           {/* Loading Overlay */}
           {isGroupLoading && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-all">
@@ -1340,30 +1339,17 @@ export function DutyScheduleView({
               </div>
 
               {isAdminOrTeacher && (
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => {
-                      const targetDay = weeklyDays.find((d) => d.isToday && !d.isSunday) || weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
-                      if (targetDay) openAddModal(targetDay, "penalty");
-                    }}
-                    className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5" /> За нарушение
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => {
-                      const targetDay = weeklyDays.find((d) => d.isToday && !d.isSunday) || weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
-                      if (targetDay) openAddModal(targetDay, "add");
-                    }}
-                    className="h-7 text-xs gap-1 border-primary/20 text-primary hover:bg-primary/10"
-                  >
-                    <UserPlus className="h-3.5 w-3.5" /> Назначить
-                  </Button>
-                </div>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => {
+                    const targetDay = weeklyDays.find((d) => d.isToday && !d.isSunday) || weeklyDays.find((d) => !d.isSunday) || weeklyDays[0];
+                    if (targetDay) openAddModal(targetDay, "penalty");
+                  }}
+                  className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" /> За нарушение
+                </Button>
               )}
             </div>
           </CardHeader>
@@ -1450,6 +1436,14 @@ export function DutyScheduleView({
                           )}
                         </div>
 
+                        {/* Optional Leader */}
+                        {!day.isSunday && day.leaderStudent && (
+                          <div className="hidden sm:flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-full" title={`Старший: ${day.leaderStudent.name}`}>
+                            <span className="text-primary font-medium shrink-0">Ст.:</span>
+                            <span className="truncate">{day.leaderStudent.name}</span>
+                          </div>
+                        )}
+
                         {/* Mobile action button */}
                         {!day.isSunday && isAdminOrTeacher && (
                           <div className="sm:hidden">
@@ -1461,153 +1455,153 @@ export function DutyScheduleView({
                               className="h-6 px-2 text-[10px] gap-1 border-primary/20 text-primary hover:bg-primary/10"
                             >
                               <UserPlus className="h-3 w-3" />
-                              <span>Назначить</span>
+                              <span>Добавить</span>
                             </Button>
                           </div>
                         )}
                       </div>
 
                       {/* Duty Students */}
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      <div className="min-w-0 w-full">
                         {day.isSunday ? (
                           <span className="text-[11px] text-muted-foreground/60 italic">Выходной день</span>
                         ) : !activeDutyDays.includes(["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"].indexOf(day.dayName)) && (!day.dutyStudents || day.dutyStudents.length === 0) ? (
                           <span className="text-[11px] text-muted-foreground/60 italic">Не учебный / не дежурный день</span>
                         ) : day.dutyStudents && day.dutyStudents.length > 0 ? (
-                          day.dutyStudents.map((st) => {
-                            const isAbsentInDb = st.attendanceStatus === "ABSENT" || st.attendanceStatus === "EXCUSED";
-                            const isLateInDb = st.attendanceStatus === "LATE";
-                            const isPresentInDb = st.attendanceStatus === "PRESENT";
-                            const localAbsent = absentMap[`${st.id}_${day.fullDate}`];
-                            const isAbsent = isAbsentInDb || Boolean(localAbsent);
-                            const absentLabel = localAbsent || (st.attendanceStatus === "EXCUSED" ? "Уваж." : "Н/Б");
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 w-full">
+                            {day.dutyStudents.map((st) => {
+                              const isAbsentInDb = st.attendanceStatus === "ABSENT" || st.attendanceStatus === "EXCUSED";
+                              const isLateInDb = st.attendanceStatus === "LATE";
+                              const isPresentInDb = st.attendanceStatus === "PRESENT";
+                              const localAbsent = absentMap[`${st.id}_${day.fullDate}`];
+                              const isAbsent = isAbsentInDb || Boolean(localAbsent);
+                              const absentLabel = localAbsent || (st.attendanceStatus === "EXCUSED" ? "Уваж." : "Н/Б");
 
-                            return (
-                              <div
-                                key={st.id}
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium transition-all max-w-full ${isAbsent
-                                  ? "border-destructive/40 bg-destructive/10 text-destructive"
-                                  : day.isToday
-                                    ? "border-primary/30 bg-primary/10 text-primary"
-                                    : day.isPast
-                                      ? "border-border bg-muted/30 text-foreground"
-                                      : "border-border bg-muted/10 text-foreground"
-                                  }`}
-                              >
-                                <Avatar className="h-4 w-4 border shrink-0">
-                                  <AvatarFallback className={`text-[7px] font-bold ${isAbsent
-                                    ? "bg-destructive/20 text-destructive"
-                                    : day.isToday
-                                      ? "bg-primary/20 text-primary"
-                                      : "bg-muted text-muted-foreground"
-                                    }`}>
-                                    {st.name.slice(0, 2).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
+                              const chipContent = (
+                                <div className="flex items-center justify-between gap-2 w-full min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <Avatar className="h-6 w-6 shrink-0">
+                                      <AvatarFallback className={`text-[9px] font-medium ${isAbsent
+                                        ? "bg-destructive/15 text-destructive"
+                                        : day.isToday
+                                          ? "bg-primary/15 text-primary"
+                                          : "bg-muted text-muted-foreground"
+                                        }`}>
+                                        {st.name.slice(0, 2).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
 
-                                <span className={`truncate ${isAbsent ? "line-through opacity-85" : ""}`}>
-                                  {st.name}
-                                </span>
+                                    <span className={`truncate ${isAbsent ? "line-through opacity-85" : ""}`} title={st.name}>
+                                      {st.name}
+                                    </span>
+                                  </div>
 
-                                {isAbsent && (
-                                  <span className="text-[9px] font-bold no-underline text-destructive inline-flex items-center gap-0.5 shrink-0">
-                                    <AlertCircle className="h-2.5 w-2.5" />
-                                    {absentLabel}
-                                  </span>
-                                )}
-
-                                {isPresentInDb && !isAbsent && (
-                                  <span title="Был на занятиях" className="text-[8px] text-primary inline-flex items-center gap-0.5 shrink-0">
-                                    <Check className="h-2.5 w-2.5" /> Присутствовал
-                                  </span>
-                                )}
-
-                                {isLateInDb && !isAbsent && (
-                                  <span title="Опоздал на занятия" className="text-[8px] text-muted-foreground inline-flex items-center gap-0.5 shrink-0">
-                                    <Clock className="h-2.5 w-2.5" /> Опоздал
-                                  </span>
-                                )}
-
-                                {day.isPast && !isAbsent && !isPresentInDb && (
-                                  <span title="Дежурство выполнено" className="inline-flex items-center shrink-0">
-                                    <Check className="h-3 w-3 text-primary/70" />
-                                  </span>
-                                )}
-
-                                {isAdminOrTeacher && (
-                                  <div className="flex items-center gap-0.5 ml-0.5 shrink-0">
+                                  <div className="flex items-center gap-1 shrink-0">
                                     {isAbsent && (
-                                      <button
-                                        type="button"
-                                        onClick={() => openReplaceModal(day, st.id, st.name)}
-                                        className="h-5 px-1.5 text-[9px] rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium flex items-center gap-0.5"
-                                        title="Назначить замену дежурного"
-                                      >
-                                        <RefreshCw className="h-2.5 w-2.5" /> Заменить
-                                      </button>
+                                      <span className="text-[9px] font-bold no-underline text-destructive inline-flex items-center gap-0.5">
+                                        <AlertCircle className="h-2.5 w-2.5" />
+                                        {absentLabel}
+                                      </span>
                                     )}
 
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveDuty(st.id, day.fullDate)}
-                                      className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                      title="Быстро убрать из дежурных"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </button>
+                                    {isPresentInDb && !isAbsent && (
+                                      <span title="Был на занятиях" className="text-[10px] text-primary inline-flex items-center gap-0.5 font-medium">
+                                        <Check className="h-3 w-3" />
+                                        <span>Пришёл</span>
+                                      </span>
+                                    )}
 
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger render={
+                                    {isLateInDb && !isAbsent && (
+                                      <span title="Опоздал на занятия" className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5 font-medium">
+                                        <Clock className="h-3 w-3" />
+                                        <span>Опоздал</span>
+                                      </span>
+                                    )}
+
+                                    {day.isPast && !isAbsent && !isPresentInDb && !isLateInDb && (
+                                      <span title="Дежурство выполнено" className="inline-flex items-center">
+                                        <Check className="h-3 w-3 text-primary/70" />
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+
+                              const chipClasses = `flex items-center justify-between gap-1.5 py-1.5 pr-2.5 pl-1.5 rounded-lg border text-xs font-medium transition-colors w-full min-w-0 text-left ${isAbsent
+                                ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                : day.isToday
+                                  ? "border-primary/30 bg-primary/10 text-primary"
+                                  : day.isPast
+                                    ? "border-border bg-muted/30 text-foreground"
+                                    : "border-border bg-muted/10 text-foreground"
+                                }`;
+
+                              if (!isAdminOrTeacher) {
+                                return (
+                                  <div key={st.id} className={chipClasses}>
+                                    {chipContent}
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div key={st.id} className="flex items-center gap-1 min-w-0">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger
+                                      render={
                                         <button
                                           type="button"
-                                          className="p-0.5 rounded hover:bg-muted/80 text-muted-foreground/60 hover:text-foreground transition-colors"
+                                          className={`${chipClasses} hover:border-primary/40 hover:bg-muted/40 cursor-pointer flex-1`}
                                         />
-                                      }>
-                                        <MoreVertical className="h-3 w-3" />
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
+                                      }
+                                    >
+                                      {chipContent}
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="text-xs p-1 min-w-[160px]">
+                                      <DropdownMenuItem
+                                        onClick={() => openReplaceModal(day, st.id, st.name)}
+                                        className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
+                                      >
+                                        <RefreshCw className="h-3.5 w-3.5 text-primary" />
+                                        <span>Назначить замену</span>
+                                      </DropdownMenuItem>
+                                      {!isAbsent && (
                                         <DropdownMenuItem
-                                          onClick={() => openReplaceModal(day, st.id, st.name)}
+                                          onClick={() => handleMarkAbsent(st.id, day.fullDate, "Прогул/Болезнь")}
                                           className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
                                         >
-                                          <RefreshCw className="h-3.5 w-3.5 text-primary" />
-                                          <span>Назначить замену</span>
+                                          <UserX className="h-3.5 w-3.5 text-muted-foreground" />
+                                          <span>Отметить пропуск</span>
                                         </DropdownMenuItem>
-                                        {!isAbsent && (
-                                          <DropdownMenuItem
-                                            onClick={() => handleMarkAbsent(st.id, day.fullDate, "Прогул/Болезнь")}
-                                            className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
-                                          >
-                                            <UserX className="h-3.5 w-3.5 text-muted-foreground" />
-                                            <span>Отметить пропуск</span>
-                                          </DropdownMenuItem>
-                                        )}
-                                        <DropdownMenuItem
-                                          onClick={() => handleRemoveDuty(st.id, day.fullDate)}
-                                          className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
-                                        >
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                          <span>Удалить из дежурных</span>
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })
+                                      )}
+                                      <DropdownMenuItem
+                                        onClick={() => handleRemoveDuty(st.id, day.fullDate)}
+                                        className="text-xs gap-2 py-1.5 cursor-pointer text-destructive focus:text-destructive font-medium"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <span>Удалить из дежурных</span>
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+
+                                  {isAbsent && (
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      onClick={() => openReplaceModal(day, st.id, st.name)}
+                                      className="h-7 px-2 text-[10px] gap-1 font-medium shrink-0 cursor-pointer"
+                                      title="Назначить замену дежурного"
+                                    >
+                                      <RefreshCw className="h-2.5 w-2.5" /> Заменить
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] text-muted-foreground/50">Дежурные не назначены</span>
-                            {isAdminOrTeacher && (
-                              <button
-                                type="button"
-                                onClick={() => openAddModal(day, "add")}
-                                className="text-[10px] text-primary hover:underline font-medium"
-                              >
-                                + Назначить
-                              </button>
-                            )}
                           </div>
                         )}
                       </div>
@@ -1617,13 +1611,26 @@ export function DutyScheduleView({
                         {!day.isSunday && isAdminOrTeacher && (
                           <Button
                             size="xs"
-                            variant="outline"
+                            variant={
+                              activeDutyDays.includes(
+                                ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"].indexOf(day.dayName)
+                              )
+                                ? "outline"
+                                : "ghost"
+                            }
                             onClick={() => openAddModal(day, "add")}
                             disabled={availableStudents.length === 0}
-                            className="h-7 text-xs px-2.5 gap-1 border-primary/20 text-primary hover:bg-primary/10"
+                            className={`h-7 text-xs px-2 gap-1 cursor-pointer ${
+                              activeDutyDays.includes(
+                                ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"].indexOf(day.dayName)
+                              )
+                                ? "border-primary/20 text-primary hover:bg-primary/10"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                            title={`Добавить дежурного на ${day.dayName}`}
                           >
                             <UserPlus className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">Назначить</span>
+                            <span>Добавить</span>
                           </Button>
                         )}
                       </div>
@@ -1638,7 +1645,7 @@ export function DutyScheduleView({
 
       {/* TAB 2: DUTY STATS & AUDIT */}
       {activeTab === "STATS" && (
-        <Card className="relative print:hidden p-0 border overflow-hidden">
+        <Card className="relative print:hidden p-0 gap-0 border overflow-hidden">
           {/* Loading Overlay */}
           {isGroupLoading && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-all">
@@ -2007,13 +2014,12 @@ export function DutyScheduleView({
                               isExempt ? prev.filter((id) => id !== st.id) : [...prev, st.id]
                             );
                           }}
-                          className={`flex items-center justify-between p-2 rounded-md transition-colors text-xs ${
-                            isPermanentExempt
+                          className={`flex items-center justify-between p-2 rounded-md transition-colors text-xs ${isPermanentExempt
                               ? "bg-sky-500/5 text-foreground cursor-default"
                               : isExempt
-                              ? "bg-primary/5 text-primary font-medium cursor-pointer"
-                              : "hover:bg-muted/50 text-foreground cursor-pointer"
-                          }`}
+                                ? "bg-primary/5 text-primary font-medium cursor-pointer"
+                                : "hover:bg-muted/50 text-foreground cursor-pointer"
+                            }`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             {isPermanentExempt ? (
@@ -2025,9 +2031,8 @@ export function DutyScheduleView({
                               </div>
                             ) : (
                               <div
-                                className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] shrink-0 ${
-                                  isExempt ? "bg-primary text-primary-foreground border-primary" : "border-border"
-                                }`}
+                                className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] shrink-0 ${isExempt ? "bg-primary text-primary-foreground border-primary" : "border-border"
+                                  }`}
                               >
                                 {isExempt && <Check className="h-3 w-3" />}
                               </div>
@@ -2053,11 +2058,10 @@ export function DutyScheduleView({
                                 handleTogglePermanentExemption(st.id, !isPermanentExempt);
                               }}
                               disabled={isPending}
-                              className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${
-                                isPermanentExempt
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${isPermanentExempt
                                   ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400 hover:bg-sky-500/20"
                                   : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-                              }`}
+                                }`}
                               title={isPermanentExempt ? "Снять постоянный статус ЛОВЗ" : "Установить постоянный статус ЛОВЗ"}
                             >
                               {isPermanentExempt ? "Снять ЛОВЗ" : "+ ЛОВЗ"}
