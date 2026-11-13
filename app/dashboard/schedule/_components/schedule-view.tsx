@@ -400,6 +400,9 @@ export function ScheduleView({
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
     initialGroupId || starterData[0]?.groupId || "vr-1-26"
   );
+  const [viewMode, setViewMode] = useState<"all" | "group">(canEdit ? "all" : "group");
+  const [masterDayFilter, setMasterDayFilter] = useState<number | "all">("all");
+  const [masterCourseFilter, setMasterCourseFilter] = useState<number | "all">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const persistSchedule = (updated: GroupScheduleData[]) => {
@@ -550,10 +553,12 @@ export function ScheduleView({
   }, [scheduleData, dbSubjectNames, dbTeacherNames]);
 
   // Open Edit/Add Modal (automatically picks the first free pair 1..6 if pairNum is not specified)
-  const handleOpenAddLesson = (dayIndex: number, pairNum?: number) => {
-    const groupShift = normalizeShiftType(currentGroup.shift);
-    const groupStartTime = extractShiftStartTime(currentGroup.shift);
-    const targetDay = currentGroup.days[dayIndex] || currentGroup.days[0];
+  const handleOpenAddLesson = (dayIndex: number, pairNum?: number, targetGroupId?: string) => {
+    const effectiveGroupId = targetGroupId || selectedGroupId;
+    const targetGroup = scheduleData.find((g) => g.groupId === effectiveGroupId) || currentGroup;
+    const groupShift = normalizeShiftType(targetGroup.shift);
+    const groupStartTime = extractShiftStartTime(targetGroup.shift);
+    const targetDay = targetGroup.days[dayIndex] || targetGroup.days[0];
     const occupiedPairs = new Set((targetDay?.lessons || []).map((l) => l.pairNumber));
 
     let pNum = pairNum;
@@ -566,7 +571,7 @@ export function ScheduleView({
     const initialTime = computedSlots[pNum] || "08:00 – 09:20";
 
     setEditingLesson({
-      groupId: selectedGroupId,
+      groupId: effectiveGroupId,
       dayIndex,
     });
     setFormDayIndex(dayIndex);
@@ -576,16 +581,18 @@ export function ScheduleView({
     setFormTime(initialTime);
     setFormSubject("");
     setFormRoom("");
-    setFormTeacher(currentGroup.curator);
+    setFormTeacher("");
     setFormNote("");
     setFormIsSpecial(false);
     setFormIsDoublePair(false);
     setIsLessonDialogOpen(true);
   };
 
-  const handleOpenEditLesson = (dayIndex: number, lesson: LessonSlot) => {
-    const groupShift = normalizeShiftType(currentGroup.shift);
-    const groupStartTime = extractShiftStartTime(currentGroup.shift);
+  const handleOpenEditLesson = (dayIndex: number, lesson: LessonSlot, targetGroupId?: string) => {
+    const effectiveGroupId = targetGroupId || selectedGroupId;
+    const targetGroup = scheduleData.find((g) => g.groupId === effectiveGroupId) || currentGroup;
+    const groupShift = normalizeShiftType(targetGroup.shift);
+    const groupStartTime = extractShiftStartTime(targetGroup.shift);
 
     let startTime = groupStartTime;
     if (lesson.pairNumber === 1 && lesson.time) {
@@ -595,7 +602,7 @@ export function ScheduleView({
     const computedSlots = calculatePairSlotsFromStart(startTime);
 
     setEditingLesson({
-      groupId: selectedGroupId,
+      groupId: effectiveGroupId,
       dayIndex,
       lesson,
     });
@@ -655,7 +662,7 @@ export function ScheduleView({
       const match = d.lessons.find((l) => l.subject === subj);
       if (match) {
         if (!formRoom) setFormRoom(match.room);
-        if (!formTeacher || formTeacher === currentGroup.curator) {
+        if (!formTeacher) {
           setFormTeacher(match.teacher || "");
         }
         break;
@@ -756,9 +763,10 @@ export function ScheduleView({
   };
 
   // Delete Lesson
-  const handleDeleteLesson = (dayIndex: number, lessonId: string) => {
+  const handleDeleteLesson = (dayIndex: number, lessonId: string, targetGroupId?: string) => {
+    const effectiveGroupId = targetGroupId || selectedGroupId;
     const updated = scheduleData.map((g) => {
-      if (g.groupId !== selectedGroupId) return g;
+      if (g.groupId !== effectiveGroupId) return g;
       const updatedDays = [...g.days];
       const targetDay = { ...updatedDays[dayIndex] };
       targetDay.lessons = targetDay.lessons.filter((l) => l.id !== lessonId);
@@ -775,6 +783,7 @@ export function ScheduleView({
   const [dragPayload, setDragPayload] = useState<
     | {
         type: "cell";
+        groupId?: string;
         fromDayIndex: number;
         fromPairNum: number;
         lesson: LessonSlot;
@@ -786,6 +795,7 @@ export function ScheduleView({
     | null
   >(null);
   const [dragOverCell, setDragOverCell] = useState<{
+    groupId?: string;
     dayIndex: number;
     pairNum: number;
   } | null>(null);
@@ -856,23 +866,28 @@ export function ScheduleView({
   const handleDropOnCell = (
     targetDayIndex: number,
     targetPairNum: number,
-    e: React.DragEvent
+    e: React.DragEvent,
+    targetGroupId?: string
   ) => {
     e.preventDefault();
     setDragOverCell(null);
     if (!canEdit || !dragPayload) return;
 
+    const effectiveGroupId = targetGroupId || selectedGroupId;
+    const targetGroup =
+      scheduleData.find((g) => g.groupId === effectiveGroupId) || currentGroup;
+
     const isCopy =
       dragActionMode === "copy" || e.altKey || e.ctrlKey || e.metaKey;
-    const targetTime = getTimeSlotForShift(currentGroup.shift, targetPairNum);
+    const targetTime = getTimeSlotForShift(targetGroup.shift, targetPairNum);
 
     if (dragPayload.type === "palette") {
       const subj = dragPayload.subject;
-      // Find existing room & teacher for this subject in current group if any
+      // Find existing room & teacher for this subject in target group if any
       let room = quickDefaultRoom.trim();
-      let teacher = currentGroup.curator;
+      let teacher = "";
 
-      for (const d of currentGroup.days) {
+      for (const d of targetGroup.days) {
         const match = d.lessons.find((l) => l.subject === subj);
         if (match) {
           if (match.room) room = match.room;
@@ -891,7 +906,7 @@ export function ScheduleView({
       };
 
       const updated = scheduleData.map((g) => {
-        if (g.groupId !== selectedGroupId) return g;
+        if (g.groupId !== effectiveGroupId) return g;
         const updatedDays = [...g.days];
         const targetDay = { ...updatedDays[targetDayIndex] };
         const filtered = targetDay.lessons.filter(
@@ -906,7 +921,7 @@ export function ScheduleView({
 
       persistSchedule(updated);
       toast.add({
-        title: `${subj} поставлен на ${targetPairNum}-ю пару (${currentGroup.days[targetDayIndex]?.dayOfWeek})`,
+        title: `${subj} поставлен на ${targetPairNum}-ю пару (${targetGroup.groupName}, ${targetGroup.days[targetDayIndex]?.dayOfWeek})`,
         type: "success",
       });
       setDragPayload(null);
@@ -915,54 +930,58 @@ export function ScheduleView({
 
     if (dragPayload.type === "cell") {
       const { fromDayIndex, fromPairNum, lesson } = dragPayload;
-      if (fromDayIndex === targetDayIndex && fromPairNum === targetPairNum) {
+      const sourceGroupId = dragPayload.groupId || effectiveGroupId;
+      const sourceGroup =
+        scheduleData.find((g) => g.groupId === sourceGroupId) || targetGroup;
+
+      if (
+        sourceGroupId === effectiveGroupId &&
+        fromDayIndex === targetDayIndex &&
+        fromPairNum === targetPairNum
+      ) {
         setDragPayload(null);
         return;
       }
 
-      const existingTargetLesson = currentGroup.days[
+      const existingTargetLesson = targetGroup.days[
         targetDayIndex
       ]?.lessons.find((l) => l.pairNumber === targetPairNum);
+      const sourceTime = getTimeSlotForShift(sourceGroup.shift, fromPairNum);
+
+      const movedLesson: LessonSlot = {
+        ...lesson,
+        id: isCopy ? `lesson-${Date.now()}` : lesson.id,
+        pairNumber: targetPairNum,
+        time: targetTime,
+      };
 
       const updated = scheduleData.map((g) => {
-        if (g.groupId !== selectedGroupId) return g;
+        if (g.groupId !== effectiveGroupId && g.groupId !== sourceGroupId) {
+          return g;
+        }
         const updatedDays = g.days.map((d) => ({
           ...d,
           lessons: [...d.lessons],
         }));
 
-        const movedLesson: LessonSlot = {
-          ...lesson,
-          id: isCopy ? `lesson-${Date.now()}` : lesson.id,
-          pairNumber: targetPairNum,
-          time: targetTime,
-        };
-
         if (isCopy) {
-          // Copy mode: keep source lesson, overwrite target slot
-          updatedDays[targetDayIndex].lessons = [
-            ...updatedDays[targetDayIndex].lessons.filter(
-              (l) => l.pairNumber !== targetPairNum
-            ),
-            movedLesson,
-          ].sort((a, b) => a.pairNumber - b.pairNumber);
-        } else {
-          // Move or Swap mode
-          const sourceTime = getTimeSlotForShift(
-            currentGroup.shift,
-            fromPairNum
-          );
-          // Remove from source
+          if (g.groupId === effectiveGroupId) {
+            updatedDays[targetDayIndex].lessons = [
+              ...updatedDays[targetDayIndex].lessons.filter(
+                (l) => l.pairNumber !== targetPairNum
+              ),
+              movedLesson,
+            ].sort((a, b) => a.pairNumber - b.pairNumber);
+          }
+          return { ...g, days: updatedDays };
+        }
+
+        // Move or Swap mode (handles both same-group and cross-group)
+        if (g.groupId === sourceGroupId) {
           updatedDays[fromDayIndex].lessons = updatedDays[
             fromDayIndex
           ].lessons.filter((l) => l.id !== lesson.id);
 
-          // Remove existing target if swapping
-          updatedDays[targetDayIndex].lessons = updatedDays[
-            targetDayIndex
-          ].lessons.filter((l) => l.pairNumber !== targetPairNum);
-
-          // If target had a lesson, put it into source slot (Swap!)
           if (existingTargetLesson) {
             const swappedLesson: LessonSlot = {
               ...existingTargetLesson,
@@ -974,7 +993,12 @@ export function ScheduleView({
               (a, b) => a.pairNumber - b.pairNumber
             );
           }
+        }
 
+        if (g.groupId === effectiveGroupId) {
+          updatedDays[targetDayIndex].lessons = updatedDays[
+            targetDayIndex
+          ].lessons.filter((l) => l.pairNumber !== targetPairNum);
           updatedDays[targetDayIndex].lessons.push(movedLesson);
           updatedDays[targetDayIndex].lessons.sort(
             (a, b) => a.pairNumber - b.pairNumber
@@ -1045,10 +1069,39 @@ export function ScheduleView({
     return occupied.length > 0 ? occupied : [1, 2, 3];
   }, [currentGroup, hideEmptyPairs, groupStats.maxPairNum]);
 
+  const masterCourses = useMemo(() => {
+    const courses = Array.from(new Set(scheduleData.map((g) => g.course).filter(Boolean)));
+    return courses.sort((a, b) => a - b);
+  }, [scheduleData]);
+
+  const masterFilteredGroups = useMemo(() => {
+    if (masterCourseFilter === "all") return scheduleData;
+    return scheduleData.filter((g) => g.course === masterCourseFilter);
+  }, [scheduleData, masterCourseFilter]);
+
+  const masterDayIndices = useMemo(() => {
+    const totalDays = currentGroup?.days?.length || 6;
+    if (masterDayFilter !== "all" && masterDayFilter >= 0 && masterDayFilter < totalDays) {
+      return [masterDayFilter];
+    }
+    return Array.from({ length: totalDays }, (_, i) => i);
+  }, [masterDayFilter, currentGroup?.days?.length]);
+
+  const getMasterDayVisiblePairs = (dayIdx: number) => {
+    const allPairs = [1, 2, 3, 4, 5, 6];
+    if (!hideEmptyPairs) return allPairs;
+    const occupied = allPairs.filter((pNum) =>
+      masterFilteredGroups.some((g) =>
+        g.days[dayIdx]?.lessons?.some((l) => l.pairNumber === pNum)
+      )
+    );
+    return occupied.length > 0 ? occupied : [1, 2, 3];
+  };
+
   return (
     <div className="space-y-3 w-full text-xs">
-      {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border border-border">
+      {/* Top Header (Light & Consistent Across Both Views) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3 rounded-xl border border-border">
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span>Учебный процесс</span>
@@ -1060,87 +1113,45 @@ export function ScheduleView({
               <CalendarDays className="h-4 w-4 text-primary" /> Сетка расписания пар
             </h1>
             <Badge variant="outline" className="text-[10px] font-medium bg-primary/10 text-primary border-primary/30">
-              Группа {currentGroup.groupName}
+              {viewMode === "all"
+                ? `Все группы (${masterFilteredGroups.length})`
+                : `Группа ${currentGroup.groupName}`}
             </Badge>
           </div>
         </div>
 
-        {/* Action Controls */}
+        {/* Primary Header Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Group Selector */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground text-[11px] hidden sm:inline">Группа:</span>
-            <Select
-              value={selectedGroupId}
-              onValueChange={(val) => {
-                if (val) setSelectedGroupId(val);
-              }}
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("all")}
+              className={`h-7 px-2.5 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === "all"
+                  ? "bg-background text-primary border border-border"
+                  : "text-muted-foreground hover:text-foreground border border-transparent"
+              }`}
             >
-              <SelectTrigger className="h-8 text-xs bg-background min-w-[140px] rounded-md font-medium">
-                <SelectValue placeholder="Выберите группу">
-                  {currentGroup ? `Группа ${currentGroup.groupName}` : "Выберите группу"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {scheduleData.map((g) => (
-                  <SelectItem key={g.groupId} value={g.groupId} className="text-xs">
-                    Группа {g.groupName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Shift Switcher for Selected Group */}
-          {canEdit && (
-            <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border text-xs">
-              <button
-                type="button"
-                onClick={() => handleChangeGroupShift("1-я смена", "08:00")}
-                className={`h-7 px-2.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                  normalizeShiftType(currentGroup.shift) === "1-я смена"
-                    ? "bg-background text-primary border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                1-я смена (08:00)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleChangeGroupShift("2-я смена", "14:20")}
-                className={`h-7 px-2.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                  normalizeShiftType(currentGroup.shift) === "2-я смена"
-                    ? "bg-background text-primary border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                2-я смена (14:20)
-              </button>
-            </div>
-          )}
-
-          {/* Quick Search */}
-          <div className="relative w-[150px] sm:w-[170px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Предмет, каб..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 pl-8 pr-7 text-xs bg-background rounded-md"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
+              <LayoutGrid className="h-3 w-3" />
+              <span>Вся сетка</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("group")}
+              className={`h-7 px-2.5 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === "group"
+                  ? "bg-background text-primary border border-border"
+                  : "text-muted-foreground hover:text-foreground border border-transparent"
+              }`}
+            >
+              <CalendarDays className="h-3 w-3" />
+              <span>По группе</span>
+            </button>
           </div>
 
           {canEdit && (
             <>
-              {/* Admin Add Lesson Button */}
               <Button
                 size="sm"
                 onClick={() => handleOpenAddLesson(todayDayIndex >= 0 ? todayDayIndex : 0)}
@@ -1150,7 +1161,6 @@ export function ScheduleView({
                 <span>Добавить пару</span>
               </Button>
 
-              {/* Admin Import Excel Action */}
               <Button
                 size="sm"
                 variant="outline"
@@ -1162,12 +1172,11 @@ export function ScheduleView({
                 <span className="hidden sm:inline">Импорт Excel</span>
               </Button>
 
-              {/* Admin Clear Schedule Action */}
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  setClearScope("group");
+                  setClearScope(viewMode === "all" ? "all" : "group");
                   setIsClearDialogOpen(true);
                 }}
                 className="h-8 px-3 rounded-md text-xs gap-1.5 font-medium border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
@@ -1181,72 +1190,167 @@ export function ScheduleView({
         </div>
       </div>
 
-      {/* Group KPI & Summary Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
-          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
-            <BookOpen className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[11px] text-muted-foreground">Специальность</div>
-            <div className="font-bold text-foreground text-xs truncate" title={currentGroup.specialty}>
-              {currentGroup.specialty}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
-          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
-            <User className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[11px] text-muted-foreground">Куратор группы</div>
-            <div className="font-bold text-foreground text-xs truncate" title={currentGroup.curator}>
-              {currentGroup.curator}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
-          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
-            <Clock className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[11px] text-muted-foreground">Режим звонков</div>
-            <div className="font-bold text-foreground text-xs truncate">
-              {currentGroup.shift} • 80 мин
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
-              <CalendarDays className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[11px] text-muted-foreground">Недельная нагрузка</div>
-              <div className="font-bold text-foreground text-xs truncate">
-                {groupStats.totalLessons} пар • {groupStats.subjectsCount} дисц.
+      {/* Unified Filters & Context Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-card px-3 py-2 rounded-xl border border-border">
+        {/* Left: Mode-specific Context Controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          {viewMode === "all" ? (
+            <>
+              {/* Day Pills */}
+              <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setMasterDayFilter("all")}
+                  className={`h-6 px-2.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                    masterDayFilter === "all"
+                      ? "bg-background text-primary border border-border"
+                      : "text-muted-foreground hover:text-foreground border border-transparent"
+                  }`}
+                >
+                  Все дни
+                </button>
+                {(currentGroup?.days || []).map((d, dIdx) => {
+                  const shortName = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"][dIdx] || d.dayOfWeek.slice(0, 2);
+                  const isToday = dIdx === todayDayIndex;
+                  return (
+                    <button
+                      key={d.dayOfWeek + dIdx}
+                      type="button"
+                      onClick={() => setMasterDayFilter(dIdx)}
+                      className={`h-6 px-2.5 rounded-md text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap ${
+                        masterDayFilter === dIdx
+                          ? "bg-background text-primary border border-border"
+                          : "text-muted-foreground hover:text-foreground border border-transparent"
+                      }`}
+                    >
+                      <span>{shortName}</span>
+                      {isToday && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" title="Сегодня" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            </div>
+
+              {/* Course Filter Pills */}
+              {masterCourses.length > 1 && (
+                <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setMasterCourseFilter("all")}
+                    className={`h-6 px-2 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                      masterCourseFilter === "all"
+                        ? "bg-background text-primary border border-border"
+                        : "text-muted-foreground hover:text-foreground border border-transparent"
+                    }`}
+                  >
+                    Все курсы
+                  </button>
+                  {masterCourses.map((course) => (
+                    <button
+                      key={course}
+                      type="button"
+                      onClick={() => setMasterCourseFilter(course)}
+                      className={`h-6 px-2 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                        masterCourseFilter === course
+                          ? "bg-background text-primary border border-border"
+                          : "text-muted-foreground hover:text-foreground border border-transparent"
+                      }`}
+                    >
+                      {course} к.
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Group Selector */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground text-[11px] hidden sm:inline">Группа:</span>
+                <Select
+                  value={selectedGroupId}
+                  onValueChange={(val) => {
+                    if (val) setSelectedGroupId(val);
+                  }}
+                >
+                  <SelectTrigger className="h-7 text-xs bg-background min-w-[140px] rounded-md font-medium">
+                    <SelectValue placeholder="Выберите группу">
+                      {currentGroup ? `Группа ${currentGroup.groupName}` : "Выберите группу"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {scheduleData.map((g) => (
+                      <SelectItem key={g.groupId} value={g.groupId} className="text-xs">
+                        Группа {g.groupName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Shift Switcher for Selected Group */}
+              {canEdit && (
+                <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleChangeGroupShift("1-я смена", "08:00")}
+                    className={`h-6 px-2.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                      normalizeShiftType(currentGroup.shift) === "1-я смена"
+                        ? "bg-background text-primary border border-border"
+                        : "text-muted-foreground hover:text-foreground border border-transparent"
+                    }`}
+                  >
+                    1-я смена (08:00)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleChangeGroupShift("2-я смена", "14:20")}
+                    className={`h-6 px-2.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                      normalizeShiftType(currentGroup.shift) === "2-я смена"
+                        ? "bg-background text-primary border border-border"
+                        : "text-muted-foreground hover:text-foreground border border-transparent"
+                    }`}
+                  >
+                    2-я смена (14:20)
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Right: Shared Search & Compact Toggle */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+            <Checkbox
+              checked={hideEmptyPairs}
+              onCheckedChange={(checked) => setHideEmptyPairs(!!checked)}
+            />
+            <span>Скрыть пустые пары</span>
+          </label>
+
+          <div className="relative w-[170px] sm:w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Предмет, каб..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-7 pl-8 pr-7 text-xs bg-background rounded-md"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => setHideEmptyPairs((prev) => !prev)}
-            className={`px-2 py-1 rounded-md border text-[10px] font-medium transition-colors shrink-0 cursor-pointer ${
-              hideEmptyPairs
-                ? "bg-primary/10 border-primary text-primary"
-                : "bg-muted/40 border-border text-muted-foreground hover:text-foreground"
-            }`}
-            title="Скрыть или показать пустые строки пар"
-          >
-            {hideEmptyPairs ? "Все пары" : "Без пустых"}
-          </button>
         </div>
       </div>
 
-      {/* Quick Drag-and-Drop Subject Palette (Builder Toolbar) */}
+      {/* Quick Drag-and-Drop Subject Palette (Shared Builder Toolbar for Both Views) */}
       {canEdit && (
         <div className="hidden md:block bg-card border border-border rounded-xl p-3 space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1350,6 +1454,341 @@ export function ScheduleView({
           )}
         </div>
       )}
+
+      {/* MASTER GRID VIEW: ALL GROUPS & ALL DAYS */}
+      {viewMode === "all" && (
+        <div className="space-y-2.5">
+          {/* Scrollable Master Matrix Table */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="overflow-auto max-h-[calc(100dvh-265px)]">
+              <table className="w-full border-collapse text-xs">
+                <thead className="sticky top-0 z-20 bg-muted/95 backdrop-blur-sm">
+                  <tr>
+                    <th className="sticky left-0 z-30 bg-muted border-b border-r border-border px-3 py-2 text-left font-medium text-muted-foreground min-w-[115px] w-[115px]">
+                      День / Пара
+                    </th>
+                    {masterFilteredGroups.map((g) => (
+                      <th
+                        key={g.groupId}
+                        className="border-b border-r border-border last:border-r-0 px-2.5 py-2 text-left min-w-[175px] align-top bg-muted/95"
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedGroupId(g.groupId);
+                              setViewMode("group");
+                            }}
+                            className="font-bold text-foreground hover:text-primary transition-colors text-xs truncate cursor-pointer"
+                            title={`Открыть расписание группы ${g.groupName}`}
+                          >
+                            {g.groupName}
+                          </button>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-medium px-1.5 py-0 h-4 bg-background border-border text-muted-foreground shrink-0"
+                          >
+                            {g.course} к.
+                          </Badge>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-normal truncate mt-0.5">
+                          {normalizeShiftType(g.shift)}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {masterDayIndices.map((dayIdx) => {
+                    const refDay = currentGroup?.days?.[dayIdx];
+                    if (!refDay) return null;
+                    const isToday = dayIdx === todayDayIndex;
+                    const dayPairs = getMasterDayVisiblePairs(dayIdx);
+
+                    return (
+                      <React.Fragment key={`master-day-${dayIdx}`}>
+                        {/* Day Section Header Row */}
+                        <tr>
+                          <td
+                            colSpan={masterFilteredGroups.length + 1}
+                            className={`border-b border-border px-3 py-1.5 ${
+                              isToday ? "bg-primary/10" : "bg-muted/50"
+                            }`}
+                          >
+                            <div className="sticky left-3 inline-flex items-center gap-2">
+                              <span
+                                className={`font-bold text-xs ${
+                                  isToday ? "text-primary" : "text-foreground"
+                                }`}
+                              >
+                                {refDay.dayOfWeek}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {refDay.fullDateRu}
+                              </span>
+                              {isToday && (
+                                <Badge className="text-[10px] h-4 px-1.5 bg-primary text-primary-foreground font-medium">
+                                  Сегодня
+                                </Badge>
+                              )}
+                              {refDay.holidayNote && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] h-4 px-1.5 border-primary/40 text-primary bg-primary/5 font-medium"
+                                >
+                                  {refDay.holidayNote}
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Pair Rows for this Day */}
+                        {dayPairs.map((pairNum) => {
+                          const defaultSlot = calculatePairSlotsFromStart("08:00")[pairNum] || "";
+                          return (
+                            <tr
+                              key={`master-day-${dayIdx}-pair-${pairNum}`}
+                              className="hover:bg-muted/20 transition-colors"
+                            >
+                              {/* Sticky Left Pair Label */}
+                              <td className="sticky left-0 z-10 bg-card border-b border-r border-border px-3 py-2 align-top">
+                                <div className="font-medium text-foreground text-xs">
+                                  {pairNum} пара
+                                </div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                                  <Clock className="h-2.5 w-2.5 shrink-0" />
+                                  <span>{defaultSlot}</span>
+                                </div>
+                              </td>
+
+                              {/* Group Cells */}
+                              {masterFilteredGroups.map((g) => {
+                                const dayObj = g.days[dayIdx];
+                                const cellLessons = (dayObj?.lessons || []).filter(
+                                  (l) => l.pairNumber === pairNum
+                                );
+                                const isDragTarget =
+                                  dragOverCell?.groupId === g.groupId &&
+                                  dragOverCell?.dayIndex === dayIdx &&
+                                  dragOverCell?.pairNum === pairNum;
+
+                                return (
+                                  <td
+                                    key={`${g.groupId}-d${dayIdx}-p${pairNum}`}
+                                    onDragOver={(e) => {
+                                      if (!canEdit) return;
+                                      e.preventDefault();
+                                      if (
+                                        dragOverCell?.groupId !== g.groupId ||
+                                        dragOverCell?.dayIndex !== dayIdx ||
+                                        dragOverCell?.pairNum !== pairNum
+                                      ) {
+                                        setDragOverCell({
+                                          groupId: g.groupId,
+                                          dayIndex: dayIdx,
+                                          pairNum,
+                                        });
+                                      }
+                                    }}
+                                    onDragLeave={() => {
+                                      if (
+                                        dragOverCell?.groupId === g.groupId &&
+                                        dragOverCell?.dayIndex === dayIdx &&
+                                        dragOverCell?.pairNum === pairNum
+                                      ) {
+                                        setDragOverCell(null);
+                                      }
+                                    }}
+                                    onDrop={(e) => handleDropOnCell(dayIdx, pairNum, e, g.groupId)}
+                                    className={`border-b border-r border-border last:border-r-0 p-1.5 align-top min-w-[175px] transition-colors ${
+                                      isDragTarget ? "bg-primary/10" : ""
+                                    }`}
+                                  >
+                                    {cellLessons.length > 0 ? (
+                                      <div className="space-y-1">
+                                        {cellLessons.map((lesson) => {
+                                          const matchesSearch =
+                                            !searchQuery ||
+                                            lesson.subject
+                                              .toLowerCase()
+                                              .includes(searchQuery.toLowerCase()) ||
+                                            lesson.room
+                                              .toLowerCase()
+                                              .includes(searchQuery.toLowerCase()) ||
+                                            (lesson.teacher || "")
+                                              .toLowerCase()
+                                              .includes(searchQuery.toLowerCase());
+
+                                          return (
+                                            <div
+                                              key={lesson.id}
+                                              draggable={canEdit}
+                                              onDragStart={(e) => {
+                                                if (!canEdit) return;
+                                                e.dataTransfer.effectAllowed = "copyMove";
+                                                setDragPayload({
+                                                  type: "cell",
+                                                  groupId: g.groupId,
+                                                  fromDayIndex: dayIdx,
+                                                  fromPairNum: pairNum,
+                                                  lesson,
+                                                });
+                                              }}
+                                              onDragEnd={() => {
+                                                setDragPayload(null);
+                                                setDragOverCell(null);
+                                              }}
+                                              onClick={() => {
+                                                if (canEdit) {
+                                                  handleOpenEditLesson(dayIdx, lesson, g.groupId);
+                                                }
+                                              }}
+                                              className={`group/mcell relative rounded-lg border p-2 transition-colors ${
+                                                canEdit
+                                                  ? "cursor-grab active:cursor-grabbing hover:border-primary"
+                                                  : ""
+                                              } ${
+                                                lesson.isSpecialEvent
+                                                  ? "bg-primary/10 border-primary/40"
+                                                  : "bg-background border-border"
+                                              } ${!matchesSearch ? "opacity-25" : ""}`}
+                                            >
+                                              <div className="flex items-start justify-between gap-1">
+                                                <div className="font-medium text-foreground text-[11px] leading-snug line-clamp-2 pr-4">
+                                                  {lesson.subject}
+                                                </div>
+                                                {canEdit && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleDeleteLesson(dayIdx, lesson.id, g.groupId);
+                                                    }}
+                                                    className="opacity-0 group-hover/mcell:opacity-100 absolute top-1.5 right-1.5 p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-opacity cursor-pointer"
+                                                    title="Удалить пару"
+                                                  >
+                                                    <Trash2 className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+
+                                              <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px] text-muted-foreground">
+                                                <span className="tabular-nums">{lesson.time}</span>
+                                                {lesson.room && (
+                                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded bg-primary/10 text-primary border border-primary/20 font-medium">
+                                                    <MapPin className="h-2.5 w-2.5" />
+                                                    {lesson.room}
+                                                  </span>
+                                                )}
+                                              </div>
+
+                                              {lesson.teacher && (
+                                                <div className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                                  {lesson.teacher}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : canEdit ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenAddLesson(dayIdx, pairNum, g.groupId)}
+                                        className="w-full h-11 rounded-lg border border-dashed border-border/70 hover:border-primary hover:bg-primary/5 flex items-center justify-center text-muted-foreground hover:text-primary transition-colors opacity-40 hover:opacity-100 cursor-pointer"
+                                        title={`Добавить ${pairNum} пару для ${g.groupName}`}
+                                      >
+                                        <Plus className="h-3.5 w-3.5" />
+                                      </button>
+                                    ) : (
+                                      <div className="h-8 flex items-center justify-center text-[10px] text-muted-foreground/30">
+                                        —
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SINGLE GROUP VIEW (Original Weekly Grid + Drag & Drop + Mobile) */}
+      {viewMode === "group" && (
+        <>
+      {/* Group KPI & Summary Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
+          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+            <BookOpen className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground">Специальность</div>
+            <div className="font-bold text-foreground text-xs truncate" title={currentGroup.specialty}>
+              {currentGroup.specialty}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
+          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+            <User className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground">Куратор группы</div>
+            <div className="font-bold text-foreground text-xs truncate" title={currentGroup.curator}>
+              {currentGroup.curator}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-2.5">
+          <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+            <Clock className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground">Режим звонков</div>
+            <div className="font-bold text-foreground text-xs truncate">
+              {currentGroup.shift} • 80 мин
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+              <CalendarDays className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] text-muted-foreground">Недельная нагрузка</div>
+              <div className="font-bold text-foreground text-xs truncate">
+                {groupStats.totalLessons} пар • {groupStats.subjectsCount} дисц.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHideEmptyPairs((prev) => !prev)}
+            className={`px-2 py-1 rounded-md border text-[10px] font-medium transition-colors shrink-0 cursor-pointer ${
+              hideEmptyPairs
+                ? "bg-primary/10 border-primary text-primary"
+                : "bg-muted/40 border-border text-muted-foreground hover:text-foreground"
+            }`}
+            title="Скрыть или показать пустые строки пар"
+          >
+            {hideEmptyPairs ? "Все пары" : "Без пустых"}
+          </button>
+        </div>
+      </div>
 
       {/* 1. Desktop & Tablet Week Table (hidden on mobile) */}
       <div className="hidden md:block bg-card border border-border rounded-xl overflow-hidden">
@@ -1950,6 +2389,8 @@ export function ScheduleView({
           );
         })()}
       </div>
+        </>
+      )}
 
       {/* Dialog 1: Add / Edit Lesson Modal */}
       <Dialog open={isLessonDialogOpen} onOpenChange={setIsLessonDialogOpen}>
@@ -1961,7 +2402,7 @@ export function ScheduleView({
                 {editingLesson?.lesson ? "Редактировать пару" : "Добавить пару в расписание"}
               </DialogTitle>
               <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30 font-medium">
-                Группа {currentGroup.groupName} ({formShift})
+                Группа {(scheduleData.find((g) => g.groupId === editingLesson?.groupId) || currentGroup).groupName} ({formShift})
               </Badge>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
