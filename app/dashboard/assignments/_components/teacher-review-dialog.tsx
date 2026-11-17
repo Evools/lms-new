@@ -51,7 +51,11 @@ interface TeacherReviewDialogProps {
   ) => void;
 }
 
-type ReviewStatusFilter = "ALL" | "SUBMITTED" | "ACCEPTED" | "NEED_REVISION";
+type ReviewStatusFilter = "ALL" | "SUBMITTED" | "ACCEPTED" | "NEED_REVISION" | "NOT_SUBMITTED";
+
+type RosterEntry =
+  | { key: string; kind: "submitted"; submission: SubmissionDTO }
+  | { key: string; kind: "missing"; studentId: string; studentName: string };
 
 const PRESET_FEEDBACKS = [
   {
@@ -132,24 +136,80 @@ export function TeacherReviewDialog({
     (s) => s.status === SubmissionStatus.NEED_REVISION
   ).length;
 
-  const getFilteredSubmissions = (subsList: SubmissionDTO[] = submissions): SubmissionDTO[] => {
-    return subsList.filter((sub) => {
-      const matchesSearch =
-        !submissionSearch ||
-        sub.studentName.toLowerCase().includes(submissionSearch.toLowerCase());
-      if (!matchesSearch) return false;
+  const submittedStudentIds = new Set(submissions.map((s) => s.studentId));
+  const missingStudents = (assignment.groupStudents || []).filter(
+    (st) => !submittedStudentIds.has(st.id)
+  );
+  const notSubmittedCount = missingStudents.length;
 
-      if (reviewFilter === "SUBMITTED") return sub.status === SubmissionStatus.SUBMITTED;
-      if (reviewFilter === "ACCEPTED") return sub.status === SubmissionStatus.ACCEPTED;
-      if (reviewFilter === "NEED_REVISION") return sub.status === SubmissionStatus.NEED_REVISION;
-      return true;
-    });
+  const buildRosterEntries = (
+    subsList: SubmissionDTO[] = submissions,
+    filter: ReviewStatusFilter = reviewFilter
+  ): RosterEntry[] => {
+    const q = submissionSearch.trim().toLowerCase();
+    const matchesQuery = (name: string) => !q || name.toLowerCase().includes(q);
+
+    const statusPriority: Record<SubmissionStatus, number> = {
+      [SubmissionStatus.SUBMITTED]: 0,
+      [SubmissionStatus.NEED_REVISION]: 1,
+      [SubmissionStatus.ACCEPTED]: 2,
+    };
+
+    const submittedEntries: RosterEntry[] = subsList
+      .filter((sub) => {
+        if (!matchesQuery(sub.studentName)) return false;
+        if (filter === "SUBMITTED") return sub.status === SubmissionStatus.SUBMITTED;
+        if (filter === "ACCEPTED") return sub.status === SubmissionStatus.ACCEPTED;
+        if (filter === "NEED_REVISION") return sub.status === SubmissionStatus.NEED_REVISION;
+        if (filter === "NOT_SUBMITTED") return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (filter === "ALL") {
+          const diff = statusPriority[a.status] - statusPriority[b.status];
+          if (diff !== 0) return diff;
+        }
+        return a.studentName.localeCompare(b.studentName, "ru");
+      })
+      .map((sub) => ({ key: sub.id, kind: "submitted", submission: sub }));
+
+    const missingEntries: RosterEntry[] =
+      filter === "NOT_SUBMITTED" || filter === "ALL"
+        ? missingStudents
+            .filter((st) => matchesQuery(st.name))
+            .map((st) => ({
+              key: `missing:${st.id}`,
+              kind: "missing",
+              studentId: st.id,
+              studentName: st.name,
+            }))
+        : [];
+
+    return [...submittedEntries, ...missingEntries];
+  };
+
+  const getFilteredSubmissions = (subsList: SubmissionDTO[] = submissions): SubmissionDTO[] => {
+    return buildRosterEntries(subsList, reviewFilter)
+      .filter((e): e is Extract<RosterEntry, { kind: "submitted" }> => e.kind === "submitted")
+      .map((e) => e.submission);
   };
 
   const handleCopyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  const handleCopyMissingStudents = async () => {
+    if (missingStudents.length === 0) return;
+    const lines = missingStudents.map((st, idx) => `${idx + 1}. ${st.name}`);
+    const text = `Не сдали «${assignment.title}» (${missingStudents.length} чел.):\n${lines.join("\n")}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.add({ title: `Список не сдавших скопирован (${missingStudents.length} чел.)`, type: "success" });
+    } catch {
+      toast.add({ title: "Не удалось скопировать список", type: "error" });
+    }
   };
 
   const handleReviewSubmission = (submissionId: string, status: SubmissionStatus) => {
@@ -230,21 +290,11 @@ export function TeacherReviewDialog({
 
   const handleFilterChange = (newFilter: ReviewStatusFilter) => {
     setReviewFilter(newFilter);
-    const nextList = submissions.filter((sub) => {
-      const matchesSearch =
-        !submissionSearch ||
-        sub.studentName.toLowerCase().includes(submissionSearch.toLowerCase());
-      if (!matchesSearch) return false;
-
-      if (newFilter === "SUBMITTED") return sub.status === SubmissionStatus.SUBMITTED;
-      if (newFilter === "ACCEPTED") return sub.status === SubmissionStatus.ACCEPTED;
-      if (newFilter === "NEED_REVISION") return sub.status === SubmissionStatus.NEED_REVISION;
-      return true;
-    });
-    setActiveSubmissionId(nextList[0]?.id || null);
+    const nextList = buildRosterEntries(submissions, newFilter);
+    setActiveSubmissionId(nextList[0]?.key || null);
   };
 
-  const filteredSubmissions = getFilteredSubmissions();
+  const filteredEntries = buildRosterEntries();
 
   return (
     <Dialog open={assignment !== null} onOpenChange={(open) => !open && onClose()}>
@@ -307,24 +357,43 @@ export function TeacherReviewDialog({
 
             <button
               type="button"
+              onClick={() => handleFilterChange("NOT_SUBMITTED")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                reviewFilter === "NOT_SUBMITTED"
+                  ? "bg-background text-primary border border-border"
+                  : "text-muted-foreground hover:text-foreground border border-transparent"
+              }`}
+            >
+              Не сдали ({notSubmittedCount})
+            </button>
+
+            <button
+              type="button"
               onClick={() => handleFilterChange("ALL")}
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 reviewFilter === "ALL"
-                  ? "bg-background text-primary shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-background text-primary border border-border"
+                  : "text-muted-foreground hover:text-foreground border border-transparent"
               }`}
             >
-              Все ({submissions.length})
+              Весь список ({submissions.length + notSubmittedCount})
             </button>
           </div>
 
           {/* Progress Bar */}
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium shrink-0 pt-1 sm:pt-0">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground font-medium shrink-0 pt-1 sm:pt-0">
+            <span>
+              Сдали:{" "}
+              <strong className="font-medium text-foreground">
+                {submissions.length}/{assignment.totalStudents}
+              </strong>
+            </span>
+            <span className="text-border">•</span>
             <span>Проверено:</span>
-            <span className="font-semibold text-foreground">
+            <span className="font-medium text-foreground">
               {acceptedCount}/{submissions.length}
             </span>
-            <div className="w-20 bg-muted/80 h-2 rounded-full overflow-hidden border ml-1">
+            <div className="w-20 bg-muted/80 h-2 rounded-full overflow-hidden border ml-0.5">
               <div
                 className="bg-primary h-full transition-all duration-300"
                 style={{
@@ -353,9 +422,49 @@ export function TeacherReviewDialog({
                 />
               </div>
 
+              {missingStudents.length > 0 &&
+                (reviewFilter === "NOT_SUBMITTED" || reviewFilter === "ALL") && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleCopyMissingStudents()}
+                    className="h-7 w-full justify-center gap-1.5 text-[11px] font-medium shrink-0 cursor-pointer"
+                  >
+                    <Copy className="h-3 w-3 text-primary" />
+                    Скопировать не сдавших ({missingStudents.length})
+                  </Button>
+                )}
+
               <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-0.5">
-                {filteredSubmissions.map((sub) => {
-                  const isActive = activeSubmissionId === sub.id;
+                {filteredEntries.map((entry) => {
+                  const isActive = activeSubmissionId === entry.key;
+                  if (entry.kind === "missing") {
+                    return (
+                      <div
+                        key={entry.key}
+                        onClick={() => setActiveSubmissionId(entry.key)}
+                        className={`p-2 rounded-lg border text-xs cursor-pointer transition-all flex items-center justify-between gap-1.5 ${
+                          isActive
+                            ? "border-primary bg-primary/10 text-primary font-medium"
+                            : "border-border bg-card hover:bg-muted/40 text-muted-foreground font-medium"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-bold text-[10px] shrink-0">
+                            {entry.studentName ? entry.studentName[0].toUpperCase() : "С"}
+                          </div>
+                          <span className="truncate text-[11px]">{entry.studentName}</span>
+                        </div>
+
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/60 text-muted-foreground shrink-0">
+                          Не сдал
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  const sub = entry.submission;
                   return (
                     <div
                       key={sub.id}
@@ -373,20 +482,28 @@ export function TeacherReviewDialog({
                         <span className="truncate text-[11px]">{sub.studentName}</span>
                       </div>
 
-                      <div
-                        className={`h-2 w-2 rounded-full shrink-0 ${
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${
                           sub.status === SubmissionStatus.ACCEPTED
-                            ? "bg-primary"
+                            ? "border-primary/30 bg-primary/10 text-primary"
                             : sub.status === SubmissionStatus.NEED_REVISION
-                              ? "bg-destructive"
-                              : "bg-primary/50 animate-pulse"
+                              ? "border-destructive/30 bg-destructive/10 text-destructive"
+                              : "border-primary/30 bg-background text-primary"
                         }`}
-                      />
+                      >
+                        {sub.status === SubmissionStatus.ACCEPTED
+                          ? sub.grade != null
+                            ? `Принято · ${sub.grade}`
+                            : "Принято"
+                          : sub.status === SubmissionStatus.NEED_REVISION
+                            ? "Доработка"
+                            : "Проверка"}
+                      </span>
                     </div>
                   );
                 })}
 
-                {filteredSubmissions.length === 0 && (
+                {filteredEntries.length === 0 && (
                   <div className="py-6 text-center text-muted-foreground text-[11px]">
                     По данному фильтру студенты не найдены
                   </div>
@@ -397,11 +514,11 @@ export function TeacherReviewDialog({
             {/* Right Panel: Focused Active Student Card */}
             <div className="md:col-span-8 lg:col-span-9 border rounded-xl bg-card flex flex-col h-full min-h-0 overflow-hidden">
               {(() => {
-                const activeSub =
-                  filteredSubmissions.find((s) => s.id === activeSubmissionId) ||
-                  filteredSubmissions[0];
+                const activeEntry =
+                  filteredEntries.find((e) => e.key === activeSubmissionId) ||
+                  filteredEntries[0];
 
-                if (!activeSub) {
+                if (!activeEntry) {
                   return (
                     <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center text-muted-foreground text-xs space-y-2 my-auto p-4">
                       <CheckCheck className="h-10 w-10 text-primary/40 mx-auto" />
@@ -414,6 +531,49 @@ export function TeacherReviewDialog({
                     </div>
                   );
                 }
+
+                if (activeEntry.kind === "missing") {
+                  return (
+                    <div className="flex flex-col h-full">
+                      <div className="flex items-center justify-between gap-2 p-3 border-b bg-card shrink-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-8 w-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-bold text-xs shrink-0">
+                            {activeEntry.studentName
+                              ? activeEntry.studentName[0].toUpperCase()
+                              : "С"}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-foreground text-xs truncate">
+                              {activeEntry.studentName}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              Работа ещё не отправлена
+                            </div>
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] border-border bg-muted/50 text-muted-foreground font-medium"
+                        >
+                          Не сдано
+                        </Badge>
+                      </div>
+
+                      <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground text-xs space-y-2 p-6">
+                        <Clock className="h-9 w-9 text-muted-foreground/50 mx-auto" />
+                        <p className="font-medium text-foreground">
+                          Студент ещё не сдал это задание
+                        </p>
+                        <p className="text-[11px] max-w-sm">
+                          Как только {activeEntry.studentName} отправит решение, оно появится во
+                          вкладке «На проверке».
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                const activeSub = activeEntry.submission;
 
                 return (
                   <>

@@ -46,6 +46,7 @@ export interface AssignmentDTO {
   acceptedCount: number;
   needRevisionCount: number;
   totalStudents: number;
+  groupStudents?: { id: string; name: string }[];
   userSubmission?: SubmissionDTO | null;
   submissions: SubmissionDTO[];
 }
@@ -130,10 +131,26 @@ export async function getAssignmentsDataAction(groupId?: string) {
       teacherName: gs.teacher.name,
     }));
 
-    // 3. Count students in selected group
-    const totalStudentsInGroup = await prisma.groupStudent.count({
-      where: { groupId: selectedGroupId },
-    });
+    // 3. Fetch students in selected group (names only for staff so review dialog can show who didn't submit)
+    let groupStudents: { id: string; name: string }[] | undefined;
+    let totalStudentsInGroup = 0;
+
+    if (role !== "STUDENT") {
+      const groupStudentRows = await prisma.groupStudent.findMany({
+        where: { groupId: selectedGroupId },
+        select: { student: { select: { id: true, name: true } } },
+        orderBy: { student: { name: "asc" } },
+      });
+      groupStudents = groupStudentRows.map((row) => ({
+        id: row.student.id,
+        name: row.student.name,
+      }));
+      totalStudentsInGroup = groupStudents.length;
+    } else {
+      totalStudentsInGroup = await prisma.groupStudent.count({
+        where: { groupId: selectedGroupId },
+      });
+    }
 
     // 4. Fetch assignments for this group and accessible subjects
     const assignmentWhere: Record<string, unknown> = {
@@ -206,6 +223,7 @@ export async function getAssignmentsDataAction(groupId?: string) {
         acceptedCount,
         needRevisionCount,
         totalStudents: totalStudentsInGroup,
+        groupStudents,
         userSubmission: userSub,
         submissions: submissionsList,
       };
