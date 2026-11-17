@@ -9,6 +9,7 @@ import {
   FolderOpen,
   Globe,
   Image as ImageIcon,
+  Loader2,
   Lock,
   Search,
   Trash2,
@@ -112,9 +113,11 @@ export function ImagesAdminView({
   const [uploadCategory, setUploadCategory] = useState<string>("material");
   const [uploadVisibility, setUploadVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [isLoading, setIsLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
-    null,
-  );
+  const [uploadProgress, setUploadProgress] = useState<{
+    current: number;
+    total: number;
+    fileName?: string;
+  } | null>(null);
   const [previewImage, setPreviewImage] = useState<StoredImageDTO | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StoredImageDTO | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -188,8 +191,8 @@ export function ImagesAdminView({
     let lastError: string | null = null;
 
     for (let i = 0; i < list.length; i++) {
-      setUploadProgress({ current: i + 1, total: list.length });
       const file = list[i];
+      setUploadProgress({ current: i + 1, total: list.length, fileName: file.name });
       const formData = new FormData();
       formData.append("file", file);
       formData.append("category", uploadCategory);
@@ -307,31 +310,31 @@ export function ImagesAdminView({
     if (ids.length === 0) return;
 
     setIsBulkDeleting(true);
-    let deletedCount = 0;
-    let firstError: string | null = null;
-    const deletedSet = new Set<string>();
-
     try {
-      for (const id of ids) {
-        try {
-          const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
-          const data = (await res.json()) as { success?: boolean; error?: string };
-          if (res.ok) {
-            deletedCount += 1;
-            deletedSet.add(id);
-          } else if (!firstError) {
-            firstError = data.error ?? "Не удалось удалить часть изображений";
-          }
-        } catch {
-          if (!firstError) {
-            firstError = "Ошибка сети при удалении";
-          }
-        }
+      const res = await fetch("/api/images/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = (await res.json()) as {
+        deletedIds?: string[];
+        blockedIds?: string[];
+        forbiddenIds?: string[];
+        error?: string;
+      };
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Ошибка при пакетном удалении");
       }
 
-      if (deletedCount > 0) {
+      const deletedIds = data.deletedIds ?? [];
+      const blockedIds = data.blockedIds ?? [];
+      const forbiddenIds = data.forbiddenIds ?? [];
+      const deletedSet = new Set(deletedIds);
+
+      if (deletedIds.length > 0) {
         toast.add({
-          title: `Удалено изображений: ${deletedCount}`,
+          title: `Удалено изображений: ${deletedIds.length}`,
           type: "success",
         });
         setSelectedIds((prev) => {
@@ -345,14 +348,25 @@ export function ImagesAdminView({
         await fetchImages(query, category, visibility);
       }
 
-      if (firstError) {
+      if (blockedIds.length > 0) {
         toast.add({
-          title: firstError,
+          title: `Не удалено (используются в материалах/профилях): ${blockedIds.length}`,
+          type: "error",
+        });
+      }
+      if (forbiddenIds.length > 0) {
+        toast.add({
+          title: `Нет прав на удаление: ${forbiddenIds.length}`,
           type: "error",
         });
       }
 
       setBulkDeleteOpen(false);
+    } catch (err) {
+      toast.add({
+        title: err instanceof Error ? err.message : "Ошибка сети при удалении",
+        type: "error",
+      });
     } finally {
       setIsBulkDeleting(false);
     }
@@ -519,7 +533,11 @@ export function ImagesAdminView({
                 disabled={uploadProgress !== null}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="h-3.5 w-3.5" />
+                {uploadProgress ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
                 {uploadProgress
                   ? `Загрузка ${uploadProgress.current}/${uploadProgress.total}...`
                   : "Загрузить файлы"}
@@ -528,6 +546,34 @@ export function ImagesAdminView({
           </div>
         </CardContent>
       </Card>
+
+      {/* Индикатор прогресса загрузки */}
+      {uploadProgress && (
+        <Card size="sm" className="py-2.5 border-primary/40 bg-primary/5">
+          <CardContent className="px-3 space-y-2">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                <span className="font-medium text-foreground truncate">
+                  Загрузка и оптимизация в WebP ({uploadProgress.current} из {uploadProgress.total})
+                  {uploadProgress.fileName ? `: ${uploadProgress.fileName}` : ""}
+                </span>
+              </div>
+              <span className="font-mono text-[11px] font-medium text-primary shrink-0">
+                {Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
+              </span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden border border-border">
+              <div
+                className="h-full bg-primary transition-all duration-200"
+                style={{
+                  width: `${Math.round((uploadProgress.current / uploadProgress.total) * 100)}%`,
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Панель массового выделения */}
       {images.length > 0 && (

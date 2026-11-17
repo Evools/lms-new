@@ -23,16 +23,41 @@ export interface ImageQuotaUsage {
   maxFiles: number | null;
 }
 
+async function withDbRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    const msg = err instanceof Error ? err.message : "";
+    if (code === "P1001" || msg.includes("Closed") || msg.includes("Can't reach database")) {
+      await new Promise((r) => setTimeout(r, 150));
+      return await fn();
+    }
+    throw err;
+  }
+}
+
 export async function getUserImageQuotaUsage(
   userId: string,
   userRole: string
 ): Promise<ImageQuotaUsage> {
   const limits = getImageQuotaForRole(userRole);
-  const agg = await prisma.storedImage.aggregate({
-    where: { uploadedById: userId },
-    _sum: { size: true },
-    _count: { id: true },
-  });
+  if (limits.maxBytes === null && limits.maxFiles === null) {
+    return {
+      usedBytes: 0,
+      usedFiles: 0,
+      maxBytes: null,
+      maxFiles: null,
+    };
+  }
+
+  const agg = await withDbRetry(() =>
+    prisma.storedImage.aggregate({
+      where: { uploadedById: userId },
+      _sum: { size: true },
+      _count: { id: true },
+    })
+  );
 
   return {
     usedBytes: agg._sum.size ?? 0,
@@ -275,14 +300,16 @@ export async function listImagesService(params: {
     });
   }
 
-  const rows = await prisma.storedImage.findMany({
-    where: whereClauses.length > 0 ? { AND: whereClauses } : undefined,
-    include: {
-      uploadedBy: { select: { name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: Math.min(Math.max(limit, 1), 120),
-  });
+  const rows = await withDbRetry(() =>
+    prisma.storedImage.findMany({
+      where: whereClauses.length > 0 ? { AND: whereClauses } : undefined,
+      include: {
+        uploadedBy: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(Math.max(limit, 1), 120),
+    })
+  );
 
   return rows.map(mapStoredImageToDTO);
 }
@@ -414,5 +441,131 @@ export async function deleteImageService(params: {
   await prisma.storedImage.delete({ where: { id: record.id } });
 
   return { success: true };
+}
+
+export interface BulkDeleteImagesResult {
+  deletedIds: string[];
+  blockedIds: string[];
+  forbiddenIds: string[];
+  notFoundCount: number;
+}
+
+/**
+ * Bulk-delete images in a constant number of DB queries (1 fetch + 5 usage checks + 1 deleteMany)
+ * instead of N*7 individual queries.
+ */
+export async function deleteImagesBulkService(params: {
+  imageIds: string[];
+  userId: string;
+  userRole: string;
+}): Promise<BulkDeleteImagesResult> {
+  const uniqueIds = Array.from(
+    new Set(params.imageIds.map((id) => id.trim()).filter(Boolean))
+  ).slice(0, 100);
+
+  if (uniqueIds.length === 0) {
+    return { deletedIds: [], blockedIds: [], forbiddenIds: [], notFoundCount: 0 };
+  }
+
+  const records = await prisma.storedImage.findMany({
+    where: { id: { in: uniqueIds } },
+  });
+
+  const notFoundCount = Math.max(0, uniqueIds.length - records.length);
+  const forbiddenIds: string[] = [];
+  const allowedRecords: typeof records = [];
+
+  for (const record of records) {
+    if (params.userRole === "ADMIN" || record.uploadedById === params.userId) {
+      allowedRecords.push(record);
+    } else {
+      forbiddenIds.push(record.id);
+    }
+  }
+
+  if (allowedRecords.length === 0) {
+    return { deletedIds: [], blockedIds: [], forbiddenIds, notFoundCount };
+  }
+
+  const needles = allowedRecords.map((r) => `/api/images/${r.id}`);
+  const [materials, assignments, announcements, topics, users] = await Promise.all([
+    prisma.material.findMany({
+      where: {
+        OR: needles.flatMap((n) => [
+          { content: { contains: n } },
+          { fileUrl: { contains: n } },
+        ]),
+      },
+      select: { content: true, fileUrl: true },
+    }),
+    prisma.assignment.findMany({
+      where: {
+        OR: needles.flatMap((n) => [
+          { description: { contains: n } },
+          { fileUrl: { contains: n } },
+        ]),
+      },
+      select: { description: true, fileUrl: true },
+    }),
+    prisma.announcement.findMany({
+      where: { OR: needles.map((n) => ({ content: { contains: n } })) },
+      select: { content: true },
+    }),
+    prisma.topic.findMany({
+      where: { OR: needles.map((n) => ({ description: { contains: n } })) },
+      select: { description: true },
+    }),
+    prisma.user.findMany({
+      where: { OR: needles.map((n) => ({ avatar: { contains: n } })) },
+      select: { avatar: true },
+    }),
+  ]);
+
+  const haystackChunks: string[] = [];
+  materials.forEach((m) => {
+    if (m.content) haystackChunks.push(m.content);
+    if (m.fileUrl) haystackChunks.push(m.fileUrl);
+  });
+  assignments.forEach((a) => {
+    if (a.description) haystackChunks.push(a.description);
+    if (a.fileUrl) haystackChunks.push(a.fileUrl);
+  });
+  announcements.forEach((a) => {
+    if (a.content) haystackChunks.push(a.content);
+  });
+  topics.forEach((t) => {
+    if (t.description) haystackChunks.push(t.description);
+  });
+  users.forEach((u) => {
+    if (u.avatar) haystackChunks.push(u.avatar);
+  });
+
+  const combinedHaystack = haystackChunks.join("\n");
+  const blockedIds: string[] = [];
+  const deletableRecords: typeof allowedRecords = [];
+
+  for (const record of allowedRecords) {
+    if (combinedHaystack.includes(`/api/images/${record.id}`)) {
+      blockedIds.push(record.id);
+    } else {
+      deletableRecords.push(record);
+    }
+  }
+
+  if (deletableRecords.length > 0) {
+    await Promise.all(
+      deletableRecords.map((record) => deleteImageFromStorage(record.storageKey, record.isR2))
+    );
+    await prisma.storedImage.deleteMany({
+      where: { id: { in: deletableRecords.map((r) => r.id) } },
+    });
+  }
+
+  return {
+    deletedIds: deletableRecords.map((r) => r.id),
+    blockedIds,
+    forbiddenIds,
+    notFoundCount,
+  };
 }
 

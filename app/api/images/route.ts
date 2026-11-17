@@ -26,17 +26,15 @@ export async function GET(req: NextRequest) {
         : undefined;
 
     const role = session.user.role || "STUDENT";
-    const [images, quota] = await Promise.all([
-      listImagesService({
-        userId: session.user.id,
-        userRole: role,
-        query,
-        category,
-        visibility,
-        limit: Number.isFinite(limitParam) ? limitParam : 60,
-      }),
-      getUserImageQuotaUsage(session.user.id, role),
-    ]);
+    const images = await listImagesService({
+      userId: session.user.id,
+      userRole: role,
+      query,
+      category,
+      visibility,
+      limit: Number.isFinite(limitParam) ? limitParam : 60,
+    });
+    const quota = await getUserImageQuotaUsage(session.user.id, role);
 
     return NextResponse.json({ images, quota });
   } catch (error) {
