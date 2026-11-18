@@ -15,6 +15,19 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import {
   ChevronLeft,
@@ -51,12 +64,17 @@ import {
   HelpCircle,
   Code2,
   EyeOff,
+  Image as ImageIcon,
+  Upload,
+  FolderOpen,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GroupItemDTO, GroupSubjectDTO, createAssignmentAction } from "@/app/dashboard/assignments/actions";
 import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
 import { FileUploadZone } from "@/components/file-upload-zone";
+import { ImageLibraryDialog, type LibraryImageItem } from "@/components/images/image-library-dialog";
 
 export interface GroupOptionDTO {
   id: string;
@@ -190,6 +208,168 @@ export function CreateAssignmentView({
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestDescriptionRef = useRef(description);
+  latestDescriptionRef.current = description;
+
+  const cursorPosRef = useRef<{
+    start: number;
+    end: number;
+    scrollTop: number;
+    windowScrollX: number;
+    windowScrollY: number;
+    snapshotValue: string;
+  }>({
+    start: 0,
+    end: 0,
+    scrollTop: 0,
+    windowScrollX: 0,
+    windowScrollY: 0,
+    snapshotValue: description,
+  });
+
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
+  const [imageUrlInput, setImageUrlInput] = useState("https://");
+  const [imageAltInput, setImageAltInput] = useState("Описание изображения");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const captureCursorPosition = () => {
+    const textarea = textareaRef.current;
+    const currentValue = latestDescriptionRef.current;
+    const windowScrollX = typeof window !== "undefined" ? window.scrollX : 0;
+    const windowScrollY = typeof window !== "undefined" ? window.scrollY : 0;
+
+    if (textarea) {
+      cursorPosRef.current = {
+        start: textarea.selectionStart ?? currentValue.length,
+        end: textarea.selectionEnd ?? currentValue.length,
+        scrollTop: textarea.scrollTop,
+        windowScrollX,
+        windowScrollY,
+        snapshotValue: currentValue,
+      };
+    } else {
+      cursorPosRef.current = {
+        start: currentValue.length,
+        end: currentValue.length,
+        scrollTop: 0,
+        windowScrollX,
+        windowScrollY,
+        snapshotValue: currentValue,
+      };
+    }
+  };
+
+  const insertTextAtSavedCursor = (textToInsert: string) => {
+    const currentValue = latestDescriptionRef.current;
+    const saved = cursorPosRef.current;
+
+    let start = Math.min(saved.start, currentValue.length);
+    let end = Math.min(saved.end, currentValue.length);
+
+    if (saved.snapshotValue !== currentValue) {
+      const oldText = saved.snapshotValue;
+      let commonPrefix = 0;
+      const minLen = Math.min(oldText.length, currentValue.length);
+      while (commonPrefix < minLen && oldText[commonPrefix] === currentValue[commonPrefix]) {
+        commonPrefix++;
+      }
+      if (commonPrefix < saved.start) {
+        const delta = currentValue.length - oldText.length;
+        start = Math.max(0, Math.min(currentValue.length, saved.start + delta));
+        end = Math.max(start, Math.min(currentValue.length, saved.end + delta));
+      }
+    }
+
+    const newText = currentValue.substring(0, start) + textToInsert + currentValue.substring(end);
+    latestDescriptionRef.current = newText;
+    setDescription(newText);
+
+    const nextCursor = start + textToInsert.length;
+    const targetScrollTop = textareaRef.current ? textareaRef.current.scrollTop : saved.scrollTop;
+    const targetWindowX = typeof window !== "undefined" ? window.scrollX : saved.windowScrollX;
+    const targetWindowY = typeof window !== "undefined" ? window.scrollY : saved.windowScrollY;
+
+    cursorPosRef.current = {
+      start: nextCursor,
+      end: nextCursor,
+      scrollTop: targetScrollTop,
+      windowScrollX: targetWindowX,
+      windowScrollY: targetWindowY,
+      snapshotValue: newText,
+    };
+
+    const restoreFocusAndScroll = () => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus({ preventScroll: true });
+        el.setSelectionRange(nextCursor, nextCursor);
+        el.scrollTop = targetScrollTop;
+      }
+      if (typeof window !== "undefined") {
+        window.scrollTo({
+          left: targetWindowX,
+          top: targetWindowY,
+          behavior: "instant" as ScrollBehavior,
+        });
+      }
+    };
+
+    requestAnimationFrame(() => {
+      restoreFocusAndScroll();
+      requestAnimationFrame(restoreFocusAndScroll);
+    });
+  };
+
+  const handleUploadAndInsertImage = async (file: File) => {
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", "assignment");
+      formData.append("visibility", "PUBLIC");
+
+      const res = await fetch("/api/images", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.image) {
+        toast.add({ title: data.error || "Ошибка загрузки изображения", type: "error" });
+        return;
+      }
+
+      const img: LibraryImageItem = data.image;
+      const alt = (img.title || "Описание изображения").replace(/[\[\]]/g, "");
+      insertTextAtSavedCursor(`![${alt}](${img.url})`);
+      toast.add({ title: "Изображение загружено и вставлено", type: "success" });
+    } catch {
+      toast.add({ title: "Ошибка сети при загрузке изображения", type: "error" });
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
 
   // Group change handler
   const handleGroupChange = (gId: string) => {
@@ -669,6 +849,55 @@ export function CreateAssignmentView({
                     >
                       <Link2 className="h-3.5 w-3.5" />
                     </Button>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            onMouseDown={captureCursorPosition}
+                            className="h-7 w-7 p-0 shadow-none"
+                            title="Вставить изображение (или ПКМ в редакторе)"
+                            disabled={isUploadingImage}
+                          />
+                        }
+                      >
+                        {isUploadingImage ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        ) : (
+                          <ImageIcon className="h-3.5 w-3.5" />
+                        )}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-60 text-xs p-1">
+                        <DropdownMenuItem
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
+                        >
+                          <Upload className="h-3.5 w-3.5 text-primary" />
+                          <span>Загрузить и вставить изображение</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setIsLibraryOpen(true)}
+                          className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
+                        >
+                          <FolderOpen className="h-3.5 w-3.5 text-primary" />
+                          <span>Вставить из загруженных</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setImageUrlInput("https://");
+                            setImageAltInput("Описание изображения");
+                            setIsUrlDialogOpen(true);
+                          }}
+                          className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
+                        >
+                          <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span>Вставить по ссылке</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 )}
               </div>
@@ -682,6 +911,20 @@ export function CreateAssignmentView({
                     value={description}
                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    onMouseDown={(e) => {
+                      if (e.button === 2) {
+                        captureCursorPosition();
+                      }
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      captureCursorPosition();
+                      const menuW = 248;
+                      const menuH = 124;
+                      const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
+                      const y = Math.min(e.clientY, window.innerHeight - menuH - 8);
+                      setContextMenu({ x: Math.max(8, x), y: Math.max(8, y) });
+                    }}
                     className="text-xs bg-background min-h-[280px] font-mono leading-relaxed p-3 border focus:ring-primary shadow-none"
                   />
                   {/* Live Text Stats Bar */}
@@ -895,6 +1138,134 @@ export function CreateAssignmentView({
           </div>
         </div>
       </div>
+
+      {/* Hidden File Input for Upload & Insert */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            void handleUploadAndInsertImage(file);
+          }
+        }}
+      />
+
+      {/* Right-Click Context Menu inside Description Editor */}
+      {contextMenu && (
+        <div
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-50 w-60 rounded-lg border border-border bg-popover p-1 text-xs text-popover-foreground"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenu(null);
+              fileInputRef.current?.click();
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted text-left font-medium transition-colors cursor-pointer"
+          >
+            <Upload className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span>Загрузить и вставить изображение</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenu(null);
+              setIsLibraryOpen(true);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted text-left font-medium transition-colors cursor-pointer"
+          >
+            <FolderOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span>Вставить из загруженных</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenu(null);
+              setImageUrlInput("https://");
+              setImageAltInput("Описание изображения");
+              setIsUrlDialogOpen(true);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted text-left font-medium transition-colors cursor-pointer"
+          >
+            <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span>Вставить по ссылке</span>
+          </button>
+        </div>
+      )}
+
+      {/* Image Library Dialog */}
+      <ImageLibraryDialog
+        open={isLibraryOpen}
+        onOpenChange={setIsLibraryOpen}
+        category="assignment"
+        visibility="PUBLIC"
+        onSelect={(img) => {
+          const alt = (img.title || "Описание изображения").replace(/[\[\]]/g, "");
+          insertTextAtSavedCursor(`![${alt}](${img.url})`);
+        }}
+      />
+
+      {/* Insert Image by URL Dialog */}
+      <Dialog open={isUrlDialogOpen} onOpenChange={setIsUrlDialogOpen}>
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px] border border-border">
+          <DialogHeader className="p-0 pb-2 border-b border-border gap-1 text-left">
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <ImageIcon className="h-4 w-4 text-primary" />
+              <span>Вставить изображение по ссылке</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">URL изображения *</label>
+              <Input
+                value={imageUrlInput}
+                onChange={(e) => setImageUrlInput(e.target.value)}
+                placeholder="https://example.com/image.webp"
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium text-foreground text-xs">Описание (alt)</label>
+              <Input
+                value={imageAltInput}
+                onChange={(e) => setImageAltInput(e.target.value)}
+                placeholder="Описание изображения"
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+          <DialogFooter className="p-0 pt-2 border-t border-border flex flex-row justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={() => setIsUrlDialogOpen(false)}
+              className="h-7 px-2.5 text-xs"
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              disabled={!imageUrlInput.trim() || imageUrlInput.trim() === "https://"}
+              onClick={() => {
+                const url = imageUrlInput.trim();
+                const alt = (imageAltInput.trim() || "Описание изображения").replace(/[\[\]]/g, "");
+                insertTextAtSavedCursor(`![${alt}](${url})`);
+                setIsUrlDialogOpen(false);
+              }}
+              className="h-7 px-3 text-xs font-medium cursor-pointer"
+            >
+              Вставить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

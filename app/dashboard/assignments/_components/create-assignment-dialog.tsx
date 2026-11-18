@@ -3,7 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichWysiwygEditor } from "@/components/rich-wysiwyg-editor";
 import { toast } from "@/components/ui/toast";
 import {
   Dialog,
@@ -83,7 +83,7 @@ export function CreateAssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[600px] max-h-[88vh] flex flex-col">
+      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[760px] max-h-[90vh] flex flex-col">
         <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left shrink-0">
           <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
             <Plus className="h-4 w-4 text-primary" /> Публикация нового задания
@@ -137,13 +137,13 @@ export function CreateAssignmentDialog({
 
           <div className="space-y-1">
             <label className="font-medium text-foreground text-xs">Описание и требования</label>
-            <Textarea
-              placeholder="Подробное описание задачи..."
+            <RichWysiwygEditor
               value={newDescription}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setNewDescription(e.target.value)
-              }
-              className="text-xs bg-background min-h-[100px]"
+              onChange={setNewDescription}
+              placeholder="Подробное описание задачи... (ПКМ — вставить или загрузить изображение)"
+              minHeight="220px"
+              imageCategory="assignment"
+              showStats={false}
             />
           </div>
 

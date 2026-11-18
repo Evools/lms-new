@@ -66,6 +66,7 @@ interface RichWysiwygEditorProps {
   label?: string;
   templates?: WysiwygTemplate[];
   showStats?: boolean;
+  imageCategory?: string;
   onSubmit?: () => void;
 }
 
@@ -79,6 +80,7 @@ export function RichWysiwygEditor({
   label,
   templates,
   showStats = true,
+  imageCategory = "material",
   onSubmit,
 }: RichWysiwygEditorProps) {
   const [mode, setMode] = useState<EditorMode>("EDIT");
@@ -204,7 +206,7 @@ export function RichWysiwygEditor({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("category", "material");
+      formData.append("category", imageCategory);
       formData.append("visibility", "PUBLIC");
 
       const res = await fetch("/api/images", {
@@ -875,7 +877,7 @@ export function RichWysiwygEditor({
       <ImageLibraryDialog
         open={isLibraryOpen}
         onOpenChange={setIsLibraryOpen}
-        category="material"
+        category={imageCategory}
         visibility="PUBLIC"
         onSelect={(img) => {
           const alt = (img.title || "Описание изображения").replace(/[\[\]]/g, "");
