@@ -1,13 +1,11 @@
 "use client";
 
-import React, { useState, useTransition, useRef } from "react";
+import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -15,19 +13,6 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import {
   ChevronLeft,
@@ -35,46 +20,25 @@ import {
   Building2,
   BookOpen,
   Calendar,
-  Bold,
-  Italic,
-  Heading,
-  List,
-  ListOrdered,
-  Code,
-  Quote,
-  Link2,
   Paperclip,
   PlusCircle,
   Trash2,
   Eye,
-  Edit3,
-  CheckCircle2,
   AlertCircle,
   Sparkles,
   Send,
-  Strikethrough,
-  Minus,
-  CheckSquare,
   Award,
   ExternalLink,
   FileText,
-  Clock,
-  LayoutTemplate,
   FolderGit2,
   HelpCircle,
   Code2,
   EyeOff,
-  Image as ImageIcon,
-  Upload,
-  FolderOpen,
-  Loader2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { GroupItemDTO, GroupSubjectDTO, createAssignmentAction } from "@/app/dashboard/assignments/actions";
-import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
 import { FileUploadZone } from "@/components/file-upload-zone";
-import { ImageLibraryDialog, type LibraryImageItem } from "@/components/images/image-library-dialog";
+import { RichWysiwygEditor } from "@/components/rich-wysiwyg-editor";
 
 export interface GroupOptionDTO {
   id: string;
@@ -202,361 +166,15 @@ export function CreateAssignmentView({
   const [dueDate, setDueDate] = useState<string>("");
   const [maxScore, setMaxScore] = useState<string>("100");
   const [isPublished, setIsPublished] = useState<boolean>(true);
-  const [mode, setMode] = useState<"EDIT" | "PREVIEW">("EDIT");
 
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([""]);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const latestDescriptionRef = useRef(description);
-  latestDescriptionRef.current = description;
-
-  const cursorPosRef = useRef<{
-    start: number;
-    end: number;
-    scrollTop: number;
-    windowScrollX: number;
-    windowScrollY: number;
-    snapshotValue: string;
-  }>({
-    start: 0,
-    end: 0,
-    scrollTop: 0,
-    windowScrollX: 0,
-    windowScrollY: 0,
-    snapshotValue: description,
-  });
-
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
-  const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
-  const [imageUrlInput, setImageUrlInput] = useState("https://");
-  const [imageAltInput, setImageAltInput] = useState("Описание изображения");
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-
-  const captureCursorPosition = () => {
-    const textarea = textareaRef.current;
-    const currentValue = latestDescriptionRef.current;
-    const windowScrollX = typeof window !== "undefined" ? window.scrollX : 0;
-    const windowScrollY = typeof window !== "undefined" ? window.scrollY : 0;
-
-    if (textarea) {
-      cursorPosRef.current = {
-        start: textarea.selectionStart ?? currentValue.length,
-        end: textarea.selectionEnd ?? currentValue.length,
-        scrollTop: textarea.scrollTop,
-        windowScrollX,
-        windowScrollY,
-        snapshotValue: currentValue,
-      };
-    } else {
-      cursorPosRef.current = {
-        start: currentValue.length,
-        end: currentValue.length,
-        scrollTop: 0,
-        windowScrollX,
-        windowScrollY,
-        snapshotValue: currentValue,
-      };
-    }
-  };
-
-  const insertTextAtSavedCursor = (textToInsert: string) => {
-    const currentValue = latestDescriptionRef.current;
-    const saved = cursorPosRef.current;
-
-    let start = Math.min(saved.start, currentValue.length);
-    let end = Math.min(saved.end, currentValue.length);
-
-    if (saved.snapshotValue !== currentValue) {
-      const oldText = saved.snapshotValue;
-      let commonPrefix = 0;
-      const minLen = Math.min(oldText.length, currentValue.length);
-      while (commonPrefix < minLen && oldText[commonPrefix] === currentValue[commonPrefix]) {
-        commonPrefix++;
-      }
-      if (commonPrefix < saved.start) {
-        const delta = currentValue.length - oldText.length;
-        start = Math.max(0, Math.min(currentValue.length, saved.start + delta));
-        end = Math.max(start, Math.min(currentValue.length, saved.end + delta));
-      }
-    }
-
-    const newText = currentValue.substring(0, start) + textToInsert + currentValue.substring(end);
-    latestDescriptionRef.current = newText;
-    setDescription(newText);
-
-    const nextCursor = start + textToInsert.length;
-    const targetScrollTop = textareaRef.current ? textareaRef.current.scrollTop : saved.scrollTop;
-    const targetWindowX = typeof window !== "undefined" ? window.scrollX : saved.windowScrollX;
-    const targetWindowY = typeof window !== "undefined" ? window.scrollY : saved.windowScrollY;
-
-    cursorPosRef.current = {
-      start: nextCursor,
-      end: nextCursor,
-      scrollTop: targetScrollTop,
-      windowScrollX: targetWindowX,
-      windowScrollY: targetWindowY,
-      snapshotValue: newText,
-    };
-
-    const restoreFocusAndScroll = () => {
-      const el = textareaRef.current;
-      if (el) {
-        el.focus({ preventScroll: true });
-        el.setSelectionRange(nextCursor, nextCursor);
-        el.scrollTop = targetScrollTop;
-      }
-      if (typeof window !== "undefined") {
-        window.scrollTo({
-          left: targetWindowX,
-          top: targetWindowY,
-          behavior: "instant" as ScrollBehavior,
-        });
-      }
-    };
-
-    requestAnimationFrame(() => {
-      restoreFocusAndScroll();
-      requestAnimationFrame(restoreFocusAndScroll);
-    });
-  };
-
-  const handleUploadAndInsertImage = async (file: File) => {
-    setIsUploadingImage(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("category", "assignment");
-      formData.append("visibility", "PUBLIC");
-
-      const res = await fetch("/api/images", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok || !data.image) {
-        toast.add({ title: data.error || "Ошибка загрузки изображения", type: "error" });
-        return;
-      }
-
-      const img: LibraryImageItem = data.image;
-      const alt = (img.title || "Описание изображения").replace(/[\[\]]/g, "");
-      insertTextAtSavedCursor(`![${alt}](${img.url})`);
-      toast.add({ title: "Изображение загружено и вставлено", type: "success" });
-    } catch {
-      toast.add({ title: "Ошибка сети при загрузке изображения", type: "error" });
-    } finally {
-      setIsUploadingImage(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-
-  React.useEffect(() => {
-    if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setContextMenu(null);
-    };
-    window.addEventListener("click", close);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("click", close);
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [contextMenu]);
-
   // Group change handler
   const handleGroupChange = (gId: string) => {
     setSelectedGroupId(gId);
     const sub = groupSubjects.filter((gs) => gs.groupId === gId);
     setSelectedGroupSubjectId(sub[0]?.id || "");
-  };
-
-  const charCount = description.length;
-  const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
-  const readingTimeMin = Math.ceil(wordCount / 180) || 1;
-
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [modKey, setModKey] = useState<string>("Alt");
-  const [enterModKey, setEnterModKey] = useState<string>("Ctrl");
-
-  React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform || "");
-      if (isMac) {
-        setModKey("Cmd ⌘ + Shift ⇧");
-        setEnterModKey("Cmd ⌘");
-      } else {
-        setModKey("Ctrl + Shift");
-        setEnterModKey("Ctrl");
-      }
-    }
-  }, []);
-
-  // Insert Template
-  const handleApplyTemplate = (templateId: string) => {
-    setSelectedTemplateId(templateId);
-    const tmpl = PRESET_TEMPLATES.find((t) => t.id === templateId);
-    if (tmpl) {
-      setDescription(tmpl.content);
-    }
-  };
-
-  // Smart Key Handler: Shortcuts + Auto Lists
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Cmd+Enter or Ctrl+Enter -> Publish
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleSubmit();
-      return;
-    }
-
-    // Cmd+Shift+B or Ctrl+Shift+B -> Bold
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "b") {
-      e.preventDefault();
-      insertFormatting("**", "**");
-      return;
-    }
-
-    // Cmd+Shift+I or Ctrl+Shift+I -> Italic
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "i") {
-      e.preventDefault();
-      insertFormatting("*", "*");
-      return;
-    }
-
-    if (e.key !== "Enter" || e.shiftKey) return;
-
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const cursor = textarea.selectionStart;
-    const textBeforeCursor = description.substring(0, cursor);
-    const textAfterCursor = description.substring(cursor);
-
-    // Find current line text
-    const lastLineStart = textBeforeCursor.lastIndexOf("\n") + 1;
-    const currentLine = textBeforeCursor.substring(lastLineStart);
-
-    // 1. Checklist: - [ ] or - [x]
-    const checklistMatch = currentLine.match(/^(\s*-\s*\[[ x]\]\s*)(.*)/i);
-    if (checklistMatch) {
-      e.preventDefault();
-      const prefix = checklistMatch[1];
-      const content = checklistMatch[2];
-
-      if (!content.trim()) {
-        const newText = description.substring(0, lastLineStart) + textAfterCursor;
-        setDescription(newText);
-        setTimeout(() => textarea.setSelectionRange(lastLineStart, lastLineStart), 10);
-        return;
-      }
-
-      const indent = prefix.match(/^\s*/)?.[0] || "";
-      const nextPrefix = `\n${indent}- [ ] `;
-      const newText = textBeforeCursor + nextPrefix + textAfterCursor;
-      setDescription(newText);
-      const newCursor = cursor + nextPrefix.length;
-      setTimeout(() => textarea.setSelectionRange(newCursor, newCursor), 10);
-      return;
-    }
-
-    // 2. Bullet list: - or *
-    const bulletMatch = currentLine.match(/^(\s*[-*]\s+)(.*)/);
-    if (bulletMatch) {
-      e.preventDefault();
-      const prefix = bulletMatch[1];
-      const content = bulletMatch[2];
-
-      if (!content.trim()) {
-        const newText = description.substring(0, lastLineStart) + textAfterCursor;
-        setDescription(newText);
-        setTimeout(() => textarea.setSelectionRange(lastLineStart, lastLineStart), 10);
-        return;
-      }
-
-      const nextPrefix = `\n${prefix}`;
-      const newText = textBeforeCursor + nextPrefix + textAfterCursor;
-      setDescription(newText);
-      const newCursor = cursor + nextPrefix.length;
-      setTimeout(() => textarea.setSelectionRange(newCursor, newCursor), 10);
-      return;
-    }
-
-    // 3. Numbered list: N.
-    const numMatch = currentLine.match(/^(\s*)(\d+)(\.\s+)(.*)/);
-    if (numMatch) {
-      e.preventDefault();
-      const indent = numMatch[1];
-      const num = parseInt(numMatch[2], 10);
-      const dot = numMatch[3];
-      const content = numMatch[4];
-
-      if (!content.trim()) {
-        const newText = description.substring(0, lastLineStart) + textAfterCursor;
-        setDescription(newText);
-        setTimeout(() => textarea.setSelectionRange(lastLineStart, lastLineStart), 10);
-        return;
-      }
-
-      const nextPrefix = `\n${indent}${num + 1}${dot}`;
-      const newText = textBeforeCursor + nextPrefix + textAfterCursor;
-      setDescription(newText);
-      const newCursor = cursor + nextPrefix.length;
-      setTimeout(() => textarea.setSelectionRange(newCursor, newCursor), 10);
-      return;
-    }
-
-    // 4. Quote: >
-    const quoteMatch = currentLine.match(/^(\s*>\s+)(.*)/);
-    if (quoteMatch) {
-      e.preventDefault();
-      const prefix = quoteMatch[1];
-      const content = quoteMatch[2];
-
-      if (!content.trim()) {
-        const newText = description.substring(0, lastLineStart) + textAfterCursor;
-        setDescription(newText);
-        setTimeout(() => textarea.setSelectionRange(lastLineStart, lastLineStart), 10);
-        return;
-      }
-
-      const nextPrefix = `\n${prefix}`;
-      const newText = textBeforeCursor + nextPrefix + textAfterCursor;
-      setDescription(newText);
-      const newCursor = cursor + nextPrefix.length;
-      setTimeout(() => textarea.setSelectionRange(newCursor, newCursor), 10);
-      return;
-    }
-  };
-
-  // Rich WYSIWYG Formatting Helpers
-  const insertFormatting = (prefix: string, suffix: string = "") => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selection = description.substring(start, end) || "текст";
-    const replacement = `${prefix}${selection}${suffix}`;
-
-    const newText =
-      description.substring(0, start) + replacement + description.substring(end);
-    setDescription(newText);
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(
-        start + prefix.length,
-        start + prefix.length + selection.length
-      );
-    }, 50);
   };
 
   // Attachment URL Handlers
@@ -658,310 +276,22 @@ export function CreateAssignmentView({
               />
             </div>
 
-            {/* WYSIWYG Visual Editor Controls */}
-            <div className="space-y-2" data-tour="assignment-new-editor">
-              <div className="bg-muted/40 p-2.5 rounded-lg border space-y-2">
-                {/* Top Control Bar: Mode Toggle & Templates Dropdown */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                  <div className="flex items-center gap-1 bg-background p-0.5 rounded-md border text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setMode("EDIT")}
-                      className={`px-3 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1.5 ${mode === "EDIT"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      <Edit3 className="h-3.5 w-3.5" /> WYSIWYG Редактор
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMode("PREVIEW")}
-                      className={`px-3 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1.5 ${mode === "PREVIEW"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      <Eye className="h-3.5 w-3.5" /> Предпросмотр
-                    </button>
-                  </div>
-
-                  {/* Clean Templates Selector */}
-                  <div className="flex items-center gap-1.5" data-tour="assignment-new-templates">
-                    <Select value={selectedTemplateId} onValueChange={handleApplyTemplate}>
-                      <SelectTrigger className="h-7 text-[11px] font-medium bg-background shadow-none border-border text-foreground gap-1.5 min-w-[170px]">
-                        <LayoutTemplate className="h-3 w-3 text-primary shrink-0" />
-                        <span>
-                          {PRESET_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || "Выбрать шаблон"}
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRESET_TEMPLATES.map((t) => {
-                          const IconComponent = t.icon;
-                          return (
-                            <SelectItem key={t.id} value={t.id} className="text-xs font-medium pl-7">
-                              <span className="flex items-center gap-2">
-                                <IconComponent className="h-3.5 w-3.5 text-primary shrink-0" />
-                                <span>{t.name}</span>
-                              </span>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Pure Formatting Icons Toolbar */}
-                {mode === "EDIT" && (
-                  <div className="flex flex-wrap items-center gap-1 pt-0.5">
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("**", "**")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Жирный (Ctrl+B)"
-                    >
-                      <Bold className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("*", "*")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Курсив (Ctrl+I)"
-                    >
-                      <Italic className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("~~", "~~")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Зачёркнутый"
-                    >
-                      <Strikethrough className="h-3.5 w-3.5" />
-                    </Button>
-                    <div className="h-4 w-px bg-border mx-0.5" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n# ", "\n")}
-                      className="h-7 w-7 p-0 font-semibold text-[10px] shadow-none"
-                      title="Заголовок H1"
-                    >
-                      H1
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n## ", "\n")}
-                      className="h-7 w-7 p-0 font-semibold text-[10px] shadow-none"
-                      title="Заголовок H2"
-                    >
-                      H2
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n### ", "\n")}
-                      className="h-7 w-7 p-0 font-semibold text-[10px] shadow-none"
-                      title="Заголовок H3"
-                    >
-                      H3
-                    </Button>
-                    <div className="h-4 w-px bg-border mx-0.5" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n- ", "\n- ")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Маркированный список"
-                    >
-                      <List className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n1. ", "\n2. ")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Нумерованный список"
-                    >
-                      <ListOrdered className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n- [ ] ", "\n- [ ] ")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Чеклист задач"
-                    >
-                      <CheckSquare className="h-3.5 w-3.5" />
-                    </Button>
-                    <div className="h-4 w-px bg-border mx-0.5" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n> ", "\n")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Цитата"
-                    >
-                      <Quote className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("```\n", "\n```")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Блок кода"
-                    >
-                      <Code className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n\n---\n\n", "")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Разделитель"
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("[Ссылка](", ")")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Вставить ссылку"
-                    >
-                      <Link2 className="h-3.5 w-3.5" />
-                    </Button>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            onMouseDown={captureCursorPosition}
-                            className="h-7 w-7 p-0 shadow-none"
-                            title="Вставить изображение (или ПКМ в редакторе)"
-                            disabled={isUploadingImage}
-                          />
-                        }
-                      >
-                        {isUploadingImage ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                        ) : (
-                          <ImageIcon className="h-3.5 w-3.5" />
-                        )}
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-60 text-xs p-1">
-                        <DropdownMenuItem
-                          onClick={() => fileInputRef.current?.click()}
-                          className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
-                        >
-                          <Upload className="h-3.5 w-3.5 text-primary" />
-                          <span>Загрузить и вставить изображение</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setIsLibraryOpen(true)}
-                          className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
-                        >
-                          <FolderOpen className="h-3.5 w-3.5 text-primary" />
-                          <span>Вставить из загруженных</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setImageUrlInput("https://");
-                            setImageAltInput("Описание изображения");
-                            setIsUrlDialogOpen(true);
-                          }}
-                          className="text-xs gap-2 py-1.5 cursor-pointer font-medium"
-                        >
-                          <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>Вставить по ссылке</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                )}
-              </div>
-
-              {/* Editor Workspace Canvas */}
-              {mode === "EDIT" ? (
-                <div className="space-y-1.5">
-                  <Textarea
-                    ref={textareaRef}
-                    placeholder={`Опишите подробные инструкции к выполнению задания...\n\nПример составления:\n## 1. Цель работы\nИзучить основы построения компонентов на Next.js.\n\n## 2. Порядок выполнения\n- [ ] Создать схему базы данных\n- [ ] Написать серверный экшен\n- [ ] Добавить обработку ошибок\n\n> Задание сдать в виде ссылки на GitHub репозиторий.`}
-                    value={description}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onMouseDown={(e) => {
-                      if (e.button === 2) {
-                        captureCursorPosition();
-                      }
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      captureCursorPosition();
-                      const menuW = 248;
-                      const menuH = 124;
-                      const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
-                      const y = Math.min(e.clientY, window.innerHeight - menuH - 8);
-                      setContextMenu({ x: Math.max(8, x), y: Math.max(8, y) });
-                    }}
-                    className="text-xs bg-background min-h-[280px] font-mono leading-relaxed p-3 border focus:ring-primary shadow-none"
-                  />
-                  {/* Live Text Stats Bar */}
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
-                    <div className="flex items-center gap-3">
-                      <span>Символов: <strong className="font-semibold text-foreground">{charCount}</strong></span>
-                      <span>Слов: <strong className="font-semibold text-foreground">{wordCount}</strong></span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-primary" /> ~{readingTimeMin} мин на чтение
-                      </span>
-                    </div>
-                    <div className="text-[10px] opacity-70 hidden sm:block">
-                      Горячие клавиши: <kbd className="px-1 py-0.5 bg-muted border rounded">{modKey}+B</kbd> Жирный | <kbd className="px-1 py-0.5 bg-muted border rounded">{modKey}+I</kbd> Курсив | <kbd className="px-1 py-0.5 bg-muted border rounded">{enterModKey}+Enter</kbd> Опубликовать
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="min-h-[280px] p-4 border rounded-lg bg-card text-xs space-y-2 leading-relaxed">
-                  {description ? (
-                    renderMarkdown(description, (lineIndex) => {
-                      const lines = description.split("\n");
-                      const targetLine = lines[lineIndex];
-                      if (!targetLine) return;
-                      if (targetLine.startsWith("- [ ] ")) {
-                        lines[lineIndex] = targetLine.replace("- [ ] ", "- [x] ");
-                      } else if (targetLine.startsWith("- [x] ")) {
-                        lines[lineIndex] = targetLine.replace("- [x] ", "- [ ] ");
-                      }
-                      setDescription(lines.join("\n"));
-                    })
-                  ) : (
-                    <div className="text-muted-foreground italic text-center py-12 text-xs">
-                      Введите текст задания в редакторе для предпросмотра...
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* Unified Rich WYSIWYG Editor (same as Materials) */}
+            <div data-tour="assignment-new-editor">
+              <RichWysiwygEditor
+                value={description}
+                onChange={setDescription}
+                label="Описание и требования к заданию"
+                placeholder={`Опишите подробные инструкции к выполнению задания...\n\nПример составления:\n## 1. Цель работы\nИзучить основы построения компонентов на Next.js.\n\n## 2. Порядок выполнения\n- [ ] Создать схему базы данных\n- [ ] Написать серверный экшен\n- [ ] Добавить обработку ошибок\n\n> Задание сдать в виде ссылки на GitHub репозиторий.`}
+                minHeight="320px"
+                imageCategory="assignment"
+                templates={PRESET_TEMPLATES.map(({ id, name, content }) => ({
+                  id,
+                  name,
+                  content,
+                }))}
+                onSubmit={() => handleSubmit(isPublished)}
+              />
             </div>
           </Card>
         </div>
@@ -1139,133 +469,6 @@ export function CreateAssignmentView({
         </div>
       </div>
 
-      {/* Hidden File Input for Upload & Insert */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            void handleUploadAndInsertImage(file);
-          }
-        }}
-      />
-
-      {/* Right-Click Context Menu inside Description Editor */}
-      {contextMenu && (
-        <div
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-          className="fixed z-50 w-60 rounded-lg border border-border bg-popover p-1 text-xs text-popover-foreground"
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setContextMenu(null);
-              fileInputRef.current?.click();
-            }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted text-left font-medium transition-colors cursor-pointer"
-          >
-            <Upload className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span>Загрузить и вставить изображение</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setContextMenu(null);
-              setIsLibraryOpen(true);
-            }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted text-left font-medium transition-colors cursor-pointer"
-          >
-            <FolderOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span>Вставить из загруженных</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setContextMenu(null);
-              setImageUrlInput("https://");
-              setImageAltInput("Описание изображения");
-              setIsUrlDialogOpen(true);
-            }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted text-left font-medium transition-colors cursor-pointer"
-          >
-            <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span>Вставить по ссылке</span>
-          </button>
-        </div>
-      )}
-
-      {/* Image Library Dialog */}
-      <ImageLibraryDialog
-        open={isLibraryOpen}
-        onOpenChange={setIsLibraryOpen}
-        category="assignment"
-        visibility="PUBLIC"
-        onSelect={(img) => {
-          const alt = (img.title || "Описание изображения").replace(/[\[\]]/g, "");
-          insertTextAtSavedCursor(`![${alt}](${img.url})`);
-        }}
-      />
-
-      {/* Insert Image by URL Dialog */}
-      <Dialog open={isUrlDialogOpen} onOpenChange={setIsUrlDialogOpen}>
-        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px] border border-border">
-          <DialogHeader className="p-0 pb-2 border-b border-border gap-1 text-left">
-            <DialogTitle className="text-sm font-bold flex items-center gap-2">
-              <ImageIcon className="h-4 w-4 text-primary" />
-              <span>Вставить изображение по ссылке</span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-1">
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">URL изображения *</label>
-              <Input
-                value={imageUrlInput}
-                onChange={(e) => setImageUrlInput(e.target.value)}
-                placeholder="https://example.com/image.webp"
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Описание (alt)</label>
-              <Input
-                value={imageAltInput}
-                onChange={(e) => setImageAltInput(e.target.value)}
-                placeholder="Описание изображения"
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-          </div>
-          <DialogFooter className="p-0 pt-2 border-t border-border flex flex-row justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              onClick={() => setIsUrlDialogOpen(false)}
-              className="h-7 px-2.5 text-xs"
-            >
-              Отмена
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              disabled={!imageUrlInput.trim() || imageUrlInput.trim() === "https://"}
-              onClick={() => {
-                const url = imageUrlInput.trim();
-                const alt = (imageAltInput.trim() || "Описание изображения").replace(/[\[\]]/g, "");
-                insertTextAtSavedCursor(`![${alt}](${url})`);
-                setIsUrlDialogOpen(false);
-              }}
-              className="h-7 px-3 text-xs font-medium cursor-pointer"
-            >
-              Вставить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
