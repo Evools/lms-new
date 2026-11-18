@@ -22,6 +22,7 @@ import {
   Quote,
   Code,
   FileCode,
+  FileText,
   Minus,
   Link2,
   Image as ImageIcon,
@@ -409,16 +410,29 @@ export function RichWysiwygEditor({
                 <span>Шаблоны</span>
                 <ChevronDown className="h-3 w-3 opacity-60" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="text-xs w-52">
-                {templates.map((tpl) => (
-                  <DropdownMenuItem
-                    key={tpl.id}
-                    onClick={() => onChange(tpl.content)}
-                    className="cursor-pointer text-xs py-1.5 font-medium"
-                  >
-                    {tpl.name}
-                  </DropdownMenuItem>
-                ))}
+              <DropdownMenuContent
+                align="end"
+                className="text-xs w-72 p-1.5 border border-border rounded-lg shadow-none"
+              >
+                <div className="px-2 py-1 mb-1 border-b border-border flex items-center justify-between text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-primary" />
+                    Готовые шаблоны
+                  </span>
+                  <span>{templates.length}</span>
+                </div>
+                <div className="space-y-0.5">
+                  {templates.map((tpl) => (
+                    <DropdownMenuItem
+                      key={tpl.id}
+                      onClick={() => onChange(tpl.content)}
+                      className="cursor-pointer text-xs px-2 py-1.5 rounded-md font-medium flex items-center gap-2 hover:bg-primary/10 hover:text-primary focus:bg-primary/10 focus:text-primary"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="truncate">{tpl.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
