@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useState, useTransition, useRef } from "react";
+import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -20,26 +19,12 @@ import {
   ClipboardList,
   Building2,
   Calendar,
-  Bold,
-  Italic,
-  List,
-  ListOrdered,
-  Code,
-  Quote,
-  Link2,
   Paperclip,
   PlusCircle,
   Trash2,
   Eye,
-  Edit3,
-  Send,
-  Strikethrough,
-  Minus,
-  CheckSquare,
   ExternalLink,
   FileText,
-  Clock,
-  LayoutTemplate,
   FolderGit2,
   HelpCircle,
   Code2,
@@ -51,9 +36,9 @@ import {
   updateAssignmentAction,
 } from "@/app/dashboard/assignments/actions";
 import { parseAttachmentLinks } from "@/app/dashboard/assignments/_components/submission-utils";
-import { renderMarkdown } from "@/lib/markdown";
 import { toast } from "@/components/ui/toast";
 import { FileUploadZone } from "@/components/file-upload-zone";
+import { RichWysiwygEditor } from "@/components/rich-wysiwyg-editor";
 
 export interface GroupOptionDTO {
   id: string;
@@ -184,14 +169,12 @@ export function EditAssignmentView({
   const [isPublished, setIsPublished] = useState<boolean>(
     initialAssignment.isPublished
   );
-  const [mode, setMode] = useState<"EDIT" | "PREVIEW">("EDIT");
 
   const initialParsedUrls = parseAttachmentLinks(initialAssignment.fileUrl);
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>(
     initialParsedUrls.length > 0 ? initialParsedUrls : [""]
   );
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [modKey, setModKey] = useState<string>("Alt");
   const [enterModKey, setEnterModKey] = useState<string>("Ctrl");
@@ -213,159 +196,6 @@ export function EditAssignmentView({
     setSelectedGroupId(gId);
     const sub = groupSubjects.filter((gs) => gs.groupId === gId);
     setSelectedGroupSubjectId(sub[0]?.id || "");
-  };
-
-  const charCount = description.length;
-  const wordCount = description.trim() ? description.trim().split(/\s+/).length : 0;
-  const readingTimeMin = Math.ceil(wordCount / 180) || 1;
-
-  const handleApplyTemplate = (templateId: string) => {
-    setSelectedTemplateId(templateId);
-    const tmpl = PRESET_TEMPLATES.find((t) => t.id === templateId);
-    if (tmpl) {
-      setDescription(tmpl.content);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleSubmit();
-      return;
-    }
-
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "b") {
-      e.preventDefault();
-      insertFormatting("**", "**");
-      return;
-    }
-
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "i") {
-      e.preventDefault();
-      insertFormatting("*", "*");
-      return;
-    }
-
-    if (e.key !== "Enter" || e.shiftKey) return;
-
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const cursor = textarea.selectionStart;
-    const textBeforeCursor = description.substring(0, cursor);
-    const textAfterCursor = description.substring(cursor);
-
-    const lastLineStart = textBeforeCursor.lastIndexOf("\n") + 1;
-    const currentLine = textBeforeCursor.substring(lastLineStart);
-
-    const checklistMatch = currentLine.match(/^(\s*-\s*\[[ x]\]\s*)(.*)/i);
-    if (checklistMatch) {
-      e.preventDefault();
-      const prefix = checklistMatch[1];
-      const content = checklistMatch[2];
-
-      if (!content.trim()) {
-        const newText = description.substring(0, lastLineStart) + textAfterCursor;
-        setDescription(newText);
-        setTimeout(() => textarea.setSelectionRange(lastLineStart, lastLineStart), 10);
-        return;
-      }
-
-      const indent = prefix.match(/^\s*/)?.[0] || "";
-      const nextPrefix = `\n${indent}- [ ] `;
-      const newText = textBeforeCursor + nextPrefix + textAfterCursor;
-      setDescription(newText);
-      const newCursor = cursor + nextPrefix.length;
-      setTimeout(() => textarea.setSelectionRange(newCursor, newCursor), 10);
-      return;
-    }
-
-    const bulletMatch = currentLine.match(/^(\s*[-*]\s+)(.*)/);
-    if (bulletMatch) {
-      e.preventDefault();
-      const prefix = bulletMatch[1];
-      const content = bulletMatch[2];
-
-      if (!content.trim()) {
-        const newText = description.substring(0, lastLineStart) + textAfterCursor;
-        setDescription(newText);
-        setTimeout(() => textarea.setSelectionRange(lastLineStart, lastLineStart), 10);
-        return;
-      }
-
-      const nextPrefix = `\n${prefix}`;
-      const newText = textBeforeCursor + nextPrefix + textAfterCursor;
-      setDescription(newText);
-      const newCursor = cursor + nextPrefix.length;
-      setTimeout(() => textarea.setSelectionRange(newCursor, newCursor), 10);
-      return;
-    }
-
-    const numMatch = currentLine.match(/^(\s*)(\d+)(\.\s+)(.*)/);
-    if (numMatch) {
-      e.preventDefault();
-      const indent = numMatch[1];
-      const num = parseInt(numMatch[2], 10);
-      const dot = numMatch[3];
-      const content = numMatch[4];
-
-      if (!content.trim()) {
-        const newText = description.substring(0, lastLineStart) + textAfterCursor;
-        setDescription(newText);
-        setTimeout(() => textarea.setSelectionRange(lastLineStart, lastLineStart), 10);
-        return;
-      }
-
-      const nextPrefix = `\n${indent}${num + 1}${dot}`;
-      const newText = textBeforeCursor + nextPrefix + textAfterCursor;
-      setDescription(newText);
-      const newCursor = cursor + nextPrefix.length;
-      setTimeout(() => textarea.setSelectionRange(newCursor, newCursor), 10);
-      return;
-    }
-
-    const quoteMatch = currentLine.match(/^(\s*>\s+)(.*)/);
-    if (quoteMatch) {
-      e.preventDefault();
-      const prefix = quoteMatch[1];
-      const content = quoteMatch[2];
-
-      if (!content.trim()) {
-        const newText = description.substring(0, lastLineStart) + textAfterCursor;
-        setDescription(newText);
-        setTimeout(() => textarea.setSelectionRange(lastLineStart, lastLineStart), 10);
-        return;
-      }
-
-      const nextPrefix = `\n${prefix}`;
-      const newText = textBeforeCursor + nextPrefix + textAfterCursor;
-      setDescription(newText);
-      const newCursor = cursor + nextPrefix.length;
-      setTimeout(() => textarea.setSelectionRange(newCursor, newCursor), 10);
-      return;
-    }
-  };
-
-  const insertFormatting = (prefix: string, suffix: string = "") => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selection = description.substring(start, end) || "текст";
-    const replacement = `${prefix}${selection}${suffix}`;
-
-    const newText =
-      description.substring(0, start) + replacement + description.substring(end);
-    setDescription(newText);
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(
-        start + prefix.length,
-        start + prefix.length + selection.length
-      );
-    }, 50);
   };
 
   const handleAddAttachmentUrl = () => {
@@ -468,275 +298,21 @@ export function EditAssignmentView({
               />
             </div>
 
-            {/* WYSIWYG Editor */}
-            <div className="space-y-2">
-              <div className="bg-muted/40 p-2.5 rounded-lg border space-y-2">
-                {/* Control Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                  <div className="flex items-center gap-1 bg-background p-0.5 rounded-md border text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setMode("EDIT")}
-                      className={`px-3 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1.5 ${
-                        mode === "EDIT"
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Edit3 className="h-3.5 w-3.5" /> Редактор
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMode("PREVIEW")}
-                      className={`px-3 py-1 rounded text-[11px] font-medium transition-all flex items-center gap-1.5 ${
-                        mode === "PREVIEW"
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Eye className="h-3.5 w-3.5" /> Предпросмотр
-                    </button>
-                  </div>
-
-                  {/* Templates Selector */}
-                  <div className="flex items-center gap-1.5">
-                    <Select value={selectedTemplateId} onValueChange={handleApplyTemplate}>
-                      <SelectTrigger className="h-7 text-[11px] font-medium bg-background shadow-none border-border text-foreground gap-1.5 min-w-[170px]">
-                        <LayoutTemplate className="h-3 w-3 text-primary shrink-0" />
-                        <span>
-                          {PRESET_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name ||
-                            "Выбрать шаблон"}
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRESET_TEMPLATES.map((t) => {
-                          const IconComponent = t.icon;
-                          return (
-                            <SelectItem key={t.id} value={t.id} className="text-xs font-medium pl-7">
-                              <span className="flex items-center gap-2">
-                                <IconComponent className="h-3.5 w-3.5 text-primary shrink-0" />
-                                <span>{t.name}</span>
-                              </span>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Toolbar */}
-                {mode === "EDIT" && (
-                  <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("**", "**")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Жирный (Ctrl+B)"
-                    >
-                      <Bold className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("*", "*")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Курсив (Ctrl+I)"
-                    >
-                      <Italic className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("~~", "~~")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Зачёркнутый"
-                    >
-                      <Strikethrough className="h-3.5 w-3.5" />
-                    </Button>
-                    <div className="h-4 w-px bg-border mx-0.5" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n# ", "\n")}
-                      className="h-7 w-7 p-0 font-semibold text-[10px] shadow-none"
-                      title="Заголовок H1"
-                    >
-                      H1
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n## ", "\n")}
-                      className="h-7 w-7 p-0 font-semibold text-[10px] shadow-none"
-                      title="Заголовок H2"
-                    >
-                      H2
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n### ", "\n")}
-                      className="h-7 w-7 p-0 font-semibold text-[10px] shadow-none"
-                      title="Заголовок H3"
-                    >
-                      H3
-                    </Button>
-                    <div className="h-4 w-px bg-border mx-0.5" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n- ", "\n- ")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Маркированный список"
-                    >
-                      <List className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n1. ", "\n2. ")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Нумерованный список"
-                    >
-                      <ListOrdered className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n- [ ] ", "\n- [ ] ")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Чеклист задач"
-                    >
-                      <CheckSquare className="h-3.5 w-3.5" />
-                    </Button>
-                    <div className="h-4 w-px bg-border mx-0.5" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n> ", "\n")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Цитата"
-                    >
-                      <Quote className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("```\n", "\n```")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Блок кода"
-                    >
-                      <Code className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("\n\n---\n\n", "")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Разделитель"
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => insertFormatting("[Ссылка](", ")")}
-                      className="h-7 w-7 p-0 shadow-none"
-                      title="Вставить ссылку"
-                    >
-                      <Link2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* Editor Workspace */}
-              {mode === "EDIT" ? (
-                <div className="space-y-1.5">
-                  <Textarea
-                    ref={textareaRef}
-                    placeholder="Опишите подробные инструкции к заданию..."
-                    value={description}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                      setDescription(e.target.value)
-                    }
-                    onKeyDown={handleKeyDown}
-                    className="text-xs bg-background min-h-[280px] font-mono leading-relaxed p-3 border focus:ring-primary shadow-none"
-                  />
-                  {/* Live Text Stats Bar */}
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
-                    <div className="flex items-center gap-3">
-                      <span>
-                        Символов:{" "}
-                        <strong className="font-semibold text-foreground">
-                          {charCount}
-                        </strong>
-                      </span>
-                      <span>
-                        Слов:{" "}
-                        <strong className="font-semibold text-foreground">
-                          {wordCount}
-                        </strong>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-primary" /> ~{readingTimeMin} мин на
-                        чтение
-                      </span>
-                    </div>
-                    <div className="text-[10px] opacity-70 hidden sm:block">
-                      Горячие клавиши:{" "}
-                      <kbd className="px-1 py-0.5 bg-muted border rounded">
-                        {modKey}+B
-                      </kbd>{" "}
-                      Жирный |{" "}
-                      <kbd className="px-1 py-0.5 bg-muted border rounded">
-                        {modKey}+I
-                      </kbd>{" "}
-                      Курсив |{" "}
-                      <kbd className="px-1 py-0.5 bg-muted border rounded">
-                        {enterModKey}+Enter
-                      </kbd>{" "}
-                      Сохранить
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="min-h-[280px] p-4 border rounded-lg bg-card text-xs space-y-2 leading-relaxed">
-                  {description ? (
-                    renderMarkdown(description, (lineIndex) => {
-                      const lines = description.split("\n");
-                      const targetLine = lines[lineIndex];
-                      if (!targetLine) return;
-                      if (targetLine.startsWith("- [ ] ")) {
-                        lines[lineIndex] = targetLine.replace("- [ ] ", "- [x] ");
-                      } else if (targetLine.startsWith("- [x] ")) {
-                        lines[lineIndex] = targetLine.replace("- [x] ", "- [ ] ");
-                      }
-                      setDescription(lines.join("\n"));
-                    })
-                  ) : (
-                    <div className="text-muted-foreground italic text-center py-12 text-xs">
-                      Введите текст задания в редакторе для предпросмотра...
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Unified Rich WYSIWYG Editor (same as Materials) */}
+            <RichWysiwygEditor
+              value={description}
+              onChange={setDescription}
+              label="Описание и требования к заданию"
+              placeholder="Опишите подробные инструкции к заданию..."
+              minHeight="320px"
+              imageCategory="assignment"
+              templates={PRESET_TEMPLATES.map(({ id, name, content }) => ({
+                id,
+                name,
+                content,
+              }))}
+              onSubmit={() => handleSubmit(isPublished)}
+            />
           </Card>
         </div>
 
