@@ -63,6 +63,7 @@ export async function awardXpOnce(params: {
 
     try {
       revalidateTag("rating-leaderboard", "max");
+      revalidateTag(`rating-quests-${params.userId}`, "max");
     } catch {
       // ignore if called outside Next.js request context
     }

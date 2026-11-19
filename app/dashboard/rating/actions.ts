@@ -124,6 +124,45 @@ async function computeStudentQuestProgress(userId: string): Promise<RatingQuestD
   });
 }
 
+function getStudentQuestProgressCached(userId: string) {
+  return unstable_cache(
+    () => computeStudentQuestProgress(userId),
+    ["rating-student-quests", userId],
+    { revalidate: 120, tags: [`rating-quests-${userId}`] },
+  )();
+}
+
+function getGroupsLeaderboardCached(groupIdsKey: string, groupIds: string[]) {
+  return unstable_cache(
+    () =>
+      prisma.user.findMany({
+        where: {
+          role: "STUDENT",
+          isActive: true,
+          studentEnrollments: {
+            some: { groupId: { in: groupIds } },
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          xp: true,
+          studentEnrollments: {
+            where: { groupId: { in: groupIds } },
+            select: {
+              group: { select: { id: true, name: true } },
+            },
+            take: 1,
+          },
+        },
+        orderBy: [{ xp: "desc" }, { name: "asc" }],
+        take: 250,
+      }),
+    ["rating-groups-leaderboard", groupIdsKey],
+    { revalidate: 60, tags: ["rating-leaderboard"] },
+  )();
+}
+
 const getAdminLeaderboardCached = unstable_cache(
   async () => {
     const [groups, studentRows] = await Promise.all([
@@ -226,35 +265,14 @@ export async function getRatingPageDataAction(): Promise<RatingPageDataDTO> {
       students: [],
       myXp: 0,
       myGroupName: "Без группы",
-      quests: role === "STUDENT" ? await computeStudentQuestProgress(userId) : [],
+      quests: role === "STUDENT" ? await getStudentQuestProgressCached(userId) : [],
     };
   }
 
+  const groupIdsKey = [...allowedGroupIds].sort().join(",");
   const [studentRows, quests] = await Promise.all([
-    prisma.user.findMany({
-      where: {
-        role: "STUDENT",
-        isActive: true,
-        studentEnrollments: {
-          some: { groupId: { in: allowedGroupIds } },
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        xp: true,
-        studentEnrollments: {
-          where: { groupId: { in: allowedGroupIds } },
-          select: {
-            group: { select: { id: true, name: true } },
-          },
-          take: 1,
-        },
-      },
-      orderBy: [{ xp: "desc" }, { name: "asc" }],
-      take: 250,
-    }),
-    role === "STUDENT" ? computeStudentQuestProgress(userId) : Promise.resolve([]),
+    getGroupsLeaderboardCached(groupIdsKey, allowedGroupIds),
+    role === "STUDENT" ? getStudentQuestProgressCached(userId) : Promise.resolve([]),
   ]);
 
   const students: RatingStudentDTO[] = studentRows.map((row) => {
