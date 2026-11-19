@@ -1,9 +1,31 @@
-import { revalidateTag } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
+
+const getRatingModuleEnabledCached = unstable_cache(
+  async () => {
+    try {
+      const setting = await prisma.systemSetting.findUnique({
+        where: { key: "feature_rating" },
+        select: { value: true },
+      });
+      if (!setting) return true;
+      return setting.value !== "false";
+    } catch {
+      return true;
+    }
+  },
+  ["feature-rating-enabled"],
+  { revalidate: 60, tags: ["feature-modules"] },
+);
+
+export async function isRatingModuleEnabled(): Promise<boolean> {
+  return getRatingModuleEnabledCached();
+}
 
 /**
  * Idempotently awards XP to a user once per `sourceKey`.
- * If `sourceKey` was already recorded (P2002), silently returns `{ awarded: false }`.
+ * If the rating module is disabled or `sourceKey` was already recorded (P2002),
+ * skips all XP writes and returns `{ awarded: false }`.
  */
 export async function awardXpOnce(params: {
   userId: string;
@@ -12,6 +34,11 @@ export async function awardXpOnce(params: {
   sourceKey: string;
 }): Promise<{ awarded: boolean }> {
   if (!params.userId || params.amount <= 0) {
+    return { awarded: false };
+  }
+
+  const enabled = await isRatingModuleEnabled();
+  if (!enabled) {
     return { awarded: false };
   }
 

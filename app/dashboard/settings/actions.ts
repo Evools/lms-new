@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import bcrypt from "bcryptjs";
 
 export interface UserProfileDTO {
@@ -272,7 +272,9 @@ export async function updateFeatureModulesAction(data: Partial<FeatureModulesDTO
 
     revalidatePath("/", "layout");
     revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/rating");
     revalidatePath("/dashboard");
+    revalidateTag("feature-modules", "max");
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Ошибка сохранения модулей" };

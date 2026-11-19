@@ -43,6 +43,7 @@ import {
   Users,
   CalendarDays,
   ChevronRight,
+  Trophy,
   Shield,
   GraduationCap,
   Award,
@@ -1097,22 +1098,6 @@ export function SettingsView({
                   onCheckedChange={(checked) => handleToggleModule("feature_holiday", checked)}
                 />
               </div>
-
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/80 bg-muted/20">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-semibold text-foreground">
-                    Рейтинг и геймификация (XP и квесты)
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Показывать раздел «Рейтинг и XP» в меню для студентов и преподавателей
-                  </div>
-                </div>
-                <Switch
-                  checked={modulesState.feature_rating}
-                  disabled={updatingModule === "feature_rating"}
-                  onCheckedChange={(checked) => handleToggleModule("feature_rating", checked)}
-                />
-              </div>
             </div>
           )}
         </div>
@@ -1994,10 +1979,42 @@ export function SettingsView({
                   <BookOpen className="h-3.5 w-3.5 text-primary" />
                   <span>Обучение и LMS (Материалы, Задания, Тесты)</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground font-medium">5 модулей</span>
+                <span className="text-[10px] text-muted-foreground font-medium">6 модулей</span>
               </div>
 
               <div className="divide-y divide-border/60">
+                {/* Rating & XP */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                        modulesState.feature_rating
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-muted/60 text-muted-foreground border-border/60"
+                      }`}
+                    >
+                      <Trophy className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-xs text-foreground">Рейтинг и XP</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">
+                          /rating
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                        Таблица лидеров, уровни, квесты и начисление XP (при отключении XP в БД не пишутся)
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={modulesState.feature_rating}
+                    disabled={updatingModule === "feature_rating"}
+                    onCheckedChange={(checked) => handleToggleModule("feature_rating", checked)}
+                    className="scale-90"
+                  />
+                </div>
+
                 {/* Assignments */}
                 <div className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
                   <div className="flex items-center gap-2.5 min-w-0">
