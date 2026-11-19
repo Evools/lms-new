@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { MaterialType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { awardXpOnce } from "@/lib/gamification-server";
 
 export interface GroupItemDTO {
   id: string;
@@ -1957,7 +1958,7 @@ export async function submitTestAnswersAction(data: {
 
     userScore = Math.round(userScore * 100) / 100;
 
-    await prisma.testSubmission.create({
+    const createdTestSub = await prisma.testSubmission.create({
       data: {
         testId: data.testId,
         studentId: studentId,
@@ -1969,6 +1970,19 @@ export async function submitTestAnswersAction(data: {
         }),
       },
     });
+
+    if (maxScore > 0) {
+      const pct = Math.round((userScore / maxScore) * 100);
+      if (pct >= 60) {
+        const xpAmount = pct >= 90 ? 100 : pct >= 75 ? 70 : 40;
+        await awardXpOnce({
+          userId: studentId,
+          amount: xpAmount,
+          reason: `Тест пройден (${pct}%)`,
+          sourceKey: `test:${createdTestSub.id}`,
+        });
+      }
+    }
 
     revalidatePath("/dashboard/lms/tests");
     revalidatePath(`/dashboard/lms/tests/${data.testId}/results`);

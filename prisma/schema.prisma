@@ -56,6 +56,7 @@ model User {
   rollNumber   String?  // Поименный номер студента в журнале (например, "3969")
   role             Role     @default(STUDENT)
   isActive         Boolean  @default(true)
+  xp               Int      @default(0)
   isDutyExempt     Boolean  @default(false)
   dutyExemptReason String? // e.g. "ЛОВЗ", "По состоянию здоровья"
   createdAt        DateTime @default(now())
@@ -87,8 +88,24 @@ model User {
   notifications   Notification[]
   achievements    StudentAchievement[]
   uploadedImages  StoredImage[]
+  xpTransactions  XpTransaction[]
 
+  @@index([role, xp])
   @@map("users")
+}
+
+model XpTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    String
+  sourceKey String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("xp_transactions")
 }
 
 model AcademicYear {

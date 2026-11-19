@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { SubmissionStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { awardXpOnce } from "@/lib/gamification-server";
 
 export interface GroupItemDTO {
   id: string;
@@ -511,9 +512,23 @@ export async function reviewSubmissionAction(data: {
         grade: data.grade ?? null,
       },
       include: {
-        assignment: { select: { title: true } },
+        assignment: { select: { title: true, dueDate: true } },
       },
     });
+
+    if (data.status === SubmissionStatus.ACCEPTED) {
+      const onTime =
+        updatedSub.assignment.dueDate !== null &&
+        updatedSub.submittedAt <= updatedSub.assignment.dueDate;
+      await awardXpOnce({
+        userId: updatedSub.studentId,
+        amount: onTime ? 130 : 100,
+        reason: onTime
+          ? `ДЗ принято в срок: ${updatedSub.assignment.title}`
+          : `ДЗ принято: ${updatedSub.assignment.title}`,
+        sourceKey: `submission:${updatedSub.id}`,
+      });
+    }
 
     // Notify student about review result
     const statusText = data.status === SubmissionStatus.ACCEPTED ? "Принято" : "На доработке";

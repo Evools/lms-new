@@ -33,6 +33,7 @@ import {
   Code,
   GitBranch,
   Image as ImageIcon,
+  Trophy,
 } from "lucide-react";
 import { DEFAULT_FEATURE_MODULES, type FeatureModulesDTO } from "@/lib/feature-modules";
 
@@ -68,6 +69,7 @@ function applyModuleFilters(section: NavMainSection, mods: FeatureModulesDTO): N
 
     // Обучение
     if (item.url === "/dashboard/assignments") return mods.feature_assignments;
+    if (item.url === "/dashboard/rating") return mods.feature_rating;
     if (item.url === "/dashboard/lms/materials") return mods.feature_materials;
     if (item.url === "/dashboard/lms/tests") return mods.feature_tests;
     if (item.url === "/dashboard/subjects") return mods.feature_subjects;
@@ -115,6 +117,11 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Объявления",
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
+            },
+            {
+              title: "Рейтинг и XP",
+              url: "/dashboard/rating",
+              icon: <Trophy className="h-4 w-4" />,
             },
           ],
         },
@@ -252,6 +259,11 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
             },
+            {
+              title: "Рейтинг и XP",
+              url: "/dashboard/rating",
+              icon: <Trophy className="h-4 w-4" />,
+            },
           ],
         },
         {
@@ -317,6 +329,11 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
               title: "Объявления",
               url: "/dashboard/announcements",
               icon: <Megaphone className="h-4 w-4" />,
+            },
+            {
+              title: "Рейтинг и XP",
+              url: "/dashboard/rating",
+              icon: <Trophy className="h-4 w-4" />,
             },
           ],
         },
@@ -438,6 +455,11 @@ export function AppSidebar({ user, featureModules = DEFAULT_FEATURE_MODULES, ...
             title: "Объявления",
             url: "/dashboard/announcements",
             icon: <Megaphone className="h-4 w-4" />,
+          },
+          {
+            title: "Рейтинг и XP",
+            url: "/dashboard/rating",
+            icon: <Trophy className="h-4 w-4" />,
           },
         ],
       },

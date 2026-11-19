@@ -182,6 +182,7 @@ export async function getSettingsDataAction() {
 
     const featureModules: FeatureModulesDTO = {
       feature_holiday: getBool("feature_holiday", DEFAULT_FEATURE_MODULES.feature_holiday),
+      feature_rating: getBool("feature_rating", DEFAULT_FEATURE_MODULES.feature_rating),
       feature_interactive: getBool("feature_interactive", DEFAULT_FEATURE_MODULES.feature_interactive),
       feature_typing: getBool("feature_typing", DEFAULT_FEATURE_MODULES.feature_typing),
       feature_playground: getBool("feature_playground", DEFAULT_FEATURE_MODULES.feature_playground),
@@ -227,6 +228,7 @@ export async function getFeatureModulesAction(): Promise<FeatureModulesDTO> {
 
     return {
       feature_holiday: getBool("feature_holiday", DEFAULT_FEATURE_MODULES.feature_holiday),
+      feature_rating: getBool("feature_rating", DEFAULT_FEATURE_MODULES.feature_rating),
       feature_interactive: getBool("feature_interactive", DEFAULT_FEATURE_MODULES.feature_interactive),
       feature_typing: getBool("feature_typing", DEFAULT_FEATURE_MODULES.feature_typing),
       feature_playground: getBool("feature_playground", DEFAULT_FEATURE_MODULES.feature_playground),

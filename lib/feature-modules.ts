@@ -1,6 +1,7 @@
 export interface FeatureModulesDTO {
   // Праздничное оформление
   feature_holiday: boolean;
+  feature_rating: boolean;
 
   // Интерактив
   feature_interactive: boolean;
@@ -25,6 +26,7 @@ export interface FeatureModulesDTO {
 
 export const DEFAULT_FEATURE_MODULES: FeatureModulesDTO = {
   feature_holiday: true,
+  feature_rating: true,
 
   feature_interactive: true,
   feature_typing: true,

@@ -1097,6 +1097,22 @@ export function SettingsView({
                   onCheckedChange={(checked) => handleToggleModule("feature_holiday", checked)}
                 />
               </div>
+
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/80 bg-muted/20">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-semibold text-foreground">
+                    Рейтинг и геймификация (XP и квесты)
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Показывать раздел «Рейтинг и XP» в меню для студентов и преподавателей
+                  </div>
+                </div>
+                <Switch
+                  checked={modulesState.feature_rating}
+                  disabled={updatingModule === "feature_rating"}
+                  onCheckedChange={(checked) => handleToggleModule("feature_rating", checked)}
+                />
+              </div>
             </div>
           )}
         </div>
