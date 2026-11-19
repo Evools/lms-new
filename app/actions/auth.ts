@@ -28,15 +28,15 @@ async function clearAllAuthCookies() {
   try {
     const cookieStore = await cookies();
     for (const name of AUTH_COOKIE_NAMES) {
+      const isSecureCookie = name.startsWith("__Secure-") || name.startsWith("__Host-");
       cookieStore.set(name, "", {
         path: "/",
         maxAge: 0,
         expires: new Date(0),
-        httpOnly: true,
+        httpOnly: !name.includes("callback-url"),
         sameSite: "lax",
-        secure: false,
+        secure: isSecureCookie,
       });
-      cookieStore.delete(name);
     }
   } catch {
     // ignore

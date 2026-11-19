@@ -32,6 +32,7 @@ export interface RatingQuestDTO {
 
 export interface RatingPageDataDTO {
   groups: { id: string; name: string }[];
+  selectedGroupId: string;
   students: RatingStudentDTO[];
   myXp: number;
   myGroupName: string;
@@ -132,7 +133,7 @@ function getStudentQuestProgressCached(userId: string) {
   )();
 }
 
-function getGroupsLeaderboardCached(groupIdsKey: string, groupIds: string[]) {
+function getGroupLeaderboardCached(groupId: string) {
   return unstable_cache(
     () =>
       prisma.user.findMany({
@@ -140,7 +141,7 @@ function getGroupsLeaderboardCached(groupIdsKey: string, groupIds: string[]) {
           role: "STUDENT",
           isActive: true,
           studentEnrollments: {
-            some: { groupId: { in: groupIds } },
+            some: { groupId },
           },
         },
         select: {
@@ -148,7 +149,7 @@ function getGroupsLeaderboardCached(groupIdsKey: string, groupIds: string[]) {
           name: true,
           xp: true,
           studentEnrollments: {
-            where: { groupId: { in: groupIds } },
+            where: { groupId },
             select: {
               group: { select: { id: true, name: true } },
             },
@@ -156,49 +157,29 @@ function getGroupsLeaderboardCached(groupIdsKey: string, groupIds: string[]) {
           },
         },
         orderBy: [{ xp: "desc" }, { name: "asc" }],
-        take: 250,
+        take: 100,
       }),
-    ["rating-groups-leaderboard", groupIdsKey],
+    ["rating-group-leaderboard", groupId],
     { revalidate: 60, tags: ["rating-leaderboard"] },
   )();
 }
 
-const getAdminLeaderboardCached = unstable_cache(
-  async () => {
-    const [groups, studentRows] = await Promise.all([
-      prisma.group.findMany({
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.user.findMany({
-        where: { role: "STUDENT", isActive: true },
-        select: {
-          id: true,
-          name: true,
-          xp: true,
-          studentEnrollments: {
-            select: {
-              group: { select: { id: true, name: true } },
-            },
-            take: 1,
-          },
-        },
-        orderBy: [{ xp: "desc" }, { name: "asc" }],
-        take: 250,
-      }),
-    ]);
-
-    return { groups, studentRows };
-  },
-  ["rating-admin-leaderboard"],
-  { revalidate: 60, tags: ["rating-leaderboard"] },
+const getAllGroupsCached = unstable_cache(
+  () =>
+    prisma.group.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ["rating-all-groups"],
+  { revalidate: 300 },
 );
 
-export async function getRatingPageDataAction(): Promise<RatingPageDataDTO> {
+export async function getRatingPageDataAction(requestedGroupId?: string): Promise<RatingPageDataDTO> {
   const session = await auth();
   if (!session?.user) {
     return {
       groups: [],
+      selectedGroupId: "",
       students: [],
       myXp: 0,
       myGroupName: "—",
@@ -209,32 +190,6 @@ export async function getRatingPageDataAction(): Promise<RatingPageDataDTO> {
   const userId = session.user.id;
   const role = session.user.role || "STUDENT";
 
-  // Fast cached path for ADMIN / ADMINISTRATION (entire lyceum)
-  if (role === "ADMIN" || role === "ADMINISTRATION") {
-    const { groups, studentRows } = await getAdminLeaderboardCached();
-    const students: RatingStudentDTO[] = studentRows.map((row) => {
-      const firstGroup = row.studentEnrollments[0]?.group;
-      return {
-        id: row.id,
-        name: row.name,
-        groupId: firstGroup?.id ?? null,
-        groupName: firstGroup?.name ?? "Без группы",
-        xp: row.xp,
-        isMe: false,
-      };
-    });
-
-    return {
-      groups,
-      students,
-      myXp: 0,
-      myGroupName: "—",
-      quests: [],
-    };
-  }
-
-  // Scope groups and students by role (STUDENT -> own group, TEACHER -> own groups)
-  let allowedGroupIds: string[] = [];
   let groups: { id: string; name: string }[] = [];
 
   if (role === "STUDENT") {
@@ -243,8 +198,7 @@ export async function getRatingPageDataAction(): Promise<RatingPageDataDTO> {
       select: { group: { select: { id: true, name: true } } },
     });
     groups = enrollments.map((e) => e.group);
-    allowedGroupIds = groups.map((g) => g.id);
-  } else {
+  } else if (role === "TEACHER") {
     groups = await prisma.group.findMany({
       where: {
         OR: [
@@ -256,12 +210,19 @@ export async function getRatingPageDataAction(): Promise<RatingPageDataDTO> {
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
-    allowedGroupIds = groups.map((g) => g.id);
+  } else {
+    groups = await getAllGroupsCached();
   }
 
-  if (allowedGroupIds.length === 0) {
+  const selectedGroupId =
+    requestedGroupId && groups.some((g) => g.id === requestedGroupId)
+      ? requestedGroupId
+      : groups[0]?.id || "";
+
+  if (!selectedGroupId) {
     return {
-      groups: [],
+      groups,
+      selectedGroupId: "",
       students: [],
       myXp: 0,
       myGroupName: "Без группы",
@@ -269,9 +230,8 @@ export async function getRatingPageDataAction(): Promise<RatingPageDataDTO> {
     };
   }
 
-  const groupIdsKey = [...allowedGroupIds].sort().join(",");
   const [studentRows, quests] = await Promise.all([
-    getGroupsLeaderboardCached(groupIdsKey, allowedGroupIds),
+    getGroupLeaderboardCached(selectedGroupId),
     role === "STUDENT" ? getStudentQuestProgressCached(userId) : Promise.resolve([]),
   ]);
 
@@ -280,20 +240,23 @@ export async function getRatingPageDataAction(): Promise<RatingPageDataDTO> {
     return {
       id: row.id,
       name: row.name,
-      groupId: firstGroup?.id ?? null,
-      groupName: firstGroup?.name ?? "Без группы",
+      groupId: firstGroup?.id ?? selectedGroupId,
+      groupName: firstGroup?.name ?? groups.find((g) => g.id === selectedGroupId)?.name ?? "Без группы",
       xp: row.xp,
       isMe: row.id === userId,
     };
   });
 
   const me = students.find((s) => s.isMe);
+  const selectedGroupName =
+    groups.find((g) => g.id === selectedGroupId)?.name ?? "Без группы";
 
   return {
     groups,
+    selectedGroupId,
     students,
     myXp: me?.xp ?? 0,
-    myGroupName: me?.groupName ?? "Без группы",
+    myGroupName: me?.groupName ?? selectedGroupName,
     quests,
   };
 }

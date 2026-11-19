@@ -6,35 +6,6 @@ import { Role } from "@prisma/client";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  useSecureCookies: false,
-  cookies: {
-    sessionToken: {
-      name: "authjs.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: false,
-      },
-    },
-    callbackUrl: {
-      name: "authjs.callback-url",
-      options: {
-        sameSite: "lax",
-        path: "/",
-        secure: false,
-      },
-    },
-    csrfToken: {
-      name: "authjs.csrf-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: false,
-      },
-    },
-  },
   providers: [
     Credentials({
       name: "Credentials",

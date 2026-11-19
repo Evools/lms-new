@@ -2,17 +2,19 @@
 
 import { useMemo, useState, useTransition } from "react";
 import {
+  Award,
   Crown,
   Gift,
   Medal,
   Search,
   Sparkles,
+  TrendingUp,
   Trophy,
   Users,
 } from "lucide-react";
 import { LEVEL_THRESHOLDS, getLevelInfo } from "@/lib/gamification";
 import type { RatingPageDataDTO, RatingQuestDTO } from "../actions";
-import { claimQuestRewardAction } from "../actions";
+import { claimQuestRewardAction, getRatingPageDataAction } from "../actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,17 +53,16 @@ export function RatingDemoView({ initialData, userName, userRole }: RatingDemoVi
   const [students, setStudents] = useState(initialData.students);
   const [quests, setQuests] = useState<RatingQuestDTO[]>(initialData.quests);
   const [myXp, setMyXp] = useState(initialData.myXp);
-  const [groupFilter, setGroupFilter] = useState<string>("ALL");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(initialData.selectedGroupId);
   const [search, setSearch] = useState("");
   const [levelsOpen, setLevelsOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const sortedStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return [...students]
-      .filter((s) => (groupFilter === "ALL" ? true : s.groupId === groupFilter))
-      .filter((s) => (!q ? true : s.name.toLowerCase().includes(q)));
-  }, [students, groupFilter, search]);
+    if (!q) return students;
+    return students.filter((s) => s.name.toLowerCase().includes(q));
+  }, [students, search]);
 
   const myRank = useMemo(() => {
     if (!isStudent) return 0;
@@ -69,10 +70,34 @@ export function RatingDemoView({ initialData, userName, userRole }: RatingDemoVi
   }, [isStudent, sortedStudents]);
 
   const myLevel = getLevelInfo(myXp);
-  const selectedGroupLabel =
-    groupFilter === "ALL"
-      ? "Все группы"
-      : `Группа ${initialData.groups.find((g) => g.id === groupFilter)?.name ?? ""}`;
+  const selectedGroupLabel = selectedGroupId
+    ? `Группа ${initialData.groups.find((g) => g.id === selectedGroupId)?.name ?? ""}`
+    : "Нет групп";
+
+  const handleGroupChange = (newGroupId: string) => {
+    setSelectedGroupId(newGroupId);
+    startTransition(async () => {
+      const next = await getRatingPageDataAction(newGroupId);
+      setStudents(next.students);
+    });
+  };
+
+  const staffStats = useMemo(() => {
+    const total = sortedStudents.length;
+    const totalXp = sortedStudents.reduce((acc, s) => acc + s.xp, 0);
+    const avgXp = total > 0 ? Math.round(totalXp / total) : 0;
+    const avgLvl = getLevelInfo(avgXp);
+    const leader = sortedStudents[0] ?? null;
+
+    return {
+      total,
+      totalXp,
+      avgXp,
+      avgLvl,
+      leader,
+      topThree: sortedStudents.slice(0, 3),
+    };
+  }, [sortedStudents]);
 
   const handleClaimQuest = (quest: RatingQuestDTO) => {
     if (quest.claimed || quest.progress < quest.target || isPending) return;
@@ -116,7 +141,11 @@ export function RatingDemoView({ initialData, userName, userRole }: RatingDemoVi
 
         <div className="flex flex-wrap items-center gap-2">
           {!isStudent ? (
-            <Select value={groupFilter} onValueChange={setGroupFilter}>
+            <Select
+              value={selectedGroupId}
+              onValueChange={handleGroupChange}
+              disabled={initialData.groups.length === 0 || isPending}
+            >
               <SelectTrigger className="h-8 w-[165px] text-xs font-medium bg-background">
                 <div className="flex items-center gap-1.5 truncate">
                   <Users className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -124,9 +153,6 @@ export function RatingDemoView({ initialData, userName, userRole }: RatingDemoVi
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL" className="text-xs">
-                  Все группы
-                </SelectItem>
                 {initialData.groups.map((g) => (
                   <SelectItem key={g.id} value={g.id} className="text-xs">
                     Группа {g.name}
@@ -155,6 +181,187 @@ export function RatingDemoView({ initialData, userName, userRole }: RatingDemoVi
           </Button>
         </div>
       </div>
+
+      {/* Staff (Admin / Teacher) Overview: KPI + Top-3 Podium + Group Comparison */}
+      {!isStudent && (
+        <div className="space-y-3">
+          {/* KPI Strip */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Card size="sm" className="py-3">
+              <CardContent className="px-4 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] text-muted-foreground font-medium">
+                    Студентов в рейтинге
+                  </div>
+                  <div className="text-base font-bold font-mono mt-0.5">{staffStats.total}</div>
+                </div>
+                <div className="h-8 w-8 rounded-lg border border-border bg-muted/40 flex items-center justify-center shrink-0">
+                  <Users className="h-4 w-4 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card size="sm" className="py-3">
+              <CardContent className="px-4 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] text-muted-foreground font-medium">
+                    Лидер рейтинга
+                  </div>
+                  <div className="text-xs font-bold truncate mt-0.5">
+                    {staffStats.leader ? staffStats.leader.name : "—"}
+                  </div>
+                  <div className="text-[11px] font-mono text-primary">
+                    {staffStats.leader
+                      ? `${staffStats.leader.xp.toLocaleString("ru-RU")} XP`
+                      : "0 XP"}
+                  </div>
+                </div>
+                <div className="h-8 w-8 rounded-lg border border-primary/30 bg-primary/10 flex items-center justify-center shrink-0">
+                  <Crown className="h-4 w-4 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card size="sm" className="py-3">
+              <CardContent className="px-4 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] text-muted-foreground font-medium">Средний XP</div>
+                  <div className="text-base font-bold font-mono mt-0.5">
+                    {staffStats.avgXp.toLocaleString("ru-RU")}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    Ур. {staffStats.avgLvl.level} · {staffStats.avgLvl.title}
+                  </div>
+                </div>
+                <div className="h-8 w-8 rounded-lg border border-border bg-muted/40 flex items-center justify-center shrink-0">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card size="sm" className="py-3">
+              <CardContent className="px-4 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] text-muted-foreground font-medium">
+                    Суммарный XP
+                  </div>
+                  <div className="text-base font-bold font-mono text-primary mt-0.5">
+                    {staffStats.totalXp.toLocaleString("ru-RU")}
+                  </div>
+                </div>
+                <div className="h-8 w-8 rounded-lg border border-border bg-muted/40 flex items-center justify-center shrink-0">
+                  <Award className="h-4 w-4 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Top-3 Leaders: Champion Spotlight + Runners-up */}
+          {staffStats.topThree.length > 0 && (() => {
+            const first = staffStats.topThree[0];
+            const firstLvl = getLevelInfo(first.xp);
+            const runners = staffStats.topThree.slice(1, 3);
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+                {/* #1 Champion Spotlight */}
+                <Card
+                  size="sm"
+                  className={`${
+                    runners.length > 0 ? "lg:col-span-6" : "lg:col-span-12"
+                  } py-3.5 border-primary bg-gradient-to-br from-primary/15 via-primary/5 to-card flex flex-col justify-between`}
+                >
+                  <CardContent className="px-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge className="text-[11px] font-medium bg-primary text-primary-foreground gap-1">
+                        <Crown className="h-3 w-3" />
+                        1 место · Лидер группы
+                      </Badge>
+                      <span className="text-sm font-mono font-bold text-primary">
+                        {first.xp.toLocaleString("ru-RU")} XP
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground border border-primary flex items-center justify-center font-bold text-sm shrink-0">
+                        {getInitials(first.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold truncate" title={first.name}>
+                          {first.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Ур. {firstLvl.level} · {firstLvl.title}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="h-1.5 w-full rounded-full bg-background/80 overflow-hidden border border-primary/20">
+                        <div
+                          className="h-full bg-primary transition-all duration-300"
+                          style={{ width: `${firstLvl.progress}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                        <span>{firstLvl.progress}% уровня</span>
+                        <span>до {firstLvl.level + 1} ур.: {firstLvl.nextXp - first.xp} XP</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* #2 & #3 Runners-up */}
+                {runners.length > 0 && (
+                  <div className="lg:col-span-6 flex flex-col justify-between gap-2.5">
+                    {runners.map((st, idx) => {
+                      const place = idx + 2;
+                      const lvl = getLevelInfo(st.xp);
+                      return (
+                        <Card key={st.id} size="sm" className="flex-1 py-2.5 flex items-center">
+                          <CardContent className="px-4 w-full flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="flex flex-col items-center justify-center w-8 shrink-0">
+                                <Medal className="h-4 w-4 text-primary/70" />
+                                <span className="text-[10px] font-bold text-muted-foreground">
+                                  #{place}
+                                </span>
+                              </div>
+                              <div className="h-9 w-9 rounded-full bg-muted/60 border border-border flex items-center justify-center font-bold text-xs shrink-0">
+                                {getInitials(st.name)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold truncate" title={st.name}>
+                                  {st.name}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  Ур. {lvl.level} · {lvl.title}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 space-y-1">
+                              <div className="text-xs font-mono font-bold text-primary">
+                                {st.xp.toLocaleString("ru-RU")} XP
+                              </div>
+                              <div className="w-20 h-1 rounded-full bg-muted overflow-hidden border border-border ml-auto">
+                                <div
+                                  className="h-full bg-primary/70"
+                                  style={{ width: `${lvl.progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Student-only Top Row: Profile + Quests */}
       {isStudent && (
