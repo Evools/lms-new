@@ -8,7 +8,7 @@ import {
   getCurrentPeriodBounds,
   type QuestPeriod,
 } from "@/lib/gamification";
-import { awardXpOnce } from "@/lib/gamification-server";
+import { awardXpOnce, isRatingModuleEnabled } from "@/lib/gamification-server";
 
 export interface RatingStudentDTO {
   id: string;
@@ -175,8 +175,8 @@ const getAllGroupsCached = unstable_cache(
 );
 
 export async function getRatingPageDataAction(requestedGroupId?: string): Promise<RatingPageDataDTO> {
-  const session = await auth();
-  if (!session?.user) {
+  const [session, enabled] = await Promise.all([auth(), isRatingModuleEnabled()]);
+  if (!session?.user || !enabled) {
     return {
       groups: [],
       selectedGroupId: "",
@@ -266,9 +266,12 @@ export async function claimQuestRewardAction(questId: string): Promise<{
   error?: string;
   rewardXp?: number;
 }> {
-  const session = await auth();
+  const [session, enabled] = await Promise.all([auth(), isRatingModuleEnabled()]);
   if (!session?.user) {
     return { success: false, error: "Требуется авторизация" };
+  }
+  if (!enabled) {
+    return { success: false, error: "Модуль рейтинга отключён администратором" };
   }
 
   if (session.user.role !== "STUDENT") {
