@@ -1283,6 +1283,7 @@ export async function internalGenerateWeeklyDuty(
       }
 
       if (algorithm === "FAIR") {
+        const COOLDOWN_MS = 2 * 24 * 60 * 60 * 1000; // Minimum 2-day rest between duties
         dayCandidates.sort((a, b) => {
           const weekA = currentWeekDutyCount[a] || 0;
           const weekB = currentWeekDutyCount[b] || 0;
@@ -1290,24 +1291,29 @@ export async function internalGenerateWeeklyDuty(
           // 1. Strict anti-repeat in the same week: nobody serves twice until every candidate has served
           if (weekA !== weekB) return weekA - weekB;
 
+          const timeA = lastDutyTime[a] || 0;
+          const timeB = lastDutyTime[b] || 0;
+
+          // 2. Cooldown guard: prevent back-to-back or every-other-day assignments even if catching up on past duties
+          const coolA = timeA > 0 && targetTime - timeA <= COOLDOWN_MS ? 1 : 0;
+          const coolB = timeB > 0 && targetTime - timeB <= COOLDOWN_MS ? 1 : 0;
+          if (coolA !== coolB) return coolA - coolB;
+
           const totalA = (pastDutyCount[a] || 0) + weekA;
           const totalB = (pastDutyCount[b] || 0) + weekB;
 
-          // 2. ABSOLUTE PRIORITY: Students who have NEVER served duty (0 duties) ALWAYS come first!
+          // 3. Priority for students who have NEVER served duty (0 duties)
           const neverA = totalA === 0 ? 0 : 1;
           const neverB = totalB === 0 ? 0 : 1;
           if (neverA !== neverB) return neverA - neverB;
 
-          // 3. Absolute Fairness: students with fewer total duties all-time ALWAYS come first
+          // 4. Fairness: students with fewer total duties all-time come first
           if (totalA !== totalB) return totalA - totalB;
 
-          const timeA = lastDutyTime[a] || 0;
-          const timeB = lastDutyTime[b] || 0;
-
-          // 4. Cooldown: among students with identical total duties, the one who rested longest (earliest last duty or 0) comes first
+          // 5. Longest rest first among equal total duties
           if (timeA !== timeB) return timeA - timeB;
 
-          // 5. Stable tie-breaker by original candidate index
+          // 6. Stable tie-breaker by original candidate index
           return candidateIds.indexOf(a) - candidateIds.indexOf(b);
         });
       } else if (algorithm === "RANDOM") {
