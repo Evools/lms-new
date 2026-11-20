@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, unstable_cache } from "next/cache";
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -310,4 +310,62 @@ export async function claimQuestRewardAction(questId: string): Promise<{
 
   revalidatePath("/dashboard/rating");
   return { success: true, rewardXp: questDef.rewardXp };
+}
+
+export async function resetRatingProgressAction(groupId?: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Только администратор может сбрасывать рейтинг" };
+  }
+
+  try {
+    if (groupId) {
+      const enrollments = await prisma.groupStudent.findMany({
+        where: { groupId },
+        select: { studentId: true },
+      });
+      const studentIds = enrollments.map((e) => e.studentId);
+
+      if (studentIds.length > 0) {
+        await prisma.$transaction([
+          prisma.xpTransaction.deleteMany({
+            where: { userId: { in: studentIds } },
+          }),
+          prisma.user.updateMany({
+            where: { id: { in: studentIds } },
+            data: { xp: 0 },
+          }),
+        ]);
+        studentIds.forEach((id) => {
+          try {
+            revalidateTag(`rating-quests-${id}`, "max");
+          } catch {
+            // ignore
+          }
+        });
+      }
+    } else {
+      await prisma.$transaction([
+        prisma.xpTransaction.deleteMany({}),
+        prisma.user.updateMany({
+          where: { xp: { not: 0 } },
+          data: { xp: 0 },
+        }),
+      ]);
+    }
+
+    try {
+      revalidateTag("rating-leaderboard", "max");
+    } catch {
+      // ignore
+    }
+    revalidatePath("/dashboard/rating");
+    return { success: true };
+  } catch (err) {
+    console.error("resetRatingProgressAction error:", err);
+    return { success: false, error: "Не удалось сбросить прогресс рейтинга" };
+  }
 }

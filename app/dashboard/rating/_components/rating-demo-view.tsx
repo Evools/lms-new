@@ -6,6 +6,7 @@ import {
   Crown,
   Gift,
   Medal,
+  RotateCcw,
   Search,
   Sparkles,
   TrendingUp,
@@ -14,7 +15,21 @@ import {
 } from "lucide-react";
 import { LEVEL_THRESHOLDS, getLevelInfo } from "@/lib/gamification";
 import type { RatingPageDataDTO, RatingQuestDTO } from "../actions";
-import { claimQuestRewardAction, getRatingPageDataAction } from "../actions";
+import {
+  claimQuestRewardAction,
+  getRatingPageDataAction,
+  resetRatingProgressAction,
+} from "../actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,12 +65,14 @@ interface RatingDemoViewProps {
 
 export function RatingDemoView({ initialData, userName, userRole }: RatingDemoViewProps) {
   const isStudent = userRole === "STUDENT";
+  const isAdmin = userRole === "ADMIN";
   const [students, setStudents] = useState(initialData.students);
   const [quests, setQuests] = useState<RatingQuestDTO[]>(initialData.quests);
   const [myXp, setMyXp] = useState(initialData.myXp);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(initialData.selectedGroupId);
   const [search, setSearch] = useState("");
   const [levelsOpen, setLevelsOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const sortedStudents = useMemo(() => {
@@ -79,6 +96,27 @@ export function RatingDemoView({ initialData, userName, userRole }: RatingDemoVi
     startTransition(async () => {
       const next = await getRatingPageDataAction(newGroupId);
       setStudents(next.students);
+    });
+  };
+
+  const handleResetProgress = (scope: "group" | "all") => {
+    startTransition(async () => {
+      const res = await resetRatingProgressAction(
+        scope === "group" && selectedGroupId ? selectedGroupId : undefined,
+      );
+      if (!res.success) {
+        toast.add({ title: res.error || "Ошибка при сбросе", type: "error" });
+        return;
+      }
+      setStudents((prev) => prev.map((s) => ({ ...s, xp: 0 })));
+      setResetOpen(false);
+      toast.add({
+        title:
+          scope === "group"
+            ? `Прогресс группы ${initialData.groups.find((g) => g.id === selectedGroupId)?.name ?? ""} сброшен`
+            : "Прогресс рейтинга сброшен у всех студентов",
+        type: "success",
+      });
     });
   };
 
@@ -179,6 +217,19 @@ export function RatingDemoView({ initialData, userName, userRole }: RatingDemoVi
           >
             Шкала уровней
           </Button>
+
+          {isAdmin && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 text-xs font-medium text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive gap-1.5 cursor-pointer"
+              onClick={() => setResetOpen(true)}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Сбросить XP
+            </Button>
+          )}
         </div>
       </div>
 
@@ -652,6 +703,51 @@ export function RatingDemoView({ initialData, userName, userRole }: RatingDemoVi
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Admin Reset Rating Confirmation */}
+      <AlertDialog open={resetOpen} onOpenChange={(open) => !isPending && setResetOpen(open)}>
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
+          <AlertDialogHeader className="place-items-start text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold">
+              Сбросить прогресс XP?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Обнулит очки XP, уровни и историю начислений (у выбранной группы или у всех студентов
+              лицея). Отменить это действие нельзя.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-row flex-wrap justify-end gap-2 pt-2 border-t mt-2">
+            <AlertDialogCancel
+              disabled={isPending}
+              className="h-6 px-2.5 text-xs font-medium mt-0"
+            >
+              Отмена
+            </AlertDialogCancel>
+            {selectedGroupId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isPending}
+                onClick={() => handleResetProgress("group")}
+                className="h-6 px-2.5 text-xs font-medium text-destructive border-destructive/40 hover:bg-destructive/10 cursor-pointer"
+              >
+                Только {selectedGroupLabel}
+              </Button>
+            )}
+            <AlertDialogAction
+              disabled={isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                handleResetProgress("all");
+              }}
+              className="h-6 px-2.5 text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isPending ? "Сброс..." : "У всех студентов"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
