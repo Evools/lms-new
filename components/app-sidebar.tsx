@@ -48,35 +48,45 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   featureModules?: FeatureModulesDTO;
 }
 
+function isUrlAllowed(url: string, mods: FeatureModulesDTO): boolean {
+  if (url === "/dashboard/lms/typing") return mods.feature_interactive && mods.feature_typing;
+  if (url === "/dashboard/lms/playground") return mods.feature_interactive && mods.feature_playground;
+  if (url === "/dashboard/lms/git") return mods.feature_interactive && mods.feature_git;
+
+  if (url === "/dashboard/schedule") return mods.feature_schedule;
+  if (url === "/dashboard/attendance") return mods.feature_attendance;
+  if (url === "/dashboard/duty") return mods.feature_duty;
+  if (url === "/dashboard/practice") return mods.feature_practice;
+  if (url === "/dashboard/scholarship") return mods.feature_scholarship;
+
+  if (url === "/dashboard/assignments") return mods.feature_assignments;
+  if (url === "/dashboard/rating") return mods.feature_rating;
+  if (url === "/dashboard/lms/materials") return mods.feature_materials;
+  if (url === "/dashboard/lms/tests") return mods.feature_tests;
+  if (url === "/dashboard/subjects") return mods.feature_subjects;
+  if (url === "/dashboard/specialties") return mods.feature_specialties;
+
+  return true;
+}
+
 function applyModuleFilters(section: NavMainSection, mods: FeatureModulesDTO): NavMainSection | null {
-  // If entire interactive group is disabled
   if (section.groupLabel === "Интерактив" && !mods.feature_interactive) {
     return null;
   }
 
-  const items = section.items.filter((item) => {
-    // Интерактив
-    if (item.url === "/dashboard/lms/typing") return mods.feature_interactive && mods.feature_typing;
-    if (item.url === "/dashboard/lms/playground") return mods.feature_interactive && mods.feature_playground;
-    if (item.url === "/dashboard/lms/git") return mods.feature_interactive && mods.feature_git;
-
-    // Учебный процесс
-    if (item.url === "/dashboard/schedule") return mods.feature_schedule;
-    if (item.url === "/dashboard/attendance") return mods.feature_attendance;
-    if (item.url === "/dashboard/duty") return mods.feature_duty;
-    if (item.url === "/dashboard/practice") return mods.feature_practice;
-    if (item.url === "/dashboard/scholarship") return mods.feature_scholarship;
-
-    // Обучение
-    if (item.url === "/dashboard/assignments") return mods.feature_assignments;
-    if (item.url === "/dashboard/rating") return mods.feature_rating;
-    if (item.url === "/dashboard/lms/materials") return mods.feature_materials;
-    if (item.url === "/dashboard/lms/tests") return mods.feature_tests;
-    if (item.url === "/dashboard/subjects") return mods.feature_subjects;
-    if (item.url === "/dashboard/specialties") return mods.feature_specialties;
-
-    return true;
-  });
+  const items = section.items
+    .map((item) => {
+      if (item.items && item.items.length > 0) {
+        if (item.title === "Интерактив" && !mods.feature_interactive) {
+          return null;
+        }
+        const filteredSub = item.items.filter((sub) => isUrlAllowed(sub.url, mods));
+        if (filteredSub.length === 0) return null;
+        return { ...item, url: filteredSub[0].url, items: filteredSub };
+      }
+      return isUrlAllowed(item.url, mods) ? item : null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 
   if (items.length === 0) return null;
   return { ...section, items };

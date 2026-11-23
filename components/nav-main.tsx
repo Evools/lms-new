@@ -190,30 +190,86 @@ function NavMainCollapsibleItem({
   );
 }
 
-export function NavMain({
-  sections,
+function NavMainSectionGroup({
+  section,
+  pathname,
+  isCollapsed,
+  onNavigate,
 }: {
-  sections: NavMainSection[];
+  section: NavMainSection;
+  pathname: string;
+  isCollapsed: boolean;
+  onNavigate: () => void;
 }) {
-  const pathname = usePathname();
-  const { state, isMobile, setOpenMobile } = useSidebar();
-  const isCollapsed = state === "collapsed" && !isMobile;
+  const hasActiveItem = section.items.some(
+    (item) =>
+      checkIsActive(pathname, item.url) ||
+      (item.items?.some((sub) => checkIsActive(pathname, sub.url)) ?? false)
+  );
 
-  const handleNavigate = React.useCallback(() => {
-    if (isMobile) {
-      setOpenMobile(false);
+  const [isOpen, setIsOpen] = useState(true);
+
+  useEffect(() => {
+    if (!section.groupLabel) return;
+    try {
+      const raw = localStorage.getItem("lms_sidebar_collapsed_sections");
+      if (raw) {
+        const collapsed = JSON.parse(raw) as Record<string, boolean>;
+        if (collapsed[section.groupLabel]) {
+          setIsOpen(hasActiveItem);
+        }
+      }
+    } catch {
+      // ignore localStorage errors
     }
-  }, [isMobile, setOpenMobile]);
+  }, [section.groupLabel, hasActiveItem]);
+
+  useEffect(() => {
+    if (hasActiveItem) {
+      setIsOpen(true);
+    }
+  }, [hasActiveItem]);
+
+  const toggleSection = () => {
+    if (!section.groupLabel) return;
+    setIsOpen((prev) => {
+      const next = !prev;
+      try {
+        const raw = localStorage.getItem("lms_sidebar_collapsed_sections");
+        const collapsed = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+        collapsed[section.groupLabel!] = !next;
+        localStorage.setItem("lms_sidebar_collapsed_sections", JSON.stringify(collapsed));
+      } catch {
+        // ignore localStorage errors
+      }
+      return next;
+    });
+  };
+
+  const showItems = isCollapsed || isOpen;
 
   return (
-    <>
-      {sections.map((section, sectionIdx) => (
-        <SidebarGroup key={section.groupLabel || sectionIdx} className="py-1">
-          {section.groupLabel && (
-            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2 py-1 select-none group-data-[collapsible=icon]:hidden">
-              {section.groupLabel}
-            </SidebarGroupLabel>
-          )}
+    <SidebarGroup className="py-1">
+      {section.groupLabel && (
+        <SidebarGroupLabel
+          onClick={toggleSection}
+          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground px-2 py-1 select-none group-data-[collapsible=icon]:hidden flex items-center justify-between cursor-pointer rounded-md hover:bg-muted/40 transition-colors"
+        >
+          <span>{section.groupLabel}</span>
+          <ChevronRight
+            className={`h-3 w-3 text-muted-foreground/70 transition-transform duration-200 ${
+              isOpen ? "rotate-90" : ""
+            }`}
+          />
+        </SidebarGroupLabel>
+      )}
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${
+          showItems ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 pointer-events-none"
+        }`}
+        aria-hidden={!showItems}
+      >
+        <div className="overflow-hidden">
           <SidebarMenu className="space-y-0.5">
             {section.items.map((item) => {
               const hasSubItems = item.items && item.items.length > 0;
@@ -229,7 +285,7 @@ export function NavMain({
                       isActive={isDirectActive}
                       tooltip={item.title}
                       className="rounded-md font-medium text-xs h-8 px-2.5 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
-                      render={<Link href={item.url} onClick={handleNavigate} />}
+                      render={<Link href={item.url} onClick={onNavigate} />}
                     >
                       <span
                         className={`shrink-0 flex items-center justify-center transition-colors ${
@@ -262,12 +318,42 @@ export function NavMain({
                   isCurrentActive={isCurrentActive}
                   pathname={pathname}
                   isCollapsed={isCollapsed}
-                  onNavigate={handleNavigate}
+                  onNavigate={onNavigate}
                 />
               );
             })}
           </SidebarMenu>
-        </SidebarGroup>
+        </div>
+      </div>
+    </SidebarGroup>
+  );
+}
+
+export function NavMain({
+  sections,
+}: {
+  sections: NavMainSection[];
+}) {
+  const pathname = usePathname();
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
+
+  const handleNavigate = React.useCallback(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [isMobile, setOpenMobile]);
+
+  return (
+    <>
+      {sections.map((section, sectionIdx) => (
+        <NavMainSectionGroup
+          key={section.groupLabel || sectionIdx}
+          section={section}
+          pathname={pathname}
+          isCollapsed={isCollapsed}
+          onNavigate={handleNavigate}
+        />
       ))}
     </>
   );
