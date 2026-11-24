@@ -11,6 +11,9 @@ const isStale =
    !(globalForPrisma.prisma as unknown as { scholarshipRecord?: unknown }).scholarshipRecord ||
    !(globalForPrisma.prisma as any)._runtimeDataModel?.models?.User?.fields?.some(
      (f: any) => f.name === "rollNumber"
+   ) ||
+   !(globalForPrisma.prisma as any)._runtimeDataModel?.models?.User?.fields?.some(
+     (f: any) => f.name === "googleId"
    ));
 
 export const prisma =

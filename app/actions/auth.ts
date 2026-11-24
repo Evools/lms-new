@@ -92,6 +92,12 @@ export async function logoutAction() {
   return { success: true };
 }
 
+export async function loginWithGoogleAction() {
+  const cookieStore = await cookies();
+  cookieStore.delete("lms_google_link_uid");
+  await signIn("google", { redirectTo: "/dashboard" });
+}
+
 export async function getCurrentUser() {
   const session = await auth();
   return session?.user ?? null;

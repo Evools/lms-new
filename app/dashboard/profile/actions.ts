@@ -1,14 +1,17 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { auth, signIn } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 
 export interface UserProfileDetailsDTO {
   id: string;
   name: string;
   email: string;
+  googleEmail?: string | null;
   phone?: string | null;
   role: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION";
   avatar?: string | null;
@@ -64,6 +67,7 @@ export async function getProfileDataAction(): Promise<UserProfileDetailsDTO | nu
       id: user.id,
       name: user.name,
       email: user.email,
+      googleEmail: user.googleEmail,
       phone: user.phone,
       role: user.role,
       avatar: user.avatar,
@@ -210,5 +214,44 @@ export async function updateProfilePasswordAction(data: {
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Произошла ошибка при смене пароля" };
+  }
+}
+
+export async function startGoogleLinkAction() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set("lms_google_link_uid", session.user.id, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 300,
+  });
+
+  await signIn("google", { redirectTo: "/dashboard/profile?googleLinked=1" });
+}
+
+export async function unlinkGoogleAction() {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Не авторизован" };
+
+  try {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        googleId: null,
+        googleEmail: null,
+      },
+    });
+    revalidatePath("/dashboard/profile");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Ошибка отвязки Google-аккаунта",
+    };
   }
 }

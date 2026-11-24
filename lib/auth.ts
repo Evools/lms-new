@@ -1,12 +1,18 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   providers: [
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+    }),
     Credentials({
       name: "Credentials",
       credentials: {
@@ -99,8 +105,85 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider !== "google") {
+        return true;
+      }
+
+      const googleId = account.providerAccountId;
+      const googleEmail =
+        (user.email || (typeof profile?.email === "string" ? profile.email : "") || "")
+          .trim()
+          .toLowerCase() || null;
+
+      if (!googleId) {
+        return "/login?error=GoogleAuthFailed";
+      }
+
+      try {
+        const cookieStore = await cookies();
+        const linkUserId = cookieStore.get("lms_google_link_uid")?.value;
+
+        if (linkUserId) {
+          cookieStore.delete("lms_google_link_uid");
+
+          const currentUser = await prisma.user.findUnique({
+            where: { id: linkUserId },
+          });
+          if (!currentUser || !currentUser.isActive) {
+            return "/login?error=AccountInactive";
+          }
+
+          const existingOwner = await prisma.user.findUnique({
+            where: { googleId },
+            select: { id: true },
+          });
+          if (existingOwner && existingOwner.id !== linkUserId) {
+            return "/dashboard/profile?googleError=already_linked";
+          }
+
+          const updatedUser = await prisma.user.update({
+            where: { id: linkUserId },
+            data: {
+              googleId,
+              googleEmail,
+            },
+          });
+
+          user.id = updatedUser.id;
+          user.role = updatedUser.role;
+          user.avatar = updatedUser.avatar;
+          user.name = updatedUser.name;
+          user.email = updatedUser.email;
+          return true;
+        }
+
+        const dbUser = await prisma.user.findUnique({
+          where: { googleId },
+        });
+
+        if (!dbUser) {
+          return "/login?error=GoogleNotLinked";
+        }
+
+        if (!dbUser.isActive) {
+          return "/login?error=AccountInactive";
+        }
+
+        user.id = dbUser.id;
+        user.role = dbUser.role;
+        user.avatar = dbUser.avatar;
+        user.name = dbUser.name;
+        user.email = dbUser.email;
+        return true;
+      } catch (err) {
+        console.error("[auth][google] signIn callback error:", err);
+        return "/login?error=GoogleAuthFailed";
+      }
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;

@@ -48,6 +48,8 @@ enum SubmissionStatus {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
+  googleId     String?  @unique
+  googleEmail  String?
   password     String
   tempPassword String?
   name         String
