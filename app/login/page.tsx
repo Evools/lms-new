@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { loginAction, loginWithGoogleAction } from "@/app/actions/auth";
+import { signIn } from "next-auth/react";
+import { loginAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -463,7 +464,7 @@ export default function LoginPage() {
                 onClick={() => {
                   setError(null);
                   startTransition(async () => {
-                    await loginWithGoogleAction();
+                    await signIn("google", { callbackUrl: "/dashboard" });
                   });
                 }}
                 className="w-full h-9 text-xs font-medium gap-2 cursor-pointer"

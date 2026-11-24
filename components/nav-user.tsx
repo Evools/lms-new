@@ -22,7 +22,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { logoutAction } from "@/app/actions/auth";
 import {
   ChevronsUpDown,
   LogOut,
@@ -48,16 +47,10 @@ export function NavUser({
   const { isMobile, setOpenMobile } = useSidebar();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
-    try {
-      await logoutAction();
-    } catch {
-      // ignore
-    } finally {
-      window.location.href = "/login";
-    }
+    window.location.href = "/api/logout";
   };
 
   const roleConfigs = {

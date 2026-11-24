@@ -5,7 +5,10 @@ export const proxy = auth((req) => {
   const isLoggedIn = !!req.auth;
   const { pathname } = req.nextUrl;
 
-  const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/api/auth");
+  const isPublicRoute =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/logout");
 
   if (!isLoggedIn && !isPublicRoute) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
