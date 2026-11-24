@@ -91,6 +91,10 @@ export default function LoginPage() {
     ) {
       setError("Не удалось выполнить вход через Google. Попробуйте ещё раз.");
     }
+
+    if (errParam) {
+      window.history.replaceState({}, "", "/login");
+    }
   }, []);
 
   // Automatic slide rotation

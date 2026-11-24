@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   const loginUrl = new URL("/login", req.url);
   const res = NextResponse.redirect(loginUrl);
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.headers.set("Pragma", "no-cache");
 
   const allCookies = req.cookies.getAll();
   for (const cookie of allCookies) {

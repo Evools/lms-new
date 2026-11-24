@@ -55,10 +55,11 @@ export async function loginAction(formData: FormData) {
     const res = await signIn("credentials", {
       email: identifier,
       password,
+      redirectTo: "/dashboard",
       redirect: false,
     });
 
-    if (typeof res === "string" && (res.includes("error=CredentialsSignin") || res.includes("error="))) {
+    if (typeof res === "string" && res.includes("error=CredentialsSignin")) {
       return { error: "Неверный логин или пароль" };
     }
 
