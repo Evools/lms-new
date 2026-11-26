@@ -230,7 +230,7 @@ export function StudentSubmitDialog({
             size="xs"
             onClick={onClose}
             disabled={isPending}
-            className="h-7 rounded-md text-xs px-3 cursor-pointer"
+            className="h-7 text-xs px-3 cursor-pointer"
           >
             Отмена
           </Button>
@@ -240,7 +240,7 @@ export function StudentSubmitDialog({
             size="xs"
             onClick={handleStudentSubmit}
             disabled={isPending}
-            className="h-7 rounded-md text-xs gap-1.5 font-medium px-3 cursor-pointer"
+            className="h-7 text-xs gap-1.5 font-medium px-3 cursor-pointer"
           >
             <Send className="h-3.5 w-3.5" />
             <span>{isPending ? "Отправка..." : "Отправить на проверку"}</span>

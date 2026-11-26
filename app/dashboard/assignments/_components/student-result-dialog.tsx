@@ -65,7 +65,7 @@ export function StudentResultDialog({
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge
                     variant="outline"
-                    className={`h-6 px-2.5 text-xs font-medium border rounded-md inline-flex items-center gap-1.5 ${
+                    className={`h-6 px-2.5 text-xs font-medium border rounded-full inline-flex items-center gap-1.5 ${
                       mySub.status === SubmissionStatus.ACCEPTED
                         ? "bg-primary/10 text-primary border-primary/25"
                         : mySub.status === SubmissionStatus.NEED_REVISION
@@ -89,7 +89,7 @@ export function StudentResultDialog({
                   </Badge>
 
                   {mySub.grade != null && (
-                    <span className="h-6 px-2.5 inline-flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 border border-primary/25 rounded-md">
+                    <span className="h-6 px-2.5 inline-flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 border border-primary/25 rounded-full">
                       <Star className="h-3.5 w-3.5 fill-primary text-primary" />
                       <span>Оценка: {mySub.grade}</span>
                     </span>
@@ -144,7 +144,7 @@ export function StudentResultDialog({
                           <span className="font-medium text-foreground text-xs truncate" title={meta.title}>
                             {meta.title}
                           </span>
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal shrink-0 rounded-md">
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal shrink-0">
                             {meta.badge}
                           </Badge>
                         </div>
@@ -153,7 +153,7 @@ export function StudentResultDialog({
                         href={mySub.fileUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-primary/25 bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-[11px] shrink-0 font-medium"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-primary/25 bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-[11px] shrink-0 font-medium"
                       >
                         {meta.isDownloadable ? (
                           <>
@@ -188,7 +188,7 @@ export function StudentResultDialog({
                   onClose();
                   onOpenSubmit(target);
                 }}
-                className="h-7 rounded-md text-xs gap-1 font-medium px-3 cursor-pointer"
+                className="h-7 text-xs gap-1 font-medium px-3 cursor-pointer"
               >
                 <Send className="h-3.5 w-3.5" />
                 {mySub ? "Пересдать" : "Сдать ДЗ"}
@@ -198,7 +198,7 @@ export function StudentResultDialog({
               variant="outline"
               size="xs"
               onClick={onClose}
-              className="h-7 rounded-md text-xs px-3 cursor-pointer"
+              className="h-7 text-xs px-3 cursor-pointer"
             >
               Закрыть
             </Button>

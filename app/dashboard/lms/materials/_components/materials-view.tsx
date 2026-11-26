@@ -1099,7 +1099,7 @@ export function MaterialsView({
                 variant="outline"
                 onClick={handleBackToSubjects}
                 disabled={isPending}
-                className="h-7 text-xs px-2.5 gap-1.5 text-muted-foreground hover:text-foreground font-medium"
+                className="h-7 text-xs px-2.5 gap-1.5 rounded-md text-foreground font-medium cursor-pointer"
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> Назад к предметам
               </Button>
@@ -1109,7 +1109,7 @@ export function MaterialsView({
                 <span className="font-bold text-foreground text-xs">{currentSubjectObj?.subjectName}</span>
                 <span className="text-[11px] text-muted-foreground">• Преподаватель: {currentSubjectObj?.teacherName}</span>
                 {isPending && (
-                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 gap-1 border-primary/40 text-primary animate-pulse font-medium bg-primary/5">
+                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 rounded-md gap-1 border-primary/40 text-primary animate-pulse font-medium bg-primary/5">
                     <Loader2 className="h-2.5 w-2.5 animate-spin" />
                     Загрузка...
                   </Badge>
@@ -1121,7 +1121,7 @@ export function MaterialsView({
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-[11px] text-muted-foreground">Предмет:</span>
               <Select value={selectedSubjectId} onValueChange={handleSelectSubject} disabled={isPending}>
-                <SelectTrigger className="h-7 text-xs font-semibold bg-background sm:w-[200px]">
+                <SelectTrigger className="h-7 text-xs font-medium rounded-md bg-background sm:w-[200px]">
                   <SelectValue>{currentSubjectObj?.subjectName}</SelectValue>
                   {isPending && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto shrink-0" />}
                 </SelectTrigger>
@@ -1700,13 +1700,13 @@ export function MaterialsView({
                         )}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                        <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-medium flex items-center gap-1">
+                        <Badge variant="outline" className="text-[10px] rounded-md border-primary/30 text-primary font-medium flex items-center gap-1">
                           {getMaterialTypeIcon(currentMat.type)}
                           <span>{getMaterialTypeLabel(currentMat.type)}</span>
                         </Badge>
 
                         {currentMat.subjectName && (
-                          <Badge variant="secondary" className="text-[10px] font-semibold text-foreground flex items-center gap-1">
+                          <Badge variant="secondary" className="text-[10px] rounded-md font-medium text-foreground flex items-center gap-1">
                             <BookMarked className="h-3 w-3 text-primary" />
                             <span>{currentMat.subjectName}</span>
                           </Badge>
@@ -1785,8 +1785,8 @@ export function MaterialsView({
                           variant="outline"
                           onClick={handleShareMaterial}
                           className={cn(
-                            "h-7 text-xs px-2.5 gap-1.5 font-medium border-border shadow-2xs transition-colors",
-                            isShareCopied ? "text-primary bg-primary/10 border-primary/40" : "text-muted-foreground hover:text-foreground"
+                            "h-7 text-xs px-2.5 gap-1.5 font-medium border-border shadow-2xs rounded-md transition-colors cursor-pointer",
+                            isShareCopied ? "text-primary bg-primary/10 border-primary/40" : "text-foreground"
                           )}
                           title="Скопировать ссылку на урок"
                         >

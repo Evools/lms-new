@@ -612,7 +612,7 @@ export function AssignmentsView({
                           {!assignment.isPublished && (
                             <Badge
                               variant="outline"
-                              className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 rounded-md inline-flex items-center gap-1"
+                              className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 rounded-full inline-flex items-center gap-1"
                             >
                               <EyeOff className="h-2.5 w-2.5" /> Черновик
                             </Badge>
@@ -676,7 +676,7 @@ export function AssignmentsView({
                       {/* Attachments */}
                       <td className="py-2.5 px-3 text-center">
                         {attachmentLinksList.length > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md border border-border/60">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/60">
                             <Paperclip className="h-3 w-3 shrink-0 text-primary" /> {attachmentLinksList.length}
                           </span>
                         ) : (
@@ -690,7 +690,7 @@ export function AssignmentsView({
                           <button
                             type="button"
                             onClick={() => setReviewTargetAssignmentId(assignment.id)}
-                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
                           >
                             <FileCheck className="h-3.5 w-3.5" />
                             <span>
@@ -702,7 +702,7 @@ export function AssignmentsView({
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Badge
                                 variant="outline"
-                                className={`text-[11px] font-medium border px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 ${
+                                className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
                                   userSub.status === SubmissionStatus.ACCEPTED
                                     ? "bg-primary/10 text-primary border-primary/25"
                                     : userSub.status === SubmissionStatus.NEED_REVISION
@@ -739,7 +739,7 @@ export function AssignmentsView({
                                   onClick={() => setViewMyResultAssignmentId(assignment.id)}
                                   title={`Комментарий преподавателя: ${userSub.teacherComment}`}
                                   aria-label="Комментарий преподавателя"
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
                                 >
                                   <MessageSquare className="h-3 w-3" />
                                 </button>
@@ -749,7 +749,7 @@ export function AssignmentsView({
                         ) : (
                           <Badge
                             variant="outline"
-                            className="text-[11px] text-muted-foreground font-normal rounded-md border-border/60"
+                            className="text-[11px] text-muted-foreground font-normal rounded-full border-border/60"
                           >
                             Не сдано
                           </Badge>
@@ -765,7 +765,7 @@ export function AssignmentsView({
                                 size="xs"
                                 variant="outline"
                                 onClick={() => setReviewTargetAssignmentId(assignment.id)}
-                                className="h-7 rounded-md text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2.5 cursor-pointer"
+                                className="h-7 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10 px-2.5 cursor-pointer"
                                 title="Проверить работы студентов"
                               >
                                 <FileCheck className="h-3.5 w-3.5" />
@@ -843,7 +843,7 @@ export function AssignmentsView({
                                 size="xs"
                                 variant="outline"
                                 onClick={() => setViewTargetAssignmentId(assignment.id)}
-                                className="h-7 rounded-md text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
+                                className="h-7 text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
                               >
                                 <Eye className="h-3.5 w-3.5 shrink-0" />
                                 <span>Задание</span>
@@ -853,7 +853,7 @@ export function AssignmentsView({
                                 <Button
                                   size="xs"
                                   onClick={() => setViewMyResultAssignmentId(assignment.id)}
-                                  className="h-7 w-[104px] justify-center rounded-md text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
+                                  className="h-7 w-[104px] justify-center text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
                                 >
                                   <FileCheck className="h-3.5 w-3.5 shrink-0" />
                                   <span>Мой ответ</span>
@@ -862,7 +862,7 @@ export function AssignmentsView({
                                 <Button
                                   size="xs"
                                   onClick={() => setSubmitTargetAssignmentId(assignment.id)}
-                                  className="h-7 w-[104px] justify-center rounded-md text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
+                                  className="h-7 w-[104px] justify-center text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
                                 >
                                   <Send className="h-3.5 w-3.5 shrink-0" />
                                   <span>Сдать ДЗ</span>
@@ -930,7 +930,7 @@ export function AssignmentsView({
                       {!assignment.isPublished && (
                         <Badge
                           variant="outline"
-                          className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 rounded-md inline-flex items-center gap-1"
+                          className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 rounded-full inline-flex items-center gap-1"
                         >
                           <EyeOff className="h-2.5 w-2.5" /> Черновик
                         </Badge>
@@ -981,7 +981,7 @@ export function AssignmentsView({
                       <span className="truncate">{assignment.teacherName}</span>
                     </span>
                     {attachmentLinksList.length > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md border border-border/60 shrink-0">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/60 shrink-0">
                         <Paperclip className="h-2.5 w-2.5 text-primary" />
                         <span>{attachmentLinksList.length}</span>
                       </span>
@@ -996,7 +996,7 @@ export function AssignmentsView({
                       <button
                         type="button"
                         onClick={() => setReviewTargetAssignmentId(assignment.id)}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
                       >
                         <FileCheck className="h-3.5 w-3.5" />
                         <span>
@@ -1009,7 +1009,7 @@ export function AssignmentsView({
                           <Button
                             size="xs"
                             variant="outline"
-                            className="h-7 w-7 p-0 rounded-md text-muted-foreground hover:text-primary cursor-pointer"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary cursor-pointer"
                             title="Редактировать"
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -1022,7 +1022,7 @@ export function AssignmentsView({
                           onClick={() =>
                             handleTogglePublish(assignment.id, assignment.isPublished)
                           }
-                          className="h-7 w-7 p-0 rounded-md text-muted-foreground cursor-pointer"
+                          className="h-7 w-7 p-0 text-muted-foreground cursor-pointer"
                           title={
                             assignment.isPublished ? "Снять с публикации" : "Опубликовать"
                           }
@@ -1038,7 +1038,7 @@ export function AssignmentsView({
                           size="xs"
                           variant="outline"
                           onClick={() => setDeleteTargetAssignmentId(assignment.id)}
-                          className="h-7 w-7 p-0 rounded-md text-muted-foreground hover:text-destructive cursor-pointer"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
                           title="Удалить"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -1050,7 +1050,7 @@ export function AssignmentsView({
                       {userSub ? (
                         <Badge
                           variant="outline"
-                          className={`text-[11px] font-medium border px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 ${
+                          className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
                             userSub.status === SubmissionStatus.ACCEPTED
                               ? "bg-primary/10 text-primary border-primary/25"
                               : userSub.status === SubmissionStatus.NEED_REVISION
@@ -1084,7 +1084,7 @@ export function AssignmentsView({
                       ) : (
                         <Badge
                           variant="outline"
-                          className="text-[11px] text-muted-foreground font-normal rounded-md border-border/60"
+                          className="text-[11px] text-muted-foreground font-normal rounded-full border-border/60"
                         >
                           Не сдано
                         </Badge>
@@ -1095,7 +1095,7 @@ export function AssignmentsView({
                           size="xs"
                           variant="outline"
                           onClick={() => setViewTargetAssignmentId(assignment.id)}
-                          className="h-7 rounded-md text-xs font-medium px-2.5 cursor-pointer"
+                          className="h-7 text-xs font-medium px-2.5 cursor-pointer"
                         >
                           Детали
                         </Button>
@@ -1103,7 +1103,7 @@ export function AssignmentsView({
                           <Button
                             size="xs"
                             onClick={() => setViewMyResultAssignmentId(assignment.id)}
-                            className="h-7 rounded-md text-xs font-medium px-2.5 cursor-pointer"
+                            className="h-7 text-xs font-medium px-2.5 cursor-pointer"
                           >
                             Ответ
                           </Button>
@@ -1111,7 +1111,7 @@ export function AssignmentsView({
                           <Button
                             size="xs"
                             onClick={() => setSubmitTargetAssignmentId(assignment.id)}
-                            className="h-7 rounded-md text-xs font-medium gap-1 px-2.5 cursor-pointer"
+                            className="h-7 text-xs font-medium gap-1 px-2.5 cursor-pointer"
                           >
                             <Send className="h-3 w-3" /> Сдать
                           </Button>
