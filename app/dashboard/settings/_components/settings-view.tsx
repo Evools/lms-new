@@ -152,7 +152,7 @@ export function SettingsView({
 }: SettingsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [localUsers, setLocalUsers] = useState<UserItemDTO[]>(allUsers);
+  const [localUsers, setLocalUsers] = useState<UserProfileDTO[]>(allUsers);
   const [pendingUserIds, setPendingUserIds] = useState<Record<string, boolean>>({});
   const [pendingSystemKeys, setPendingSystemKeys] = useState<Record<string, boolean>>({});
 
