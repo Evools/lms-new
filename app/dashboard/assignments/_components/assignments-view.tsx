@@ -70,7 +70,7 @@ interface AssignmentsViewProps {
   selectedGroupId: string;
   canCreate: boolean;
   initialSubjectFilter?: string;
-  initialTabFilter?: "ALL" | "PENDING" | "DRAFTS";
+  initialTabFilter?: "ALL" | "PENDING" | "DRAFTS" | "ACCEPTED";
   initialSearchQuery?: string;
 }
 
@@ -97,9 +97,9 @@ export function AssignmentsView({
   const [currentGroupId, setCurrentGroupId] = useState<string>(selectedGroupId);
   const [searchQuery, setSearchQuery] = useState<string>(initialSearchQuery);
   const [subjectFilter, setSubjectFilter] = useState<string>(initialSubjectFilter || "all");
-  const [activeTabFilter, setActiveTabFilter] = useState<"ALL" | "PENDING" | "DRAFTS">(
-    initialTabFilter || "ALL"
-  );
+  const [activeTabFilter, setActiveTabFilter] = useState<
+    "ALL" | "PENDING" | "DRAFTS" | "ACCEPTED"
+  >(initialTabFilter || "ALL");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
 
   // Modals state (stored as IDs for instant synchronization with localAssignments)
@@ -153,7 +153,7 @@ export function AssignmentsView({
     updateUrl({ subject: val });
   };
 
-  const handleTabChange = (val: "ALL" | "PENDING" | "DRAFTS") => {
+  const handleTabChange = (val: "ALL" | "PENDING" | "DRAFTS" | "ACCEPTED") => {
     setActiveTabFilter(val);
     updateUrl({ tab: val });
   };
@@ -258,6 +258,15 @@ export function AssignmentsView({
     }
   });
 
+  const studentTodoCount = !canCreate
+    ? localAssignments.filter(
+        (a) => !a.userSubmission || a.userSubmission.status === SubmissionStatus.NEED_REVISION
+      ).length
+    : 0;
+  const studentAcceptedCount = !canCreate
+    ? localAssignments.filter((a) => a.userSubmission?.status === SubmissionStatus.ACCEPTED).length
+    : 0;
+
   // Filtered list
   const filteredAssignments = localAssignments.filter((a) => {
     const query = searchQuery.toLowerCase().trim();
@@ -275,7 +284,13 @@ export function AssignmentsView({
       return !a.isPublished;
     }
     if (activeTabFilter === "PENDING") {
-      return a.isPublished && a.submissionsCount > a.acceptedCount;
+      if (canCreate) {
+        return a.isPublished && a.submissionsCount > a.acceptedCount;
+      }
+      return !a.userSubmission || a.userSubmission.status === SubmissionStatus.NEED_REVISION;
+    }
+    if (activeTabFilter === "ACCEPTED") {
+      return a.userSubmission?.status === SubmissionStatus.ACCEPTED;
     }
     return true;
   });
@@ -412,7 +427,7 @@ export function AssignmentsView({
             Все ({localAssignments.length})
           </button>
 
-          {canCreate && (
+          {canCreate ? (
             <>
               <button
                 type="button"
@@ -446,6 +461,37 @@ export function AssignmentsView({
                     {draftsCount}
                   </span>
                 )}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => handleTabChange("PENDING")}
+                className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                  activeTabFilter === "PENDING"
+                    ? "bg-background text-primary shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                К сдаче
+                {studentTodoCount > 0 && (
+                  <span className="text-[9px] px-1 rounded-full bg-primary/20 text-primary font-bold">
+                    {studentTodoCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange("ACCEPTED")}
+                className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                  activeTabFilter === "ACCEPTED"
+                    ? "bg-background text-primary shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Принято ({studentAcceptedCount})
               </button>
             </>
           )}
