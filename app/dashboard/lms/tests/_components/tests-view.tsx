@@ -71,6 +71,8 @@ import {
   Copy,
   Play,
   MoreHorizontal,
+  Filter,
+  X,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -119,7 +121,9 @@ export function TestsView({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
-  const [activeTabFilter, setActiveTabFilter] = useState<"ALL" | "DRAFTS">("ALL");
+  const [activeTabFilter, setActiveTabFilter] = useState<
+    "ALL" | "DRAFTS" | "PENDING" | "COMPLETED"
+  >("ALL");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -336,6 +340,12 @@ export function TestsView({
     if (activeTabFilter === "DRAFTS") {
       return !t.isPublished;
     }
+    if (activeTabFilter === "PENDING") {
+      return !t.userSubmission;
+    }
+    if (activeTabFilter === "COMPLETED") {
+      return Boolean(t.userSubmission);
+    }
     return true;
   });
 
@@ -344,6 +354,12 @@ export function TestsView({
   const draftTests = tests.filter((t) => !t.isPublished);
   const totalTests = userRole === "STUDENT" ? tests.length : publishedTests.length;
   const draftsCount = draftTests.length;
+  const studentPendingTestsCount = !canCreate
+    ? tests.filter((t) => !t.userSubmission).length
+    : 0;
+  const studentCompletedTestsCount = !canCreate
+    ? tests.filter((t) => Boolean(t.userSubmission)).length
+    : 0;
   const studentSubmissions = tests
     .map((t) => t.userSubmission)
     .filter((s): s is NonNullable<typeof s> => Boolean(s));
@@ -431,36 +447,39 @@ export function TestsView({
       </div>
 
       {/* Control & Filters Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center" data-tour="tests-filters">
-        {/* Group Selector */}
-        <div className="lg:col-span-3">
-          <Select value={selectedGroupId} onValueChange={handleGroupChange}>
-            <SelectTrigger className="h-8 text-xs bg-background font-medium">
-              <div className="flex items-center gap-1.5 truncate">
-                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                <SelectValue>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id} className="text-xs">
-                  Группа {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2 rounded-xl border items-center" data-tour="tests-filters">
+        {/* Group Selector (hidden for students in a single group) */}
+        {(canCreate || groups.length > 1) && (
+          <div className="lg:col-span-3">
+            <Select value={selectedGroupId} onValueChange={handleGroupChange}>
+              <SelectTrigger className="h-8 text-xs bg-muted/40 border-border/70 font-medium">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <SelectValue>{currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Выберите группу"}</SelectValue>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={g.id} className="text-xs">
+                    Группа {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Subject Filter */}
-        <div className="lg:col-span-2">
+        <div className={canCreate || groups.length > 1 ? "lg:col-span-2" : "lg:col-span-3"}>
           <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-            <SelectTrigger className="h-8 text-xs bg-background font-medium">
+            <SelectTrigger className="h-8 text-xs bg-muted/40 border-border/70 font-medium">
               <div className="flex items-center gap-1.5 truncate">
                 <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground font-normal shrink-0">Предмет:</span>
                 <SelectValue>
                   {subjectFilter === "all"
-                    ? "Все предметы"
-                    : subjects.find((s) => s.id === subjectFilter)?.subjectName || "Все предметы"}
+                    ? "Все"
+                    : subjects.find((s) => s.id === subjectFilter)?.subjectName || "Все"}
                 </SelectValue>
               </div>
             </SelectTrigger>
@@ -478,13 +497,14 @@ export function TestsView({
         </div>
 
         {/* Topic Filter */}
-        <div className="lg:col-span-2">
+        <div className={canCreate || groups.length > 1 ? "lg:col-span-2" : "lg:col-span-3"}>
           <Select value={selectedTopicId || "all"} onValueChange={handleTopicChange}>
-            <SelectTrigger className="h-8 text-xs bg-background font-medium">
+            <SelectTrigger className="h-8 text-xs bg-muted/40 border-border/70 font-medium">
               <div className="flex items-center gap-1.5 truncate">
                 <FolderKanban className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground font-normal shrink-0">Тема:</span>
                 <SelectValue>
-                  {topics.find((t) => t.id === selectedTopicId)?.title || "Все темы"}
+                  {topics.find((t) => t.id === selectedTopicId)?.title || "Все"}
                 </SelectValue>
               </div>
             </SelectTrigger>
@@ -501,50 +521,75 @@ export function TestsView({
           </Select>
         </div>
 
-        {/* Drafts Tab Filters */}
-        <div className="lg:col-span-2 flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border">
-          <button
-            type="button"
-            onClick={() => setActiveTabFilter("ALL")}
-            className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center ${
-              activeTabFilter === "ALL"
-                ? "bg-background text-primary shadow-xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+        {/* Status Filter Dropdown */}
+        <div className="lg:col-span-2">
+          <Select
+            value={activeTabFilter}
+            onValueChange={(val) =>
+              setActiveTabFilter(val as "ALL" | "DRAFTS" | "PENDING" | "COMPLETED")
+            }
           >
-            Все ({tests.length})
-          </button>
-
-          {canCreate && (
-            <button
-              type="button"
-              onClick={() => setActiveTabFilter("DRAFTS")}
-              className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 ${
-                activeTabFilter === "DRAFTS"
-                  ? "bg-background text-primary shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Черновики
-              {draftsCount > 0 && (
-                <span className="text-[9px] px-1 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold">
-                  {draftsCount}
-                </span>
+            <SelectTrigger className="h-8 text-xs bg-muted/40 border-border/70 font-medium">
+              <div className="flex items-center gap-1.5 truncate">
+                <Filter className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground font-normal shrink-0">Статус:</span>
+                <SelectValue>
+                  {activeTabFilter === "ALL"
+                    ? `Все (${tests.length})`
+                    : activeTabFilter === "DRAFTS"
+                      ? `Черновики (${draftsCount})`
+                      : activeTabFilter === "PENDING"
+                        ? `Не пройдено (${studentPendingTestsCount})`
+                        : `Пройдено (${studentCompletedTestsCount})`}
+                </SelectValue>
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL" className="text-xs font-medium">
+                Все ({tests.length})
+              </SelectItem>
+              {canCreate ? (
+                <SelectItem value="DRAFTS" className="text-xs">
+                  Черновики ({draftsCount})
+                </SelectItem>
+              ) : (
+                <>
+                  <SelectItem value="PENDING" className="text-xs">
+                    Не пройдено ({studentPendingTestsCount})
+                  </SelectItem>
+                  <SelectItem value="COMPLETED" className="text-xs">
+                    Пройдено ({studentCompletedTestsCount})
+                  </SelectItem>
+                </>
               )}
-            </button>
-          )}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Search & View Mode Switcher */}
-        <div className="lg:col-span-3 flex items-center gap-2">
+        <div
+          className={`${
+            canCreate || groups.length > 1 ? "lg:col-span-3" : "lg:col-span-4"
+          } flex items-center gap-2`}
+        >
           <div className="relative flex-1">
             <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
             <Input
               placeholder="Поиск по названию..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 text-xs pl-8 bg-background"
+              className="h-8 text-xs pl-8 pr-7 bg-muted/40 border-border/70"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Очистить поиск"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border shrink-0">
