@@ -344,8 +344,15 @@ export function TestsView({
   const draftTests = tests.filter((t) => !t.isPublished);
   const totalTests = userRole === "STUDENT" ? tests.length : publishedTests.length;
   const draftsCount = draftTests.length;
-  const totalSubmissions = tests.reduce((acc, t) => acc + t.submissionsCount, 0);
-  const totalGradedSubmissions = tests.flatMap((t) => t.submissions);
+  const studentSubmissions = tests
+    .map((t) => t.userSubmission)
+    .filter((s): s is NonNullable<typeof s> => Boolean(s));
+  const totalSubmissions = canCreate
+    ? tests.reduce((acc, t) => acc + t.submissionsCount, 0)
+    : studentSubmissions.length;
+  const totalGradedSubmissions = canCreate
+    ? tests.flatMap((t) => t.submissions)
+    : studentSubmissions;
   const avgPassRate =
     totalGradedSubmissions.length > 0
       ? Math.round(
@@ -389,7 +396,9 @@ export function TestsView({
 
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
             <Users className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-muted-foreground">Сдано работ:</span>
+            <span className="text-muted-foreground">
+              {canCreate ? "Сдано работ:" : "Пройдено:"}
+            </span>
             <span className="font-bold text-foreground">{totalSubmissions}</span>
           </div>
 

@@ -696,7 +696,7 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("light")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "light"
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${theme === "light"
                   ? "border-primary bg-primary/5 shadow-xs"
                   : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
                   }`}
@@ -810,7 +810,7 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("dark")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "dark"
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${theme === "dark"
                   ? "border-primary bg-primary/5 shadow-xs"
                   : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
                   }`}
@@ -924,7 +924,7 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("system")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${theme === "system"
+                className={`group relative flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${theme === "system"
                   ? "border-primary bg-primary/5 shadow-xs"
                   : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
                   }`}
@@ -2317,7 +2317,7 @@ export function SettingsView({
               {/* Drag & Drop File Upload Area */}
               <div className="space-y-1">
                 <label className="font-semibold text-xs text-foreground">Загрузить готовый файл</label>
-                <label className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all bg-card text-center relative">
+                <label className="border border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all bg-card text-center relative">
                   <input
                     type="file"
                     accept=".csv,.txt,.tsv,.xlsx,.xls"

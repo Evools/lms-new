@@ -860,7 +860,7 @@ export function StudentRegistrationForm({ userRole, dbGroups = [] }: StudentRegi
 
           <div className="space-y-2">
             <label className="font-semibold text-xs text-foreground">Загрузите файл ведомости (.xlsx, .xls, .csv)</label>
-            <label className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all bg-card text-center relative">
+            <label className="border border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all bg-card text-center relative">
               <input
                 type="file"
                 accept=".csv,.txt,.tsv,.xlsx,.xls"

@@ -159,7 +159,7 @@ export function QuestionsMiniMap({
                     }\n${valid ? "✓ Заполнен" : "⚠ Требует заполнения"}`}
                     className={`h-7 w-7 rounded-md font-mono text-[11px] font-bold transition-all relative flex items-center justify-center cursor-pointer border ${
                       isActive
-                        ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/30"
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
                         : valid
                           ? "bg-primary/5 hover:bg-primary/15 text-foreground border-primary/25"
                           : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border-amber-500/40"

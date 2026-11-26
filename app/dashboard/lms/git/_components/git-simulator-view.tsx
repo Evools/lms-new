@@ -1500,7 +1500,7 @@ export function GitSimulatorView() {
           </div>
 
           {/* Box 2: Interactive Terminal Console */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-100 p-3 shadow-md flex flex-col min-h-[320px] font-mono text-xs">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-100 p-3 shadow-xs flex flex-col min-h-[320px] font-mono text-xs">
             {/* Terminal Window Header Bar */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800 text-[11px] text-zinc-400">
               <div className="flex items-center gap-2">

@@ -1702,7 +1702,7 @@ export function CreateTestView({
                           setDragOverQuestionIdx(null);
                         }}
                         className={`p-3.5 border rounded-xl bg-card space-y-3 relative transition-all ${isDraggingQ ? "opacity-40 scale-[0.99] border-dashed border-primary" : ""
-                          } ${isOverQ && !isDraggingQ ? "border-2 border-primary bg-primary/5 shadow-sm" : ""}`}
+                          } ${isOverQ && !isDraggingQ ? "border border-primary bg-primary/5 shadow-xs" : ""}`}
                       >
                         {/* Question Header: Drag Handle, Order, Type Selector, Points, Copy, Move, Remove */}
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">

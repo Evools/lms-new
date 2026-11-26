@@ -3044,7 +3044,7 @@ export function ScheduleView({
           <div className="space-y-3 py-1">
             <div
               onClick={() => setImportFileName("Расписание_2026_2027_2_неделя.xlsx")}
-              className="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:bg-primary/5 hover:border-primary/50 transition-colors space-y-2"
+              className="border border-dashed rounded-xl p-6 text-center cursor-pointer hover:bg-primary/5 hover:border-primary/50 transition-colors space-y-2"
             >
               <UploadCloud className="h-8 w-8 text-primary mx-auto" />
               <div className="font-semibold text-foreground">

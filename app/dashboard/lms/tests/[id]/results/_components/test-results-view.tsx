@@ -1119,7 +1119,7 @@ export function TestResultsView({
                                 <span>{qIdx + 1}</span>
                               </div>
                             </TooltipTrigger>
-                            <TooltipContent side="top" align={headerAlign} showArrow={false} className="max-w-xs text-xs p-2.5 bg-popover text-popover-foreground border border-border shadow-md">
+                            <TooltipContent side="top" align={headerAlign} showArrow={false} className="max-w-xs text-xs p-2.5 bg-popover text-popover-foreground border border-border shadow-xs">
                               <p className="font-bold text-primary mb-1">
                                 Вопрос #{qIdx + 1} ({q.points} б.)
                               </p>
@@ -1276,7 +1276,7 @@ export function TestResultsView({
                                   side="top"
                                   align={tooltipAlign}
                                   showArrow={false}
-                                  className="max-w-none w-80 sm:w-96 p-3 space-y-2 bg-popover text-popover-foreground border border-border shadow-lg rounded-xl text-xs z-50 block"
+                                  className="max-w-none w-80 sm:w-96 p-3 space-y-2 bg-popover text-popover-foreground border border-border shadow-xs rounded-xl text-xs z-50 block"
                                 >
                                   <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
                                     <div className="flex items-center gap-1.5 min-w-0">
