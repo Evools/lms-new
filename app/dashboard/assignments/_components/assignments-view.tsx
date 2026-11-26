@@ -46,6 +46,8 @@ import {
   Star,
   Pencil,
   MoreHorizontal,
+  Filter,
+  X,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -363,40 +365,43 @@ export function AssignmentsView({
 
       {/* Control & Filters Bar */}
       <div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2.5 rounded-xl border items-center"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2 rounded-xl border items-center"
         data-tour="assignments-filters"
       >
-        {/* Group Selector */}
-        <div className="lg:col-span-3">
-          <Select value={currentGroupId} onValueChange={handleGroupChange}>
-            <SelectTrigger className="h-8 text-xs bg-background font-medium">
-              <div className="flex items-center gap-1.5 truncate">
-                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                <SelectValue>
-                  {currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Выберите группу"}
-                </SelectValue>
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id} className="text-xs">
-                  Группа {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Group Selector (hidden for students in a single group) */}
+        {(canCreate || groups.length > 1) && (
+          <div className="lg:col-span-3">
+            <Select value={currentGroupId} onValueChange={handleGroupChange}>
+              <SelectTrigger className="h-8 text-xs bg-muted/40 border-border/70 font-medium">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <SelectValue>
+                    {currentGroupObj?.name ? `Группа ${currentGroupObj.name}` : "Выберите группу"}
+                  </SelectValue>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={g.id} className="text-xs">
+                    Группа {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Subject Filter */}
-        <div className="lg:col-span-3">
+        <div className={canCreate || groups.length > 1 ? "lg:col-span-3" : "lg:col-span-4"}>
           <Select value={subjectFilter} onValueChange={handleSubjectChange}>
-            <SelectTrigger className="h-8 text-xs bg-background font-medium">
+            <SelectTrigger className="h-8 text-xs bg-muted/40 border-border/70 font-medium">
               <div className="flex items-center gap-1.5 truncate">
                 <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground font-normal shrink-0">Предмет:</span>
                 <SelectValue>
                   {subjectFilter === "all"
-                    ? "Все предметы"
-                    : subjects.find((s) => s.id === subjectFilter)?.subjectName || "Все предметы"}
+                    ? "Все"
+                    : subjects.find((s) => s.id === subjectFilter)?.subjectName || "Все"}
                 </SelectValue>
               </div>
             </SelectTrigger>
@@ -413,100 +418,82 @@ export function AssignmentsView({
           </Select>
         </div>
 
-        {/* Tab Filters (All vs Pending vs Drafts) */}
-        <div className="lg:col-span-3 flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border">
-          <button
-            type="button"
-            onClick={() => handleTabChange("ALL")}
-            className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center cursor-pointer ${
-              activeTabFilter === "ALL"
-                ? "bg-background text-primary shadow-xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+        {/* Status Filter Dropdown */}
+        <div className={canCreate || groups.length > 1 ? "lg:col-span-2" : "lg:col-span-3"}>
+          <Select
+            value={activeTabFilter}
+            onValueChange={(val) =>
+              handleTabChange(val as "ALL" | "PENDING" | "DRAFTS" | "ACCEPTED")
+            }
           >
-            Все ({localAssignments.length})
-          </button>
-
-          {canCreate ? (
-            <>
-              <button
-                type="button"
-                onClick={() => handleTabChange("PENDING")}
-                className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
-                  activeTabFilter === "PENDING"
-                    ? "bg-background text-primary shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Проверка
-                {totalSubmissionsCount > totalAcceptedCount && (
-                  <span className="text-[9px] px-1 rounded-full bg-primary/20 text-primary font-bold">
-                    {totalSubmissionsCount - totalAcceptedCount}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange("DRAFTS")}
-                className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
-                  activeTabFilter === "DRAFTS"
-                    ? "bg-background text-primary shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Черновики
-                {draftsCount > 0 && (
-                  <span className="text-[9px] px-1 rounded-full bg-muted-foreground/20 text-muted-foreground font-bold">
-                    {draftsCount}
-                  </span>
-                )}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => handleTabChange("PENDING")}
-                className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
-                  activeTabFilter === "PENDING"
-                    ? "bg-background text-primary shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                К сдаче
-                {studentTodoCount > 0 && (
-                  <span className="text-[9px] px-1 rounded-full bg-primary/20 text-primary font-bold">
-                    {studentTodoCount}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange("ACCEPTED")}
-                className={`flex-1 py-1 rounded-md text-xs font-medium transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
-                  activeTabFilter === "ACCEPTED"
-                    ? "bg-background text-primary shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Принято ({studentAcceptedCount})
-              </button>
-            </>
-          )}
+            <SelectTrigger className="h-8 text-xs bg-muted/40 border-border/70 font-medium">
+              <div className="flex items-center gap-1.5 truncate">
+                <Filter className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground font-normal shrink-0">Статус:</span>
+                <SelectValue>
+                  {activeTabFilter === "ALL"
+                    ? `Все (${localAssignments.length})`
+                    : activeTabFilter === "DRAFTS"
+                      ? `Черновики (${draftsCount})`
+                      : activeTabFilter === "ACCEPTED"
+                        ? `Принято (${studentAcceptedCount})`
+                        : canCreate
+                          ? `Проверка (${Math.max(0, totalSubmissionsCount - totalAcceptedCount)})`
+                          : `К сдаче (${studentTodoCount})`}
+                </SelectValue>
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL" className="text-xs font-medium">
+                Все ({localAssignments.length})
+              </SelectItem>
+              {canCreate ? (
+                <>
+                  <SelectItem value="PENDING" className="text-xs">
+                    На проверке ({Math.max(0, totalSubmissionsCount - totalAcceptedCount)})
+                  </SelectItem>
+                  <SelectItem value="DRAFTS" className="text-xs">
+                    Черновики ({draftsCount})
+                  </SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="PENDING" className="text-xs">
+                    К сдаче ({studentTodoCount})
+                  </SelectItem>
+                  <SelectItem value="ACCEPTED" className="text-xs">
+                    Принято ({studentAcceptedCount})
+                  </SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Search & View Mode Switcher */}
-        <div className="lg:col-span-3 flex items-center gap-2">
+        <div
+          className={`${
+            canCreate || groups.length > 1 ? "lg:col-span-4" : "lg:col-span-5"
+          } flex items-center gap-2`}
+        >
           <div className="relative flex-1">
             <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
             <Input
               placeholder="Поиск по названию..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="h-8 text-xs pl-8 bg-background"
+              className="h-8 text-xs pl-8 pr-7 bg-muted/40 border-border/70"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange("")}
+                className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Очистить поиск"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border shrink-0">
