@@ -969,19 +969,19 @@ export function SettingsView({
 
       {/* Tab: System Settings (Admin Only) */}
       {activeTab === "system" && isAdmin && (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
           {/* Instant Switches Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+          <div className="lg:col-span-5 bg-card border border-border rounded-xl p-4 space-y-3">
+            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2.5 border-b">
               <Sliders className="h-4 w-4 text-primary" /> Быстрые переключатели системы
             </h2>
 
             <div className="space-y-2">
-              <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+              <div className="p-3 border border-border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
                 <label htmlFor="allow-self-reg" className="space-y-0.5 cursor-pointer flex-1">
-                  <div className="font-semibold text-foreground text-xs">Самостоятельная регистрация студентов</div>
+                  <div className="font-medium text-foreground text-xs">Самостоятельная регистрация</div>
                   <div className="text-[11px] text-muted-foreground">
-                    Разрешить новым студентам самостоятельно регистрироваться на странице входа (/register)
+                    Регистрация студентов на странице входа (/register)
                   </div>
                 </label>
                 <Switch
@@ -994,11 +994,11 @@ export function SettingsView({
                 />
               </div>
 
-              <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+              <div className="p-3 border border-border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
                 <label htmlFor="allow-late" className="space-y-0.5 cursor-pointer flex-1">
-                  <div className="font-semibold text-foreground text-xs">Приём домашних заданий после дедлайна</div>
+                  <div className="font-medium text-foreground text-xs">Приём ДЗ после дедлайна</div>
                   <div className="text-[11px] text-muted-foreground">
-                    Разрешить студентам отправлять решения позже срока (с пометкой «Сдано с опозданием»)
+                    Отправка решений позже срока с пометкой опоздания
                   </div>
                 </label>
                 <Switch
@@ -1011,11 +1011,11 @@ export function SettingsView({
                 />
               </div>
 
-              <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
+              <div className="p-3 border border-border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
                 <label htmlFor="show-notice" className="space-y-0.5 cursor-pointer flex-1">
-                  <div className="font-semibold text-foreground text-xs">Системный баннер объявления</div>
+                  <div className="font-medium text-foreground text-xs">Системный баннер объявления</div>
                   <div className="text-[11px] text-muted-foreground">
-                    Отображать сквозное важное сообщение для всех студентов и преподавателей
+                    Сквозное сообщение для всех студентов и преподавателей
                   </div>
                 </label>
                 <Switch
@@ -1031,49 +1031,49 @@ export function SettingsView({
           </div>
 
           {/* System Parameters & Banner Text Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
-            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
+          <div className="lg:col-span-7 bg-card border border-border rounded-xl p-4 space-y-3">
+            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2.5 border-b">
               <Globe className="h-4 w-4 text-primary" /> Параметры заведения и системного баннера
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Название учебного заведения *</label>
-                <Input value={instName} onChange={(e) => setInstName(e.target.value)} placeholder="Лицей №98" className="h-8 text-xs bg-background" />
+                <Input value={instName} onChange={(e) => setInstName(e.target.value)} placeholder="Лицей №98" className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Email техподдержки</label>
-                <Input value={instEmail} onChange={(e) => setInstEmail(e.target.value)} placeholder="support@lyceum.ru" className="h-8 text-xs bg-background font-mono" />
+                <Input value={instEmail} onChange={(e) => setInstEmail(e.target.value)} placeholder="support@lyceum.ru" className="h-8 text-xs md:text-xs bg-muted/40 border-border/70 font-mono" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Телефон связи</label>
-                <Input value={instPhone} onChange={(e) => setInstPhone(e.target.value)} placeholder="+996 (312) 00-00-00" className="h-8 text-xs bg-background" />
+                <Input value={instPhone} onChange={(e) => setInstPhone(e.target.value)} placeholder="+996 (312) 00-00-00" className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Физический адрес</label>
-                <Input value={instAddress} onChange={(e) => setInstAddress(e.target.value)} placeholder="г. Бишкек, ул..." className="h-8 text-xs bg-background" />
+                <Input value={instAddress} onChange={(e) => setInstAddress(e.target.value)} placeholder="г. Бишкек, ул..." className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Макс. балл за ДЗ по умолчанию</label>
-                <Input type="number" value={defScore} onChange={(e) => setDefScore(e.target.value)} className="h-8 text-xs bg-background" />
+                <Input type="number" value={defScore} onChange={(e) => setDefScore(e.target.value)} className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
               </div>
               <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs">Длительность урока (минут)</label>
-                <Input type="number" value={lessonDuration} onChange={(e) => setLessonDuration(e.target.value)} className="h-8 text-xs bg-background" />
+                <Input type="number" value={lessonDuration} onChange={(e) => setLessonDuration(e.target.value)} className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
               </div>
             </div>
 
             {/* Global Notice Text */}
-            <div className="pt-2 border-t space-y-2">
-              <h3 className="font-bold text-foreground text-xs flex items-center gap-1.5">
+            <div className="pt-2.5 border-t space-y-2">
+              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
                 <Megaphone className="h-3.5 w-3.5 text-primary" /> Текст системного объявления
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <Input
                   value={noticeTitle}
                   onChange={(e) => setNoticeTitle(e.target.value)}
                   placeholder="Заголовок баннера..."
-                  className="h-8 text-xs bg-background font-semibold"
+                  className="h-8 text-xs md:text-xs bg-muted/40 border-border/70 font-medium"
                 />
                 <Input
                   value={noticeContent}
@@ -1105,7 +1105,7 @@ export function SettingsView({
       {activeTab === "users" && isAdmin && (
         <div className="space-y-3">
           {/* Unified Compact Toolbar */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-card p-2 rounded-xl border shadow-2xs">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-card p-2 rounded-xl border border-border">
             {/* Search Input */}
             <div className="relative flex-1 md:max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1113,13 +1113,13 @@ export function SettingsView({
                 placeholder="Поиск по имени или email..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                className="h-8 text-xs bg-muted/30 border-border/60 pl-8 pr-7 focus:bg-background"
+                className="h-8 text-xs md:text-xs bg-muted/40 border-border/70 pl-8 pr-7"
               />
               {userSearch && (
                 <button
                   type="button"
                   onClick={() => setUserSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -1127,7 +1127,7 @@ export function SettingsView({
             </div>
 
             {/* Role Filter Tabs */}
-            <div className="flex items-center gap-1 p-0.5 bg-muted/50 rounded-lg border border-border/60 overflow-x-auto text-xs">
+            <div className="flex items-center gap-1 p-0.5 bg-muted/50 rounded-md border border-border/70 overflow-x-auto text-xs">
               {[
                 { key: "STAFF", label: "Все", count: allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN" || u.role === "ADMINISTRATION").length },
                 { key: "ADMINISTRATION", label: "Руководство", count: allUsers.filter((u) => u.role === "ADMINISTRATION").length },
@@ -1138,16 +1138,20 @@ export function SettingsView({
                   key={f.key}
                   type="button"
                   onClick={() => setUserRoleFilter(f.key as any)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1 rounded-sm text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                     userRoleFilter === f.key
-                      ? "bg-background text-foreground shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-background text-primary border border-border/80"
+                      : "text-muted-foreground hover:text-foreground border border-transparent"
                   }`}
                 >
                   <span>{f.label}</span>
-                  <span className={`text-[10px] px-1 py-0.2 rounded-full ${
-                    userRoleFilter === f.key ? "bg-muted text-foreground font-semibold" : "bg-muted/60 text-muted-foreground"
-                  }`}>
+                  <span
+                    className={`text-[10px] px-1.5 py-0 rounded-sm font-medium ${
+                      userRoleFilter === f.key
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
                     {f.count}
                   </span>
                 </button>
@@ -1157,7 +1161,7 @@ export function SettingsView({
             {/* Action Button */}
             <Button
               size="xs"
-              className="h-8 gap-1.5 font-medium shrink-0"
+              className="h-8 gap-1.5 font-medium shrink-0 cursor-pointer"
               onClick={() => setIsCreateUserOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -1179,15 +1183,15 @@ export function SettingsView({
           </div>
 
           {/* Users Table */}
-          <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b bg-muted/40 text-muted-foreground">
                     <th className="text-left py-2.5 px-3.5 font-medium">Сотрудник</th>
-                    <th className="text-left py-2.5 px-2 font-medium hidden md:table-cell">Телефон</th>
-                    <th className="text-center py-2.5 px-2 font-medium">Роль</th>
-                    <th className="text-center py-2.5 px-2 font-medium">Статус аккаунта</th>
+                    <th className="text-left py-2.5 px-3 font-medium hidden md:table-cell">Телефон</th>
+                    <th className="text-left py-2.5 px-3 font-medium">Роль</th>
+                    <th className="text-left py-2.5 px-3 font-medium">Статус аккаунта</th>
                     <th className="text-right py-2.5 px-3.5 font-medium">Действия</th>
                   </tr>
                 </thead>
@@ -1218,7 +1222,7 @@ export function SettingsView({
                       </td>
 
                       {/* Phone */}
-                      <td className="py-2.5 px-2 text-muted-foreground font-mono text-[11px] hidden md:table-cell">
+                      <td className="py-2.5 px-3 text-muted-foreground font-mono text-[11px] hidden md:table-cell">
                         {u.phone ? (
                           <span className="inline-flex items-center gap-1">
                             <Phone className="h-3 w-3 text-muted-foreground/60" />
@@ -1230,9 +1234,9 @@ export function SettingsView({
                       </td>
 
                       {/* Role */}
-                      <td className="py-2.5 px-2 text-center">
+                      <td className="py-2.5 px-3 text-left">
                         {u.id === profile.id ? (
-                          <Badge variant="outline" className={`text-[10px] font-medium border ${ROLE_COLORS[u.role] || ""}`}>
+                          <Badge variant="outline" className="text-[10px] font-medium border-primary/25 bg-primary/10 text-primary">
                             {ROLE_LABELS[u.role] || u.role}
                           </Badge>
                         ) : (
@@ -1241,7 +1245,7 @@ export function SettingsView({
                             onValueChange={(val) => handleChangeRole(u.id, val as "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION")}
                             disabled={isPending}
                           >
-                            <SelectTrigger className="h-6 text-[10px] font-medium px-2 border-border/60 hover:border-primary/50 bg-background/50 w-auto min-w-[105px] mx-auto">
+                            <SelectTrigger className="h-7 text-[11px] font-medium px-2.5 border-border/70 hover:border-primary/50 bg-muted/40 w-[165px]">
                               <SelectValue>{ROLE_LABELS[u.role] || u.role}</SelectValue>
                             </SelectTrigger>
                             <SelectContent>
@@ -1254,27 +1258,24 @@ export function SettingsView({
                       </td>
 
                       {/* Status */}
-                      <td className="py-2.5 px-2 text-center">
-                        <div className="inline-flex items-center justify-center gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${
-                              u.isActive
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400"
-                                : "bg-muted text-muted-foreground border-border/60"
-                            }`}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${u.isActive ? "bg-emerald-500" : "bg-muted-foreground/60"}`} />
-                            {u.isActive ? "Активен" : "Отключен"}
-                          </span>
+                      <td className="py-2.5 px-3 text-left">
+                        <div className="inline-flex items-center gap-2">
                           {u.id !== profile.id && (
                             <Switch
                               checked={u.isActive}
                               disabled={isPending}
                               onCheckedChange={(checked) => handleToggleUser(u.id, checked)}
-                              className="scale-75"
+                              className="scale-90"
                               title={u.isActive ? "Заблокировать" : "Активировать"}
                             />
                           )}
+                          <span
+                            className={`text-[11px] font-medium w-16 ${
+                              u.isActive ? "text-primary" : "text-muted-foreground"
+                            }`}
+                          >
+                            {u.isActive ? "Активен" : "Отключен"}
+                          </span>
                         </div>
                       </td>
 
@@ -1328,17 +1329,14 @@ export function SettingsView({
       {/* Tab: Academic Years (Admin Only) */}
       {activeTab === "academic" && isAdmin && (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <Button size="xs" className="h-8 gap-1.5 font-medium" onClick={() => setIsCreateYearOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Добавить учебный год
-            </Button>
-          </div>
-
-          <div className="bg-card border rounded-xl overflow-hidden shadow-xs">
-            <div className="p-3.5 border-b">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="p-3.5 border-b flex items-center justify-between gap-2">
               <h2 className="font-bold text-foreground flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-primary" /> Учебные годы
               </h2>
+              <Button size="xs" className="h-8 gap-1.5 font-medium cursor-pointer" onClick={() => setIsCreateYearOpen(true)}>
+                <Plus className="h-3.5 w-3.5" /> Добавить учебный год
+              </Button>
             </div>
             <div className="divide-y">
               {academicYears.map((y) => (
@@ -1401,7 +1399,7 @@ export function SettingsView({
       {activeTab === "modules" && isAdmin && (
         <div className="space-y-3">
           {/* Top Status Strip */}
-          <div className="bg-card p-3 rounded-xl border shadow-2xs flex items-center justify-between gap-3 flex-wrap">
+          <div className="bg-card p-3 rounded-xl border border-border flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2.5">
               <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
                 <Layers className="h-4 w-4" />
@@ -1419,7 +1417,7 @@ export function SettingsView({
           </div>
 
           {/* Group 0: Праздничный новогодний режим */}
-          <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="bg-muted/30 px-3.5 py-2 border-b flex items-center justify-between">
               <div className="font-bold text-xs text-foreground flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
@@ -1467,7 +1465,7 @@ export function SettingsView({
           </div>
 
           {/* Group 1: Интерактив и тренажеры (Unified Grouped Card) */}
-          <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="bg-muted/30 px-3.5 py-2 border-b flex items-center justify-between">
               <div className="font-bold text-xs text-foreground flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
@@ -1507,7 +1505,7 @@ export function SettingsView({
                 <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={`text-[10px] font-medium hidden sm:inline-block ${
-                      modulesState.feature_interactive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                      modulesState.feature_interactive ? "text-primary" : "text-muted-foreground"
                     }`}
                   >
                     {modulesState.feature_interactive ? "Включен" : "Отключен"}
@@ -1553,7 +1551,7 @@ export function SettingsView({
                 <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={`text-[10px] font-medium hidden sm:inline-block ${
-                      modulesState.feature_typing && modulesState.feature_interactive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                      modulesState.feature_typing && modulesState.feature_interactive ? "text-primary" : "text-muted-foreground"
                     }`}
                   >
                     {modulesState.feature_typing && modulesState.feature_interactive ? "Включен" : "Отключен"}
@@ -1599,7 +1597,7 @@ export function SettingsView({
                 <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={`text-[10px] font-medium hidden sm:inline-block ${
-                      modulesState.feature_playground && modulesState.feature_interactive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                      modulesState.feature_playground && modulesState.feature_interactive ? "text-primary" : "text-muted-foreground"
                     }`}
                   >
                     {modulesState.feature_playground && modulesState.feature_interactive ? "Включен" : "Отключен"}
@@ -1645,7 +1643,7 @@ export function SettingsView({
                 <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={`text-[10px] font-medium hidden sm:inline-block ${
-                      modulesState.feature_git && modulesState.feature_interactive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                      modulesState.feature_git && modulesState.feature_interactive ? "text-primary" : "text-muted-foreground"
                     }`}
                   >
                     {modulesState.feature_git && modulesState.feature_interactive ? "Включен" : "Отключен"}
@@ -1664,7 +1662,7 @@ export function SettingsView({
           {/* 2-Column Grid for Academic Process & LMS Learning */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {/* Group 2: Учебный процесс и группы */}
-            <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="bg-muted/30 px-3.5 py-2 border-b flex items-center justify-between">
                 <div className="font-bold text-xs text-foreground flex items-center gap-2">
                   <CalendarDays className="h-3.5 w-3.5 text-primary" />
@@ -1837,7 +1835,7 @@ export function SettingsView({
             </div>
 
             {/* Group 3: Обучение и LMS */}
-            <div className="bg-card border rounded-xl overflow-hidden shadow-2xs">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="bg-muted/30 px-3.5 py-2 border-b flex items-center justify-between">
                 <div className="font-bold text-xs text-foreground flex items-center gap-2">
                   <BookOpen className="h-3.5 w-3.5 text-primary" />
