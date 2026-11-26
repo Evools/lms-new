@@ -289,14 +289,6 @@ export function StudentCardView({ student, userRole }: StudentCardViewProps) {
             <Button
               variant="outline"
               size="xs"
-              className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
-              onClick={() => setActiveTab("portfolio")}
-            >
-              <FileCheck className="h-3.5 w-3.5 text-primary" /> Резюме и навыки
-            </Button>
-            <Button
-              variant="outline"
-              size="xs"
               className="h-8 text-xs gap-1.5"
               onClick={() => {
                 setRollNumberInput(currentRollNumber);

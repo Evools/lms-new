@@ -785,7 +785,7 @@ function buildDefaultStudentResumeProfile(
     githubUrl: "",
     portfolioUrl: "",
     telegram: "",
-    driverLicense: "Нет",
+    driverLicense: "",
     languages: [
       { id: "lang-ky", language: "Кыргызский", level: "NATIVE" },
       { id: "lang-ru", language: "Русский", level: "FLUENT" },

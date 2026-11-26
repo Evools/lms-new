@@ -98,21 +98,33 @@ const POPULAR_LANGUAGES: Array<{
   { language: "Узбекский", defaultLevel: "CONVERSATIONAL" },
 ];
 
-const PRESET_HARD_SKILLS: string[] = [
-  "HTML5, CSS3, адаптивная вёрстка",
-  "JavaScript / TypeScript",
-  "React / Next.js",
-  "Python",
-  "SQL / Базы данных (PostgreSQL, MySQL)",
-  "Git / GitHub",
-  "Figma (UI/UX макеты)",
-  "Сборка, диагностика и ремонт ПК",
-  "Настройка локальных сетей (LAN / Wi-Fi / Маршрутизаторы)",
-  "Установка и настройка Windows / Linux",
-  "MS Office (Word, Excel, PowerPoint)",
-  "1С:Предприятие",
-  "Информационная безопасность",
-  "Техническая поддержка пользователей",
+const HARD_SKILL_CATEGORIES: Array<{ title: string; skills: string[] }> = [
+  {
+    title: "Веб и программирование",
+    skills: [
+      "HTML5, CSS3, адаптивная вёрстка",
+      "JavaScript / TypeScript",
+      "React / Next.js",
+      "Python",
+      "SQL / Базы данных (PostgreSQL, MySQL)",
+      "Git / GitHub",
+      "Figma (UI/UX макеты)",
+    ],
+  },
+  {
+    title: "Сети и администрирование",
+    skills: [
+      "Сборка, диагностика и ремонт ПК",
+      "Настройка локальных сетей (LAN / Wi-Fi / Маршрутизаторы)",
+      "Установка и администрирование Windows / Linux",
+      "Информационная безопасность",
+      "Техническая поддержка пользователей",
+    ],
+  },
+  {
+    title: "Офис и учёт",
+    skills: ["MS Office (Word, Excel, PowerPoint)", "1С:Предприятие"],
+  },
 ];
 
 const PRESET_SOFT_SKILLS: string[] = [
@@ -142,8 +154,8 @@ export function StudentResumeDialog({
   studentName,
 }: StudentResumeDialogProps) {
   const [activeSection, setActiveSection] = useState<
-    "languages" | "skills" | "general" | "projects"
-  >("languages");
+    "general" | "skills" | "languages" | "projects"
+  >("general");
 
   const [formData, setFormData] = useState<StudentResumeProfileDTO>(initialProfile);
   const [newLangName, setNewLangName] = useState("");
@@ -315,84 +327,124 @@ export function StudentResumeDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[680px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="place-items-start text-left gap-1">
+      <DialogContent className="p-0 gap-0 text-xs w-[95vw] sm:max-w-[960px] h-[85vh] sm:h-[640px] max-h-[88vh] flex flex-col overflow-hidden">
+        <DialogHeader className="px-5 py-3.5 border-b gap-0.5 place-items-start text-left shrink-0">
           <DialogTitle className="text-sm font-bold flex items-center gap-1.5">
             <Sparkles className="h-4 w-4 text-primary" />
-            Настройка резюме студента — {studentName}
+            Настройка резюме — {studentName}
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Укажите языки и уровень владения, профессиональные навыки (что умеет делать студент), опыт практики и личные качества
+          <DialogDescription className="text-[11px] text-muted-foreground">
+            Заполните разделы резюме для портфолио и экспорта в Word / PDF
           </DialogDescription>
         </DialogHeader>
 
-        {/* Segmented Navigation Tabs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
-          <button
-            type="button"
-            onClick={() => setActiveSection("languages")}
-            className={`h-7 px-2.5 rounded-md font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeSection === "languages"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Languages className="h-3.5 w-3.5 shrink-0" />
-            <span>Языки ({formData.languages.length})</span>
-          </button>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-[210px_1fr] flex-1 min-h-0">
+            {/* Left Category Navigation */}
+            <aside className="border-b md:border-b-0 md:border-r bg-muted/20 p-2.5 flex md:flex-col gap-1 overflow-x-auto md:overflow-y-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveSection("general")}
+                className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-left transition-colors cursor-pointer shrink-0 ${
+                  activeSection === "general"
+                    ? "bg-primary/10 text-primary border border-primary/25"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <UserCheck className="h-3.5 w-3.5 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">Основное</div>
+                    <div className="text-[10px] opacity-75 hidden md:block truncate">
+                      Цель, о себе, контакты
+                    </div>
+                  </div>
+                </div>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("skills")}
-            className={`h-7 px-2.5 rounded-md font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeSection === "skills"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Wrench className="h-3.5 w-3.5 shrink-0" />
-            <span>Навыки ({formData.hardSkills.length})</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection("skills")}
+                className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-left transition-colors cursor-pointer shrink-0 ${
+                  activeSection === "skills"
+                    ? "bg-primary/10 text-primary border border-primary/25"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Wrench className="h-3.5 w-3.5 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">Навыки</div>
+                    <div className="text-[10px] opacity-75 hidden md:block truncate">
+                      Hard & Soft skills
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                  {formData.hardSkills.length}
+                </Badge>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("general")}
-            className={`h-7 px-2.5 rounded-md font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeSection === "general"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <UserCheck className="h-3.5 w-3.5 shrink-0" />
-            <span>О себе и цель</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection("languages")}
+                className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-left transition-colors cursor-pointer shrink-0 ${
+                  activeSection === "languages"
+                    ? "bg-primary/10 text-primary border border-primary/25"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Languages className="h-3.5 w-3.5 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">Языки</div>
+                    <div className="text-[10px] opacity-75 hidden md:block truncate">
+                      Уровень владения
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                  {formData.languages.length}
+                </Badge>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveSection("projects")}
-            className={`h-7 px-2.5 rounded-md font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeSection === "projects"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Briefcase className="h-3.5 w-3.5 shrink-0" />
-            <span>Практика ({formData.projects.length})</span>
-          </button>
-        </div>
+              <button
+                type="button"
+                onClick={() => setActiveSection("projects")}
+                className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-left transition-colors cursor-pointer shrink-0 ${
+                  activeSection === "projects"
+                    ? "bg-primary/10 text-primary border border-primary/25"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">Практика</div>
+                    <div className="text-[10px] opacity-75 hidden md:block truncate">
+                      Опыт и проекты
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                  {formData.projects.length}
+                </Badge>
+              </button>
+            </aside>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Right Content Area */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4">
           {/* SECTION 1: LANGUAGES */}
           {activeSection === "languages" && (
-            <div className="space-y-3">
-              <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2">
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-foreground">
-                    Быстрое добавление языка:
+                  <span className="text-xs font-semibold text-foreground">
+                    Быстрый выбор языка
                   </span>
-                  <Badge variant="outline" className="text-[10px]">
-                    Всего языков: {formData.languages.length}
-                  </Badge>
+                  <span className="text-[11px] text-muted-foreground">
+                    Выбрано: {formData.languages.length}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {POPULAR_LANGUAGES.map((item) => {
@@ -412,7 +464,7 @@ export function StudentResumeDialog({
                         }
                         className={`h-6 px-2.5 rounded-md border text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${
                           isAdded
-                            ? "border-primary bg-primary/10 text-primary"
+                            ? "border-primary/40 bg-primary/10 text-primary"
                             : "border-border bg-background text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -428,113 +480,102 @@ export function StudentResumeDialog({
                 </div>
               </div>
 
-              {/* Custom Language Row */}
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Другой язык (например: Корейский, Арабский)..."
-                  value={newLangName}
-                  onChange={(e) => setNewLangName(e.target.value)}
-                  className="h-8 text-xs flex-1"
-                />
-                <div className="w-52 shrink-0">
-                  <Select
-                    value={newLangLevel}
-                    onValueChange={(val) =>
-                      setNewLangLevel(
-                        (val as StudentLanguageItem["level"]) || "CONVERSATIONAL"
-                      )
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue>
-                        {LANGUAGE_LEVEL_LABELS[newLangLevel].shortLabel}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="text-xs">
-                      <SelectItem value="NATIVE">Родной язык</SelectItem>
-                      <SelectItem value="FLUENT">Свободно владею (C1–C2)</SelectItem>
-                      <SelectItem value="CONVERSATIONAL">
-                        Разговорный (B1–B2)
-                      </SelectItem>
-                      <SelectItem value="DICTIONARY">
-                        Базовый / Со словарём (A1–A2)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Current Languages List + Custom Input */}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-foreground">
+                  Выбранные языки и уровень владения
                 </div>
-                <Button
-                  type="button"
-                  size="xs"
-                  onClick={() =>
-                    handleAddOrToggleLanguage(newLangName, newLangLevel)
-                  }
-                  disabled={!newLangName.trim()}
-                  className="h-8 px-3 text-xs gap-1 shrink-0"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Добавить
-                </Button>
-              </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Другой язык (например: Корейский, Арабский)..."
+                    value={newLangName}
+                    onChange={(e) => setNewLangName(e.target.value)}
+                    className="h-8 text-xs flex-1 bg-background"
+                  />
+                  <div className="w-52 shrink-0">
+                    <Select
+                      value={newLangLevel}
+                      onValueChange={(val) =>
+                        setNewLangLevel(
+                          (val as StudentLanguageItem["level"]) || "CONVERSATIONAL"
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue>
+                          {LANGUAGE_LEVEL_LABELS[newLangLevel].shortLabel}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="text-xs">
+                        <SelectItem value="NATIVE">Родной язык</SelectItem>
+                        <SelectItem value="FLUENT">Свободно владею (C1–C2)</SelectItem>
+                        <SelectItem value="CONVERSATIONAL">
+                          Разговорный (B1–B2)
+                        </SelectItem>
+                        <SelectItem value="DICTIONARY">
+                          Базовый / Со словарём (A1–A2)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    type="button"
+                    size="xs"
+                    onClick={() =>
+                      handleAddOrToggleLanguage(newLangName, newLangLevel)
+                    }
+                    disabled={!newLangName.trim()}
+                    className="h-8 px-3 text-xs gap-1 shrink-0 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Добавить
+                  </Button>
+                </div>
 
-              {/* Current Languages List with Level Selector */}
-              <div className="space-y-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground block">
-                  Укажите уровень владения для каждого языка:
-                </span>
                 {formData.languages.length === 0 ? (
                   <div className="p-4 rounded-lg border border-dashed text-center text-muted-foreground">
-                    Языки ещё не выбраны. Нажмите на кнопки выше (Кыргызский, Русский, Английский).
+                    Языки ещё не выбраны. Выберите из списка выше или добавьте вручную.
                   </div>
                 ) : (
                   <div className="divide-y border rounded-lg bg-card">
                     {formData.languages.map((lang) => (
                       <div
                         key={lang.id}
-                        className="p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                        className="px-3 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-foreground text-xs min-w-[100px]">
-                            {lang.language}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] px-1.5 py-0 font-medium ${
-                              LANGUAGE_LEVEL_LABELS[lang.level].badgeClass
-                            }`}
-                          >
-                            {LANGUAGE_LEVEL_LABELS[lang.level].shortLabel}
-                          </Badge>
-                        </div>
+                        <span className="font-medium text-foreground text-xs truncate">
+                          {lang.language}
+                        </span>
 
-                        <div className="flex items-center gap-1 flex-wrap">
+                        <div className="flex items-center gap-1 shrink-0 flex-wrap">
                           {(
                             [
-                              "NATIVE",
-                              "FLUENT",
-                              "CONVERSATIONAL",
-                              "DICTIONARY",
+                              { key: "NATIVE", label: "Родной" },
+                              { key: "FLUENT", label: "Свободно" },
+                              { key: "CONVERSATIONAL", label: "Разговорный" },
+                              { key: "DICTIONARY", label: "Базовый" },
                             ] as const
                           ).map((lvl) => (
                             <button
-                              key={lvl}
+                              key={lvl.key}
                               type="button"
                               onClick={() =>
-                                handleUpdateLanguageLevel(lang.id, lvl)
+                                handleUpdateLanguageLevel(lang.id, lvl.key)
                               }
-                              className={`h-6 px-2 rounded border text-[10px] font-medium transition-colors cursor-pointer ${
-                                lang.level === lvl
-                                  ? "bg-primary text-primary-foreground border-primary"
+                              className={`h-6 px-2.5 rounded-md border text-[11px] font-medium transition-colors cursor-pointer ${
+                                lang.level === lvl.key
+                                  ? "bg-primary/15 text-primary border-primary/40"
                                   : "bg-background text-muted-foreground hover:text-foreground border-border"
                               }`}
                             >
-                              {LANGUAGE_LEVEL_LABELS[lvl].shortLabel}
+                              {lvl.label}
                             </button>
                           ))}
 
                           <button
                             type="button"
                             onClick={() => handleRemoveLanguage(lang.id)}
-                            className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer ml-1"
+                            className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer ml-1"
                             title="Удалить язык"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -550,55 +591,63 @@ export function StudentResumeDialog({
 
           {/* SECTION 2: HARD & SOFT SKILLS */}
           {activeSection === "skills" && (
-            <div className="space-y-3">
-              {/* Hard Skills */}
-              <div className="space-y-2">
+            <div className="space-y-4">
+              {/* Categorized Preset Hard Skills */}
+              <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-foreground">
-                    1. Профессиональные навыки (Что умеет делать студент):
+                  <span className="text-xs font-semibold text-foreground">
+                    Быстрый выбор навыков по категориям
                   </span>
-                  <Badge variant="outline" className="text-[10px]">
+                  <span className="text-[11px] text-muted-foreground">
                     Выбрано: {formData.hardSkills.length}
-                  </Badge>
-                </div>
-
-                {/* Preset Hard Skills */}
-                <div className="p-2.5 rounded-lg border bg-muted/20 space-y-1.5">
-                  <span className="text-[10px] text-muted-foreground block">
-                    Быстрый выбор популярных навыков по специальности:
                   </span>
-                  <div className="flex flex-wrap gap-1">
-                    {PRESET_HARD_SKILLS.map((preset) => {
-                      const isAdded = formData.hardSkills.some(
-                        (s) => s.name.toLowerCase() === preset.toLowerCase()
-                      );
-                      return (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => handleAddHardSkill(preset, "INTERMEDIATE")}
-                          className={`h-6 px-2 rounded border text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${
-                            isAdded
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border bg-background text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          {isAdded ? (
-                            <Check className="h-2.5 w-2.5 shrink-0" />
-                          ) : (
-                            <Plus className="h-2.5 w-2.5 shrink-0" />
-                          )}
-                          <span>{preset}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
 
-                {/* Custom Skill Input */}
+                <div className="space-y-2.5">
+                  {HARD_SKILL_CATEGORIES.map((category) => (
+                    <div key={category.title} className="space-y-1.5">
+                      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {category.title}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {category.skills.map((preset) => {
+                          const isAdded = formData.hardSkills.some(
+                            (s) => s.name.toLowerCase() === preset.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => handleAddHardSkill(preset, "INTERMEDIATE")}
+                              className={`h-6 px-2.5 rounded-md border text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${
+                                isAdded
+                                  ? "border-primary/40 bg-primary/10 text-primary"
+                                  : "border-border bg-background text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {isAdded ? (
+                                <Check className="h-3 w-3 shrink-0" />
+                              ) : (
+                                <Plus className="h-3 w-3 shrink-0" />
+                              )}
+                              <span>{preset}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Skill Input */}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-foreground">
+                  Выбранные навыки и уровень владения
+                </div>
                 <div className="flex items-center gap-2">
                   <Input
-                    placeholder="Добавить свой навык (например: Настройка MikroTik, Photoshop, Сварка)..."
+                    placeholder="Добавить свой навык (например: MikroTik, Photoshop)..."
                     value={newSkillName}
                     onChange={(e) => setNewSkillName(e.target.value)}
                     className="h-8 text-xs flex-1"
@@ -631,7 +680,7 @@ export function StudentResumeDialog({
                       handleAddHardSkill(newSkillName, newSkillLevel)
                     }
                     disabled={!newSkillName.trim()}
-                    className="h-8 px-3 text-xs gap-1 shrink-0"
+                    className="h-8 px-3 text-xs gap-1 shrink-0 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Добавить
@@ -639,16 +688,16 @@ export function StudentResumeDialog({
                 </div>
 
                 {/* Selected Hard Skills List */}
-                <div className="divide-y border rounded-lg bg-card max-h-[210px] overflow-y-auto">
+                <div className="divide-y border rounded-lg bg-card">
                   {formData.hardSkills.length === 0 ? (
                     <div className="p-4 text-center text-muted-foreground">
-                      Навыки ещё не добавлены.
+                      Навыки ещё не добавлены. Выберите из категорий выше или добавьте свой.
                     </div>
                   ) : (
                     formData.hardSkills.map((sk) => (
                       <div
                         key={sk.id}
-                        className="p-2 flex items-center justify-between gap-2"
+                        className="p-2.5 flex items-center justify-between gap-2"
                       >
                         <span className="font-medium text-foreground truncate">
                           {sk.name}
@@ -662,9 +711,9 @@ export function StudentResumeDialog({
                                 onClick={() =>
                                   handleUpdateHardSkillLevel(sk.id, lvl)
                                 }
-                                className={`h-6 px-2 rounded border text-[10px] font-medium transition-colors cursor-pointer ${
+                                className={`h-6 px-2 rounded-md border text-[10px] font-medium transition-colors cursor-pointer ${
                                   sk.level === lvl
-                                    ? "bg-primary text-primary-foreground border-primary"
+                                    ? "bg-primary/15 text-primary border-primary/40"
                                     : "bg-background text-muted-foreground hover:text-foreground border-border"
                                 }`}
                               >
@@ -675,7 +724,7 @@ export function StudentResumeDialog({
                           <button
                             type="button"
                             onClick={() => handleRemoveHardSkill(sk.id)}
-                            className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                            className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                             title="Удалить навык"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -688,9 +737,9 @@ export function StudentResumeDialog({
               </div>
 
               {/* Soft Skills */}
-              <div className="pt-2 border-t space-y-2">
-                <span className="font-bold text-foreground block">
-                  2. Личные и деловые качества (Soft Skills):
+              <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2.5">
+                <span className="text-xs font-semibold text-foreground block">
+                  Личные и деловые качества (Soft Skills)
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {PRESET_SOFT_SKILLS.map((soft) => {
@@ -702,7 +751,7 @@ export function StudentResumeDialog({
                         onClick={() => handleToggleSoftSkill(soft)}
                         className={`h-6 px-2.5 rounded-md border text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${
                           active
-                            ? "border-primary bg-primary/10 text-primary"
+                            ? "border-primary/40 bg-primary/10 text-primary"
                             : "border-border bg-background text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -717,7 +766,7 @@ export function StudentResumeDialog({
                     placeholder="Добавить личное качество..."
                     value={newSoftSkill}
                     onChange={(e) => setNewSoftSkill(e.target.value)}
-                    className="h-7 text-xs flex-1"
+                    className="h-8 text-xs flex-1 bg-background"
                   />
                   <Button
                     type="button"
@@ -728,7 +777,7 @@ export function StudentResumeDialog({
                       handleToggleSoftSkill(newSoftSkill);
                       setNewSoftSkill("");
                     }}
-                    className="h-7 px-2.5 text-xs"
+                    className="h-8 px-3 text-xs cursor-pointer"
                   >
                     Добавить
                   </Button>
@@ -739,46 +788,53 @@ export function StudentResumeDialog({
 
           {/* SECTION 3: GENERAL & ABOUT ME */}
           {activeSection === "general" && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-foreground">
-                    Желаемая должность / Направление практики
-                  </label>
-                  <Input
-                    value={formData.desiredPosition}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        desiredPosition: e.target.value,
-                      }))
-                    }
-                    placeholder="Например: Junior Web-разработчик / Системный администратор"
-                    className="h-8 text-xs"
-                  />
+            <div className="space-y-3.5">
+              {/* Block 1: Target Role & Format */}
+              <div className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-3">
+                <div className="text-xs font-semibold text-foreground">
+                  Цель и формат работы
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">
+                      Желаемая должность / Направление практики
+                    </label>
+                    <Input
+                      value={formData.desiredPosition}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          desiredPosition: e.target.value,
+                        }))
+                      }
+                      placeholder="Например: Junior Web-разработчик"
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-foreground">
-                    Формат работы / стажировки
-                  </label>
-                  <Input
-                    value={formData.workFormat}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        workFormat: e.target.value,
-                      }))
-                    }
-                    placeholder="Стажировка / Полный или неполный день"
-                    className="h-8 text-xs"
-                  />
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">
+                      Формат работы / стажировки
+                    </label>
+                    <Input
+                      value={formData.workFormat}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          workFormat: e.target.value,
+                        }))
+                      }
+                      placeholder="Стажировка / Полный или неполный день"
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-foreground">
-                  О себе (краткая профессиональная характеристика для работодателя)
+              {/* Block 2: About Me */}
+              <div className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-2">
+                <label className="text-xs font-semibold text-foreground block">
+                  О себе (краткая характеристика)
                 </label>
                 <Textarea
                   rows={4}
@@ -790,60 +846,49 @@ export function StudentResumeDialog({
                     }))
                   }
                   placeholder="Расскажите о своих сильных сторонах, интересе к профессии и готовности к практике..."
-                  className="text-xs resize-none"
+                  className="text-xs resize-none bg-background"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">
-                    GitHub / GitLab (если есть)
-                  </label>
-                  <Input
-                    value={formData.githubUrl || ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        githubUrl: e.target.value,
-                      }))
-                    }
-                    placeholder="https://github.com/..."
-                    className="h-8 text-xs"
-                  />
+              {/* Block 3: Contacts */}
+              <div className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-2.5">
+                <div className="text-xs font-semibold text-foreground">
+                  Контакты и ссылки
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">
+                      GitHub / GitLab (если есть)
+                    </label>
+                    <Input
+                      value={formData.githubUrl || ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          githubUrl: e.target.value,
+                        }))
+                      }
+                      placeholder="https://github.com/..."
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">
-                    Telegram для связи
-                  </label>
-                  <Input
-                    value={formData.telegram || ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        telegram: e.target.value,
-                      }))
-                    }
-                    placeholder="@username"
-                    className="h-8 text-xs"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">
-                    Водительское удостоверение
-                  </label>
-                  <Input
-                    value={formData.driverLicense || ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        driverLicense: e.target.value,
-                      }))
-                    }
-                    placeholder="Нет / Категория B"
-                    className="h-8 text-xs"
-                  />
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">
+                      Telegram для связи
+                    </label>
+                    <Input
+                      value={formData.telegram || ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          telegram: e.target.value,
+                        }))
+                      }
+                      placeholder="@username"
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -873,11 +918,11 @@ export function StudentResumeDialog({
                   Записи о практике и учебных проектах пока не добавлены.
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                <div className="space-y-2.5">
                   {formData.projects.map((proj) => (
                     <div
                       key={proj.id}
-                      className="p-3 rounded-lg border border-border bg-card space-y-2"
+                      className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-2.5"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <Input
@@ -940,14 +985,16 @@ export function StudentResumeDialog({
               )}
             </div>
           )}
+            </div>
+          </div>
 
-          <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+          <DialogFooter className="flex flex-row justify-end gap-2 px-5 py-3 border-t shrink-0 bg-background">
             <Button
               type="button"
               variant="outline"
               size="xs"
               onClick={onClose}
-              className="h-7 px-3 text-xs"
+              className="h-7 px-3 text-xs cursor-pointer"
             >
               Отмена
             </Button>
@@ -955,7 +1002,7 @@ export function StudentResumeDialog({
               type="submit"
               size="xs"
               disabled={isSaving}
-              className="h-7 px-3 text-xs bg-primary text-primary-foreground"
+              className="h-7 px-3 text-xs bg-primary text-primary-foreground cursor-pointer"
             >
               {isSaving ? "Сохранение..." : "Сохранить резюме"}
             </Button>

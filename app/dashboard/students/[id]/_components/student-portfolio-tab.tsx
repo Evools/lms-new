@@ -275,15 +275,8 @@ export function StudentPortfolioTab({
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-primary shrink-0" />
               <h2 className="text-sm font-bold text-foreground">
-                Резюме и профессиональный профиль студента
+                Резюме студента
               </h2>
-              <Badge
-                variant="outline"
-                className="text-[10px] border-primary/30 bg-primary/5 text-primary"
-              >
-                Языков: {resumeProfile.languages.length} • Навыков:{" "}
-                {resumeProfile.hardSkills.length}
-              </Badge>
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Желаемая должность:{" "}
@@ -381,7 +374,8 @@ export function StudentPortfolioTab({
             {/* Extra contacts / info */}
             {(resumeProfile.telegram ||
               resumeProfile.githubUrl ||
-              resumeProfile.driverLicense) && (
+              (resumeProfile.driverLicense &&
+                resumeProfile.driverLicense.trim().toLowerCase() !== "нет")) && (
               <div className="pt-2 border-t space-y-1 text-[11px] text-muted-foreground">
                 {resumeProfile.telegram && (
                   <div className="flex items-center justify-between">
@@ -405,14 +399,15 @@ export function StudentPortfolioTab({
                     </a>
                   </div>
                 )}
-                {resumeProfile.driverLicense && (
-                  <div className="flex items-center justify-between">
-                    <span>Вод. удостоверение:</span>
-                    <span className="text-foreground font-medium">
-                      {resumeProfile.driverLicense}
-                    </span>
-                  </div>
-                )}
+                {resumeProfile.driverLicense &&
+                  resumeProfile.driverLicense.trim().toLowerCase() !== "нет" && (
+                    <div className="flex items-center justify-between">
+                      <span>Вод. удостоверение:</span>
+                      <span className="text-foreground font-medium">
+                        {resumeProfile.driverLicense}
+                      </span>
+                    </div>
+                  )}
               </div>
             )}
           </div>
