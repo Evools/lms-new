@@ -48,6 +48,7 @@ import {
   MoreHorizontal,
   Filter,
   X,
+  MessageSquare,
 } from "lucide-react";
 import {
   GroupItemDTO,
@@ -74,6 +75,39 @@ interface AssignmentsViewProps {
   initialSubjectFilter?: string;
   initialTabFilter?: "ALL" | "PENDING" | "DRAFTS" | "ACCEPTED";
   initialSearchQuery?: string;
+}
+
+interface DueMeta {
+  dateLabel: string;
+  hint: string | null;
+  tone: "muted" | "primary" | "destructive";
+}
+
+function formatDueMeta(dueDate: string | null | undefined, showCountdown: boolean): DueMeta | null {
+  if (!dueDate) return null;
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return null;
+
+  const dateLabel = due.toLocaleDateString("ru-RU");
+  if (!showCountdown) {
+    return { dateLabel, hint: null, tone: "muted" };
+  }
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dueStart = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const diffDays = Math.round((dueStart - todayStart) / 86_400_000);
+
+  if (diffDays < 0) {
+    return { dateLabel, hint: `Просрочено ${Math.abs(diffDays)} дн.`, tone: "destructive" };
+  }
+  if (diffDays === 0) {
+    return { dateLabel, hint: "Сегодня", tone: "primary" };
+  }
+  if (diffDays === 1) {
+    return { dateLabel, hint: "Завтра", tone: "primary" };
+  }
+  return { dateLabel, hint: `Осталось ${diffDays} дн.`, tone: "muted" };
 }
 
 export function AssignmentsView({
@@ -551,11 +585,11 @@ export function AssignmentsView({
                   const attachmentLinksList = parseAttachmentLinks(assignment.fileUrl);
                   const cleanDesc = assignment.description
                     ? assignment.description
-                        .replace(/https?:\/\/\S+/g, "[ссылка]")
+                        .replace(/https?:\/\/\S+/g, "")
                         .replace(/[#*`_~\-\[\]()]/g, " ")
                         .replace(/\s+/g, " ")
                         .trim()
-                        .substring(0, 75)
+                        .substring(0, 75) || "Прикреплена ссылка"
                     : "Без описания";
                   const isOverdue =
                     Boolean(assignment.dueDate) &&
@@ -601,22 +635,42 @@ export function AssignmentsView({
 
                       {/* Due Date */}
                       <td className="py-2.5 px-3 text-center">
-                        {assignment.dueDate ? (
-                          <span
-                            className={`inline-flex items-center gap-1 text-[11px] font-medium tabular-nums ${
-                              isOverdue ? "text-destructive" : "text-foreground/85"
-                            }`}
-                          >
-                            <Clock
-                              className={`h-3 w-3 shrink-0 ${
-                                isOverdue ? "text-destructive" : "text-muted-foreground"
-                              }`}
-                            />
-                            {new Date(assignment.dueDate).toLocaleDateString("ru-RU")}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground">—</span>
-                        )}
+                        {(() => {
+                          const dueMeta = formatDueMeta(
+                            assignment.dueDate,
+                            !canCreate && userSub?.status !== SubmissionStatus.ACCEPTED
+                          );
+                          if (!dueMeta) {
+                            return <span className="text-[11px] text-muted-foreground">—</span>;
+                          }
+                          const toneClass =
+                            dueMeta.tone === "destructive"
+                              ? "text-destructive"
+                              : dueMeta.tone === "primary"
+                                ? "text-primary"
+                                : "text-foreground/85";
+                          const hintClass =
+                            dueMeta.tone === "destructive"
+                              ? "text-destructive"
+                              : dueMeta.tone === "primary"
+                                ? "text-primary font-medium"
+                                : "text-muted-foreground";
+                          return (
+                            <div className="inline-flex flex-col items-center gap-0.5">
+                              <span
+                                className={`inline-flex items-center gap-1 text-[11px] font-medium tabular-nums ${toneClass}`}
+                              >
+                                <Clock className="h-3 w-3 shrink-0 opacity-75" />
+                                {dueMeta.dateLabel}
+                              </span>
+                              {dueMeta.hint && (
+                                <span className={`text-[10px] leading-none ${hintClass}`}>
+                                  {dueMeta.hint}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Attachments */}
@@ -648,7 +702,7 @@ export function AssignmentsView({
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Badge
                                 variant="outline"
-                                className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
+                                className={`text-[11px] font-medium border px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 ${
                                   userSub.status === SubmissionStatus.ACCEPTED
                                     ? "bg-primary/10 text-primary border-primary/25"
                                     : userSub.status === SubmissionStatus.NEED_REVISION
@@ -679,17 +733,23 @@ export function AssignmentsView({
                                   </>
                                 )}
                               </Badge>
+                              {userSub.teacherComment && (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewMyResultAssignmentId(assignment.id)}
+                                  title={`Комментарий преподавателя: ${userSub.teacherComment}`}
+                                  aria-label="Комментарий преподавателя"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
+                                >
+                                  <MessageSquare className="h-3 w-3" />
+                                </button>
+                              )}
                             </div>
-                            {userSub.teacherComment && (
-                              <p className="text-[10px] text-muted-foreground italic line-clamp-1 max-w-[200px]">
-                                {userSub.teacherComment}
-                              </p>
-                            )}
                           </div>
                         ) : (
                           <Badge
                             variant="outline"
-                            className="text-[11px] text-muted-foreground font-normal rounded-full border-border/60"
+                            className="text-[11px] text-muted-foreground font-normal rounded-md border-border/60"
                           >
                             Не сдано
                           </Badge>
@@ -783,9 +843,9 @@ export function AssignmentsView({
                                 size="xs"
                                 variant="outline"
                                 onClick={() => setViewTargetAssignmentId(assignment.id)}
-                                className="h-7 rounded-md text-xs gap-1 font-medium px-2.5 cursor-pointer"
+                                className="h-7 rounded-md text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
                               >
-                                <Eye className="h-3.5 w-3.5" />
+                                <Eye className="h-3.5 w-3.5 shrink-0" />
                                 <span>Задание</span>
                               </Button>
 
@@ -793,17 +853,18 @@ export function AssignmentsView({
                                 <Button
                                   size="xs"
                                   onClick={() => setViewMyResultAssignmentId(assignment.id)}
-                                  className="h-7 rounded-md text-xs gap-1 font-medium px-2.5 cursor-pointer"
+                                  className="h-7 w-[104px] justify-center rounded-md text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
                                 >
+                                  <FileCheck className="h-3.5 w-3.5 shrink-0" />
                                   <span>Мой ответ</span>
                                 </Button>
                               ) : (
                                 <Button
                                   size="xs"
                                   onClick={() => setSubmitTargetAssignmentId(assignment.id)}
-                                  className="h-7 rounded-md text-xs gap-1 font-medium px-2.5 cursor-pointer"
+                                  className="h-7 w-[104px] justify-center rounded-md text-xs gap-1.5 font-medium px-2.5 cursor-pointer"
                                 >
-                                  <Send className="h-3.5 w-3.5" />
+                                  <Send className="h-3.5 w-3.5 shrink-0" />
                                   <span>Сдать ДЗ</span>
                                 </Button>
                               )}
@@ -843,10 +904,10 @@ export function AssignmentsView({
             const attachmentLinksList = parseAttachmentLinks(assignment.fileUrl);
             const cleanDesc = assignment.description
               ? assignment.description
-                  .replace(/https?:\/\/\S+/g, "[ссылка]")
+                  .replace(/https?:\/\/\S+/g, "")
                   .replace(/[#*`_~\-\[\]()]/g, " ")
                   .replace(/\s+/g, " ")
-                  .trim()
+                  .trim() || "Прикреплена ссылка"
               : "Без описания";
             const isOverdue =
               Boolean(assignment.dueDate) &&
@@ -874,16 +935,31 @@ export function AssignmentsView({
                           <EyeOff className="h-2.5 w-2.5" /> Черновик
                         </Badge>
                       )}
-                      {assignment.dueDate && (
-                        <span
-                          className={`text-[11px] font-medium tabular-nums flex items-center gap-1 ${
-                            isOverdue ? "text-destructive" : "text-muted-foreground"
-                          }`}
-                        >
-                          <Clock className="h-3 w-3 shrink-0" />
-                          {new Date(assignment.dueDate).toLocaleDateString("ru-RU")}
-                        </span>
-                      )}
+                      {(() => {
+                        const dueMeta = formatDueMeta(
+                          assignment.dueDate,
+                          !canCreate && userSub?.status !== SubmissionStatus.ACCEPTED
+                        );
+                        if (!dueMeta) return null;
+                        const toneClass =
+                          dueMeta.tone === "destructive"
+                            ? "text-destructive"
+                            : dueMeta.tone === "primary"
+                              ? "text-primary"
+                              : "text-muted-foreground";
+                        return (
+                          <span
+                            className={`text-[11px] font-medium tabular-nums flex items-center gap-1 ${toneClass}`}
+                            title={dueMeta.hint || undefined}
+                          >
+                            <Clock className="h-3 w-3 shrink-0" />
+                            <span>{dueMeta.dateLabel}</span>
+                            {dueMeta.hint && (
+                              <span className="text-[10px] opacity-85">· {dueMeta.hint}</span>
+                            )}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -974,7 +1050,7 @@ export function AssignmentsView({
                       {userSub ? (
                         <Badge
                           variant="outline"
-                          className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
+                          className={`text-[11px] font-medium border px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 ${
                             userSub.status === SubmissionStatus.ACCEPTED
                               ? "bg-primary/10 text-primary border-primary/25"
                               : userSub.status === SubmissionStatus.NEED_REVISION
@@ -1008,7 +1084,7 @@ export function AssignmentsView({
                       ) : (
                         <Badge
                           variant="outline"
-                          className="text-[11px] text-muted-foreground font-normal rounded-full border-border/60"
+                          className="text-[11px] text-muted-foreground font-normal rounded-md border-border/60"
                         >
                           Не сдано
                         </Badge>

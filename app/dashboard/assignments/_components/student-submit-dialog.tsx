@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useTransition } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +40,7 @@ export function StudentSubmitDialog({
 
   const [submitFileUrl, setSubmitFileUrl] = useState<string>("");
   const [submitComment, setSubmitComment] = useState<string>("");
+  const [attachMode, setAttachMode] = useState<"file" | "link">("file");
 
   useEffect(() => {
     if (!assignment) return;
@@ -53,7 +53,13 @@ export function StudentSubmitDialog({
       setSubmitComment("");
     }
 
-    setSubmitFileUrl(existing?.fileUrl || "");
+    const existingUrl = existing?.fileUrl || "";
+    setSubmitFileUrl(existingUrl);
+    if (existingUrl && existingUrl.startsWith("http") && !existingUrl.includes("/uploads/")) {
+      setAttachMode("link");
+    } else {
+      setAttachMode("file");
+    }
   }, [assignment]);
 
   const handleStudentSubmit = () => {
@@ -96,104 +102,135 @@ export function StudentSubmitDialog({
 
   return (
     <Dialog open={assignment !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[480px] max-h-[85vh] flex flex-col">
-        <DialogHeader className="pb-2 border-b gap-1 place-items-start text-left shrink-0">
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="text-[10px] border-primary/30 text-primary bg-primary/5 font-medium"
-            >
-              {assignment.subjectName}
-            </Badge>
+      <DialogContent className="p-5 gap-4 text-xs sm:max-w-[700px] max-h-[85vh] flex flex-col">
+        <DialogHeader className="pb-3 border-b gap-1 place-items-start text-left shrink-0">
+          <div className="flex items-center gap-2 flex-wrap text-[11px]">
+            <span className="font-medium text-primary">{assignment.subjectName}</span>
             {assignment.dueDate && (
-              <Badge variant="secondary" className="text-[10px] gap-1 shrink-0 font-normal">
-                <Clock className="h-3 w-3 text-primary" />
-                Срок: {new Date(assignment.dueDate).toLocaleDateString("ru-RU")}
-              </Badge>
+              <>
+                <span className="text-muted-foreground/50">·</span>
+                <span className="inline-flex items-center gap-1 text-muted-foreground tabular-nums">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  Срок: {new Date(assignment.dueDate).toLocaleDateString("ru-RU")}
+                </span>
+              </>
             )}
           </div>
 
-          <DialogTitle className="text-sm font-bold text-foreground pt-0.5">
+          <DialogTitle className="text-sm font-bold text-foreground pt-0.5 leading-snug">
             {isResubmission ? "Повторная сдача решения" : "Сдача домашнего задания"}
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground line-clamp-1">
+          <DialogDescription className="text-xs text-muted-foreground leading-snug">
             {assignment.title}
           </DialogDescription>
         </DialogHeader>
 
         {/* Teacher Remarks Alert if returning for revision */}
         {assignment.userSubmission?.teacherComment && (
-          <div className="p-2.5 rounded-xl border border-primary/25 bg-primary/5 space-y-1 shrink-0">
-            <div className="text-[11px] font-semibold text-primary flex items-center gap-1.5">
-              <RotateCcw className="h-3.5 w-3.5" /> Замечания преподавателя на доработку:
+          <div className="p-3 rounded-md border border-primary/25 bg-primary/5 space-y-1 shrink-0">
+            <div className="text-[11px] font-medium text-primary flex items-center gap-1.5">
+              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+              <span>Замечания преподавателя на доработку</span>
             </div>
-            <p className="text-xs text-foreground leading-relaxed">
+            <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
               {assignment.userSubmission.teacherComment}
             </p>
           </div>
         )}
 
         {/* Submission Form */}
-        <div className="space-y-3 py-1 flex-1 min-h-0 overflow-y-auto pr-1">
-          {/* Direct File Attachment Zone */}
-          <div className="space-y-1.5">
-            <label className="font-semibold text-foreground text-xs flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <UploadCloud className="h-3.5 w-3.5 text-primary" /> Прикрепить файл с решением
-              </span>
-              <span className="text-[10px] text-muted-foreground font-normal">до 25 МБ</span>
-            </label>
-            <FileUploadZone
-              folder="submissions"
-              value={submitFileUrl.startsWith("http") && !submitFileUrl.includes("github.com") && !submitFileUrl.includes("figma.com") ? submitFileUrl : submitFileUrl.startsWith("/uploads/") ? submitFileUrl : ""}
-              onUploadSuccess={(meta) => setSubmitFileUrl(meta.url)}
-              onRemove={() => setSubmitFileUrl("")}
-              maxSizeMb={25}
-              label="Выберите файл работы"
-              description="PDF, ZIP-архив с кодом, Word или изображение"
-            />
+        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto pr-1">
+          {/* Attachment Mode Switcher */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="font-medium text-foreground text-xs">Способ прикрепления</span>
+              <div className="grid grid-cols-2 gap-1 p-0.5 bg-muted/60 rounded-md border border-border text-xs w-[220px]">
+                <button
+                  type="button"
+                  onClick={() => setAttachMode("file")}
+                  className={`flex items-center justify-center gap-1.5 py-1 px-2 rounded-sm font-medium transition-colors cursor-pointer ${
+                    attachMode === "file"
+                      ? "bg-background text-primary border border-border/60"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  <span>Файл</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttachMode("link")}
+                  className={`flex items-center justify-center gap-1.5 py-1 px-2 rounded-sm font-medium transition-colors cursor-pointer ${
+                    attachMode === "link"
+                      ? "bg-background text-primary border border-border/60"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  <span>Ссылка</span>
+                </button>
+              </div>
+            </div>
+
+            {attachMode === "file" ? (
+              <div className="space-y-1.5">
+                <FileUploadZone
+                  folder="submissions"
+                  value={
+                    submitFileUrl.startsWith("http") &&
+                    !submitFileUrl.includes("github.com") &&
+                    !submitFileUrl.includes("figma.com")
+                      ? submitFileUrl
+                      : submitFileUrl.startsWith("/uploads/")
+                        ? submitFileUrl
+                        : ""
+                  }
+                  onUploadSuccess={(meta) => setSubmitFileUrl(meta.url)}
+                  onRemove={() => setSubmitFileUrl("")}
+                  maxSizeMb={25}
+                  label="Выберите файл работы"
+                  description="PDF, ZIP-архив с кодом, Word или изображение (до 25 МБ)"
+                />
+              </div>
+            ) : (
+              <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-3">
+                <label className="font-medium text-foreground text-xs flex items-center gap-1.5">
+                  <Link2 className="h-3.5 w-3.5 text-primary" />
+                  <span>Ссылка на проект (GitHub, Figma, Google Диск)</span>
+                </label>
+                <Input
+                  placeholder="https://github.com/username/repo или ссылка на Google Диск"
+                  value={submitFileUrl}
+                  onChange={(e) => setSubmitFileUrl(e.target.value)}
+                  className="h-8 text-xs bg-background font-mono rounded-md"
+                />
+              </div>
+            )}
           </div>
 
-          <div className="relative flex py-0.5 items-center">
-            <div className="flex-grow border-t border-border"></div>
-            <span className="flex-shrink mx-2 text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">или ссылка на проект</span>
-            <div className="flex-grow border-t border-border"></div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-              <Link2 className="h-3.5 w-3.5 text-primary" /> Внешняя ссылка (GitHub / Figma / Диск)
-            </label>
-            <Input
-              placeholder="https://github.com/username/repo или ссылка на Figma"
-              value={submitFileUrl}
-              onChange={(e) => setSubmitFileUrl(e.target.value)}
-              className="h-8 text-xs bg-background font-mono"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5 text-primary" /> Комментарий / Описание решения
+          <div className="space-y-1.5 pt-1 border-t border-border/70">
+            <label className="font-medium text-foreground text-xs flex items-center gap-1.5 pt-2">
+              <MessageSquare className="h-3.5 w-3.5 text-primary" />
+              <span>Комментарий к решению</span>
             </label>
             <Textarea
               placeholder="Опишите, как выполнили задание, что получилось или задайте вопрос преподавателю..."
               value={submitComment}
               onChange={(e) => setSubmitComment(e.target.value)}
-              className="text-xs bg-background min-h-[120px] resize-none"
+              className="text-xs bg-background min-h-[110px] resize-none rounded-md"
             />
           </div>
         </div>
 
         {/* Action Footer */}
-        <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2 shrink-0">
+        <DialogFooter className="flex flex-row justify-end gap-2 pt-3 border-t shrink-0">
           <Button
             type="button"
             variant="outline"
             size="xs"
             onClick={onClose}
             disabled={isPending}
-            className="h-7 text-xs"
+            className="h-7 rounded-md text-xs px-3 cursor-pointer"
           >
             Отмена
           </Button>
@@ -203,7 +240,7 @@ export function StudentSubmitDialog({
             size="xs"
             onClick={handleStudentSubmit}
             disabled={isPending}
-            className="h-7 text-xs gap-1.5 font-medium px-3"
+            className="h-7 rounded-md text-xs gap-1.5 font-medium px-3 cursor-pointer"
           >
             <Send className="h-3.5 w-3.5" />
             <span>{isPending ? "Отправка..." : "Отправить на проверку"}</span>
