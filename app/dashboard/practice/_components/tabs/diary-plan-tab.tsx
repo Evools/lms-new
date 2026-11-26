@@ -172,12 +172,8 @@ export function DiaryPlanTab({
         </div>
 
         {/* Group Selector Dropdown & Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-muted-foreground text-xs font-medium flex items-center gap-1.5">
-              <GraduationCap className="h-4 w-4 text-primary" />
-              Учебная группа:
-            </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 items-center">
+          <div className="lg:col-span-6">
             <Select
               value={selectedPlanId}
               onValueChange={(val) => {
@@ -186,12 +182,16 @@ export function DiaryPlanTab({
                 if (plan?.startDate) onStartDateChange(plan.startDate);
               }}
             >
-              <SelectTrigger className="h-8 min-w-[280px] sm:w-[380px] text-xs font-medium bg-background border-border">
-                <SelectValue placeholder="Выберите учебную группу">
-                  {currentDiaryPlan
-                    ? `Группа ${currentDiaryPlan.groupName} — ${currentDiaryPlan.specialty} (${currentDiaryPlan.course} курс)`
-                    : "Выберите учебную группу"}
-                </SelectValue>
+              <SelectTrigger className="h-8 w-full text-xs font-medium bg-muted/40 border-border/70">
+                <div className="flex items-center gap-1.5 truncate">
+                  <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="text-muted-foreground font-normal shrink-0">Группа:</span>
+                  <SelectValue placeholder="Выберите учебную группу">
+                    {currentDiaryPlan
+                      ? `${currentDiaryPlan.groupName} — ${currentDiaryPlan.specialty} (${currentDiaryPlan.course} курс)`
+                      : "Выберите учебную группу"}
+                  </SelectValue>
+                </div>
               </SelectTrigger>
               <SelectContent>
                 {diaryPlans.length === 0 ? (
@@ -217,38 +217,70 @@ export function DiaryPlanTab({
             </Select>
           </div>
 
-          {/* Start Date input & Search */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="text-muted-foreground flex items-center gap-1">
-                <CalendarDays className="h-3.5 w-3.5 text-primary" /> Старт:
-              </span>
-              <Input
-                value={planStartDate}
-                onChange={(e) => onStartDateChange(e.target.value)}
-                placeholder="15.10.2026"
-                className="h-8 w-[110px] text-xs font-mono bg-background text-center"
-              />
-            </div>
+          {/* Start Date: date picker for staff, read-only info for students */}
+          <div className="lg:col-span-2">
+            {isStudent ? (
+              <div
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border/60 bg-muted/25 text-xs select-none"
+                title="Дата начала практики, по которой рассчитаны дни дневника"
+              >
+                <CalendarDays className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground shrink-0">Старт:</span>
+                <span className="font-medium tabular-nums text-foreground truncate">
+                  {planStartDate || "—"}
+                </span>
+              </div>
+            ) : (
+              <label
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border/70 bg-muted/40 text-xs cursor-pointer"
+                title="Дата начала практики (пересчитывает даты всех дней)"
+              >
+                <CalendarDays className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground shrink-0">Старт:</span>
+                <input
+                  type="date"
+                  value={(() => {
+                    const parts = planStartDate.split(".");
+                    return parts.length === 3
+                      ? `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`
+                      : "";
+                  })()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) {
+                      onStartDateChange("");
+                      return;
+                    }
+                    const [y, m, d] = v.split("-");
+                    if (y && m && d) {
+                      onStartDateChange(`${d}.${m}.${y}`);
+                    }
+                  }}
+                  className="w-full min-w-0 bg-transparent text-xs font-medium tabular-nums text-foreground outline-none cursor-pointer"
+                />
+              </label>
+            )}
+          </div>
 
-            <div className="relative w-[160px] sm:w-[200px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Поиск по темам..."
-                value={memoDaySearch}
-                onChange={(e) => setMemoDaySearch(e.target.value)}
-                className="h-8 pl-8 pr-7 text-xs bg-background"
-              />
-              {memoDaySearch && (
-                <button
-                  type="button"
-                  onClick={() => setMemoDaySearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
+          {/* Search */}
+          <div className="lg:col-span-4 relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Поиск по темам..."
+              value={memoDaySearch}
+              onChange={(e) => setMemoDaySearch(e.target.value)}
+              className="h-8 pl-8 pr-7 text-xs md:text-xs bg-muted/40 border-border/70"
+            />
+            {memoDaySearch && (
+              <button
+                type="button"
+                onClick={() => setMemoDaySearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Очистить поиск"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
