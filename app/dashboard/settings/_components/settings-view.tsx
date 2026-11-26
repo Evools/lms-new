@@ -152,6 +152,13 @@ export function SettingsView({
 }: SettingsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [localUsers, setLocalUsers] = useState<UserItemDTO[]>(allUsers);
+  const [pendingUserIds, setPendingUserIds] = useState<Record<string, boolean>>({});
+  const [pendingSystemKeys, setPendingSystemKeys] = useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    setLocalUsers(allUsers);
+  }, [allUsers]);
 
   const isAdmin = role === "ADMIN";
   const [activeTab, setActiveTab] = useState<Tab>(isAdmin ? "system" : "appearance");
@@ -429,32 +436,76 @@ export function SettingsView({
     });
   };
 
-  // User Handlers
-  const handleToggleUser = (userId: string, targetActiveState: boolean) => {
-    startTransition(async () => {
+  // User Handlers (optimistic UI + background server update)
+  const handleToggleUser = async (userId: string, targetActiveState: boolean) => {
+    setLocalUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, isActive: targetActiveState } : u))
+    );
+    setPendingUserIds((prev) => ({ ...prev, [userId]: true }));
+
+    try {
       const res = await toggleUserActiveAction(userId, targetActiveState);
       if (res.success) {
         toast.add({
           title: targetActiveState ? "Пользователь активирован" : "Пользователь заблокирован",
           type: "success",
         });
-        router.refresh();
       } else {
+        setLocalUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, isActive: !targetActiveState } : u))
+        );
         toast.add({ title: res.error || "Ошибка изменения статуса", type: "error" });
       }
-    });
+    } catch {
+      setLocalUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, isActive: !targetActiveState } : u))
+      );
+      toast.add({ title: "Ошибка изменения статуса", type: "error" });
+    } finally {
+      setPendingUserIds((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    }
   };
 
-  const handleChangeRole = (userId: string, newRole: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION") => {
-    startTransition(async () => {
+  const handleChangeRole = async (
+    userId: string,
+    newRole: "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION"
+  ) => {
+    const prevRole = localUsers.find((u) => u.id === userId)?.role;
+    setLocalUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+    );
+    setPendingUserIds((prev) => ({ ...prev, [userId]: true }));
+
+    try {
       const res = await changeUserRoleAction(userId, newRole);
       if (res.success) {
         toast.add({ title: "Роль пользователя обновлена", type: "success" });
-        router.refresh();
       } else {
+        if (prevRole) {
+          setLocalUsers((prev) =>
+            prev.map((u) => (u.id === userId ? { ...u, role: prevRole } : u))
+          );
+        }
         toast.add({ title: res.error || "Ошибка смены роли", type: "error" });
       }
-    });
+    } catch {
+      if (prevRole) {
+        setLocalUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, role: prevRole } : u))
+        );
+      }
+      toast.add({ title: "Ошибка смены роли", type: "error" });
+    } finally {
+      setPendingUserIds((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    }
   };
 
   const handleDeleteUser = () => {
@@ -568,21 +619,35 @@ export function SettingsView({
     });
   };
 
-  // Instant Toggle Handler for System Switches
-  const handleToggleSystemSwitch = (key: keyof SystemConfigDTO, val: boolean, labelMsg: string) => {
-    if (key === "allowLateSubmissions") setAllowLate(val);
-    if (key === "allowSelfRegistration") setAllowSelfReg(val);
-    if (key === "showGlobalNotice") setShowNotice(val);
+  // Instant Toggle Handler for System Switches (optimistic UI + background save)
+  const handleToggleSystemSwitch = async (key: keyof SystemConfigDTO, val: boolean, labelMsg: string) => {
+    const setSwitchState = (nextVal: boolean) => {
+      if (key === "allowLateSubmissions") setAllowLate(nextVal);
+      if (key === "allowSelfRegistration") setAllowSelfReg(nextVal);
+      if (key === "showGlobalNotice") setShowNotice(nextVal);
+    };
 
-    startTransition(async () => {
+    setSwitchState(val);
+    setPendingSystemKeys((prev) => ({ ...prev, [key]: true }));
+
+    try {
       const res = await updateSystemConfigAction({ [key]: val });
       if (res.success) {
         toast.add({ title: labelMsg, type: "success" });
-        router.refresh();
       } else {
+        setSwitchState(!val);
         toast.add({ title: res.error || "Ошибка сохранения", type: "error" });
       }
-    });
+    } catch {
+      setSwitchState(!val);
+      toast.add({ title: "Ошибка сохранения", type: "error" });
+    } finally {
+      setPendingSystemKeys((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
   };
 
   // Save Text Fields Handler for System Settings
@@ -609,7 +674,7 @@ export function SettingsView({
 
   const [userRoleFilter, setUserRoleFilter] = useState<"STAFF" | "TEACHER" | "ADMIN" | "ADMINISTRATION">("STAFF");
 
-  const filteredUsers = allUsers.filter((u) => {
+  const filteredUsers = localUsers.filter((u) => {
     if (u.role !== "TEACHER" && u.role !== "ADMIN" && u.role !== "ADMINISTRATION") return false;
 
     const matchesSearch =
@@ -969,134 +1034,187 @@ export function SettingsView({
 
       {/* Tab: System Settings (Admin Only) */}
       {activeTab === "system" && isAdmin && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-          {/* Instant Switches Card */}
-          <div className="lg:col-span-5 bg-card border border-border rounded-xl p-4 space-y-3">
-            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2.5 border-b">
-              <Sliders className="h-4 w-4 text-primary" /> Быстрые переключатели системы
-            </h2>
-
-            <div className="space-y-2">
-              <div className="p-3 border border-border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
-                <label htmlFor="allow-self-reg" className="space-y-0.5 cursor-pointer flex-1">
-                  <div className="font-medium text-foreground text-xs">Самостоятельная регистрация</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Регистрация студентов на странице входа (/register)
-                  </div>
-                </label>
-                <Switch
-                  id="allow-self-reg"
-                  checked={allowSelfReg}
-                  disabled={isPending}
-                  onCheckedChange={(checked) =>
-                    handleToggleSystemSwitch("allowSelfRegistration", checked, checked ? "Самостоятельная регистрация включена" : "Самостоятельная регистрация отключена")
-                  }
-                />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+          {/* Left Column: Switches + Global Banner */}
+          <div className="lg:col-span-5 flex flex-col gap-3">
+            {/* Instant Switches Card */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between pb-2.5 border-b">
+                <h2 className="font-bold text-foreground flex items-center gap-2 text-xs">
+                  <Sliders className="h-4 w-4 text-primary" /> Переключатели системы
+                </h2>
+                <span className="text-[10px] text-muted-foreground">Сохраняются сразу</span>
               </div>
 
-              <div className="p-3 border border-border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
-                <label htmlFor="allow-late" className="space-y-0.5 cursor-pointer flex-1">
-                  <div className="font-medium text-foreground text-xs">Приём ДЗ после дедлайна</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Отправка решений позже срока с пометкой опоздания
-                  </div>
-                </label>
-                <Switch
-                  id="allow-late"
-                  checked={allowLate}
-                  disabled={isPending}
-                  onCheckedChange={(checked) =>
-                    handleToggleSystemSwitch("allowLateSubmissions", checked, checked ? "Приём после дедлайна разрешён" : "Приём после дедлайна запрещён")
-                  }
-                />
-              </div>
+              <div className="divide-y border border-border rounded-lg bg-muted/15">
+                <div className="p-3 flex items-center justify-between gap-3">
+                  <label htmlFor="allow-self-reg" className="space-y-0.5 cursor-pointer flex-1">
+                    <div className="font-medium text-foreground text-xs">Самостоятельная регистрация</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Регистрация студентов на /register
+                    </div>
+                  </label>
+                  <Switch
+                    id="allow-self-reg"
+                    checked={allowSelfReg}
+                    disabled={!!pendingSystemKeys.allowSelfRegistration}
+                    onCheckedChange={(checked) =>
+                      handleToggleSystemSwitch("allowSelfRegistration", checked, checked ? "Самостоятельная регистрация включена" : "Самостоятельная регистрация отключена")
+                    }
+                  />
+                </div>
 
-              <div className="p-3 border border-border rounded-lg bg-muted/20 flex items-center justify-between gap-3">
-                <label htmlFor="show-notice" className="space-y-0.5 cursor-pointer flex-1">
-                  <div className="font-medium text-foreground text-xs">Системный баннер объявления</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Сквозное сообщение для всех студентов и преподавателей
+                <div className="p-3 flex items-center justify-between gap-3">
+                  <label htmlFor="allow-late" className="space-y-0.5 cursor-pointer flex-1">
+                    <div className="font-medium text-foreground text-xs">Приём ДЗ после дедлайна</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Отправка решений позже срока с пометкой
+                    </div>
+                  </label>
+                  <Switch
+                    id="allow-late"
+                    checked={allowLate}
+                    disabled={!!pendingSystemKeys.allowLateSubmissions}
+                    onCheckedChange={(checked) =>
+                      handleToggleSystemSwitch("allowLateSubmissions", checked, checked ? "Приём после дедлайна разрешён" : "Приём после дедлайна запрещён")
+                    }
+                  />
+                </div>
+
+                <div className="p-3 flex items-center justify-between gap-3">
+                  <label htmlFor="show-notice" className="space-y-0.5 cursor-pointer flex-1">
+                    <div className="font-medium text-foreground text-xs">Системный баннер объявления</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Сквозное сообщение для всех ролей
+                    </div>
+                  </label>
+                  <Switch
+                    id="show-notice"
+                    checked={showNotice}
+                    disabled={!!pendingSystemKeys.showGlobalNotice}
+                    onCheckedChange={(checked) =>
+                      handleToggleSystemSwitch("showGlobalNotice", checked, checked ? "Системный баннер включён" : "Системный баннер отключён")
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Global Banner Card */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 flex-1 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-2.5 border-b">
+                  <h2 className="font-bold text-foreground flex items-center gap-2 text-xs">
+                    <Megaphone className="h-4 w-4 text-primary" /> Системный баннер
+                  </h2>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-medium ${
+                      showNotice
+                        ? "border-primary/25 bg-primary/10 text-primary"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {showNotice ? "Показывается" : "Скрыт"}
+                  </Badge>
+                </div>
+
+                <div className="space-y-2.5">
+                  <div className="space-y-1">
+                    <label className="font-medium text-muted-foreground text-[11px]">Заголовок баннера</label>
+                    <Input
+                      value={noticeTitle}
+                      onChange={(e) => setNoticeTitle(e.target.value)}
+                      placeholder="Например: Технические работы или важное объявление"
+                      className="h-8 text-xs md:text-xs bg-muted/40 border-border/70 font-medium"
+                    />
                   </div>
-                </label>
-                <Switch
-                  id="show-notice"
-                  checked={showNotice}
-                  disabled={isPending}
-                  onCheckedChange={(checked) =>
-                    handleToggleSystemSwitch("showGlobalNotice", checked, checked ? "Системный баннер включён" : "Системный баннер отключён")
-                  }
-                />
+                  <div className="space-y-1">
+                    <label className="font-medium text-muted-foreground text-[11px]">Текст объявления</label>
+                    <Input
+                      value={noticeContent}
+                      onChange={(e) => setNoticeContent(e.target.value)}
+                      placeholder="Подробный текст для студентов и преподавателей..."
+                      className="h-8 text-xs md:text-xs bg-muted/40 border-border/70"
+                    />
+                  </div>
+                </div>
+
+                {showNotice && (noticeTitle || noticeContent) && (
+                  <div className="p-2.5 rounded-lg border border-primary/25 bg-primary/5 space-y-0.5 text-xs">
+                    <div className="font-medium text-primary flex items-center gap-1.5 text-[11px]">
+                      <Bell className="h-3 w-3" /> Предпросмотр
+                    </div>
+                    <div className="font-semibold text-foreground">{noticeTitle || "Без заголовка"}</div>
+                    <div className="text-[11px] text-muted-foreground">{noticeContent || "Без текста"}</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* System Parameters & Banner Text Card */}
-          <div className="lg:col-span-7 bg-card border border-border rounded-xl p-4 space-y-3">
-            <h2 className="font-bold text-foreground flex items-center gap-2 pb-2.5 border-b">
-              <Globe className="h-4 w-4 text-primary" /> Параметры заведения и системного баннера
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Название учебного заведения *</label>
-                <Input value={instName} onChange={(e) => setInstName(e.target.value)} placeholder="Лицей №98" className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Email техподдержки</label>
-                <Input value={instEmail} onChange={(e) => setInstEmail(e.target.value)} placeholder="support@lyceum.ru" className="h-8 text-xs md:text-xs bg-muted/40 border-border/70 font-mono" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Телефон связи</label>
-                <Input value={instPhone} onChange={(e) => setInstPhone(e.target.value)} placeholder="+996 (312) 00-00-00" className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Физический адрес</label>
-                <Input value={instAddress} onChange={(e) => setInstAddress(e.target.value)} placeholder="г. Бишкек, ул..." className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Макс. балл за ДЗ по умолчанию</label>
-                <Input type="number" value={defScore} onChange={(e) => setDefScore(e.target.value)} className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
-              </div>
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">Длительность урока (минут)</label>
-                <Input type="number" value={lessonDuration} onChange={(e) => setLessonDuration(e.target.value)} className="h-8 text-xs md:text-xs bg-muted/40 border-border/70" />
-              </div>
-            </div>
-
-            {/* Global Notice Text */}
-            <div className="pt-2.5 border-t space-y-2">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <Megaphone className="h-3.5 w-3.5 text-primary" /> Текст системного объявления
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <Input
-                  value={noticeTitle}
-                  onChange={(e) => setNoticeTitle(e.target.value)}
-                  placeholder="Заголовок баннера..."
-                  className="h-8 text-xs md:text-xs bg-muted/40 border-border/70 font-medium"
-                />
-                <Input
-                  value={noticeContent}
-                  onChange={(e) => setNoticeContent(e.target.value)}
-                  placeholder="Подробный текст баннера..."
-                  className="h-8 text-xs bg-background"
-                />
+          {/* Right Column: Institution & Study Parameters Card */}
+          <div className="lg:col-span-7 bg-card border border-border rounded-xl p-4 flex flex-col justify-between gap-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2.5 border-b">
+                <h2 className="font-bold text-foreground flex items-center gap-2 text-xs">
+                  <Globe className="h-4 w-4 text-primary" /> Параметры учебного заведения
+                </h2>
+                <span className="text-[11px] text-muted-foreground">Общие реквизиты и нормы</span>
               </div>
 
-              {showNotice && (noticeTitle || noticeContent) && (
-                <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 space-y-1 text-xs">
-                  <div className="font-bold text-primary flex items-center gap-1.5">
-                    <Bell className="h-3.5 w-3.5" /> Предпросмотр баннера:
-                  </div>
-                  <div className="font-semibold text-foreground">{noticeTitle || "Без заголовка"}</div>
-                  <div className="text-[11px] text-muted-foreground">{noticeContent || "Без текста"}</div>
+              {/* Group 1: Institution & Contacts */}
+              <div className="p-3.5 rounded-lg border border-border bg-muted/15 space-y-3">
+                <div className="text-xs font-semibold text-foreground">
+                  Организация и контакты
                 </div>
-              )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-medium text-muted-foreground text-[11px]">Название учебного заведения *</label>
+                    <Input value={instName} onChange={(e) => setInstName(e.target.value)} placeholder="Лицей №98" className="h-8 text-xs md:text-xs bg-background" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-medium text-muted-foreground text-[11px]">Email техподдержки</label>
+                    <Input value={instEmail} onChange={(e) => setInstEmail(e.target.value)} placeholder="support@lyceum.ru" className="h-8 text-xs md:text-xs bg-background font-mono" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-medium text-muted-foreground text-[11px]">Телефон связи</label>
+                    <Input value={instPhone} onChange={(e) => setInstPhone(e.target.value)} placeholder="+996 (312) 00-00-00" className="h-8 text-xs md:text-xs bg-background" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-medium text-muted-foreground text-[11px]">Физический адрес</label>
+                    <Input value={instAddress} onChange={(e) => setInstAddress(e.target.value)} placeholder="г. Бишкек, ул..." className="h-8 text-xs md:text-xs bg-background" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Group 2: Academic Defaults */}
+              <div className="p-3.5 rounded-lg border border-border bg-muted/15 space-y-3">
+                <div className="text-xs font-semibold text-foreground">
+                  Учебный процесс по умолчанию
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-medium text-muted-foreground text-[11px]">Макс. балл за ДЗ по умолчанию</label>
+                    <Input type="number" value={defScore} onChange={(e) => setDefScore(e.target.value)} className="h-8 text-xs md:text-xs bg-background" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-medium text-muted-foreground text-[11px]">Длительность урока (минут)</label>
+                    <Input type="number" value={lessonDuration} onChange={(e) => setLessonDuration(e.target.value)} className="h-8 text-xs md:text-xs bg-background" />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <Button size="xs" disabled={isPending} onClick={handleSaveSystemFields} className="w-full h-8 font-medium">
-              Сохранить параметры системы
-            </Button>
+            <div className="pt-3 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">
+                Изменения реквизитов и текста баннера применяются после нажатия кнопки сохранения.
+              </span>
+              <Button size="xs" disabled={isPending} onClick={handleSaveSystemFields} className="h-8 px-4 font-medium gap-1.5 shrink-0 cursor-pointer">
+                <Check className="h-3.5 w-3.5" />
+                <span>{isPending ? "Сохранение..." : "Сохранить параметры"}</span>
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -1105,9 +1223,9 @@ export function SettingsView({
       {activeTab === "users" && isAdmin && (
         <div className="space-y-3">
           {/* Unified Compact Toolbar */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-card p-2 rounded-xl border border-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 bg-card p-2 rounded-xl border border-border items-center">
             {/* Search Input */}
-            <div className="relative flex-1 md:max-w-xs">
+            <div className="lg:col-span-6 relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Поиск по имени или email..."
@@ -1126,47 +1244,55 @@ export function SettingsView({
               )}
             </div>
 
-            {/* Role Filter Tabs */}
-            <div className="flex items-center gap-1 p-0.5 bg-muted/50 rounded-md border border-border/70 overflow-x-auto text-xs">
-              {[
-                { key: "STAFF", label: "Все", count: allUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN" || u.role === "ADMINISTRATION").length },
-                { key: "ADMINISTRATION", label: "Руководство", count: allUsers.filter((u) => u.role === "ADMINISTRATION").length },
-                { key: "TEACHER", label: "Преподаватели", count: allUsers.filter((u) => u.role === "TEACHER").length },
-                { key: "ADMIN", label: "Админы", count: allUsers.filter((u) => u.role === "ADMIN").length },
-              ].map((f) => (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => setUserRoleFilter(f.key as any)}
-                  className={`px-2.5 py-1 rounded-sm text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-                    userRoleFilter === f.key
-                      ? "bg-background text-primary border border-border/80"
-                      : "text-muted-foreground hover:text-foreground border border-transparent"
-                  }`}
-                >
-                  <span>{f.label}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0 rounded-sm font-medium ${
-                      userRoleFilter === f.key
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {f.count}
-                  </span>
-                </button>
-              ))}
+            {/* Role Filter Dropdown */}
+            <div className="lg:col-span-4">
+              <Select
+                value={userRoleFilter}
+                onValueChange={(val) => setUserRoleFilter(val as any)}
+              >
+                <SelectTrigger className="h-8 text-xs bg-muted/40 border-border/70 font-medium">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Users className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="text-muted-foreground font-normal shrink-0">Роль:</span>
+                    <SelectValue>
+                      {userRoleFilter === "STAFF"
+                        ? `Все (${localUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN" || u.role === "ADMINISTRATION").length})`
+                        : userRoleFilter === "ADMINISTRATION"
+                          ? `Руководство (${localUsers.filter((u) => u.role === "ADMINISTRATION").length})`
+                          : userRoleFilter === "TEACHER"
+                            ? `Преподаватели (${localUsers.filter((u) => u.role === "TEACHER").length})`
+                            : `Админы (${localUsers.filter((u) => u.role === "ADMIN").length})`}
+                    </SelectValue>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STAFF" className="text-xs font-medium">
+                    Все ({localUsers.filter((u) => u.role === "TEACHER" || u.role === "ADMIN" || u.role === "ADMINISTRATION").length})
+                  </SelectItem>
+                  <SelectItem value="ADMINISTRATION" className="text-xs">
+                    Руководство ({localUsers.filter((u) => u.role === "ADMINISTRATION").length})
+                  </SelectItem>
+                  <SelectItem value="TEACHER" className="text-xs">
+                    Преподаватели ({localUsers.filter((u) => u.role === "TEACHER").length})
+                  </SelectItem>
+                  <SelectItem value="ADMIN" className="text-xs">
+                    Админы ({localUsers.filter((u) => u.role === "ADMIN").length})
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Action Button */}
-            <Button
-              size="xs"
-              className="h-8 gap-1.5 font-medium shrink-0 cursor-pointer"
-              onClick={() => setIsCreateUserOpen(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Добавить сотрудника</span>
-            </Button>
+            <div className="lg:col-span-2 flex justify-end">
+              <Button
+                size="xs"
+                className="h-8 w-full gap-1.5 font-medium cursor-pointer"
+                onClick={() => setIsCreateUserOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Добавить</span>
+              </Button>
+            </div>
           </div>
 
           {/* Subtitle count & tip */}
@@ -1243,7 +1369,7 @@ export function SettingsView({
                           <Select
                             value={u.role}
                             onValueChange={(val) => handleChangeRole(u.id, val as "ADMIN" | "TEACHER" | "STUDENT" | "ADMINISTRATION")}
-                            disabled={isPending}
+                            disabled={!!pendingUserIds[u.id]}
                           >
                             <SelectTrigger className="h-7 text-[11px] font-medium px-2.5 border-border/70 hover:border-primary/50 bg-muted/40 w-[165px]">
                               <SelectValue>{ROLE_LABELS[u.role] || u.role}</SelectValue>
@@ -1263,7 +1389,7 @@ export function SettingsView({
                           {u.id !== profile.id && (
                             <Switch
                               checked={u.isActive}
-                              disabled={isPending}
+                              disabled={!!pendingUserIds[u.id]}
                               onCheckedChange={(checked) => handleToggleUser(u.id, checked)}
                               className="scale-90"
                               title={u.isActive ? "Заблокировать" : "Активировать"}
