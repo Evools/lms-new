@@ -273,19 +273,25 @@ export function AssignmentsView({
     });
   };
 
-  // Metrics
-  const publishedAssignments = localAssignments.filter((a) => a.isPublished);
-  const draftAssignments = localAssignments.filter((a) => !a.isPublished);
-  const totalAssignments =
-    userRole === "STUDENT" ? localAssignments.length : publishedAssignments.length;
+  // Metrics (scoped to selected subject filter)
+  const isStaff = userRole !== "STUDENT";
+  const subjectScopedAssignments =
+    subjectFilter === "all"
+      ? localAssignments
+      : localAssignments.filter((a) => a.groupSubjectId === subjectFilter);
+  const publishedAssignments = subjectScopedAssignments.filter((a) => a.isPublished);
+  const draftAssignments = subjectScopedAssignments.filter((a) => !a.isPublished);
+  const totalAssignments = isStaff
+    ? publishedAssignments.length
+    : subjectScopedAssignments.length;
   const draftsCount = draftAssignments.length;
   let totalSubmissionsCount = 0;
   let totalAcceptedCount = 0;
+  let totalPendingReviewCount = 0;
 
-  localAssignments.forEach((a) => {
-    if (canCreate) {
-      totalSubmissionsCount += a.submissionsCount;
-      totalAcceptedCount += a.acceptedCount;
+  (isStaff ? publishedAssignments : subjectScopedAssignments).forEach((a) => {
+    if (isStaff) {
+      totalPendingReviewCount += Math.max(0, a.submissionsCount - a.acceptedCount - a.needRevisionCount);
     } else if (a.userSubmission) {
       totalSubmissionsCount += 1;
       if (a.userSubmission.status === SubmissionStatus.ACCEPTED) {
@@ -363,17 +369,45 @@ export function AssignmentsView({
             <span className="font-bold text-foreground">{totalAssignments}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
-            <Send className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-muted-foreground">Сдано:</span>
-            <span className="font-bold text-foreground">{totalSubmissionsCount}</span>
-          </div>
+          {isStaff ? (
+            <>
+              <div
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] ${
+                  totalPendingReviewCount > 0
+                    ? "bg-primary/10 border-primary/20 text-primary"
+                    : "bg-muted/50 border-border text-muted-foreground"
+                }`}
+              >
+                <Clock className={`h-3.5 w-3.5 shrink-0 ${totalPendingReviewCount > 0 ? "text-primary" : "text-muted-foreground"}`} />
+                <span className="font-medium">На проверке:</span>
+                <span className={`font-bold ${totalPendingReviewCount > 0 ? "text-primary" : "text-foreground"}`}>
+                  {totalPendingReviewCount}
+                </span>
+              </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-[11px]">
-            <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-primary font-medium">Принято:</span>
-            <span className="font-bold text-primary">{totalAcceptedCount}</span>
-          </div>
+              {draftsCount > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
+                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground">Черновиков:</span>
+                  <span className="font-bold text-foreground">{draftsCount}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
+                <Send className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground">Сдано:</span>
+                <span className="font-bold text-foreground">{totalSubmissionsCount}</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-[11px]">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-primary font-medium">Принято:</span>
+                <span className="font-bold text-primary">{totalAcceptedCount}</span>
+              </div>
+            </>
+          )}
 
           {canCreate && (
             <div className="flex items-center gap-1.5" data-tour="assignments-create-btn">
@@ -609,7 +643,7 @@ export function AssignmentsView({
                           {!assignment.isPublished && (
                             <Badge
                               variant="outline"
-                              className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 rounded-full inline-flex items-center gap-1"
+                              className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 rounded-md inline-flex items-center gap-1"
                             >
                               <EyeOff className="h-2.5 w-2.5" /> Черновик
                             </Badge>
@@ -673,7 +707,7 @@ export function AssignmentsView({
                       {/* Attachments */}
                       <td className="py-2.5 px-3 text-center">
                         {attachmentLinksList.length > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/60">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md border border-border/60">
                             <Paperclip className="h-3 w-3 shrink-0 text-primary" /> {attachmentLinksList.length}
                           </span>
                         ) : (
@@ -687,7 +721,7 @@ export function AssignmentsView({
                           <button
                             type="button"
                             onClick={() => setReviewTargetAssignmentId(assignment.id)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
                           >
                             <FileCheck className="h-3.5 w-3.5" />
                             <span>
@@ -699,7 +733,7 @@ export function AssignmentsView({
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Badge
                                 variant="outline"
-                                className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${userSub.status === SubmissionStatus.ACCEPTED
+                                className={`text-[11px] font-medium border px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 ${userSub.status === SubmissionStatus.ACCEPTED
                                   ? "bg-primary/10 text-primary border-primary/25"
                                   : userSub.status === SubmissionStatus.NEED_REVISION
                                     ? "bg-destructive/10 text-destructive border-destructive/25"
@@ -735,7 +769,7 @@ export function AssignmentsView({
                                   onClick={() => setViewMyResultAssignmentId(assignment.id)}
                                   title={`Комментарий преподавателя: ${userSub.teacherComment}`}
                                   aria-label="Комментарий преподавателя"
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
                                 >
                                   <MessageSquare className="h-3 w-3" />
                                 </button>
@@ -745,7 +779,7 @@ export function AssignmentsView({
                         ) : (
                           <Badge
                             variant="outline"
-                            className="text-[11px] text-muted-foreground font-normal rounded-full border-border/60"
+                            className="text-[11px] text-muted-foreground font-normal rounded-md border-border/60"
                           >
                             Не сдано
                           </Badge>
@@ -926,7 +960,7 @@ export function AssignmentsView({
                       {!assignment.isPublished && (
                         <Badge
                           variant="outline"
-                          className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 rounded-full inline-flex items-center gap-1"
+                          className="text-[9px] border-dashed border-muted-foreground/40 text-muted-foreground bg-muted/40 font-medium px-1.5 py-0 rounded-md inline-flex items-center gap-1"
                         >
                           <EyeOff className="h-2.5 w-2.5" /> Черновик
                         </Badge>
@@ -977,7 +1011,7 @@ export function AssignmentsView({
                       <span className="truncate">{assignment.teacherName}</span>
                     </span>
                     {attachmentLinksList.length > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/60 shrink-0">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md border border-border/60 shrink-0">
                         <Paperclip className="h-2.5 w-2.5 text-primary" />
                         <span>{attachmentLinksList.length}</span>
                       </span>
@@ -992,7 +1026,7 @@ export function AssignmentsView({
                       <button
                         type="button"
                         onClick={() => setReviewTargetAssignmentId(assignment.id)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold text-[11px] hover:bg-primary/20 transition-colors cursor-pointer"
                       >
                         <FileCheck className="h-3.5 w-3.5" />
                         <span>
@@ -1046,7 +1080,7 @@ export function AssignmentsView({
                       {userSub ? (
                         <Badge
                           variant="outline"
-                          className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${userSub.status === SubmissionStatus.ACCEPTED
+                          className={`text-[11px] font-medium border px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 ${userSub.status === SubmissionStatus.ACCEPTED
                             ? "bg-primary/10 text-primary border-primary/25"
                             : userSub.status === SubmissionStatus.NEED_REVISION
                               ? "bg-destructive/10 text-destructive border-destructive/25"
@@ -1079,7 +1113,7 @@ export function AssignmentsView({
                       ) : (
                         <Badge
                           variant="outline"
-                          className="text-[11px] text-muted-foreground font-normal rounded-full border-border/60"
+                          className="text-[11px] text-muted-foreground font-normal rounded-md border-border/60"
                         >
                           Не сдано
                         </Badge>

@@ -132,25 +132,27 @@ export async function getAssignmentsDataAction(groupId?: string) {
       teacherName: gs.teacher.name,
     }));
 
-    // 3. Fetch students in selected group (names only for staff so review dialog can show who didn't submit)
+    // 3. Fetch active students in selected group
     let groupStudents: { id: string; name: string }[] | undefined;
     let totalStudentsInGroup = 0;
 
+    const activeGroupStudentRows = await prisma.groupStudent.findMany({
+      where: {
+        groupId: selectedGroupId,
+        student: { isActive: true },
+      },
+      select: { student: { select: { id: true, name: true } } },
+      orderBy: { student: { name: "asc" } },
+    });
+
+    const activeStudentIds = new Set(activeGroupStudentRows.map((row) => row.student.id));
+    totalStudentsInGroup = activeGroupStudentRows.length;
+
     if (role !== "STUDENT") {
-      const groupStudentRows = await prisma.groupStudent.findMany({
-        where: { groupId: selectedGroupId },
-        select: { student: { select: { id: true, name: true } } },
-        orderBy: { student: { name: "asc" } },
-      });
-      groupStudents = groupStudentRows.map((row) => ({
+      groupStudents = activeGroupStudentRows.map((row) => ({
         id: row.student.id,
         name: row.student.name,
       }));
-      totalStudentsInGroup = groupStudents.length;
-    } else {
-      totalStudentsInGroup = await prisma.groupStudent.count({
-        where: { groupId: selectedGroupId },
-      });
     }
 
     // 4. Fetch assignments for this group and accessible subjects
@@ -183,19 +185,21 @@ export async function getAssignmentsDataAction(groupId?: string) {
     });
 
     const assignments: AssignmentDTO[] = dbAssignments.map((a) => {
-      const submissionsList: SubmissionDTO[] = a.submissions.map((sub) => ({
-        id: sub.id,
-        assignmentId: sub.assignmentId,
-        studentId: sub.studentId,
-        studentName: sub.student.name,
-        fileUrl: sub.fileUrl,
-        comment: sub.comment,
-        teacherComment: sub.teacherComment,
-        status: sub.status,
-        submittedAt: sub.submittedAt.toISOString(),
-        reviewedAt: sub.reviewedAt ? sub.reviewedAt.toISOString() : null,
-        grade: sub.grade ?? null,
-      }));
+      const submissionsList: SubmissionDTO[] = a.submissions
+        .filter((sub) => activeStudentIds.has(sub.studentId))
+        .map((sub) => ({
+          id: sub.id,
+          assignmentId: sub.assignmentId,
+          studentId: sub.studentId,
+          studentName: sub.student.name,
+          fileUrl: sub.fileUrl,
+          comment: sub.comment,
+          teacherComment: sub.teacherComment,
+          status: sub.status,
+          submittedAt: sub.submittedAt.toISOString(),
+          reviewedAt: sub.reviewedAt ? sub.reviewedAt.toISOString() : null,
+          grade: sub.grade ?? null,
+        }));
 
       const userSub = currentUserId
         ? submissionsList.find((sub) => sub.studentId === currentUserId) || null
