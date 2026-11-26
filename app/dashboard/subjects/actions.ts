@@ -358,7 +358,7 @@ export async function createSubjectAction(data: {
     revalidatePath("/dashboard/lms");
     revalidatePath("/dashboard/schedule");
     revalidatePath("/dashboard/groups");
-    return { success: true };
+    return { success: true, subjectId: created.id };
   } catch (error) {
     console.error("createSubjectAction error:", error);
     return {
@@ -508,6 +508,65 @@ export async function deleteSubjectAction(subjectId: string) {
     return { success: true };
   } catch (error) {
     console.error("deleteSubjectAction error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Произошла ошибка",
+    };
+  }
+}
+
+/** Assign a subject to one or multiple groups with a teacher */
+export async function assignSubjectToGroupsAction(data: {
+  subjectId: string;
+  groupIds: string[];
+  teacherId: string;
+}) {
+  const session = await auth();
+  if (!session?.user || !canManageSubjects(session.user.role)) {
+    return { success: false, error: "Недостаточно прав для привязки дисциплины" };
+  }
+
+  const uniqueGroupIds = Array.from(new Set(data.groupIds.filter(Boolean)));
+  if (!data.subjectId || uniqueGroupIds.length === 0 || !data.teacherId) {
+    return { success: false, error: "Выберите дисциплину, хотя бы одну группу и преподавателя" };
+  }
+
+  try {
+    const existing = await prisma.groupSubject.findMany({
+      where: {
+        subjectId: data.subjectId,
+        groupId: { in: uniqueGroupIds },
+      },
+      select: { groupId: true },
+    });
+    const existingGroupIds = new Set(existing.map((e) => e.groupId));
+    const toCreate = uniqueGroupIds.filter((gid) => !existingGroupIds.has(gid));
+
+    if (toCreate.length === 0) {
+      return {
+        success: false,
+        error: "Выбранные группы уже привязаны к этой дисциплине",
+      };
+    }
+
+    await prisma.groupSubject.createMany({
+      data: toCreate.map((groupId) => ({
+        groupId,
+        subjectId: data.subjectId,
+        teacherId: data.teacherId,
+      })),
+    });
+
+    revalidatePath("/dashboard/subjects");
+    revalidatePath("/dashboard/groups");
+    revalidatePath("/dashboard/schedule");
+    return {
+      success: true,
+      createdCount: toCreate.length,
+      skippedCount: existingGroupIds.size,
+    };
+  } catch (error) {
+    console.error("assignSubjectToGroupsAction error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Произошла ошибка",

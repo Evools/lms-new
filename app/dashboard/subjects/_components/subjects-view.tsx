@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useTransition, useMemo } from "react";
+import React, { useState, useTransition, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import {
   Breadcrumb,
@@ -54,7 +55,9 @@ import {
   GraduationCap,
   Layers,
   LayoutGrid,
-  Wrench,
+  List,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 import type {
   SubjectDTO,
@@ -69,7 +72,7 @@ import {
   createSubjectAction,
   updateSubjectAction,
   deleteSubjectAction,
-  assignSubjectToGroupAction,
+  assignSubjectToGroupsAction,
   updateGroupSubjectBindingAction,
   removeSubjectFromGroupAction,
   toggleSubjectLmsAction,
@@ -84,22 +87,25 @@ interface SubjectsViewProps {
   isAdmin: boolean;
 }
 
-type ViewMode = "cards" | "by-group";
+type ViewMode = "table" | "cards" | "by-group";
+type StatusFilterMode = "ALL" | "LMS_ON" | "LMS_OFF" | "UNASSIGNED";
 
 const CATEGORY_CONFIG: Record<
   SubjectCategoryType,
   {
     label: string;
+    shortLabel: string;
     badgeClass: string;
   }
 > = {
   GENERAL: {
     label: "Общеобразовательный цикл",
-    badgeClass:
-      "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+    shortLabel: "Общеобразов.",
+    badgeClass: "border-border bg-muted/60 text-foreground",
   },
   PROFESSIONAL: {
     label: "Профессиональный цикл",
+    shortLabel: "Профессион.",
     badgeClass: "border-primary/30 bg-primary/10 text-primary",
   },
 };
@@ -123,11 +129,19 @@ export function SubjectsView({
 }: SubjectsViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [localSubjects, setLocalSubjects] = useState<SubjectDTO[]>(subjects);
+  const [pendingLmsIds, setPendingLmsIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setLocalSubjects(subjects);
+  }, [subjects]);
 
   // View & Filter States
-  const [viewMode, setViewMode] = useState<ViewMode>("cards");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [selectedStatusFilter, setSelectedStatusFilter] =
+    useState<StatusFilterMode>("ALL");
   const [selectedTeacherFilter, setSelectedTeacherFilter] =
     useState<string>("ALL");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("ALL");
@@ -145,12 +159,15 @@ export function SubjectsView({
     useState<SubjectAssessmentType>("DIFF_CREDIT");
   const [formSpecialtyId, setFormSpecialtyId] = useState<string>("ALL");
   const [formIsLmsActive, setFormIsLmsActive] = useState<boolean>(false);
+  const [createGroupIds, setCreateGroupIds] = useState<string[]>([]);
+  const [createTeacherId, setCreateTeacherId] = useState<string>("");
+  const [showCreateAssign, setShowCreateAssign] = useState<boolean>(false);
 
   const [deleteTarget, setDeleteTarget] = useState<SubjectDTO | null>(null);
 
-  // Modals: Assign Binding
+  // Modals: Assign Binding (supports multiple groups)
   const [assignSubjectId, setAssignSubjectId] = useState<string | null>(null);
-  const [assignGroupId, setAssignGroupId] = useState<string>("");
+  const [assignGroupIds, setAssignGroupIds] = useState<string[]>([]);
   const [assignTeacherId, setAssignTeacherId] = useState<string>("");
 
   // Modals: Edit Existing Binding
@@ -182,7 +199,18 @@ export function SubjectsView({
     setFormAssessment("DIFF_CREDIT");
     setFormSpecialtyId("ALL");
     setFormIsLmsActive(false);
+    setCreateGroupIds([]);
+    setCreateTeacherId(teachers[0]?.id || "");
+    setShowCreateAssign(false);
     setIsSubjectDialogOpen(true);
+  };
+
+  const toggleCreateGroupId = (groupId: string) => {
+    setCreateGroupIds((prev) =>
+      prev.includes(groupId)
+        ? prev.filter((id) => id !== groupId)
+        : [...prev, groupId]
+    );
   };
 
   const openEditSubjectModal = (s: SubjectDTO) => {
@@ -199,19 +227,39 @@ export function SubjectsView({
   };
 
   const handleToggleSubjectLms = (subjectId: string, newState: boolean) => {
-    startTransition(async () => {
-      const res = await toggleSubjectLmsAction(subjectId, newState);
-      if (res.success) {
-        showSuccess(
-          newState
-            ? "Дисциплина включена в Материалы (LMS)"
-            : "Дисциплина скрыта из Материалов (LMS)"
-        );
-        router.refresh();
-      } else {
-        showError(res.error || "Не удалось изменить статус LMS");
+    setLocalSubjects((prev) =>
+      prev.map((s) => (s.id === subjectId ? { ...s, isLmsActive: newState } : s))
+    );
+    setPendingLmsIds((prev) => ({ ...prev, [subjectId]: true }));
+
+    void (async () => {
+      try {
+        const res = await toggleSubjectLmsAction(subjectId, newState);
+        if (res.success) {
+          showSuccess(
+            newState
+              ? "Доступ к курсу открыт для студентов"
+              : "Курс скрыт от студентов"
+          );
+          startTransition(() => {
+            router.refresh();
+          });
+        } else {
+          setLocalSubjects((prev) =>
+            prev.map((s) =>
+              s.id === subjectId ? { ...s, isLmsActive: !newState } : s
+            )
+          );
+          showError(res.error || "Не удалось изменить статус LMS");
+        }
+      } finally {
+        setPendingLmsIds((prev) => {
+          const next = { ...prev };
+          delete next[subjectId];
+          return next;
+        });
       }
-    });
+    })();
   };
 
   const openEditBindingModal = (b: GroupSubjectBindingDTO) => {
@@ -259,8 +307,22 @@ export function SubjectsView({
           isLmsActive: formIsLmsActive,
         });
         if (res.success) {
+          if (res.subjectId && createGroupIds.length > 0 && createTeacherId) {
+            const assignRes = await assignSubjectToGroupsAction({
+              subjectId: res.subjectId,
+              groupIds: createGroupIds,
+              teacherId: createTeacherId,
+            });
+            if (!assignRes.success) {
+              showError(assignRes.error || "Дисциплина создана, но не удалось привязать к группам");
+            }
+          }
           setIsSubjectDialogOpen(false);
-          showSuccess("Дисциплина успешно создана!");
+          showSuccess(
+            createGroupIds.length > 0
+              ? `Дисциплина создана и назначена (${createGroupIds.length} гр.)!`
+              : "Дисциплина успешно создана!"
+          );
           router.refresh();
         } else {
           showError(res.error || "Ошибка создания");
@@ -287,25 +349,40 @@ export function SubjectsView({
     defaultSubjectId?: string,
     defaultGroupId?: string
   ) => {
-    setAssignSubjectId(defaultSubjectId || subjects[0]?.id || "");
-    setAssignGroupId(defaultGroupId || groups[0]?.id || "");
+    const targetSubjectId = defaultSubjectId || localSubjects[0]?.id || "";
+    setAssignSubjectId(targetSubjectId);
+    setAssignGroupIds(defaultGroupId ? [defaultGroupId] : []);
     setAssignTeacherId(teachers[0]?.id || "");
   };
 
+  const toggleAssignGroupId = (groupId: string) => {
+    setAssignGroupIds((prev) =>
+      prev.includes(groupId)
+        ? prev.filter((id) => id !== groupId)
+        : [...prev, groupId]
+    );
+  };
+
   const handleAssign = () => {
-    if (!assignSubjectId || !assignGroupId || !assignTeacherId) {
-      showError("Заполните все поля");
+    if (!assignSubjectId || assignGroupIds.length === 0 || !assignTeacherId) {
+      showError("Выберите дисциплину, хотя бы одну группу и преподавателя");
       return;
     }
     startTransition(async () => {
-      const res = await assignSubjectToGroupAction({
+      const res = await assignSubjectToGroupsAction({
         subjectId: assignSubjectId,
-        groupId: assignGroupId,
+        groupIds: assignGroupIds,
         teacherId: assignTeacherId,
       });
       if (res.success) {
         setAssignSubjectId(null);
-        showSuccess("Дисциплина успешно привязана к группе!");
+        setAssignGroupIds([]);
+        const count = res.createdCount || 1;
+        showSuccess(
+          count > 1
+            ? `Дисциплина привязана к ${count} группам!`
+            : "Дисциплина успешно привязана к группе!"
+        );
         router.refresh();
       } else {
         showError(res.error || "Ошибка привязки");
@@ -374,29 +451,41 @@ export function SubjectsView({
 
   // Summary KPIs
   const kpiStats = useMemo(() => {
-    const totalSubjects = subjects.length;
-    const generalCount = subjects.filter(
+    const totalSubjects = localSubjects.length;
+    const generalCount = localSubjects.filter(
       (s) => s.category === "GENERAL"
     ).length;
-    const professionalCount = subjects.filter(
+    const professionalCount = localSubjects.filter(
       (s) => s.category === "PROFESSIONAL"
+    ).length;
+    const lmsActiveCount = localSubjects.filter((s) => s.isLmsActive).length;
+    const unassignedCount = localSubjects.filter(
+      (s) => (bindingsBySubject.get(s.id) || []).length === 0
     ).length;
     const activeTeachersCount = new Set(bindings.map((b) => b.teacherId)).size;
     return {
       totalSubjects,
       generalCount,
       professionalCount,
+      lmsActiveCount,
+      unassignedCount,
       totalBindings: bindings.length,
       activeTeachersCount: activeTeachersCount || teachers.length,
     };
-  }, [subjects, bindings, teachers]);
+  }, [localSubjects, bindings, bindingsBySubject, teachers]);
 
   // Filtered Subjects
   const filteredSubjects = useMemo(() => {
-    return subjects.filter((s) => {
+    return localSubjects.filter((s) => {
       if (selectedCategory !== "ALL" && s.category !== selectedCategory) {
         return false;
       }
+
+      const subjectBindings = bindingsBySubject.get(s.id) || [];
+      if (selectedStatusFilter === "LMS_ON" && !s.isLmsActive) return false;
+      if (selectedStatusFilter === "LMS_OFF" && s.isLmsActive) return false;
+      if (selectedStatusFilter === "UNASSIGNED" && subjectBindings.length > 0)
+        return false;
 
       const q = search.toLowerCase().trim();
       if (q) {
@@ -408,7 +497,6 @@ export function SubjectsView({
         if (!matchSearch) return false;
       }
 
-      const subjectBindings = bindingsBySubject.get(s.id) || [];
       if (selectedGroupFilter !== "ALL") {
         const hasGroup = subjectBindings.some(
           (b) => b.groupId === selectedGroupFilter
@@ -426,13 +514,29 @@ export function SubjectsView({
       return true;
     });
   }, [
-    subjects,
+    localSubjects,
     selectedCategory,
+    selectedStatusFilter,
     search,
     selectedGroupFilter,
     selectedTeacherFilter,
     bindingsBySubject,
   ]);
+
+  const hasActiveFilters =
+    search.trim() !== "" ||
+    selectedCategory !== "ALL" ||
+    selectedStatusFilter !== "ALL" ||
+    selectedGroupFilter !== "ALL" ||
+    selectedTeacherFilter !== "ALL";
+
+  const resetFilters = () => {
+    setSearch("");
+    setSelectedCategory("ALL");
+    setSelectedStatusFilter("ALL");
+    setSelectedGroupFilter("ALL");
+    setSelectedTeacherFilter("ALL");
+  };
 
   // Filtered Groups for Group View
   const filteredGroups = useMemo(() => {
@@ -510,120 +614,82 @@ export function SubjectsView({
             <h1 className="text-sm font-bold tracking-tight text-foreground">
               Учебные дисциплины
             </h1>
-            <Badge
-              variant="outline"
-              className="text-[10px] px-2 py-0 border-primary/30 text-primary bg-primary/5 font-medium"
-            >
-              {subjects.length} всего
-            </Badge>
           </div>
           <p className="text-[11px] text-muted-foreground">
             Каталог общеобразовательного и профессионального циклов, нагрузка и закрепление за группами
           </p>
         </div>
 
-        {isAdmin && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Button
-              size="xs"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
-              onClick={() => openAssignModal()}
-              disabled={subjects.length === 0 || groups.length === 0}
-            >
-              <Link2 className="h-3.5 w-3.5" />
-              <span>Назначить группе</span>
-            </Button>
-            <Button
-              size="xs"
-              className="h-8 text-xs gap-1.5 font-medium"
-              onClick={openCreateModal}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Добавить дисциплину</span>
-            </Button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
+            <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-muted-foreground">Дисциплин:</span>
+            <span className="font-bold text-foreground">{kpiStats.totalSubjects}</span>
           </div>
-        )}
-      </div>
 
-      {/* 4 Compact KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <div className="p-3 rounded-xl border bg-card flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-muted-foreground">Всего дисциплин</p>
-            <p className="text-base font-bold text-foreground mt-0.5">
-              {kpiStats.totalSubjects} предм.
-            </p>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-[11px]">
+            <BookMarked className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-primary font-medium">Доступно студентам:</span>
+            <span className="font-bold text-primary">{kpiStats.lmsActiveCount}</span>
           </div>
-          <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <BookOpen className="h-4 w-4" />
-          </div>
-        </div>
 
-        <div className="p-3 rounded-xl border bg-card flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-muted-foreground">
-              Общеобразовательный цикл
-            </p>
-            <p className="text-base font-bold text-foreground mt-0.5">
-              {kpiStats.generalCount} предм.
-            </p>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border text-[11px]">
+            <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-muted-foreground">Привязок:</span>
+            <span className="font-bold text-foreground">{kpiStats.totalBindings}</span>
           </div>
-          <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <GraduationCap className="h-4 w-4" />
-          </div>
-        </div>
 
-        <div className="p-3 rounded-xl border bg-card flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-muted-foreground">
-              Профессиональный цикл
-            </p>
-            <p className="text-base font-bold text-primary mt-0.5">
-              {kpiStats.professionalCount} предм.
-            </p>
-          </div>
-          <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <Wrench className="h-4 w-4" />
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl border bg-card flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-muted-foreground">
-              Назначений в группы
-            </p>
-            <p className="text-base font-bold text-foreground mt-0.5">
-              {kpiStats.totalBindings} привязок
-            </p>
-          </div>
-          <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <Layers className="h-4 w-4" />
-          </div>
+          {isAdmin && (
+            <>
+              <Button
+                size="xs"
+                variant="outline"
+                className="h-8 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
+                onClick={() => openAssignModal()}
+                disabled={localSubjects.length === 0 || groups.length === 0}
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                <span>Назначить группе</span>
+              </Button>
+              <Button
+                size="xs"
+                className="h-8 text-xs gap-1.5 font-medium"
+                onClick={openCreateModal}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Добавить дисциплину</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Filters & View Switcher Bar */}
       <div className="bg-card p-3 rounded-xl border space-y-2.5">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
-          {/* Official shadcn Tabs View Switcher (2 modes) */}
+          {/* Official shadcn Tabs View Switcher (3 modes) */}
           <Tabs
             value={viewMode}
-            onValueChange={(val) =>
-              setViewMode(val as "cards" | "by-group")
-            }
+            onValueChange={(val) => setViewMode(val as ViewMode)}
           >
             <TabsList className="h-8 p-1 bg-muted/60 border w-full sm:w-auto">
               <TabsTrigger
+                value="table"
+                className="h-6 px-2.5 text-xs gap-1.5 font-medium"
+              >
+                <List className="h-3.5 w-3.5 shrink-0" />
+                <span>Таблица</span>
+              </TabsTrigger>
+              <TabsTrigger
                 value="cards"
-                className="h-6 px-3 text-xs gap-1.5 font-medium"
+                className="h-6 px-2.5 text-xs gap-1.5 font-medium"
               >
                 <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
-                <span>По дисциплинам</span>
+                <span>Карточки</span>
               </TabsTrigger>
               <TabsTrigger
                 value="by-group"
-                className="h-6 px-3 text-xs gap-1.5 font-medium"
+                className="h-6 px-2.5 text-xs gap-1.5 font-medium"
               >
                 <Users className="h-3.5 w-3.5 shrink-0" />
                 <span>По группам</span>
@@ -702,37 +768,287 @@ export function SubjectsView({
           </div>
         </div>
 
-        {/* 2 Cycle Filter Pills */}
-        <div className="flex items-center flex-wrap gap-1.5 pt-2 border-t">
-          <span className="text-[11px] text-muted-foreground mr-1">
-            Учебный цикл:
-          </span>
-          {[
-            { id: "ALL", label: `Все дисциплины (${subjects.length})` },
-            {
-              id: "GENERAL",
-              label: `Общеобразовательный цикл (${kpiStats.generalCount})`,
-            },
-            {
-              id: "PROFESSIONAL",
-              label: `Профессиональный цикл (${kpiStats.professionalCount})`,
-            },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSelectedCategory(tab.id)}
-              className={`h-6 px-2.5 rounded-md text-[11px] font-medium border transition-colors ${
-                selectedCategory === tab.id
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-border hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Cycle & Status Filter Pills */}
+        <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t">
+          <div className="flex items-center flex-wrap gap-1.5">
+            <span className="text-[11px] text-muted-foreground mr-1">
+              Цикл:
+            </span>
+            {[
+              { id: "ALL", label: `Все (${localSubjects.length})` },
+              {
+                id: "GENERAL",
+                label: `Общеобразовательный (${kpiStats.generalCount})`,
+              },
+              {
+                id: "PROFESSIONAL",
+                label: `Профессиональный (${kpiStats.professionalCount})`,
+              },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSelectedCategory(tab.id)}
+                className={`h-6 px-2.5 rounded-md text-[11px] font-medium border transition-colors ${
+                  selectedCategory === tab.id
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {viewMode !== "by-group" && (
+            <div className="flex items-center flex-wrap gap-1.5">
+              {[
+                { id: "ALL" as StatusFilterMode, label: "Все статусы" },
+                { id: "LMS_ON" as StatusFilterMode, label: `Доступны (${kpiStats.lmsActiveCount})` },
+                { id: "LMS_OFF" as StatusFilterMode, label: "Скрытые" },
+                {
+                  id: "UNASSIGNED" as StatusFilterMode,
+                  label: `Без групп (${kpiStats.unassignedCount})`,
+                },
+              ].map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => setSelectedStatusFilter(st.id)}
+                  className={`h-6 px-2.5 rounded-md text-[11px] font-medium border transition-colors ${
+                    selectedStatusFilter === st.id
+                      ? "bg-primary/10 text-primary border-primary"
+                      : "bg-background text-muted-foreground border-border hover:text-foreground"
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
+
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="h-6 px-2 rounded-md text-[11px] font-medium border border-border bg-muted/40 text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                  title="Сбросить все фильтры"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  <span>Сбросить</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* VIEW 0: COMPACT TABLE (ТАБЛИЦА) */}
+      {viewMode === "table" && (
+        <div className="bg-card rounded-xl border overflow-hidden">
+          {filteredSubjects.length === 0 ? (
+            <div className="p-8 text-center space-y-2">
+              <BookOpen className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+              <p className="font-bold text-foreground">Дисциплины не найдены</p>
+              <p className="text-[11px] text-muted-foreground">
+                Попробуйте изменить параметры поиска или добавьте новую дисциплину
+              </p>
+              <div className="flex items-center justify-center gap-2 pt-1">
+                {hasActiveFilters && (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={resetFilters}
+                    className="h-8 text-xs font-medium gap-1.5"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Сбросить фильтры
+                  </Button>
+                )}
+                {isAdmin && (
+                  <Button
+                    size="xs"
+                    onClick={openCreateModal}
+                    className="h-8 text-xs font-medium gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Добавить дисциплину
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-[11px] text-muted-foreground font-semibold">
+                    <th className="py-2.5 px-3">Дисциплина</th>
+                    <th className="py-2.5 px-3">Цикл</th>
+                    <th className="py-2.5 px-3">Нагрузка</th>
+                    <th className="py-2.5 px-3">Доступ студентам</th>
+                    <th className="py-2.5 px-3">Группы и преподаватели</th>
+                    {isAdmin && (
+                      <th className="py-2.5 px-3 text-right">Действия</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredSubjects.map((s) => {
+                    const subjectBindings = bindingsBySubject.get(s.id) || [];
+                    const catCfg =
+                      CATEGORY_CONFIG[s.category] || CATEGORY_CONFIG.PROFESSIONAL;
+                    const isLmsPending = Boolean(pendingLmsIds[s.id]);
+
+                    return (
+                      <tr
+                        key={s.id}
+                        className="hover:bg-muted/20 transition-colors"
+                      >
+                        <td className="py-2.5 px-3 max-w-[280px]">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {s.code && (
+                              <Badge
+                                variant="outline"
+                                className="font-mono text-[10px] px-1.5 py-0 rounded-md bg-muted/50 text-foreground shrink-0"
+                              >
+                                {s.code}
+                              </Badge>
+                            )}
+                            <span className="font-semibold text-foreground truncate">
+                              {s.name}
+                            </span>
+                          </div>
+                          {s.description && (
+                            <p className="text-[11px] text-muted-foreground truncate pt-0.5">
+                              {s.description}
+                            </p>
+                          )}
+                        </td>
+
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-2 py-0 rounded-md font-medium ${catCfg.badgeClass}`}
+                          >
+                            {catCfg.shortLabel}
+                          </Badge>
+                        </td>
+
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <div className="inline-flex flex-col items-start">
+                            <span className="font-mono font-semibold text-foreground text-[11px]">
+                              {s.hoursTotal || 72} ч.
+                            </span>
+                            {s.assessmentType && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {ASSESSMENT_LABELS[s.assessmentType]}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <button
+                            type="button"
+                            disabled={!isAdmin || isLmsPending}
+                            onClick={() =>
+                              handleToggleSubjectLms(s.id, !s.isLmsActive)
+                            }
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-medium transition-colors ${
+                              s.isLmsActive
+                                ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 cursor-pointer"
+                                : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground cursor-pointer"
+                            } ${isLmsPending ? "opacity-60" : ""}`}
+                            title={
+                              isAdmin
+                                ? s.isLmsActive
+                                  ? "Дисциплина доступна студентам. Нажмите, чтобы скрыть"
+                                  : "Дисциплина скрыта от студентов. Нажмите, чтобы открыть доступ"
+                                : undefined
+                            }
+                          >
+                            <BookMarked className="h-3 w-3 shrink-0" />
+                            <span>{s.isLmsActive ? "Доступен" : "Скрыт"}</span>
+                            {s.isLmsActive && s.materialsCount > 0 && (
+                              <span className="text-[10px] opacity-75">
+                                · {s.materialsCount}
+                              </span>
+                            )}
+                          </button>
+                        </td>
+
+                        <td className="py-2.5 px-3 max-w-[340px]">
+                          <div className="flex items-center flex-wrap gap-1">
+                            {subjectBindings.length === 0 ? (
+                              <span className="text-[11px] text-muted-foreground/70 italic">
+                                Не назначена
+                              </span>
+                            ) : (
+                              subjectBindings.map((b) => (
+                                <button
+                                  key={b.id}
+                                  type="button"
+                                  onClick={() => isAdmin && openEditBindingModal(b)}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border bg-background text-[10.5px] transition-colors ${
+                                    isAdmin
+                                      ? "hover:border-primary/50 cursor-pointer"
+                                      : "cursor-default"
+                                  }`}
+                                  title={`${b.groupName} — ${b.teacherName}${isAdmin ? " (нажмите для изменения)" : ""}`}
+                                >
+                                  <span className="font-mono font-semibold text-primary">
+                                    {b.groupName}
+                                  </span>
+                                  <span className="text-muted-foreground truncate max-w-[110px]">
+                                    {b.teacherName.split(" ").slice(0, 2).join(" ")}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => openAssignModal(s.id)}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-dashed border-primary/40 text-primary text-[10px] font-medium hover:bg-primary/10 transition-colors"
+                                title="Привязать к группе"
+                              >
+                                <Plus className="h-2.5 w-2.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+
+                        {isAdmin && (
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                                onClick={() => openEditSubjectModal(s)}
+                                title="Редактировать"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => setDeleteTarget(s)}
+                                title="Удалить"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* VIEW 1: SUBJECT CARDS (ПО ДИСЦИПЛИНАМ) */}
       {viewMode === "cards" && (
@@ -842,13 +1158,13 @@ export function SubjectsView({
                       <div className="flex items-center justify-between gap-2 pt-0.5">
                         <button
                           type="button"
-                          disabled={!isAdmin || isPending}
+                          disabled={!isAdmin || Boolean(pendingLmsIds[s.id])}
                           onClick={() => handleToggleSubjectLms(s.id, !s.isLmsActive)}
                           className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10.5px] font-medium transition-colors ${
                             s.isLmsActive
                               ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 cursor-pointer"
                               : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground cursor-pointer"
-                          }`}
+                          } ${pendingLmsIds[s.id] ? "opacity-60" : ""}`}
                           title={
                             isAdmin
                               ? s.isLmsActive
@@ -858,7 +1174,7 @@ export function SubjectsView({
                           }
                         >
                           <BookMarked className="h-3 w-3 shrink-0" />
-                          <span>{s.isLmsActive ? "Материалы в LMS: Вкл" : "Материалы в LMS: Выкл"}</span>
+                          <span>{s.isLmsActive ? "Студентам: Доступен" : "Студентам: Скрыт"}</span>
                         </button>
 
                         {s.isLmsActive && s.materialsCount > 0 ? (
@@ -1035,9 +1351,9 @@ export function SubjectsView({
                                     {subjObj?.isLmsActive ? (
                                       <span
                                         className="text-[9px] font-medium text-primary bg-primary/10 border border-primary/20 px-1 py-0.2 rounded"
-                                        title="Курс опубликован в Материалах LMS"
+                                        title="Курс доступен студентам"
                                       >
-                                        LMS
+                                        Доступен
                                       </span>
                                     ) : null}
                                     <span
@@ -1097,12 +1413,12 @@ export function SubjectsView({
 
       {/* Modal: Unified Create / Edit Subject */}
       <Dialog open={isSubjectDialogOpen} onOpenChange={setIsSubjectDialogOpen}>
-        <DialogContent className="p-5 gap-4 text-xs sm:max-w-[560px]">
-          <DialogHeader className="pb-3 border-b gap-1 text-left">
+        <DialogContent className="p-4 gap-3 text-xs sm:max-w-[600px]">
+          <DialogHeader className="pb-2 border-b gap-0.5 text-left">
             <DialogTitle className="flex items-center gap-2 text-sm font-bold">
               {editingSubject ? (
                 <>
-                  <Pencil className="h-4 w-4 text-primary" /> Обновить учебную дисциплину
+                  <Pencil className="h-4 w-4 text-primary" /> Редактировать дисциплину
                 </>
               ) : (
                 <>
@@ -1110,24 +1426,18 @@ export function SubjectsView({
                 </>
               )}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              Укажите учебный цикл, наименование, часы и форму контроля
-            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3.5 py-1">
-            {/* 2-Option Segmented Pill Toggle for Cycle */}
-            <div className="space-y-1.5">
-              <label className="font-medium text-foreground text-xs block">
-                Учебный цикл дисциплины
-              </label>
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-muted/60 rounded-lg border text-xs">
+          <div className="space-y-3">
+            {/* Group 1: Basic Info */}
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border text-xs">
                 <button
                   type="button"
                   onClick={() => setFormCategory("GENERAL")}
-                  className={`h-8 px-3 rounded-md font-medium text-xs transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                  className={`h-7 px-2.5 rounded-md font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
                     formCategory === "GENERAL"
-                      ? "bg-background text-primary border border-border"
+                      ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -1137,9 +1447,9 @@ export function SubjectsView({
                 <button
                   type="button"
                   onClick={() => setFormCategory("PROFESSIONAL")}
-                  className={`h-8 px-3 rounded-md font-medium text-xs transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                  className={`h-7 px-2.5 rounded-md font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
                     formCategory === "PROFESSIONAL"
-                      ? "bg-background text-primary border border-border"
+                      ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -1147,70 +1457,71 @@ export function SubjectsView({
                   <span>Профессиональный цикл</span>
                 </button>
               </div>
-            </div>
 
-            <div className="grid grid-cols-[140px_1fr] gap-3">
-              <div className="space-y-1.5 min-w-0">
-                <label className="font-medium text-foreground text-xs block">
-                  Код / Шифр
-                </label>
-                <Input
-                  placeholder="Напр: ОП.01"
-                  value={formCode}
-                  onChange={(e) => setFormCode(e.target.value)}
-                  className="h-8 text-xs bg-background font-mono"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-2.5">
+                <div className="space-y-1 min-w-0">
+                  <label className="font-medium text-foreground text-xs block">
+                    Название дисциплины *
+                  </label>
+                  <Input
+                    placeholder="Например: Веб-программирование"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                <div className="space-y-1 min-w-0">
+                  <label className="font-medium text-foreground text-xs block">
+                    Шифр
+                  </label>
+                  <Input
+                    placeholder="ОП.01"
+                    value={formCode}
+                    onChange={(e) => setFormCode(e.target.value)}
+                    className="h-8 text-xs bg-background font-mono"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5 min-w-0">
+              <div className="space-y-1">
                 <label className="font-medium text-foreground text-xs block">
-                  Название дисциплины *
+                  Описание
                 </label>
                 <Input
-                  placeholder="Например: Веб-программирование"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="Краткое описание курса (необязательно)"
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
                   className="h-8 text-xs bg-background"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-[1fr_200px] gap-3">
-              <div className="space-y-1.5 min-w-0">
+            {/* Group 2: Curriculum Parameters */}
+            <div
+              className={`grid gap-2.5 pt-2.5 border-t ${
+                specialties.length > 0
+                  ? "grid-cols-1 sm:grid-cols-[100px_165px_1fr]"
+                  : "grid-cols-2"
+              }`}
+            >
+              <div className="space-y-1 min-w-0">
                 <label className="font-medium text-foreground text-xs block">
-                  Объём нагрузки (часов)
+                  Часов
                 </label>
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    type="number"
-                    min={10}
-                    max={600}
-                    value={formHours}
-                    onChange={(e) => setFormHours(Number(e.target.value) || 72)}
-                    className="h-8 text-xs bg-background font-mono w-20 shrink-0"
-                  />
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {[36, 72, 108, 144].map((h) => (
-                      <button
-                        key={h}
-                        type="button"
-                        onClick={() => setFormHours(h)}
-                        className={`h-8 px-2 rounded-md border text-[11px] font-mono font-medium transition-colors ${
-                          formHours === h
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "bg-background text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {h}ч
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <Input
+                  type="number"
+                  min={10}
+                  max={600}
+                  value={formHours}
+                  onChange={(e) => setFormHours(Number(e.target.value) || 72)}
+                  className="h-8 text-xs bg-background font-mono"
+                />
               </div>
 
-              <div className="space-y-1.5 min-w-0">
+              <div className="space-y-1 min-w-0">
                 <label className="font-medium text-foreground text-xs block">
-                  Форма аттестации
+                  Аттестация
                 </label>
                 <Select
                   value={formAssessment}
@@ -1237,105 +1548,142 @@ export function SubjectsView({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            {specialties.length > 0 && (
-              <div className="space-y-1.5">
-                <label className="font-medium text-foreground text-xs block">
-                  Направление / Специальность
-                </label>
-                <Select
-                  value={formSpecialtyId}
-                  onValueChange={(v) => setFormSpecialtyId(v || "ALL")}
-                >
-                  <SelectTrigger className="w-full h-8 text-xs bg-background">
-                    <SelectValue>
-                      {formSpecialtyId === "ALL"
-                        ? "Общая для всех специальностей"
-                        : specialties.find((sp) => sp.id === formSpecialtyId)
-                            ?.name || "Общая для всех специальностей"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL" className="text-xs">
-                      Общая для всех специальностей
-                    </SelectItem>
-                    {specialties.map((sp) => (
-                      <SelectItem key={sp.id} value={sp.id} className="text-xs">
-                        {sp.code ? `${sp.code} — ` : ""}
-                        {sp.name}
+              {specialties.length > 0 && (
+                <div className="space-y-1 min-w-0">
+                  <label className="font-medium text-foreground text-xs block">
+                    Специальность
+                  </label>
+                  <Select
+                    value={formSpecialtyId}
+                    onValueChange={(v) => setFormSpecialtyId(v || "ALL")}
+                  >
+                    <SelectTrigger className="w-full h-8 text-xs bg-background">
+                      <SelectValue>
+                        {formSpecialtyId === "ALL"
+                          ? "Общая для всех"
+                          : specialties.find((sp) => sp.id === formSpecialtyId)
+                              ?.name || "Общая для всех"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL" className="text-xs">
+                        Общая для всех специальностей
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="font-medium text-foreground text-xs block">
-                Краткое описание (необязательно)
-              </label>
-              <Input
-                placeholder="Основные темы и формируемые навыки..."
-                value={formDesc}
-                onChange={(e) => setFormDesc(e.target.value)}
-                className="h-8 text-xs bg-background"
-              />
+                      {specialties.map((sp) => (
+                        <SelectItem key={sp.id} value={sp.id} className="text-xs">
+                          {sp.code ? `${sp.code} — ` : ""}
+                          {sp.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
-            {/* Manual LMS Materials Toggle */}
-            <div className="p-2.5 rounded-lg border bg-muted/20 space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="space-y-0.5">
-                  <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                    <BookMarked className="h-3.5 w-3.5 text-primary" />
-                    <span>Отображать в Материалах (LMS)</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground leading-normal">
-                    Включайте только если преподаватель ведёт электронный курс. По умолчанию скрыто, чтобы не путать студентов пустыми карточками.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setFormIsLmsActive(false)}
-                    className={`h-6 px-2.5 rounded-md text-[11px] font-medium transition-colors ${
-                      !formIsLmsActive
-                        ? "bg-background text-foreground shadow-2xs border border-border"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Скрыто
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormIsLmsActive(true)}
-                    className={`h-6 px-2.5 rounded-md text-[11px] font-medium transition-colors ${
-                      formIsLmsActive
-                        ? "bg-primary text-primary-foreground shadow-2xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Включено
-                  </button>
-                </div>
+            {/* Group 3: LMS & Optional Group Assignment */}
+            <div className="space-y-2.5 pt-2.5 border-t">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium text-xs text-foreground">
+                  Доступен студентам (показывать в обучении)
+                </span>
+                <Switch
+                  size="sm"
+                  checked={formIsLmsActive}
+                  onCheckedChange={setFormIsLmsActive}
+                />
               </div>
+
+              {!editingSubject && groups.length > 0 && (
+                <div>
+                  {!showCreateAssign ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateAssign(true)}
+                      className="text-primary hover:underline text-[11px] font-medium inline-flex items-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>Назначить группам сразу</span>
+                    </button>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-xs text-foreground">
+                          Группы ({createGroupIds.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCreateAssign(false);
+                            setCreateGroupIds([]);
+                          }}
+                          className="text-[11px] text-muted-foreground hover:text-foreground"
+                        >
+                          Скрыть
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 max-h-[80px] overflow-y-auto">
+                        {groups.map((g) => {
+                          const selected = createGroupIds.includes(g.id);
+                          return (
+                            <button
+                              key={g.id}
+                              type="button"
+                              onClick={() => toggleCreateGroupId(g.id)}
+                              className={`h-6 px-2.5 rounded-md border text-[11px] font-medium transition-colors inline-flex items-center gap-1 ${
+                                selected
+                                  ? "bg-primary/10 text-primary border-primary"
+                                  : "bg-background text-muted-foreground border-border hover:text-foreground"
+                              }`}
+                            >
+                              <span>{g.name}</span>
+                              {selected && <Check className="h-3 w-3 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {createGroupIds.length > 0 && (
+                        <Select
+                          value={createTeacherId}
+                          onValueChange={(v) => v && setCreateTeacherId(v)}
+                        >
+                          <SelectTrigger className="w-full h-8 text-xs bg-background">
+                            <SelectValue>
+                              {teachers.find((t) => t.id === createTeacherId)?.name ||
+                                "Выберите преподавателя"}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {teachers.map((t) => (
+                              <SelectItem key={t.id} value={t.id} className="text-xs">
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <DialogFooter className="flex flex-row justify-end gap-2 pt-3 border-t mt-1">
+          <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-1">
             <Button
               variant="outline"
               size="xs"
-              className="h-8 px-3 text-xs"
+              className="h-7 px-3 text-xs"
               onClick={() => setIsSubjectDialogOpen(false)}
             >
               Отмена
             </Button>
             <Button
               size="xs"
-              className="h-8 px-4 text-xs"
+              className="h-7 px-3 text-xs"
               disabled={isPending}
               onClick={handleSaveSubject}
             >
@@ -1505,108 +1853,145 @@ export function SubjectsView({
         )}
       </AlertDialog>
 
-      {/* Modal: Assign Subject to Group */}
+      {/* Modal: Assign Subject to Group(s) */}
       <Dialog
         open={assignSubjectId !== null}
         onOpenChange={(open) => !open && setAssignSubjectId(null)}
       >
-        {assignSubjectId && (
-          <DialogContent className="p-4 gap-3 text-xs sm:max-w-[420px]">
-            <DialogHeader className="pb-2 border-b gap-1 text-left">
-              <DialogTitle className="flex items-center gap-2 text-sm font-bold">
-                <Link2 className="h-4 w-4 text-primary" /> Назначить предмет группе
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                Привязка дисциплины к учебной группе с назначением преподавателя
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2.5 py-1">
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">
-                  Дисциплина *
-                </label>
-                <Select
-                  value={assignSubjectId}
-                  onValueChange={(v) => v && setAssignSubjectId(v)}
-                >
-                  <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue>
-                      {subjects.find((s) => s.id === assignSubjectId)?.name ||
-                        "Выберите предмет"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((s) => (
-                      <SelectItem key={s.id} value={s.id} className="text-xs">
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        {assignSubjectId && (() => {
+          const existingBoundGroupIds = new Set(
+            (bindingsBySubject.get(assignSubjectId) || []).map((b) => b.groupId)
+          );
+          return (
+            <DialogContent className="p-4 gap-3 text-xs sm:max-w-[440px]">
+              <DialogHeader className="pb-2 border-b gap-1 text-left">
+                <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+                  <Link2 className="h-4 w-4 text-primary" /> Назначить предмет группам
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  Выберите одну или несколько групп и ведущего преподавателя
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2.5 py-1">
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground text-xs">
+                    Дисциплина *
+                  </label>
+                  <Select
+                    value={assignSubjectId}
+                    onValueChange={(v) => {
+                      if (!v) return;
+                      setAssignSubjectId(v);
+                      const boundSet = new Set(
+                        (bindingsBySubject.get(v) || []).map((b) => b.groupId)
+                      );
+                      setAssignGroupIds((prev) => prev.filter((id) => !boundSet.has(id)));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue>
+                        {localSubjects.find((s) => s.id === assignSubjectId)?.name ||
+                          "Выберите предмет"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {localSubjects.map((s) => (
+                        <SelectItem key={s.id} value={s.id} className="text-xs">
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">
-                  Учебная группа *
-                </label>
-                <Select
-                  value={assignGroupId}
-                  onValueChange={(v) => v && setAssignGroupId(v)}
-                >
-                  <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue>
-                      {groups.find((g) => g.id === assignGroupId)?.name ||
-                        "Выберите группу"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map((g) => (
-                      <SelectItem key={g.id} value={g.id} className="text-xs">
-                        {g.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-medium text-foreground text-xs">
+                      Учебные группы *
+                    </label>
+                    {assignGroupIds.length > 0 && (
+                      <span className="text-[11px] text-primary font-medium">
+                        Выбрано: {assignGroupIds.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 max-h-[170px] overflow-y-auto p-1.5 rounded-lg border bg-muted/20">
+                    {groups.map((g) => {
+                      const alreadyBound = existingBoundGroupIds.has(g.id);
+                      const isSelected = assignGroupIds.includes(g.id);
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          disabled={alreadyBound}
+                          onClick={() => toggleAssignGroupId(g.id)}
+                          className={`flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-md border text-left text-xs font-medium transition-colors ${
+                            alreadyBound
+                              ? "bg-muted/50 text-muted-foreground/60 border-border/50 cursor-not-allowed"
+                              : isSelected
+                                ? "bg-primary/10 text-primary border-primary"
+                                : "bg-background text-foreground border-border hover:border-primary/40"
+                          }`}
+                        >
+                          <span className="truncate">{g.name}</span>
+                          {alreadyBound ? (
+                            <span className="text-[9.5px] text-muted-foreground shrink-0">
+                              привязана
+                            </span>
+                          ) : isSelected ? (
+                            <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-              <div className="space-y-1">
-                <label className="font-medium text-foreground text-xs">
-                  Преподаватель *
-                </label>
-                <Select
-                  value={assignTeacherId}
-                  onValueChange={(v) => v && setAssignTeacherId(v)}
-                >
-                  <SelectTrigger className="h-8 text-xs bg-background">
-                    <SelectValue>
-                      {teachers.find((t) => t.id === assignTeacherId)?.name ||
-                        "Выберите преподавателя"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teachers.map((t) => (
-                      <SelectItem key={t.id} value={t.id} className="text-xs">
-                        {t.name} ({t.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  <label className="font-medium text-foreground text-xs">
+                    Преподаватель *
+                  </label>
+                  <Select
+                    value={assignTeacherId}
+                    onValueChange={(v) => v && setAssignTeacherId(v)}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue>
+                        {teachers.find((t) => t.id === assignTeacherId)?.name ||
+                          "Выберите преподавателя"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teachers.map((t) => (
+                        <SelectItem key={t.id} value={t.id} className="text-xs">
+                          {t.name} ({t.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-            <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setAssignSubjectId(null)}
-              >
-                Отмена
-              </Button>
-              <Button size="xs" disabled={isPending} onClick={handleAssign}>
-                Назначить
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        )}
+              <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setAssignSubjectId(null)}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  size="xs"
+                  disabled={isPending || assignGroupIds.length === 0}
+                  onClick={handleAssign}
+                >
+                  {assignGroupIds.length > 1
+                    ? `Назначить (${assignGroupIds.length})`
+                    : "Назначить"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          );
+        })()}
       </Dialog>
 
       {/* Modal: Remove Binding */}
