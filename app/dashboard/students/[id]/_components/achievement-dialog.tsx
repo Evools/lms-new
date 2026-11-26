@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -153,174 +154,194 @@ export function AchievementDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="p-4 gap-3 text-xs sm:max-w-[560px]">
-        <DialogHeader className="gap-1 text-left">
+      <DialogContent className="p-0 gap-0 text-xs w-[95vw] sm:max-w-[760px] max-h-[86vh] flex flex-col overflow-hidden">
+        <DialogHeader className="px-5 py-3.5 border-b gap-0.5 place-items-start text-left shrink-0">
           <DialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
             <Trophy className="h-4 w-4 text-primary" />
             <span>
               {achievementToEdit ? "Редактировать достижение" : "Добавить достижение в портфолио"}
             </span>
           </DialogTitle>
+          <DialogDescription className="text-[11px] text-muted-foreground">
+            Укажите мероприятие, уровень, результат и ссылку на подтверждающий документ
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {error && (
-            <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-[11px]">
-              {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3.5">
+            {error && (
+              <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/25 text-destructive text-xs">
+                {error}
+              </div>
+            )}
 
-          {/* Title */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-foreground">
-              Наименование достижения / мероприятия <span className="text-destructive">*</span>
-            </label>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например: Хакатон «Digital Wave 2026», Олимпиада по веб-разработке"
-              className="h-8 text-xs"
-              required
-            />
-          </div>
+            {/* Block 1: Main Info */}
+            <div className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-3">
+              <div className="text-xs font-semibold text-foreground">
+                Мероприятие и категория
+              </div>
 
-          {/* Category & Level in 2 columns */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-foreground">Категория</label>
-              <Select
-                value={category}
-                onValueChange={(val) => setCategory(val as StudentAchievementDTO["category"])}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue>
-                    {currentCategoryMeta ? (
-                      <span className="flex items-center gap-1.5 truncate">
-                        {CurrentCategoryIcon && (
-                          <CurrentCategoryIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Наименование достижения / мероприятия <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Например: Хакатон «Digital Wave 2026», Олимпиада по веб-разработке"
+                  className="h-8 text-xs md:text-xs bg-background"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Категория</label>
+                  <Select
+                    value={category}
+                    onValueChange={(val) => setCategory(val as StudentAchievementDTO["category"])}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue>
+                        {currentCategoryMeta ? (
+                          <span className="flex items-center gap-1.5 truncate">
+                            {CurrentCategoryIcon && (
+                              <CurrentCategoryIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                            )}
+                            <span>{currentCategoryMeta.label}</span>
+                          </span>
+                        ) : (
+                          "Выберите категорию"
                         )}
-                        <span>{currentCategoryMeta.label}</span>
-                      </span>
-                    ) : (
-                      "Выберите категорию"
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {ACHIEVEMENT_CATEGORIES.map((c) => {
-                    const Icon = c.icon;
-                    return (
-                      <SelectItem key={c.value} value={c.value} className="text-xs">
-                        <span className="flex items-center gap-1.5">
-                          <Icon className="h-3 w-3 text-primary" />
-                          <span>{c.label}</span>
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACHIEVEMENT_CATEGORIES.map((c) => {
+                        const Icon = c.icon;
+                        return (
+                          <SelectItem key={c.value} value={c.value} className="text-xs">
+                            <span className="flex items-center gap-1.5">
+                              <Icon className="h-3 w-3 text-primary" />
+                              <span>{c.label}</span>
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Уровень</label>
+                  <Select
+                    value={level}
+                    onValueChange={(val) => setLevel(val as StudentAchievementDTO["level"])}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue>
+                        {currentLevelMeta ? currentLevelMeta.label : "Выберите уровень"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACHIEVEMENT_LEVELS.map((l) => (
+                        <SelectItem key={l.value} value={l.value} className="text-xs">
+                          {l.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-foreground">Уровень</label>
-              <Select
-                value={level}
-                onValueChange={(val) => setLevel(val as StudentAchievementDTO["level"])}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue>
-                    {currentLevelMeta ? currentLevelMeta.label : "Выберите уровень"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {ACHIEVEMENT_LEVELS.map((l) => (
-                    <SelectItem key={l.value} value={l.value} className="text-xs">
-                      {l.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Block 2: Result, Date & Issuer */}
+            <div className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-3">
+              <div className="text-xs font-semibold text-foreground">
+                Результат и организатор
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    Результат / Место
+                  </label>
+                  <Input
+                    value={place}
+                    onChange={(e) => setPlace(e.target.value)}
+                    placeholder="1 место, Победитель"
+                    className="h-8 text-xs md:text-xs bg-background"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    Дата получения <span className="text-destructive">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="h-8 text-xs md:text-xs bg-background"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    Организатор / Кем выдано
+                  </label>
+                  <Input
+                    value={issuer}
+                    onChange={(e) => setIssuer(e.target.value)}
+                    placeholder="IT-Park, Министерство, Coursera"
+                    className="h-8 text-xs md:text-xs bg-background"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Block 3: Confirmation & Description */}
+            <div className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-3">
+              <div className="text-xs font-semibold text-foreground">
+                Подтверждение и описание
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Ссылка на сертификат / грамоту
+                </label>
+                <Input
+                  type="url"
+                  value={fileUrl}
+                  onChange={(e) => setFileUrl(e.target.value)}
+                  placeholder="https://drive.google.com/... или ссылка на сертификат"
+                  className="h-8 text-xs md:text-xs bg-background"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Краткое описание (за какой проект или работу)
+                </label>
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Опишите суть работы, проект, тему статьи или роль в команде..."
+                  className="text-xs md:text-xs min-h-[70px] resize-none bg-background"
+                  rows={2}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Place/Result & Date in 2 columns */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-foreground">
-                Результат / Занятое место
-              </label>
-              <Input
-                value={place}
-                onChange={(e) => setPlace(e.target.value)}
-                placeholder="1 место, Победитель, Сертификат"
-                className="h-8 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-foreground">
-                Дата получения <span className="text-destructive">*</span>
-              </label>
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="h-8 text-xs"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Issuer / Organization */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-foreground">
-              Организатор / Кем выдано
-            </label>
-            <Input
-              value={issuer}
-              onChange={(e) => setIssuer(e.target.value)}
-              placeholder="Министерство образования, IT-Park, Яндекс, Coursera"
-              className="h-8 text-xs"
-            />
-          </div>
-
-          {/* Certificate link / File URL */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-foreground">
-              Ссылка на подтверждение / скан грамоты / сертификат
-            </label>
-            <Input
-              type="url"
-              value={fileUrl}
-              onChange={(e) => setFileUrl(e.target.value)}
-              placeholder="https://drive.google.com/... или ссылка на сертификат"
-              className="h-8 text-xs"
-            />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-foreground">
-              Краткое описание / За какой проект или работу
-            </label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Опишите суть работы, проект, тему статьи или роль в команде..."
-              className="text-xs min-h-[60px] resize-none"
-              rows={2}
-            />
-          </div>
-
-          <DialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+          <DialogFooter className="flex flex-row justify-end gap-2 px-5 py-3 border-t shrink-0 bg-background">
             <Button
               type="button"
               variant="outline"
               size="xs"
               onClick={onClose}
               disabled={isSubmitting}
-              className="h-7 px-3 text-xs"
+              className="h-7 px-3 text-xs cursor-pointer"
             >
               Отмена
             </Button>
@@ -328,7 +349,7 @@ export function AchievementDialog({
               type="submit"
               size="xs"
               disabled={isSubmitting}
-              className="h-7 px-3 text-xs gap-1 font-medium"
+              className="h-7 px-3 text-xs gap-1 font-medium cursor-pointer"
             >
               <Sparkles className="h-3 w-3" />
               <span>{isSubmitting ? "Сохранение..." : "Сохранить"}</span>

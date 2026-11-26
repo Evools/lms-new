@@ -214,13 +214,13 @@ export function AssignmentsView({
           const updatedSubs = a.submissions.map((s) =>
             s.id === submissionId
               ? {
-                  ...s,
-                  status,
-                  teacherComment:
-                    teacherComment !== undefined ? teacherComment : s.teacherComment,
-                  grade: grade !== undefined ? grade : s.grade,
-                  reviewedAt: new Date().toISOString(),
-                }
+                ...s,
+                status,
+                teacherComment:
+                  teacherComment !== undefined ? teacherComment : s.teacherComment,
+                grade: grade !== undefined ? grade : s.grade,
+                reviewedAt: new Date().toISOString(),
+              }
               : s
           );
           const acceptedCount = updatedSubs.filter(
@@ -296,8 +296,8 @@ export function AssignmentsView({
 
   const studentTodoCount = !canCreate
     ? localAssignments.filter(
-        (a) => !a.userSubmission || a.userSubmission.status === SubmissionStatus.NEED_REVISION
-      ).length
+      (a) => !a.userSubmission || a.userSubmission.status === SubmissionStatus.NEED_REVISION
+    ).length
     : 0;
   const studentAcceptedCount = !canCreate
     ? localAssignments.filter((a) => a.userSubmission?.status === SubmissionStatus.ACCEPTED).length
@@ -506,9 +506,8 @@ export function AssignmentsView({
 
         {/* Search & View Mode Switcher */}
         <div
-          className={`${
-            canCreate || groups.length > 1 ? "lg:col-span-4" : "lg:col-span-5"
-          } flex items-center gap-2`}
+          className={`${canCreate || groups.length > 1 ? "lg:col-span-4" : "lg:col-span-5"
+            } flex items-center gap-2`}
         >
           <div className="relative flex-1">
             <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
@@ -535,11 +534,10 @@ export function AssignmentsView({
               size="xs"
               variant="ghost"
               onClick={() => setViewMode("table")}
-              className={`h-7 w-7 p-0 rounded-md ${
-                viewMode === "table"
-                  ? "bg-background text-primary shadow-xs"
-                  : "text-muted-foreground"
-              }`}
+              className={`h-7 w-7 p-0 rounded-md ${viewMode === "table"
+                ? "bg-background text-primary shadow-xs"
+                : "text-muted-foreground"
+                }`}
               title="Табличный вид"
             >
               <List className="h-3.5 w-3.5" />
@@ -548,11 +546,10 @@ export function AssignmentsView({
               size="xs"
               variant="ghost"
               onClick={() => setViewMode("grid")}
-              className={`h-7 w-7 p-0 rounded-md ${
-                viewMode === "grid"
-                  ? "bg-background text-primary shadow-xs"
-                  : "text-muted-foreground"
-              }`}
+              className={`h-7 w-7 p-0 rounded-md ${viewMode === "grid"
+                ? "bg-background text-primary shadow-xs"
+                : "text-muted-foreground"
+                }`}
               title="Вид карточек"
             >
               <LayoutGrid className="h-3.5 w-3.5" />
@@ -585,11 +582,11 @@ export function AssignmentsView({
                   const attachmentLinksList = parseAttachmentLinks(assignment.fileUrl);
                   const cleanDesc = assignment.description
                     ? assignment.description
-                        .replace(/https?:\/\/\S+/g, "")
-                        .replace(/[#*`_~\-\[\]()]/g, " ")
-                        .replace(/\s+/g, " ")
-                        .trim()
-                        .substring(0, 75) || "Прикреплена ссылка"
+                      .replace(/https?:\/\/\S+/g, "")
+                      .replace(/[#*`_~\-\[\]()]/g, " ")
+                      .replace(/\s+/g, " ")
+                      .trim()
+                      .substring(0, 75) || "Прикреплена ссылка"
                     : "Без описания";
                   const isOverdue =
                     Boolean(assignment.dueDate) &&
@@ -702,13 +699,12 @@ export function AssignmentsView({
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Badge
                                 variant="outline"
-                                className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
-                                  userSub.status === SubmissionStatus.ACCEPTED
-                                    ? "bg-primary/10 text-primary border-primary/25"
-                                    : userSub.status === SubmissionStatus.NEED_REVISION
-                                      ? "bg-destructive/10 text-destructive border-destructive/25"
-                                      : "bg-muted/60 text-muted-foreground border-border/60"
-                                }`}
+                                className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${userSub.status === SubmissionStatus.ACCEPTED
+                                  ? "bg-primary/10 text-primary border-primary/25"
+                                  : userSub.status === SubmissionStatus.NEED_REVISION
+                                    ? "bg-destructive/10 text-destructive border-destructive/25"
+                                    : "bg-muted/60 text-muted-foreground border-border/60"
+                                  }`}
                               >
                                 {userSub.status === SubmissionStatus.ACCEPTED ? (
                                   <>
@@ -904,10 +900,10 @@ export function AssignmentsView({
             const attachmentLinksList = parseAttachmentLinks(assignment.fileUrl);
             const cleanDesc = assignment.description
               ? assignment.description
-                  .replace(/https?:\/\/\S+/g, "")
-                  .replace(/[#*`_~\-\[\]()]/g, " ")
-                  .replace(/\s+/g, " ")
-                  .trim() || "Прикреплена ссылка"
+                .replace(/https?:\/\/\S+/g, "")
+                .replace(/[#*`_~\-\[\]()]/g, " ")
+                .replace(/\s+/g, " ")
+                .trim() || "Прикреплена ссылка"
               : "Без описания";
             const isOverdue =
               Boolean(assignment.dueDate) &&
@@ -1050,13 +1046,12 @@ export function AssignmentsView({
                       {userSub ? (
                         <Badge
                           variant="outline"
-                          className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
-                            userSub.status === SubmissionStatus.ACCEPTED
-                              ? "bg-primary/10 text-primary border-primary/25"
-                              : userSub.status === SubmissionStatus.NEED_REVISION
-                                ? "bg-destructive/10 text-destructive border-destructive/25"
-                                : "bg-muted/60 text-muted-foreground border-border/60"
-                          }`}
+                          className={`text-[11px] font-medium border px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${userSub.status === SubmissionStatus.ACCEPTED
+                            ? "bg-primary/10 text-primary border-primary/25"
+                            : userSub.status === SubmissionStatus.NEED_REVISION
+                              ? "bg-destructive/10 text-destructive border-destructive/25"
+                              : "bg-muted/60 text-muted-foreground border-border/60"
+                            }`}
                         >
                           {userSub.status === SubmissionStatus.ACCEPTED ? (
                             <>

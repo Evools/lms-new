@@ -1748,25 +1748,50 @@ export function DutyScheduleView({
             </div>
           )}
           <CardHeader className="p-0 pb-3 border-b">
-            <div>
-              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-primary" /> Настройки дежурства
-              </CardTitle>
-              <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
-                Параметры дежурств, алгоритм распределения, старший дежурный и освобожденные студенты группы {currentGroupObj?.name ? `«${currentGroupObj.name}»` : ""}
-              </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-primary" /> Настройки дежурства
+                  {currentGroupObj?.name && (
+                    <span className="text-xs font-medium text-primary">
+                      · {currentGroupObj.name}
+                    </span>
+                  )}
+                </CardTitle>
+                <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
+                  Режим работы, дни недели, алгоритм ротации, ответственный и освобождённые студенты
+                </CardDescription>
+              </div>
             </div>
           </CardHeader>
 
           <CardContent className="p-0 space-y-4">
-            {/* 0. Main Duty Enable / Disable Option (Segmented Toggle) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border bg-muted/10 border-primary/20 text-xs">
+            {/* 0. Main Duty Enable / Disable Option */}
+            <div
+              className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border text-xs transition-colors ${
+                dutyEnabledLocal
+                  ? "bg-primary/5 border-primary/25"
+                  : "bg-destructive/5 border-destructive/25"
+              }`}
+            >
               <div className="flex items-center gap-2.5 min-w-0">
-                <Power className={`h-4 w-4 shrink-0 ${dutyEnabledLocal ? "text-emerald-500" : "text-destructive"}`} />
+                <div
+                  className={`h-8 w-8 rounded-md border flex items-center justify-center shrink-0 ${
+                    dutyEnabledLocal
+                      ? "bg-primary/10 border-primary/25 text-primary"
+                      : "bg-destructive/10 border-destructive/25 text-destructive"
+                  }`}
+                >
+                  {dutyEnabledLocal ? (
+                    <Power className="h-4 w-4" />
+                  ) : (
+                    <PowerOff className="h-4 w-4" />
+                  )}
+                </div>
                 <div className="space-y-0.5">
                   <div className="font-semibold text-foreground">
                     Режим дежурств:{" "}
-                    <span className={dutyEnabledLocal ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+                    <span className={dutyEnabledLocal ? "text-primary" : "text-destructive"}>
                       {dutyEnabledLocal ? "Включено" : "Отключено"}
                     </span>
                   </div>
@@ -1778,48 +1803,50 @@ export function DutyScheduleView({
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                <div className="inline-flex p-0.5 bg-muted/80 rounded-lg border text-xs font-medium">
+              <div className="flex items-center shrink-0">
+                <div className="inline-flex p-0.5 bg-muted/60 rounded-md border border-border text-xs font-medium">
                   <button
                     type="button"
                     onClick={() => handleToggleDutyStatus(true)}
                     disabled={isPending || !currentGroupId}
-                    className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 font-medium ${dutyEnabledLocal
-                      ? "bg-background text-emerald-600 dark:text-emerald-400 border border-border"
-                      : "text-muted-foreground hover:text-foreground"
-                      }`}
+                    className={`h-7 px-3 rounded-sm transition-colors flex items-center gap-1.5 font-medium cursor-pointer ${
+                      dutyEnabledLocal
+                        ? "bg-background text-primary border border-border/80"
+                        : "text-muted-foreground hover:text-foreground border border-transparent"
+                    }`}
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                     <span>Включено</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleToggleDutyStatus(false)}
                     disabled={isPending || !currentGroupId}
-                    className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 font-medium ${!dutyEnabledLocal
-                      ? "bg-background text-destructive border border-border"
-                      : "text-muted-foreground hover:text-foreground"
-                      }`}
+                    className={`h-7 px-3 rounded-sm transition-colors flex items-center gap-1.5 font-medium cursor-pointer ${
+                      !dutyEnabledLocal
+                        ? "bg-background text-destructive border border-border/80"
+                        : "text-muted-foreground hover:text-foreground border border-transparent"
+                    }`}
                   >
-                    <PowerOff className="h-3.5 w-3.5 text-destructive shrink-0" />
+                    <PowerOff className="h-3.5 w-3.5 shrink-0" />
                     <span>Отключено</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
               {/* Column 1: Duty Parameters */}
-              <div className="space-y-3.5">
+              <div className="space-y-3">
                 {/* 1. Duty Persons Count */}
-                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
-                  <label className="font-semibold text-foreground flex items-center justify-between">
-                    <span>Количество дежурных в день:</span>
+                <div className="space-y-2 p-3.5 rounded-lg border border-border bg-muted/20">
+                  <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                    <span>Количество дежурных в день</span>
                     <span className="text-primary font-medium text-[11px]">
-                      {dutyPerDaySetting === 0 ? "Авто-расчет (1-3 чел.)" : `${dutyPerDaySetting} чел. в смену`}
+                      {dutyPerDaySetting === 0 ? "Авто (1–3 чел.)" : `${dutyPerDaySetting} чел. в смену`}
                     </span>
                   </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-muted/60 rounded-md border border-border text-xs text-center font-medium">
                     {[
                       { value: 0, label: "Авто" },
                       { value: 1, label: "1 чел" },
@@ -1835,10 +1862,11 @@ export function DutyScheduleView({
                           setDutyPerDaySetting(item.value);
                           setDutyCountPerDay(item.value === 0 ? "auto" : String(item.value));
                         }}
-                        className={`py-1.5 rounded-md transition-colors font-medium text-xs ${dutyPerDaySetting === item.value
-                          ? "bg-background border border-border text-primary"
-                          : "text-muted-foreground hover:text-foreground"
-                          }`}
+                        className={`h-7 rounded-sm transition-colors font-medium text-xs cursor-pointer ${
+                          dutyPerDaySetting === item.value
+                            ? "bg-background border border-border/80 text-primary"
+                            : "text-muted-foreground hover:text-foreground border border-transparent"
+                        }`}
                       >
                         {item.label}
                       </button>
@@ -1847,8 +1875,13 @@ export function DutyScheduleView({
                 </div>
 
                 {/* 2. Days of Week */}
-                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
-                  <label className="font-semibold text-foreground">Дни проведения дежурств:</label>
+                <div className="space-y-2 p-3.5 rounded-lg border border-border bg-muted/20">
+                  <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                    <span>Дни проведения дежурств</span>
+                    <span className="text-[11px] text-muted-foreground font-normal">
+                      Выбрано: {activeDutyDays.length} дн.
+                    </span>
+                  </label>
                   <div className="grid grid-cols-6 gap-1.5">
                     {[
                       { idx: 0, name: "Пн" },
@@ -1868,10 +1901,11 @@ export function DutyScheduleView({
                               isActive ? prev.filter((d) => d !== day.idx) : [...prev, day.idx].sort()
                             );
                           }}
-                          className={`py-2 rounded-lg border text-center font-medium transition-colors text-xs ${isActive
-                            ? "bg-primary/10 border-primary/40 text-primary"
-                            : "bg-background border-border text-muted-foreground hover:bg-muted"
-                            }`}
+                          className={`h-8 rounded-md border text-center font-medium transition-colors text-xs cursor-pointer ${
+                            isActive
+                              ? "bg-primary/10 border-primary/40 text-primary"
+                              : "bg-background border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          }`}
                         >
                           {day.name}
                         </button>
@@ -1881,24 +1915,27 @@ export function DutyScheduleView({
                 </div>
 
                 {/* 3. Rotation Algorithm */}
-                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
-                  <label className="font-semibold text-foreground">Алгоритм распределения:</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                <div className="space-y-2 p-3.5 rounded-lg border border-border bg-muted/20">
+                  <label className="text-xs font-semibold text-foreground block">
+                    Алгоритм распределения
+                  </label>
+                  <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-md border border-border text-xs text-center font-medium">
                     {(
                       [
-                        { id: "FAIR", label: "Честный (учет прошлых)" },
+                        { id: "FAIR", label: "Честный" },
                         { id: "ALPHABETICAL", label: "По алфавиту" },
-                        { id: "RANDOM", label: "Случайный (рандом)" },
+                        { id: "RANDOM", label: "Случайный" },
                       ] as const
                     ).map((alg) => (
                       <button
                         key={alg.id}
                         type="button"
                         onClick={() => setDutyAlgorithm(alg.id)}
-                        className={`py-1.5 px-1 rounded-md transition-colors text-xs truncate font-medium ${dutyAlgorithm === alg.id
-                          ? "bg-background border border-border text-primary"
-                          : "text-muted-foreground hover:text-foreground"
-                          }`}
+                        className={`h-7 px-2 rounded-sm transition-colors text-xs truncate font-medium cursor-pointer ${
+                          dutyAlgorithm === alg.id
+                            ? "bg-background border border-border/80 text-primary"
+                            : "text-muted-foreground hover:text-foreground border border-transparent"
+                        }`}
                       >
                         {alg.label}
                       </button>
@@ -1907,31 +1944,32 @@ export function DutyScheduleView({
                 </div>
 
                 {/* 4. Responsible / Senior Duty Person Options */}
-                <div className="space-y-2 p-3 rounded-xl border bg-muted/10">
-                  <label className="font-semibold text-foreground flex items-center justify-between">
+                <div className="space-y-2 p-3.5 rounded-lg border border-border bg-muted/20">
+                  <label className="text-xs font-semibold text-foreground flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
-                      <Crown className="h-4 w-4 text-primary" /> Ответственный (Старший дежурный):
+                      <Crown className="h-3.5 w-3.5 text-primary" /> Ответственный (Старший)
                     </span>
-                    <span className="text-[11px] text-muted-foreground">Ежедневно</span>
+                    <span className="text-[11px] text-muted-foreground font-normal">Ежедневно</span>
                   </label>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-muted/60 rounded-lg border text-xs text-center font-medium">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-muted/60 rounded-md border border-border text-xs text-center font-medium">
                     {(
                       [
-                        { id: "NONE", label: "Без старшего" },
+                        { id: "NONE", label: "Нет" },
                         { id: "MONITOR", label: "Староста" },
                         { id: "DEPUTY", label: "Зам. старосты" },
-                        { id: "CUSTOM", label: "Другой студент" },
+                        { id: "CUSTOM", label: "Студент" },
                       ] as const
                     ).map((mode) => (
                       <button
                         key={mode.id}
                         type="button"
                         onClick={() => setResponsibleMode(mode.id)}
-                        className={`py-1.5 px-1 rounded-md transition-colors text-[11px] truncate font-medium ${responsibleMode === mode.id
-                          ? "bg-background border border-border text-primary"
-                          : "text-muted-foreground hover:text-foreground"
-                          }`}
+                        className={`h-7 px-1.5 rounded-sm transition-colors text-[11px] truncate font-medium cursor-pointer ${
+                          responsibleMode === mode.id
+                            ? "bg-background border border-border/80 text-primary"
+                            : "text-muted-foreground hover:text-foreground border border-transparent"
+                        }`}
                       >
                         {mode.label}
                       </button>
@@ -1939,16 +1977,13 @@ export function DutyScheduleView({
                   </div>
 
                   {responsibleMode === "CUSTOM" && (
-                    <div className="pt-1.5">
-                      <label className="text-[11px] font-medium text-muted-foreground block mb-1">
-                        Выберите ответственного студента из списка группы:
-                      </label>
+                    <div className="pt-1">
                       <Select
                         value={customResponsibleStudentId}
                         onValueChange={(val) => val && setCustomResponsibleStudentId(val)}
                       >
                         <SelectTrigger className="h-8 text-xs bg-background">
-                          <SelectValue placeholder="Выберите ответственного..." />
+                          <SelectValue placeholder="Выберите ответственного студента..." />
                         </SelectTrigger>
                         <SelectContent className="text-xs">
                           {groupStudents.map((st) => (
@@ -1964,21 +1999,21 @@ export function DutyScheduleView({
               </div>
 
               {/* Column 2: Exempted Students (Исключения / ЛОВЗ) */}
-              <div className="space-y-2 p-3 rounded-xl border bg-muted/10 flex flex-col">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-foreground flex items-center gap-1.5">
-                    <Accessibility className="h-4 w-4 text-primary" /> Освобождение от дежурств (ЛОВЗ):
+              <div className="space-y-2.5 p-3.5 rounded-lg border border-border bg-muted/20 flex flex-col">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Accessibility className="h-3.5 w-3.5 text-primary" /> Освобождение от дежурств
                   </label>
                   {excludedStudentIds.length > 0 ? (
-                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] px-1.5 py-0 font-medium">
-                      Освобождено: {excludedStudentIds.length} чел.
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/25 text-[10px] px-2 py-0 font-medium">
+                      Исключено: {excludedStudentIds.length}
                     </Badge>
                   ) : (
-                    <span className="text-[10px] text-muted-foreground">Все дежурят</span>
+                    <span className="text-[11px] text-muted-foreground">Все дежурят</span>
                   )}
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Отметьте студентов для исключения из графика или закрепите постоянный статус <strong>ЛОВЗ</strong>:
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Отметьте студентов для исключения из графика или закрепите постоянный статус ЛОВЗ.
                 </p>
 
                 {groupStudents.length > 6 && (
@@ -1986,14 +2021,14 @@ export function DutyScheduleView({
                     <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <Input
                       placeholder="Поиск по ФИО..."
-                      className="pl-8 h-8 text-xs bg-background"
+                      className="pl-8 h-8 text-xs md:text-xs bg-background"
                       value={exemptionSearch}
                       onChange={(e) => setExemptionSearch(e.target.value)}
                     />
                   </div>
                 )}
 
-                <div className="flex-1 min-h-[220px] max-h-[300px] overflow-y-auto border rounded-lg divide-y bg-background p-1">
+                <div className="flex-1 min-h-[260px] max-h-[360px] overflow-y-auto border border-border rounded-md divide-y bg-background p-1">
                   {groupStudents
                     .filter((s) => s.name.toLowerCase().includes(exemptionSearch.toLowerCase()))
                     .map((st) => {
@@ -2014,25 +2049,27 @@ export function DutyScheduleView({
                               isExempt ? prev.filter((id) => id !== st.id) : [...prev, st.id]
                             );
                           }}
-                          className={`flex items-center justify-between p-2 rounded-md transition-colors text-xs ${isPermanentExempt
+                          className={`flex items-center justify-between px-2 py-1.5 rounded-sm transition-colors text-xs font-medium ${
+                            isPermanentExempt
                               ? "bg-sky-500/5 text-foreground cursor-default"
                               : isExempt
-                                ? "bg-primary/5 text-primary font-medium cursor-pointer"
+                                ? "bg-primary/5 text-primary cursor-pointer"
                                 : "hover:bg-muted/50 text-foreground cursor-pointer"
-                            }`}
+                          }`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             {isPermanentExempt ? (
                               <div
-                                className="h-4 w-4 rounded border border-sky-500/40 bg-sky-500/10 flex items-center justify-center text-[10px] shrink-0 text-sky-600 dark:text-sky-400"
+                                className="h-4 w-4 rounded-sm border border-sky-500/40 bg-sky-500/10 flex items-center justify-center shrink-0 text-sky-600 dark:text-sky-400"
                                 title="Постоянное освобождение (ЛОВЗ)"
                               >
                                 <Accessibility className="h-2.5 w-2.5" />
                               </div>
                             ) : (
                               <div
-                                className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] shrink-0 ${isExempt ? "bg-primary text-primary-foreground border-primary" : "border-border"
-                                  }`}
+                                className={`h-4 w-4 rounded-sm border flex items-center justify-center shrink-0 ${
+                                  isExempt ? "bg-primary text-primary-foreground border-primary" : "border-border"
+                                }`}
                               >
                                 {isExempt && <Check className="h-3 w-3" />}
                               </div>
@@ -2058,17 +2095,18 @@ export function DutyScheduleView({
                                 handleTogglePermanentExemption(st.id, !isPermanentExempt);
                               }}
                               disabled={isPending}
-                              className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${isPermanentExempt
+                              className={`px-2 py-0.5 rounded-sm text-[10px] font-medium border transition-colors cursor-pointer ${
+                                isPermanentExempt
                                   ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400 hover:bg-sky-500/20"
                                   : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-                                }`}
+                              }`}
                               title={isPermanentExempt ? "Снять постоянный статус ЛОВЗ" : "Установить постоянный статус ЛОВЗ"}
                             >
                               {isPermanentExempt ? "Снять ЛОВЗ" : "+ ЛОВЗ"}
                             </button>
-                            <span className="text-[10px] w-24 text-right truncate">
+                            <span className="text-[10px] w-16 text-right truncate">
                               {isPermanentExempt ? (
-                                <span className="text-sky-600 dark:text-sky-400 font-medium">ЛОВЗ (Освобожден)</span>
+                                <span className="text-sky-600 dark:text-sky-400 font-medium">ЛОВЗ</span>
                               ) : isExempt ? (
                                 <span className="text-primary font-medium">Исключен</span>
                               ) : (
@@ -2091,10 +2129,10 @@ export function DutyScheduleView({
                 size="xs"
                 onClick={handleSaveDutySettings}
                 disabled={isPending || !currentGroupId}
-                className="h-8 text-xs gap-1.5 font-medium w-full sm:w-auto shrink-0 justify-center"
+                className="h-8 text-xs gap-1.5 font-medium w-full sm:w-auto shrink-0 justify-center px-4 cursor-pointer"
               >
                 <Check className="h-3.5 w-3.5" />
-                {isPending ? "Сохранение..." : "Сохранить"}
+                {isPending ? "Сохранение..." : "Сохранить настройки"}
               </Button>
             </div>
           </CardContent>
