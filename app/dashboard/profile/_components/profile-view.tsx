@@ -173,27 +173,33 @@ export function ProfileView({ profile }: ProfileViewProps) {
   return (
     <div className="space-y-3 w-full text-xs">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border shadow-xs">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>Лицей LMS</span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-semibold">Мой профиль</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border border-border">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <User className="h-4 w-4" />
           </div>
-          <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" /> Мой профиль
-          </h1>
+          <div className="space-y-0.5 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-sm font-bold text-foreground">Мой профиль</h1>
+              <Badge
+                variant="outline"
+                className="text-[10px] font-medium border-primary/25 bg-primary/10 text-primary"
+              >
+                {ROLE_LABELS[profile.role] || profile.role}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Личные данные, безопасность и привязка Google-аккаунта
+            </p>
+          </div>
         </div>
-        <Badge variant="outline" className={`text-[10px] font-semibold border ${ROLE_COLORS[profile.role] || ""}`}>
-          {ROLE_LABELS[profile.role] || profile.role}
-        </Badge>
       </div>
 
       {/* Profile Overview Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {profile.role === "STUDENT" ? (
           <>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <Building2 className="h-3.5 w-3.5 text-primary" /> Моя группа
               </div>
@@ -201,7 +207,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 {profile.groupName || "Не назначена"}
               </div>
             </div>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <Hash className="h-3.5 w-3.5 text-primary" /> Поименный № (П/Н)
               </div>
@@ -209,7 +215,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 {profile.rollNumber || "—"}
               </div>
             </div>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <ClipboardList className="h-3.5 w-3.5 text-primary" /> Сдано ДЗ
               </div>
@@ -217,7 +223,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 {profile.submittedAssignmentsCount ?? 0} работ
               </div>
             </div>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <CalendarCheck className="h-3.5 w-3.5 text-primary" /> Посещаемость
               </div>
@@ -225,7 +231,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 {profile.attendancePercent ?? 100}%
               </div>
             </div>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs col-span-2 sm:col-span-1">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1 col-span-2 sm:col-span-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 text-primary" /> Зарегистрирован
               </div>
@@ -236,7 +242,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
           </>
         ) : (
           <>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <BookOpen className="h-3.5 w-3.5 text-primary" /> Материалов
               </div>
@@ -244,7 +250,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 {profile.createdMaterialsCount ?? 0}
               </div>
             </div>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <ClipboardList className="h-3.5 w-3.5 text-primary" /> Создано ДЗ
               </div>
@@ -252,7 +258,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 {profile.createdAssignmentsCount ?? 0}
               </div>
             </div>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <Shield className="h-3.5 w-3.5 text-primary" /> Системная роль
               </div>
@@ -260,7 +266,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 {ROLE_LABELS[profile.role]}
               </div>
             </div>
-            <div className="bg-card border rounded-xl p-3 space-y-1 shadow-xs">
+            <div className="bg-card border border-border rounded-xl p-3 space-y-1">
               <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 text-primary" /> Регистрация
               </div>
@@ -275,13 +281,13 @@ export function ProfileView({ profile }: ProfileViewProps) {
       {/* Main Grid: Details & Password */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Profile Details Card */}
-        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
           <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
             <User className="h-4 w-4 text-primary" /> Личные данные
           </h2>
 
           <div className="flex items-center gap-3">
-            <div className="h-14 w-14 rounded-full border-2 border-primary/30 bg-muted flex items-center justify-center overflow-hidden shrink-0">
+            <div className="h-14 w-14 rounded-full border border-primary/30 bg-muted flex items-center justify-center overflow-hidden shrink-0">
               {avatar ? (
                 <img src={avatar} alt="avatar" className="h-full w-full object-cover" />
               ) : (
@@ -316,8 +322,10 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 onChange={(e) => setName(e.target.value)}
                 disabled={isStudent}
                 placeholder="Иванов Иван"
-                className={`h-8 text-xs ${
-                  isStudent ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-80" : "bg-background"
+                className={`h-8 text-xs md:text-xs ${
+                  isStudent
+                    ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-80"
+                    : "bg-muted/40 border-border/70"
                 }`}
               />
             </div>
@@ -330,7 +338,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="student@example.com"
-                className="h-8 text-xs bg-background"
+                className="h-8 text-xs md:text-xs bg-muted/40 border-border/70"
               />
             </div>
 
@@ -341,7 +349,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+996 (555) 00-00-00"
-                className="h-8 text-xs bg-background"
+                className="h-8 text-xs md:text-xs bg-muted/40 border-border/70"
               />
             </div>
 
@@ -352,7 +360,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 value={avatar}
                 onChange={(e) => setAvatar(e.target.value)}
                 placeholder="https://..."
-                className="h-8 text-xs bg-background font-mono"
+                className="h-8 text-xs md:text-xs bg-muted/40 border-border/70 font-mono"
               />
             </div>
           </div>
@@ -368,7 +376,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
         </div>
 
         {/* Change Password Card */}
-        <div className="bg-card border rounded-xl p-4 space-y-3 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
           <h2 className="font-bold text-foreground flex items-center gap-2 pb-2 border-b">
             <Lock className="h-4 w-4 text-primary" /> Безопасность & Смена пароля
           </h2>
@@ -382,12 +390,12 @@ export function ProfileView({ profile }: ProfileViewProps) {
                   value={currentPwd}
                   onChange={(e) => setCurrentPwd(e.target.value)}
                   placeholder="••••••••"
-                  className="h-8 text-xs bg-background pr-8"
+                  className="h-8 text-xs md:text-xs bg-muted/40 border-border/70 pr-8"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPwd((v) => !v)}
-                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"
                 >
                   {showPwd ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
@@ -401,7 +409,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 value={newPwd}
                 onChange={(e) => setNewPwd(e.target.value)}
                 placeholder="Минимум 6 символов"
-                className="h-8 text-xs bg-background"
+                className="h-8 text-xs md:text-xs bg-muted/40 border-border/70"
               />
             </div>
 
@@ -412,7 +420,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
                 value={confirmPwd}
                 onChange={(e) => setConfirmPwd(e.target.value)}
                 placeholder="Повторите новый пароль"
-                className={`h-8 text-xs bg-background ${
+                className={`h-8 text-xs md:text-xs bg-muted/40 border-border/70 ${
                   confirmPwd && confirmPwd !== newPwd ? "border-destructive" : ""
                 }`}
               />
@@ -423,7 +431,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
             size="xs"
             disabled={isPending}
             onClick={handleChangePassword}
-            className="w-full h-8 font-medium mt-1"
+            className="w-full h-8 font-medium mt-1 cursor-pointer"
           >
             Изменить пароль
           </Button>
@@ -438,7 +446,7 @@ export function ProfileView({ profile }: ProfileViewProps) {
               {profile.googleEmail && (
                 <Badge
                   variant="outline"
-                  className="text-[10px] px-1.5 py-0 h-5 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 gap-1"
+                  className="text-[10px] px-1.5 py-0 h-5 border-primary/25 bg-primary/10 text-primary gap-1"
                 >
                   <CheckCircle2 className="h-3 w-3" /> Привязан
                 </Badge>

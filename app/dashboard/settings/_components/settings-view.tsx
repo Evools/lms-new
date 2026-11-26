@@ -636,47 +636,60 @@ export function SettingsView({
   return (
     <div className="space-y-3 w-full text-xs">
       {/* Header & Tabs Navigation */}
-      <div className="space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-1 pt-0.5">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span>Лицей LMS</span>
-              <ChevronRight className="h-3 w-3" />
-              <span className="text-foreground font-medium">Настройки</span>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3.5 rounded-xl border border-border">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <Settings className="h-4 w-4" />
             </div>
-            <h1 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Settings className="h-4 w-4 text-primary" /> Настройки системы
-            </h1>
+            <div className="space-y-0.5 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-sm font-bold text-foreground">
+                  {isAdmin ? "Настройки системы" : "Настройки оформления"}
+                </h1>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-medium border-primary/25 bg-primary/10 text-primary"
+                >
+                  {ROLE_LABELS[profile.role] || profile.role}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                {isAdmin
+                  ? "Внешний вид, параметры платформы, модули, доступы и учебные годы"
+                  : "Выбор темы оформления и интерактивное обучение интерфейсу"}
+              </p>
+            </div>
           </div>
-          <Badge variant="outline" className={`text-[10px] font-medium border ${ROLE_COLORS[profile.role] || ""}`}>
-            {ROLE_LABELS[profile.role] || profile.role}
-          </Badge>
         </div>
 
-        {/* Navigation Tabs Bar */}
-        <div className="flex items-center gap-1 p-1 bg-card border rounded-xl overflow-x-auto shadow-2xs" data-tour="settings-tabs">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${activeTab === tab.key
-                ? "bg-primary text-primary-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+        {/* Navigation Tabs Bar (only when more than 1 tab is available) */}
+        {TABS.length > 1 && (
+          <div className="flex items-center gap-1 p-1 bg-muted/50 border border-border rounded-lg overflow-x-auto" data-tour="settings-tabs">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 h-7 px-3 rounded-md text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  activeTab === tab.key
+                    ? "bg-background text-primary border border-border/80"
+                    : "text-muted-foreground hover:text-foreground border border-transparent"
                 }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tab: Appearance (all roles) */}
       {activeTab === "appearance" && (
         <div className="space-y-3">
           {/* Theme Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-4 shadow-2xs" data-tour="settings-theme">
+          <div className="bg-card border border-border rounded-xl p-4 space-y-4" data-tour="settings-theme">
             <div className="flex items-center justify-between pb-3 border-b">
               <div className="space-y-0.5">
                 <h2 className="font-bold text-foreground text-xs flex items-center gap-2">
@@ -696,96 +709,31 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("light")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${theme === "light"
-                  ? "border-primary bg-primary/5 shadow-xs"
-                  : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                  }`}
+                className={`group flex flex-col text-left p-3 rounded-lg border transition-colors cursor-pointer ${
+                  theme === "light"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                }`}
               >
-                {/* Mockup Preview Light */}
-                <div className="w-full h-52 rounded-lg bg-slate-100 border border-slate-300/80 flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
-                  {/* Top Window Bar */}
-                  <div className="h-5 bg-slate-200/90 border-b border-slate-300/80 flex items-center px-2.5 gap-1.5 shrink-0">
-                    <div className="h-2 w-2 rounded-full bg-red-400/80" />
-                    <div className="h-2 w-2 rounded-full bg-amber-400/80" />
-                    <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
-                    <div className="h-2 w-16 bg-slate-300 rounded ml-2" />
+                <div className="w-full h-36 rounded-md bg-slate-100 border border-slate-200 flex overflow-hidden mb-2.5 select-none">
+                  <div className="w-1/4 bg-white border-r border-slate-200 p-2 flex flex-col gap-1.5">
+                    <div className="h-2.5 w-full bg-primary/20 rounded-sm" />
+                    <div className="h-1.5 w-4/5 bg-slate-200 rounded-sm" />
+                    <div className="h-1.5 w-3/5 bg-slate-200 rounded-sm" />
                   </div>
-
-                  <div className="flex-1 flex overflow-hidden">
-                    {/* Mini Sidebar */}
-                    <div className="w-1/4 bg-white border-r border-slate-200 p-2 flex flex-col justify-between">
-                      <div className="space-y-1.5">
-                        <div className="h-3 w-full bg-primary/20 rounded flex items-center px-1">
-                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        </div>
-                        <div className="h-1.5 w-3/4 bg-slate-200 rounded mt-2" />
-                        <div className="h-1.5 w-4/5 bg-slate-200 rounded" />
-                        <div className="h-1.5 w-2/3 bg-slate-200 rounded" />
-                        <div className="h-1.5 w-3/4 bg-slate-200 rounded" />
-                        <div className="h-1.5 w-1/2 bg-slate-200 rounded" />
-                      </div>
-                      <div className="h-3.5 w-full bg-slate-100 rounded flex items-center gap-1 p-1">
-                        <div className="h-2 w-2 rounded-full bg-slate-300 shrink-0" />
-                        <div className="h-1.5 w-2/3 bg-slate-300 rounded" />
-                      </div>
+                  <div className="flex-1 p-2 flex flex-col gap-1.5">
+                    <div className="h-3 w-full bg-white border border-slate-200/80 rounded-sm flex items-center justify-between px-1.5">
+                      <div className="h-1.5 w-1/3 bg-slate-200 rounded-sm" />
+                      <div className="h-1.5 w-4 bg-primary/70 rounded-sm" />
                     </div>
-
-                    {/* Mini Main Content */}
-                    <div className="flex-1 bg-slate-50/90 p-2 flex flex-col gap-2 overflow-hidden">
-                      {/* Top header bar inside page */}
-                      <div className="h-4 w-full bg-white border border-slate-200/80 rounded flex items-center justify-between px-2">
-                        <div className="h-1.5 w-1/4 bg-slate-200 rounded" />
-                        <div className="flex items-center gap-1">
-                          <div className="h-2 w-6 bg-slate-200 rounded" />
-                          <div className="h-2 w-2 rounded-full bg-primary/80" />
-                        </div>
+                    <div className="flex-1 grid grid-cols-2 gap-1.5">
+                      <div className="bg-white border border-slate-200/80 rounded-sm p-1.5 flex flex-col justify-between">
+                        <div className="h-1.5 w-1/2 bg-slate-200 rounded-sm" />
+                        <div className="h-2.5 w-2/3 bg-primary/25 rounded-sm" />
                       </div>
-
-                      {/* Stat Cards Row */}
-                      <div className="grid grid-cols-3 gap-1.5">
-                        <div className="bg-white border border-slate-200/80 rounded p-1.5 space-y-1">
-                          <div className="h-1 w-1/2 bg-slate-300 rounded" />
-                          <div className="h-2 w-3/4 bg-primary/30 rounded" />
-                        </div>
-                        <div className="bg-white border border-slate-200/80 rounded p-1.5 space-y-1">
-                          <div className="h-1 w-1/2 bg-slate-300 rounded" />
-                          <div className="h-2 w-3/4 bg-slate-300 rounded" />
-                        </div>
-                        <div className="bg-white border border-slate-200/80 rounded p-1.5 space-y-1">
-                          <div className="h-1 w-1/2 bg-slate-300 rounded" />
-                          <div className="h-2 w-3/4 bg-slate-300 rounded" />
-                        </div>
-                      </div>
-
-                      {/* Lower 2 Widget Cards */}
-                      <div className="grid grid-cols-2 gap-1.5 flex-1">
-                        <div className="bg-white border border-slate-200/80 rounded p-2 flex flex-col justify-between">
-                          <div className="flex items-center justify-between">
-                            <div className="h-1.5 w-1/2 bg-slate-300 rounded" />
-                            <div className="h-1.5 w-4 bg-primary/30 rounded" />
-                          </div>
-                          <div className="flex items-end gap-1 h-8 pt-1">
-                            <div className="w-1/4 h-4 bg-primary/30 rounded-t" />
-                            <div className="w-1/4 h-6 bg-primary/50 rounded-t" />
-                            <div className="w-1/4 h-3 bg-primary/30 rounded-t" />
-                            <div className="w-1/4 h-8 bg-primary rounded-t" />
-                          </div>
-                        </div>
-
-                        <div className="bg-white border border-slate-200/80 rounded p-2 flex flex-col justify-between space-y-1">
-                          <div className="h-1.5 w-2/3 bg-slate-300 rounded" />
-                          <div className="space-y-1">
-                            <div className="h-2 w-full bg-slate-100 rounded flex items-center px-1">
-                              <div className="h-1 w-2/3 bg-slate-300 rounded" />
-                            </div>
-                            <div className="h-2 w-full bg-slate-100 rounded flex items-center px-1">
-                              <div className="h-1 w-1/2 bg-slate-300 rounded" />
-                            </div>
-                            <div className="h-2 w-full bg-slate-100 rounded flex items-center px-1">
-                              <div className="h-1 w-3/4 bg-slate-300 rounded" />
-                            </div>
-                          </div>
-                        </div>
+                      <div className="bg-white border border-slate-200/80 rounded-sm p-1.5 flex flex-col justify-between">
+                        <div className="h-1.5 w-2/3 bg-slate-200 rounded-sm" />
+                        <div className="h-2.5 w-1/2 bg-slate-200 rounded-sm" />
                       </div>
                     </div>
                   </div>
@@ -793,16 +741,20 @@ export function SettingsView({
 
                 <div className="flex items-center justify-between w-full">
                   <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      <Sun className="h-3.5 w-3.5 text-amber-500" /> Светлая
+                    <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <Sun className="h-3.5 w-3.5 text-primary" /> Светлая
                     </span>
-                    <p className="text-[10px] text-muted-foreground">Чистый светлый вид</p>
+                    <p className="text-[10px] text-muted-foreground">Чистый светлый интерфейс</p>
                   </div>
-                  {theme === "light" && (
-                    <div className="h-4 w-4 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xs">
-                      <Check className="h-2.5 w-2.5" />
-                    </div>
-                  )}
+                  <div
+                    className={`h-4 w-4 rounded-md border flex items-center justify-center shrink-0 ${
+                      theme === "light"
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    }`}
+                  >
+                    {theme === "light" && <Check className="h-2.5 w-2.5" />}
+                  </div>
                 </div>
               </button>
 
@@ -810,96 +762,31 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("dark")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${theme === "dark"
-                  ? "border-primary bg-primary/5 shadow-xs"
-                  : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                  }`}
+                className={`group flex flex-col text-left p-3 rounded-lg border transition-colors cursor-pointer ${
+                  theme === "dark"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                }`}
               >
-                {/* Mockup Preview Dark */}
-                <div className="w-full h-52 rounded-lg bg-zinc-950 border border-zinc-800 flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
-                  {/* Top Window Bar */}
-                  <div className="h-5 bg-zinc-900 border-b border-zinc-800 flex items-center px-2.5 gap-1.5 shrink-0">
-                    <div className="h-2 w-2 rounded-full bg-red-400/80" />
-                    <div className="h-2 w-2 rounded-full bg-amber-400/80" />
-                    <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
-                    <div className="h-2 w-16 bg-zinc-700 rounded ml-2" />
+                <div className="w-full h-36 rounded-md bg-zinc-950 border border-zinc-800 flex overflow-hidden mb-2.5 select-none">
+                  <div className="w-1/4 bg-zinc-900 border-r border-zinc-800 p-2 flex flex-col gap-1.5">
+                    <div className="h-2.5 w-full bg-primary/30 rounded-sm" />
+                    <div className="h-1.5 w-4/5 bg-zinc-800 rounded-sm" />
+                    <div className="h-1.5 w-3/5 bg-zinc-800 rounded-sm" />
                   </div>
-
-                  <div className="flex-1 flex overflow-hidden">
-                    {/* Mini Sidebar */}
-                    <div className="w-1/4 bg-zinc-900 border-r border-zinc-800/80 p-2 flex flex-col justify-between">
-                      <div className="space-y-1.5">
-                        <div className="h-3 w-full bg-primary/30 rounded flex items-center px-1">
-                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        </div>
-                        <div className="h-1.5 w-3/4 bg-zinc-800 rounded mt-2" />
-                        <div className="h-1.5 w-4/5 bg-zinc-800 rounded" />
-                        <div className="h-1.5 w-2/3 bg-zinc-800 rounded" />
-                        <div className="h-1.5 w-3/4 bg-zinc-800 rounded" />
-                        <div className="h-1.5 w-1/2 bg-zinc-800 rounded" />
-                      </div>
-                      <div className="h-3.5 w-full bg-zinc-800/60 rounded flex items-center gap-1 p-1">
-                        <div className="h-2 w-2 rounded-full bg-zinc-700 shrink-0" />
-                        <div className="h-1.5 w-2/3 bg-zinc-700 rounded" />
-                      </div>
+                  <div className="flex-1 p-2 flex flex-col gap-1.5">
+                    <div className="h-3 w-full bg-zinc-900 border border-zinc-800 rounded-sm flex items-center justify-between px-1.5">
+                      <div className="h-1.5 w-1/3 bg-zinc-700 rounded-sm" />
+                      <div className="h-1.5 w-4 bg-primary/80 rounded-sm" />
                     </div>
-
-                    {/* Mini Main Content */}
-                    <div className="flex-1 bg-zinc-950 p-2 flex flex-col gap-2 overflow-hidden">
-                      {/* Top header bar */}
-                      <div className="h-4 w-full bg-zinc-900 border border-zinc-800/80 rounded flex items-center justify-between px-2">
-                        <div className="h-1.5 w-1/4 bg-zinc-700 rounded" />
-                        <div className="flex items-center gap-1">
-                          <div className="h-2 w-6 bg-zinc-800 rounded" />
-                          <div className="h-2 w-2 rounded-full bg-primary/80" />
-                        </div>
+                    <div className="flex-1 grid grid-cols-2 gap-1.5">
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-sm p-1.5 flex flex-col justify-between">
+                        <div className="h-1.5 w-1/2 bg-zinc-700 rounded-sm" />
+                        <div className="h-2.5 w-2/3 bg-primary/35 rounded-sm" />
                       </div>
-
-                      {/* Stat Cards Row */}
-                      <div className="grid grid-cols-3 gap-1.5">
-                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-1.5 space-y-1">
-                          <div className="h-1 w-1/2 bg-zinc-700 rounded" />
-                          <div className="h-2 w-3/4 bg-primary/40 rounded" />
-                        </div>
-                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-1.5 space-y-1">
-                          <div className="h-1 w-1/2 bg-zinc-700 rounded" />
-                          <div className="h-2 w-3/4 bg-zinc-750 rounded" />
-                        </div>
-                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-1.5 space-y-1">
-                          <div className="h-1 w-1/2 bg-zinc-700 rounded" />
-                          <div className="h-2 w-3/4 bg-zinc-750 rounded" />
-                        </div>
-                      </div>
-
-                      {/* Lower 2 Widget Cards */}
-                      <div className="grid grid-cols-2 gap-1.5 flex-1">
-                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-2 flex flex-col justify-between">
-                          <div className="flex items-center justify-between">
-                            <div className="h-1.5 w-1/2 bg-zinc-700 rounded" />
-                            <div className="h-1.5 w-4 bg-primary/30 rounded" />
-                          </div>
-                          <div className="flex items-end gap-1 h-8 pt-1">
-                            <div className="w-1/4 h-4 bg-primary/30 rounded-t" />
-                            <div className="w-1/4 h-6 bg-primary/50 rounded-t" />
-                            <div className="w-1/4 h-3 bg-primary/30 rounded-t" />
-                            <div className="w-1/4 h-8 bg-primary rounded-t" />
-                          </div>
-                        </div>
-
-                        <div className="bg-zinc-900 border border-zinc-800/80 rounded p-2 flex flex-col justify-between space-y-1">
-                          <div className="h-1.5 w-2/3 bg-zinc-700 rounded" />
-                          <div className="space-y-1">
-                            <div className="h-2 w-full bg-zinc-800/60 rounded flex items-center px-1">
-                              <div className="h-1 w-2/3 bg-zinc-700 rounded" />
-                            </div>
-                            <div className="h-2 w-full bg-zinc-800/60 rounded flex items-center px-1">
-                              <div className="h-1 w-1/2 bg-zinc-700 rounded" />
-                            </div>
-                            <div className="h-2 w-full bg-zinc-800/60 rounded flex items-center px-1">
-                              <div className="h-1 w-3/4 bg-zinc-700 rounded" />
-                            </div>
-                          </div>
-                        </div>
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-sm p-1.5 flex flex-col justify-between">
+                        <div className="h-1.5 w-2/3 bg-zinc-700 rounded-sm" />
+                        <div className="h-2.5 w-1/2 bg-zinc-800 rounded-sm" />
                       </div>
                     </div>
                   </div>
@@ -907,16 +794,20 @@ export function SettingsView({
 
                 <div className="flex items-center justify-between w-full">
                   <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
                       <Moon className="h-3.5 w-3.5 text-primary" /> Тёмная
                     </span>
-                    <p className="text-[10px] text-muted-foreground">Для работы в темноте</p>
+                    <p className="text-[10px] text-muted-foreground">Комфортная работа вечером</p>
                   </div>
-                  {theme === "dark" && (
-                    <div className="h-4 w-4 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xs">
-                      <Check className="h-2.5 w-2.5" />
-                    </div>
-                  )}
+                  <div
+                    className={`h-4 w-4 rounded-md border flex items-center justify-center shrink-0 ${
+                      theme === "dark"
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    }`}
+                  >
+                    {theme === "dark" && <Check className="h-2.5 w-2.5" />}
+                  </div>
                 </div>
               </button>
 
@@ -924,72 +815,45 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={() => applyTheme("system")}
-                className={`group relative flex flex-col text-left p-3.5 rounded-xl border transition-all cursor-pointer ${theme === "system"
-                  ? "border-primary bg-primary/5 shadow-xs"
-                  : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                  }`}
+                className={`group flex flex-col text-left p-3 rounded-lg border transition-colors cursor-pointer ${
+                  theme === "system"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                }`}
               >
-                {/* Mockup Preview Split System */}
-                <div className="w-full h-52 rounded-lg border border-border flex flex-col overflow-hidden shadow-2xs mb-3 select-none">
-                  {/* Top Window Bar Split */}
-                  <div className="h-5 flex border-b border-border shrink-0">
-                    <div className="w-1/2 bg-slate-200/90 border-r border-slate-300 flex items-center px-2.5 gap-1.5">
-                      <div className="h-2 w-2 rounded-full bg-red-400/80" />
-                      <div className="h-2 w-2 rounded-full bg-amber-400/80" />
-                      <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
-                    </div>
-                    <div className="w-1/2 bg-zinc-900 flex items-center justify-end px-2.5 gap-1">
-                      <div className="h-2 w-10 bg-zinc-700 rounded" />
+                <div className="w-full h-36 rounded-md border border-border flex overflow-hidden mb-2.5 select-none">
+                  <div className="w-1/2 bg-slate-100 border-r border-slate-200 p-2 flex flex-col gap-1.5">
+                    <div className="h-3 w-full bg-white border border-slate-200 rounded-sm" />
+                    <div className="flex-1 bg-white border border-slate-200 rounded-sm p-1.5 flex flex-col justify-between">
+                      <div className="h-1.5 w-2/3 bg-slate-200 rounded-sm" />
+                      <div className="h-2.5 w-3/4 bg-primary/30 rounded-sm" />
                     </div>
                   </div>
-
-                  <div className="flex-1 flex overflow-hidden">
-                    {/* Left Half (Light) */}
-                    <div className="w-1/2 bg-slate-50 border-r border-slate-200 flex flex-col p-2 gap-1.5">
-                      <div className="h-3.5 w-full bg-white border border-slate-200 rounded flex items-center px-1.5">
-                        <div className="h-1.5 w-1/2 bg-slate-300 rounded" />
-                      </div>
-                      <div className="bg-white border border-slate-200 rounded p-1.5 flex-1 flex flex-col justify-between space-y-1">
-                        <div className="h-1.5 w-2/3 bg-slate-300 rounded" />
-                        <div className="h-2 w-full bg-primary/30 rounded" />
-                        <div className="flex items-end gap-1 h-10 pt-1">
-                          <div className="w-1/3 h-4 bg-primary/30 rounded-t" />
-                          <div className="w-1/3 h-7 bg-primary/60 rounded-t" />
-                          <div className="w-1/3 h-3 bg-primary/30 rounded-t" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Half (Dark) */}
-                    <div className="w-1/2 bg-zinc-950 flex flex-col p-2 gap-1.5">
-                      <div className="h-3.5 w-full bg-zinc-900 border border-zinc-800 rounded flex items-center justify-end px-1.5">
-                        <div className="h-1.5 w-1/2 bg-zinc-700 rounded" />
-                      </div>
-                      <div className="bg-zinc-900 border border-zinc-800 rounded p-1.5 flex-1 flex flex-col justify-between space-y-1">
-                        <div className="h-1.5 w-2/3 bg-zinc-700 rounded" />
-                        <div className="h-2 w-full bg-primary/40 rounded" />
-                        <div className="flex items-end gap-1 h-10 pt-1">
-                          <div className="w-1/3 h-4 bg-primary/30 rounded-t" />
-                          <div className="w-1/3 h-7 bg-primary/60 rounded-t" />
-                          <div className="w-1/3 h-3 bg-primary/30 rounded-t" />
-                        </div>
-                      </div>
+                  <div className="w-1/2 bg-zinc-950 p-2 flex flex-col gap-1.5">
+                    <div className="h-3 w-full bg-zinc-900 border border-zinc-800 rounded-sm" />
+                    <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-sm p-1.5 flex flex-col justify-between">
+                      <div className="h-1.5 w-2/3 bg-zinc-700 rounded-sm" />
+                      <div className="h-2.5 w-3/4 bg-primary/40 rounded-sm" />
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between w-full">
                   <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      <Monitor className="h-3.5 w-3.5 text-muted-foreground" /> Системная
+                    <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <Monitor className="h-3.5 w-3.5 text-primary" /> Системная
                     </span>
-                    <p className="text-[10px] text-muted-foreground">Синхронизация с ОС</p>
+                    <p className="text-[10px] text-muted-foreground">Как в вашей ОС</p>
                   </div>
-                  {theme === "system" && (
-                    <div className="h-4 w-4 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xs">
-                      <Check className="h-2.5 w-2.5" />
-                    </div>
-                  )}
+                  <div
+                    className={`h-4 w-4 rounded-md border flex items-center justify-center shrink-0 ${
+                      theme === "system"
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    }`}
+                  >
+                    {theme === "system" && <Check className="h-2.5 w-2.5" />}
+                  </div>
                 </div>
               </button>
             </div>
@@ -1000,7 +864,7 @@ export function SettingsView({
           </div>
 
           {/* Onboarding & Academy Card */}
-          <div className="bg-card border rounded-xl p-4 space-y-3 shadow-2xs" data-tour="settings-tour-hub">
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3" data-tour="settings-tour-hub">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <h2 className="font-bold text-foreground text-xs flex items-center gap-2">
