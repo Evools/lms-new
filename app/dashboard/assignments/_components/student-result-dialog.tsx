@@ -80,9 +80,9 @@ export function StudentResultDialog({
                   )}
                 </Badge>
                 {mySub.grade != null && (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {mySub.grade}
-                    <span className="text-[10px] font-normal text-amber-500">/5</span>
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 border border-primary/25 px-2 py-0.5 rounded-md">
+                    <Star className="h-3 w-3 fill-primary text-primary" /> {mySub.grade}
+                    <span className="text-[10px] font-normal text-primary/70">/5</span>
                   </span>
                 )}
                 {mySub.reviewedAt && (

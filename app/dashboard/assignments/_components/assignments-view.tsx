@@ -619,8 +619,8 @@ export function AssignmentsView({
                                 )}
                               </Badge>
                               {userSub.grade != null && (
-                                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
-                                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" />{" "}
+                                <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-primary bg-primary/10 border border-primary/25 px-1.5 py-0.5 rounded-md">
+                                  <Star className="h-3 w-3 fill-primary text-primary" />{" "}
                                   {userSub.grade}
                                 </span>
                               )}
