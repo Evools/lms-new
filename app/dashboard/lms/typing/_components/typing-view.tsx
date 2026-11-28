@@ -130,6 +130,10 @@ export function TypingView({ initialData }: TypingViewProps) {
           leaderboard={initialData.leaderboard}
           myProfile={initialData.myProfile}
           myRecentAttempts={initialData.myRecentAttempts}
+          isAdmin={
+            initialData.userRole === "ADMIN" ||
+            initialData.userRole === "ADMINISTRATION"
+          }
         />
       )}
 

@@ -1,11 +1,26 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from "@/components/ui/alert-dialog";
 import { getCpmVerdict, TypingLanguage } from "../_lib/text-generator";
-import { StudentTypingProfile, TypingAttemptItem } from "../actions";
+import {
+  StudentTypingProfile,
+  TypingAttemptItem,
+  resetTypingLeaderboardAction,
+} from "../actions";
 import {
   Trophy,
   Award,
@@ -17,6 +32,7 @@ import {
   History,
   Calendar,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 
 interface TypingLeaderboardProps {
@@ -27,14 +43,38 @@ interface TypingLeaderboardProps {
   };
   myProfile: StudentTypingProfile | null;
   myRecentAttempts: TypingAttemptItem[];
+  isAdmin?: boolean;
 }
 
 export function TypingLeaderboard({
   leaderboard,
   myProfile,
   myRecentAttempts,
+  isAdmin = false,
 }: TypingLeaderboardProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [activeLang, setActiveLang] = useState<TypingLanguage>("RU");
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+
+  const handleConfirmReset = () => {
+    startTransition(async () => {
+      const res = await resetTypingLeaderboardAction();
+      if (res.success) {
+        setIsResetDialogOpen(false);
+        toast.add({
+          title: "Рейтинг и история попыток очищены",
+          type: "success",
+        });
+        router.refresh();
+      } else {
+        toast.add({
+          title: res.error || "Не удалось очистить рейтинг",
+          type: "error",
+        });
+      }
+    });
+  };
 
   const currentList =
     activeLang === "RU"
@@ -57,42 +97,89 @@ export function TypingLeaderboard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs">
-          <button
-            type="button"
-            onClick={() => setActiveLang("RU")}
-            className={`h-6 px-3 rounded-md font-medium transition-colors ${
-              activeLang === "RU"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Русский (RU)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveLang("EN")}
-            className={`h-6 px-3 rounded-md font-medium transition-colors ${
-              activeLang === "EN"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            English (EN)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveLang("CODE")}
-            className={`h-6 px-3 rounded-md font-medium transition-colors ${
-              activeLang === "CODE"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Web-Code
-          </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border text-xs">
+            <button
+              type="button"
+              onClick={() => setActiveLang("RU")}
+              className={`h-6 px-3 rounded-md font-medium transition-colors ${
+                activeLang === "RU"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Русский (RU)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveLang("EN")}
+              className={`h-6 px-3 rounded-md font-medium transition-colors ${
+                activeLang === "EN"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              English (EN)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveLang("CODE")}
+              className={`h-6 px-3 rounded-md font-medium transition-colors ${
+                activeLang === "CODE"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Web-Code
+            </button>
+          </div>
+
+          {isAdmin && (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setIsResetDialogOpen(true)}
+              className="h-7 px-2.5 text-xs gap-1.5 font-medium text-destructive border-destructive/30 hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Очистить рейтинг</span>
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Admin Reset Confirmation Dialog */}
+      <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <AlertDialogContent className="p-4 gap-3 text-xs sm:max-w-[400px]">
+          <AlertDialogHeader className="place-items-start text-left gap-1">
+            <AlertDialogTitle className="text-sm font-bold flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-destructive" /> Очистить весь рейтинг?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Все текущие рекорды скорости печати (RU, EN, Web-Code), история попыток и аналитика по группам будут сброшены на начальный уровень.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-row justify-end gap-2 pt-2 border-t mt-2">
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-6 px-2.5 text-xs"
+              onClick={() => setIsResetDialogOpen(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="destructive"
+              size="xs"
+              className="h-6 px-2.5 text-xs"
+              disabled={isPending}
+              onClick={handleConfirmReset}
+            >
+              {isPending ? "Очистка..." : "Очистить"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Left (2 spans): Leaderboard Table */}

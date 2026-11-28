@@ -209,11 +209,26 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
 
       const totalTyped = correctChars + errorChars;
       const accuracy = totalTyped > 0 ? (correctChars / totalTyped) * 100 : 100;
-      const minutes = Math.max(1, finalElapsed) / 60;
+      const safeElapsed = Math.max(0.5, finalElapsed);
+      const minutes = safeElapsed / 60;
       const cpm = Math.round(correctChars / minutes);
       const wpm = Math.round(cpm / 5);
 
-      if (totalTyped >= 5) {
+      const minDurationByMode: Record<TypingMode, number> = {
+        FREE: 10,
+        TIME_15: 14,
+        TIME_30: 29,
+        TIME_60: 59,
+        TIME_120: 119,
+        WORDS_25: 3,
+        WORDS_50: 5,
+      };
+      const minDuration = minDurationByMode[mode] ?? 10;
+      const minChars = mode === "FREE" || mode.startsWith("WORDS_") ? 50 : 20;
+      const isValidAttempt =
+        safeElapsed >= minDuration && totalTyped >= minChars && cpm <= 1200;
+
+      if (isValidAttempt) {
         setIsSaving(true);
         try {
           const res = await saveTypingAttemptAction({
@@ -224,7 +239,7 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
             accuracy,
             errorsCount: errorChars,
             totalChars: totalTyped,
-            durationSeconds: finalElapsed,
+            durationSeconds: Math.round(safeElapsed),
           });
           if (res?.attempt) {
             setSavedResult(res.attempt);
@@ -276,6 +291,11 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
   // Keyboard navigation and spacebar commit
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isFinished) return;
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      return;
+    }
 
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
@@ -697,6 +717,7 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
           value={currentInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onPaste={(e) => e.preventDefault()}
           disabled={isFinished}
           className="absolute inset-0 opacity-0 cursor-default -z-10"
           autoFocus
@@ -804,8 +825,8 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
           </div>
         )}
 
-        {/* Finish early button (visible when test is in progress and some words typed) */}
-        {isStarted && !isFinished && completedWords.length >= 2 && (
+        {/* Finish early button (only in FREE mode after >= 10s and >= 10 words) */}
+        {mode === "FREE" && isStarted && !isFinished && elapsedSeconds >= 10 && completedWords.length >= 10 && (
           <div className="mt-3 flex items-center justify-between text-xs border-t pt-2.5">
             <span className="text-[11px] text-muted-foreground font-mono">
               Введено: {completedWords.length} слов • Текущий темп:{" "}
@@ -814,9 +835,10 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
             <Button
               size="xs"
               variant="outline"
+              tabIndex={-1}
               onClick={() => {
                 const elapsed = startTimeRef.current
-                  ? Math.floor((Date.now() - startTimeRef.current) / 1000)
+                  ? (Date.now() - startTimeRef.current) / 1000
                   : 1;
                 finishGame(Math.max(1, elapsed));
               }}
@@ -890,7 +912,7 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
                   </span>
                 </>
               ) : (
-                <span>Введено менее 5 символов, результат не сохранен</span>
+                <span>Попытка слишком короткая (минимум 10 сек. и 50 знаков в свободном режиме) — результат не сохранен</span>
               )}
             </div>
 

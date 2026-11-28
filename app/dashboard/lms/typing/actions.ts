@@ -114,6 +114,54 @@ export async function saveTypingAttemptAction(data: {
     throw new Error("Не авторизован");
   }
 
+  const duration = Number(data.durationSeconds);
+  const totalChars = Number(data.totalChars);
+  const cpm = Math.round(Number(data.cpm));
+  const wpm = Math.round(Number(data.wpm));
+  const accuracy = Number(data.accuracy);
+  const errorsCount = Math.max(0, Math.round(Number(data.errorsCount) || 0));
+
+  if (
+    !Number.isFinite(duration) ||
+    !Number.isFinite(totalChars) ||
+    !Number.isFinite(cpm) ||
+    !Number.isFinite(wpm) ||
+    !Number.isFinite(accuracy) ||
+    duration <= 0 ||
+    totalChars <= 0 ||
+    accuracy < 0 ||
+    accuracy > 100
+  ) {
+    return { success: false, error: "Некорректные данные попытки" };
+  }
+
+  const minDurationByMode: Record<TypingMode, number> = {
+    FREE: 10,
+    TIME_15: 14,
+    TIME_30: 29,
+    TIME_60: 59,
+    TIME_120: 119,
+    WORDS_25: 3,
+    WORDS_50: 5,
+  };
+  const minDuration = minDurationByMode[data.mode] ?? 10;
+  const minChars = data.mode === "FREE" || data.mode.startsWith("WORDS_") ? 50 : 20;
+
+  if (duration < minDuration || totalChars < minChars) {
+    return {
+      success: false,
+      error: "Попытка слишком короткая и не засчитана в рейтинг",
+    };
+  }
+
+  const maxPossibleCpm = Math.round((totalChars / duration) * 60) + 5;
+  if (cpm <= 0 || cpm > 1200 || cpm > maxPossibleCpm) {
+    return {
+      success: false,
+      error: "Некорректная скорость печати — результат не засчитан",
+    };
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     include: {
@@ -358,5 +406,31 @@ export async function getTypingDataAction(selectedGroupId?: string) {
     myRecentAttempts,
     groupAnalytics,
   };
+}
+
+/**
+ * Reset all typing leaderboard records and attempt history (Admin / Administration only).
+ */
+export async function resetTypingLeaderboardAction() {
+  const session = await auth();
+  const role = session?.user?.role;
+  if (!session?.user?.id || (role !== "ADMIN" && role !== "ADMINISTRATION")) {
+    return {
+      success: false,
+      error: "Недостаточно прав для очистки рейтинга",
+    };
+  }
+
+  try {
+    await saveTypingStore({ attempts: [], studentProfiles: {} });
+    revalidatePath("/dashboard/lms/typing");
+    return { success: true };
+  } catch (error) {
+    console.error("resetTypingLeaderboardAction error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Не удалось очистить рейтинг",
+    };
+  }
 }
 
