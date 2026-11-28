@@ -69,6 +69,14 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
   const activeWordRef = useRef<HTMLSpanElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
+  const isFinishedRef = useRef<boolean>(false);
+  const completedWordsRef = useRef<CompletedWord[]>([]);
+  const currentInputRef = useRef<string>("");
+  const currentWordIdxRef = useRef<number>(0);
+
+  completedWordsRef.current = completedWords;
+  currentInputRef.current = currentInput;
+  currentWordIdxRef.current = currentWordIdx;
 
   // Initialize or reset game text
   const initGame = useCallback(
@@ -84,6 +92,7 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
       setCompletedWords([]);
       setIsStarted(false);
       setIsFinished(false);
+      isFinishedRef.current = false;
       setSavedResult(null);
       setLayoutWarning(null);
       startTimeRef.current = null;
@@ -173,14 +182,24 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
 
   // End test and persist result
   const finishGame = useCallback(
-    async (finalElapsed: number, overrideWords = completedWords, overrideInput = currentInput) => {
+    async (
+      finalElapsed: number,
+      overrideWords?: CompletedWord[],
+      overrideInput?: string
+    ) => {
+      if (isFinishedRef.current) return;
+      isFinishedRef.current = true;
       if (timerRef.current) clearInterval(timerRef.current);
       setIsFinished(true);
+
+      const wordsToScore = overrideWords ?? completedWordsRef.current;
+      const inputToScore = overrideInput ?? currentInputRef.current;
+      const activeIdx = currentWordIdxRef.current;
 
       let correctChars = 0;
       let errorChars = 0;
 
-      for (const w of overrideWords) {
+      for (const w of wordsToScore) {
         if (w.isCorrect) {
           correctChars += w.target.length + 1;
         } else {
@@ -194,10 +213,10 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
         }
       }
 
-      if (overrideInput.length > 0) {
-        const curTarget = targetWords[currentWordIdx] || "";
-        for (let i = 0; i < overrideInput.length; i++) {
-          const tChar = overrideInput[i];
+      if (inputToScore.length > 0) {
+        const curTarget = targetWords[activeIdx] || "";
+        for (let i = 0; i < inputToScore.length; i++) {
+          const tChar = inputToScore[i];
           const trgChar = curTarget[i];
           if (areTypingCharsEqual(tChar, trgChar, language === "CODE")) {
             correctChars++;
@@ -220,13 +239,26 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
         TIME_30: 29,
         TIME_60: 59,
         TIME_120: 119,
-        WORDS_25: 3,
-        WORDS_50: 5,
+        WORDS_25: 8,
+        WORDS_50: 16,
+      };
+      const minCharsByMode: Record<TypingMode, number> = {
+        FREE: 50,
+        TIME_15: 20,
+        TIME_30: 20,
+        TIME_60: 20,
+        TIME_120: 20,
+        WORDS_25: 80,
+        WORDS_50: 160,
       };
       const minDuration = minDurationByMode[mode] ?? 10;
-      const minChars = mode === "FREE" || mode.startsWith("WORDS_") ? 50 : 20;
+      const minChars = minCharsByMode[mode] ?? 20;
       const isValidAttempt =
-        safeElapsed >= minDuration && totalTyped >= minChars && cpm <= 1200;
+        safeElapsed >= minDuration &&
+        totalTyped >= minChars &&
+        accuracy >= 50 &&
+        cpm > 0 &&
+        cpm <= 850;
 
       if (isValidAttempt) {
         setIsSaving(true);
@@ -371,6 +403,11 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
     const val = e.target.value;
 
     if (val.endsWith(" ")) {
+      return;
+    }
+
+    // Block bulk paste / autofill / script injection spikes
+    if (val.length - currentInput.length > 5) {
       return;
     }
 
@@ -718,6 +755,7 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onPaste={(e) => e.preventDefault()}
+          onDrop={(e) => e.preventDefault()}
           disabled={isFinished}
           className="absolute inset-0 opacity-0 cursor-default -z-10"
           autoFocus
@@ -912,7 +950,7 @@ export function TypingGame({ onAttemptSaved }: TypingGameProps) {
                   </span>
                 </>
               ) : (
-                <span>Попытка слишком короткая (минимум 10 сек. и 50 знаков в свободном режиме) — результат не сохранен</span>
+                <span>Попытка не соответствует минимальным требованиям (время, длина или точность ≥ 50%) — результат не сохранен</span>
               )}
             </div>
 

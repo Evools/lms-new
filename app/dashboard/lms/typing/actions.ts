@@ -141,25 +141,48 @@ export async function saveTypingAttemptAction(data: {
     TIME_30: 29,
     TIME_60: 59,
     TIME_120: 119,
-    WORDS_25: 3,
-    WORDS_50: 5,
+    WORDS_25: 8,
+    WORDS_50: 16,
+  };
+  const minCharsByMode: Record<TypingMode, number> = {
+    FREE: 50,
+    TIME_15: 20,
+    TIME_30: 20,
+    TIME_60: 20,
+    TIME_120: 20,
+    WORDS_25: 80,
+    WORDS_50: 160,
   };
   const minDuration = minDurationByMode[data.mode] ?? 10;
-  const minChars = data.mode === "FREE" || data.mode.startsWith("WORDS_") ? 50 : 20;
+  const minChars = minCharsByMode[data.mode] ?? 20;
 
-  if (duration < minDuration || totalChars < minChars) {
+  if (duration < minDuration || totalChars < minChars || accuracy < 50) {
     return {
       success: false,
-      error: "Попытка слишком короткая и не засчитана в рейтинг",
+      error: "Попытка не соответствует минимальным требованиям и не засчитана",
     };
   }
 
-  const maxPossibleCpm = Math.round((totalChars / duration) * 60) + 5;
-  if (cpm <= 0 || cpm > 1200 || cpm > maxPossibleCpm) {
+  const safeErrors = Math.min(errorsCount, totalChars);
+  const correctCharsApprox = Math.max(0, totalChars - safeErrors);
+  const maxPossibleCpm = Math.round((correctCharsApprox / duration) * 60) + 10;
+  if (cpm <= 0 || cpm > 850 || cpm > maxPossibleCpm) {
     return {
       success: false,
       error: "Некорректная скорость печати — результат не засчитан",
     };
+  }
+
+  const store = await getTypingStore();
+  const lastAttemptIso = store.studentProfiles[session.user.id]?.lastAttemptAt;
+  if (lastAttemptIso) {
+    const secondsSinceLast = (Date.now() - new Date(lastAttemptIso).getTime()) / 1000;
+    if (Number.isFinite(secondsSinceLast) && secondsSinceLast < Math.min(duration, 8)) {
+      return {
+        success: false,
+        error: "Слишком частая отправка результатов",
+      };
+    }
   }
 
   const user = await prisma.user.findUnique({
@@ -188,16 +211,14 @@ export async function saveTypingAttemptAction(data: {
     groupName,
     language: data.language,
     mode: data.mode,
-    cpm: Math.round(data.cpm),
-    wpm: Math.round(data.wpm),
-    accuracy: Number(data.accuracy.toFixed(1)),
-    errorsCount: data.errorsCount,
-    totalChars: data.totalChars,
-    durationSeconds: Math.round(data.durationSeconds),
+    cpm,
+    wpm: Math.round(cpm / 5),
+    accuracy: Number(accuracy.toFixed(1)),
+    errorsCount: safeErrors,
+    totalChars,
+    durationSeconds: Math.round(duration),
     createdAt: new Date().toISOString(),
   };
-
-  const store = await getTypingStore();
 
   // 1. Keep last 500 attempts in history
   store.attempts.unshift(newAttempt);
